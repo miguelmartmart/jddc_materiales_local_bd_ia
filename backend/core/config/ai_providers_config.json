@@ -1,0 +1,39 @@
+{
+    "providers": {
+        "groq": {
+            "name": "Groq Cloud",
+            "base_url": "https://api.groq.com/openai/v1",
+            "api_key_env": "GROQ_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Groq - Inferencia ultra-rápida",
+            "headers": {}
+        },
+        "openrouter": {
+            "name": "OpenRouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key_env": "OPENROUTER_API_KEY",
+            "schema": "openai_compatible",
+            "description": "OpenRouter - Acceso a múltiples modelos",
+            "headers": {
+                "HTTP-Referer": "https://devia.local",
+                "X-Title": "DEVIA System"
+            }
+        },
+        "gemini": {
+            "name": "Google Gemini",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta",
+            "api_key_env": "GEMINI_API_KEY",
+            "schema": "gemini_native",
+            "description": "Google Gemini - Modelos nativos de Google",
+            "headers": {}
+        },
+        "openai": {
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "schema": "openai_compatible",
+            "description": "OpenAI - GPT models directos",
+            "headers": {}
+        }
+    }
+}

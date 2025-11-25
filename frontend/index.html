@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEVIA - Sistema de Gestión IA</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🚀 DEVIA</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li class="active" data-view="dashboard">📊 Dashboard</li>
+                    <li data-view="articles">📦 Gestión Artículos</li>
+                    <li data-view="prompts">⚙️ Configuración Prompts</li>
+                    <li data-view="models">🤖 Modelos IA</li>
+                    <li data-view="chat">💬 Chat IA</li>
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h2 id="page-title">Dashboard</h2>
+                <div class="user-profile">
+                    <span>Admin</span>
+                </div>
+            </header>
+
+            <div id="content-area">
+                <!-- Dashboard -->
+                <div id="view-dashboard" class="view-section active">
+                    <div class="card">
+                        <h3>Bienvenido a DEVIA</h3>
+                        <p>Seleccione una opción del menú para comenzar.</p>
+                    </div>
+                </div>
+
+                <!-- Articles -->
+                <div id="view-articles" class="view-section" style="display: none;">
+                    <div class="toolbar">
+                        <button id="btn-load-articles" class="btn primary">📥 Cargar Artículos</button>
+                        <button id="btn-analyze-all" class="btn secondary">🚀 Analizar Todo</button>
+                        <div style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+                            <label style="font-weight: 500;">Modelo IA:</label>
+                            <select id="articles-model-selector"
+                                style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px;">
+                                <option value="">Cargando modelos...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="data-grid-container">
+                        <table id="articles-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre Original</th>
+                                    <th>Material (IA)</th>
+                                    <th>Categoría (IA)</th>
+                                    <th>Confianza</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Prompts -->
+                <div id="view-prompts" class="view-section" style="display: none;">
+                    <div class="card">
+                        <h3>Configuración de Prompts</h3>
+                        <form id="prompt-form">
+                            <div class="form-group">
+                                <label>Nombre Configuración</label>
+                                <input type="text" id="prompt-name" placeholder="Ej: Experto">
+                            </div>
+                            <div class="form-group">
+                                <label>Nivel Complejidad</label>
+                                <select id="prompt-level">
+                                    <option value="beginner">Principiante</option>
+                                    <option value="expert">Experto</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>System Prompt</label>
+                                <textarea id="prompt-system" rows="4"></textarea>
+                            </div>
+                            <button type="submit" class="btn primary">Guardar Configuración</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Models -->
+                <div id="view-models" class="view-section" style="display: none;">
+                    <div class="toolbar">
+                        <button id="btn-add-model" class="btn primary">➕ Añadir Modelo</button>
+                        <button id="btn-reload-models" class="btn secondary">🔄 Recargar</button>
+                    </div>
+                    <div class="data-grid-container">
+                        <table id="models-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Proveedor</th>
+                                    <th>Model ID</th>
+                                    <th>Estado</th>
+                                    <th>API Key</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Modal for Add/Edit Model -->
+                    <div id="model-modal" class="modal" style="display: none;">
+                        <div class="modal-content"
+                            style="max-width: 600px; margin: 50px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                            <h3 id="modal-title">Añadir Modelo</h3>
+                            <form id="model-form">
+                                <div class="form-group">
+                                    <label>ID *</label>
+                                    <input type="text" id="model-id" required placeholder="ej: groq-llama-70b">
+                                </div>
+                                <div class="form-group">
+                                    <label>Nombre *</label>
+                                    <input type="text" id="model-name" required placeholder="ej: Groq Llama 3.3 70B">
+                                </div>
+                                <div class="form-group">
+                                    <label>Proveedor *</label>
+                                    <select id="model-provider" required>
+                                        <option value="gemini">Gemini</option>
+                                        <option value="openai_compatible">OpenAI Compatible (Groq, DeepSeek, Qwen, etc.)
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Model ID *</label>
+                                    <input type="text" id="model-model-id" required
+                                        placeholder="ej: llama-3.3-70b-versatile">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <input type="password" id="model-api-key" placeholder="Dejar vacío para no cambiar">
+                                </div>
+                                <div class="form-group">
+                                    <label>Base URL (solo para OpenAI Compatible)</label>
+                                    <input type="text" id="model-base-url"
+                                        placeholder="ej: https://api.groq.com/openai/v1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Descripción</label>
+                                    <textarea id="model-description" rows="2"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="model-enabled" checked>
+                                        Habilitado
+                                    </label>
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                    <button type="submit" class="btn primary">Guardar</button>
+                                    <button type="button" id="btn-cancel-model" class="btn secondary">Cancelar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat -->
+                <div id="view-chat" class="view-section" style="display: none;">
+                    <div class="card" style="height: 70vh; display: flex; flex-direction: column;">
+                        <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+                            <label style="font-weight: 500;">Modelo IA:</label>
+                            <select id="chat-model-selector"
+                                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="">Cargando modelos...</option>
+                            </select>
+                        </div>
+                        <div id="chat-messages"
+                            style="flex: 1; overflow-y: auto; padding: 10px; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
+                            <div class="message ai"
+                                style="background: #f5f5f5; padding: 10px; border-radius: 8px; max-width: 80%;">
+                                Hola, soy DEVIA. ¿En qué puedo ayudarte hoy?
+                            </div>
+                        </div>
+                        <div class="chat-input-area" style="display: flex; gap: 10px;">
+                            <input type="text" id="chat-input" placeholder="Escribe tu mensaje..."
+                                style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                            <button id="btn-send-chat" class="btn primary">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="assets/js/core/app.js"></script>
+</body>
+
+</html>

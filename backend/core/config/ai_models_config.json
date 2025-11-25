@@ -1,0 +1,88 @@
+{
+  "models": [
+    {
+      "id": "groq-llama-70b",
+      "name": "Groq Llama 3.3 70B",
+      "provider": "groq",
+      "model_id": "llama-3.3-70b-versatile",
+      "description": "Groq Llama 3.3 70B - Rápido y versátil",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "groq-mixtral",
+      "name": "Groq Mixtral 8x7B",
+      "provider": "groq",
+      "model_id": "mixtral-8x7b-32768",
+      "description": "Groq Mixtral 8x7B - Contexto largo",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 32768
+      }
+    },
+    {
+      "id": "qwen3-72b-openrouter",
+      "name": "Qwen 2.5 72B (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "qwen/qwen-2.5-72b-instruct",
+      "description": "Qwen 2.5 72B vía OpenRouter - Multilingüe y versátil",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "deepseek-r1-openrouter",
+      "name": "DeepSeek R1 (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "deepseek/deepseek-r1",
+      "description": "DeepSeek R1 - Modelo de razonamiento avanzado",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "claude-3.5-sonnet-openrouter",
+      "name": "Claude 3.5 Sonnet (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "anthropic/claude-3.5-sonnet",
+      "description": "Claude 3.5 Sonnet - Excelente para análisis y código",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "gpt4-turbo-openrouter",
+      "name": "GPT-4 Turbo (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "openai/gpt-4-turbo",
+      "description": "GPT-4 Turbo - Modelo más avanzado de OpenAI",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      }
+    },
+    {
+      "id": "llama-3.3-70b-openrouter",
+      "name": "Llama 3.3 70B (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "meta-llama/llama-3.3-70b-instruct",
+      "description": "Meta Llama 3.3 70B - Open source de alta calidad",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    }
+  ]
+}
