@@ -70,9 +70,13 @@ class DBDefaults:
     MAX_QUERY_LIMIT = 1000
     QUERY_TIMEOUT = 30  # segundos
     
-    # Reintentos
+    # Reintentos de conexión
     MAX_CONNECTION_RETRIES = 3
     RETRY_WAIT_BASE = 0.5  # segundos
+    
+    # Reintentos de consultas SQL (auto-corrección)
+    MAX_SQL_CORRECTION_RETRIES = 2  # Intentos de corrección con IA
+    MAX_SQL_EXECUTION_RETRIES = 3  # Intentos de ejecución por consulta
 
 
 # ============================================================================

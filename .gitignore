@@ -58,7 +58,7 @@ Thumbs.db
 
 # Generated metadata files (can be regenerated)
 db_metadata_full.json
-db_metadata_optimized.json
+# db_metadata_optimized.json
 
 # Node modules (if any)
 node_modules/

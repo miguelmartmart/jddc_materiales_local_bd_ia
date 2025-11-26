@@ -1,0 +1,2924 @@
+{
+  "tables": {
+    "ACC_ACC": {
+      "columns": {
+        "USERCODE": "INTEGER",
+        "RESOURCE": "VARCHAR(30)",
+        "ACCESSLEVEL": "SMALLINT"
+      },
+      "primary_keys": [
+        "USERCODE",
+        "RESOURCE"
+      ],
+      "category": "otros",
+      "record_count": 10799
+    },
+    "ACC_USR": {
+      "columns": {
+        "USERCODE": "INTEGER",
+        "USERNAME": "VARCHAR(30)",
+        "PASSWORD": "VARCHAR(30)",
+        "PARAMETROS": "BLOB",
+        "FECHAFIN": "DATE"
+      },
+      "primary_keys": [
+        "USERCODE"
+      ],
+      "category": "otros",
+      "record_count": 87
+    },
+    "ADMINPROG": {
+      "columns": {
+        "ID": "INTEGER",
+        "ORDEN": "INTEGER",
+        "ACTIVO": "CHAR(1)",
+        "TIPO": "INTEGER",
+        "NOMBRE": "VARCHAR(80)",
+        "DESCRIPCION": "BLOB",
+        "PARAMETROS": "BLOB",
+        "LUNES": "CHAR(1)",
+        "MARTES": "CHAR(1)",
+        "MIERCOLES": "CHAR(1)"
+      },
+      "primary_keys": [
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "AGEGAST": {
+      "columns": {
+        "CODAGENTE": "INTEGER",
+        "CODOPERACION": "SMALLINT",
+        "CODIGO": "INTEGER",
+        "TIPO": "INTEGER",
+        "FECHA": "TIMESTAMP",
+        "DURACION": "TIMESTAMP",
+        "DESCRIPCION": "VARCHAR(40)",
+        "IMPORTE": "DOUBLE",
+        "CODCLIENTE": "INTEGER",
+        "OBSERVACIONES": "BLOB",
+        "CODIGOLIQUIDAGENTE": "INTEGER",
+        "CODDOCUMENTO": "INTEGER",
+        "CODCAMPANHA": "INTEGER",
+        "CODOPORTUNIDAD": "INTEGER",
+        "CODRECURSO": "INTEGER",
+        "CODCORREO": "INTEGER",
+        "CODRECURRENCIA": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 2313
+    },
+    "AGENTE": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "DIRSIGLA": "VARCHAR(2)",
+        "DIR": "VARCHAR(50)",
+        "DIRNUM": "VARCHAR(10)",
+        "DIRPISO": "VARCHAR(4)",
+        "DIRLETRA": "VARCHAR(4)",
+        "POB": "VARCHAR(30)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "ALMACEN": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "inventario",
+      "record_count": 835
+    },
+    "ARTICULO": {
+      "columns": {
+        "CODIGO": "VARCHAR(40)",
+        "CODFAMILIA": "INTEGER",
+        "CODMARCA": "INTEGER",
+        "NOMBRE": "VARCHAR(128)",
+        "DESCRIPCION": "BLOB",
+        "PRECIOCOSTE": "DOUBLE",
+        "PRECIOVENTA": "DOUBLE",
+        "TIPOACTUALIZACION": "SMALLINT",
+        "VALORACTUALIZACION": "DOUBLE",
+        "PRECIOULTCOMPRA": "DOUBLE",
+        "CODUNIDADMEDIDA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "productos",
+      "record_count": 11872
+    },
+    "AUTORIZAPLANT": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "AUTORIZAPLANTNIV": {
+      "columns": {
+        "CODAUTORIZAPLANT": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(80)",
+        "NIVEL": "SMALLINT",
+        "NIVELMINIMOREQUERIDO": "SMALLINT",
+        "AUTORIZACIONESNUMERO": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODAUTORIZAPLANT",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "AUTORIZAPLANTNIVUSU": {
+      "columns": {
+        "CODAUTORIZAPLANT": "INTEGER",
+        "CODAUTORIZAPLANTNIV": "INTEGER",
+        "CODIGO": "INTEGER",
+        "USERCODE": "INTEGER"
+      },
+      "primary_keys": [
+        "CODAUTORIZAPLANT",
+        "CODAUTORIZAPLANTNIV",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "CAJA": {
+      "columns": {
+        "FECHA": "DATE",
+        "CODAPUNTE": "INTEGER",
+        "TIPO": "SMALLINT",
+        "CODCUENTA": "INTEGER",
+        "DEBE": "CHAR(1)",
+        "IMPORTE": "DOUBLE",
+        "GASTOS": "DOUBLE",
+        "DESCRIPCION": "VARCHAR(100)",
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "SMALLINT"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 1981
+    },
+    "CAPITULO": {
+      "columns": {
+        "CODIGO": "VARCHAR(255)",
+        "PADRE": "VARCHAR(255)",
+        "ORDEN": "INTEGER",
+        "NOMBRE": "VARCHAR(120)",
+        "CODPROYECTO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 14
+    },
+    "CAPITULOARTICULO": {
+      "columns": {
+        "CODCAPITULO": "VARCHAR(255)",
+        "CODARTICULO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODCAPITULO",
+        "CODARTICULO"
+      ],
+      "category": "productos",
+      "record_count": 48
+    },
+    "CARACT": {
+      "columns": {
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "DIMENSION": "SMALLINT",
+        "ORDEN": "INTEGER",
+        "NOMBRE": "VARCHAR(150)",
+        "TIPO": "SMALLINT",
+        "DECIMALES": "SMALLINT",
+        "DOCUMENTOS": "INTEGER",
+        "STOCK": "CHAR(1)",
+        "REQUERIDO": "CHAR(1)"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 131
+    },
+    "CARVALID": {
+      "columns": {
+        "CODCLASE": "SMALLINT",
+        "CODOBJETO": "VARCHAR(40)",
+        "CODCARACT": "SMALLINT",
+        "DIMENSION": "SMALLINT",
+        "ORDEN": "INTEGER",
+        "VALOR": "VARCHAR(150)",
+        "COLOR": "INTEGER",
+        "FOTO": "BLOB",
+        "DESHABILITADO": "CHAR(1)",
+        "EXCLUIRWEB": "CHAR(1)"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 119
+    },
+    "CARVALOR": {
+      "columns": {
+        "CODCLASE": "SMALLINT",
+        "CODOBJETO": "VARCHAR(40)",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODCLASE",
+        "CODOBJETO",
+        "CODCARACT"
+      ],
+      "category": "otros",
+      "record_count": 97154
+    },
+    "CARVALORREC1": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "SMALLINT",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODRECIBO",
+        "CODCLASE",
+        "CODCARACT"
+      ],
+      "category": "otros",
+      "record_count": 3193
+    },
+    "CATALOGO": {
+      "columns": {
+        "CODCLASE": "SMALLINT",
+        "CODTIPO": "INTEGER",
+        "CODSUBTIPO": "INTEGER",
+        "CODENTIDAD": "VARCHAR(40)",
+        "ORDEN": "INTEGER",
+        "RUTAFORMATO": "VARCHAR(255)",
+        "DESCRIPCION": "VARCHAR(128)",
+        "OPCION": "INTEGER",
+        "PADRE": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 375
+    },
+    "CATEGORIA": {
+      "columns": {
+        "CODCATEGORIAGRUPO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "CODPADRE": "INTEGER",
+        "NOMBRE": "VARCHAR(80)",
+        "ORDEN": "INTEGER",
+        "DESCRIPCION": "BLOB",
+        "METATITLE": "VARCHAR(200)",
+        "METAKEYWORDS": "VARCHAR(200)",
+        "METADESCRIPTION": "BLOB",
+        "WEBURLAMIGABLE": "VARCHAR(128)"
+      },
+      "primary_keys": [
+        "CODCATEGORIAGRUPO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 60
+    },
+    "CATEGORIAGRUPO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 5
+    },
+    "CATEGORIAGRUPOASOCIADO": {
+      "columns": {
+        "CODCATEGORIAGRUPO": "INTEGER",
+        "TIPO": "INTEGER",
+        "SUBTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODCATEGORIAGRUPO",
+        "TIPO",
+        "SUBTIPO"
+      ],
+      "category": "otros",
+      "record_count": 4
+    },
+    "CATEGORIAPROVEED": {
+      "columns": {
+        "CODCATEGORIAGRUPO": "INTEGER",
+        "CODCATEGORIA": "INTEGER",
+        "CODPROVEED": "INTEGER"
+      },
+      "primary_keys": [
+        "CODCATEGORIAGRUPO",
+        "CODCATEGORIA",
+        "CODPROVEED"
+      ],
+      "category": "otros",
+      "record_count": 4
+    },
+    "CATEGORIAPROYECTOS": {
+      "columns": {
+        "CODCATEGORIAGRUPO": "INTEGER",
+        "CODCATEGORIA": "INTEGER",
+        "CODPROYECTO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODCATEGORIAGRUPO",
+        "CODCATEGORIA",
+        "CODPROYECTO"
+      ],
+      "category": "otros",
+      "record_count": 1000
+    },
+    "CIRCULAR": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(80)",
+        "DESCRIPCION": "BLOB",
+        "FORMATOTEXTO": "BLOB",
+        "IMAGEN": "BLOB",
+        "FIRMATRAZOS": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "CLIENTE": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRECOMERCIAL": "VARCHAR(80)",
+        "RAZONSOCIAL": "VARCHAR(80)",
+        "TEL": "VARCHAR(50)",
+        "CP": "INTEGER",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "TIPOIDFISCAL": "SMALLINT",
+        "TIPOPERSONA": "SMALLINT",
+        "TIPORESIDENCIA": "SMALLINT",
+        "CODALMACEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "clientes",
+      "record_count": 9191
+    },
+    "CLIENTEEAC": {
+      "columns": {
+        "CODCLIENTE": "INTEGER",
+        "ROLETYPECODE": "SMALLINT",
+        "CENTRECODE": "VARCHAR(10)",
+        "NAME": "VARCHAR(40)",
+        "FIRSTSURNAME": "VARCHAR(40)",
+        "SECONDSURNAME": "VARCHAR(40)",
+        "DIRADDRESS": "VARCHAR(80)",
+        "DIRPOSTCODE": "INTEGER",
+        "DIRTOWN": "VARCHAR(50)",
+        "CONTPHONE": "VARCHAR(15)"
+      },
+      "primary_keys": [
+        "CODCLIENTE",
+        "ROLETYPECODE"
+      ],
+      "category": "clientes",
+      "record_count": 2
+    },
+    "CODBARRA": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODCARACT": "SMALLINT",
+        "VALORCARACT": "VARCHAR(150)",
+        "CODBARRAS": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "ORDEN": "INTEGER",
+        "LONGITUD": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 655
+    },
+    "COMPRA": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODCARACT": "INTEGER",
+        "VALORCARACT": "VARCHAR(150)",
+        "CODPROVEEDOR": "INTEGER",
+        "REFERENCIA": "VARCHAR(40)",
+        "PRECIOCOSTE": "DOUBLE",
+        "PRECIOTARIFA": "DOUBLE",
+        "DESCUENTO": "VARCHAR(30)",
+        "PRECIOULTCOMPRA": "DOUBLE",
+        "PRECIODESTINOULTCOMPRA": "DOUBLE"
+      },
+      "primary_keys": [],
+      "category": "compras",
+      "record_count": 12168
+    },
+    "COMPROMISOVENCCOBRO": {
+      "columns": {
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER",
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "HORA": "TIME",
+        "TIPOFORMAPAGO": "SMALLINT",
+        "CODCUENTACOBRO": "INTEGER",
+        "IMPORTE": "DOUBLE",
+        "DEVOLUCION": "CHAR(1)",
+        "CODREMESA": "INTEGER"
+      },
+      "primary_keys": [
+        "TIPOCOMPROMISOVENC",
+        "CODCOMPROMISOVENC",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2064
+    },
+    "COMPROMISOVENCDOCUM": {
+      "columns": {
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER"
+      },
+      "primary_keys": [
+        "TIPOCOMPROMISOVENC",
+        "CODCOMPROMISOVENC",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "COMPROMISOVENCIMIENTO": {
+      "columns": {
+        "TIPO": "SMALLINT",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "TIPOFORMAPAGO": "SMALLINT",
+        "CODCLIENTE": "INTEGER",
+        "FECHA": "DATE",
+        "FECHAVENCIMIENTO": "DATE",
+        "FECHAEMISION": "DATE",
+        "REFERENCIA": "VARCHAR(100)",
+        "GASTOS": "DOUBLE"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2208
+    },
+    "COMPROMISOVENCRECIBO1": {
+      "columns": {
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER",
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "SMALLINT",
+        "FECHAVENC": "DATE",
+        "IMPORTE": "DOUBLE"
+      },
+      "primary_keys": [
+        "TIPOCOMPROMISOVENC",
+        "CODCOMPROMISOVENC",
+        "CODDOCUMENTO",
+        "CODRECIBO"
+      ],
+      "category": "otros",
+      "record_count": 4099
+    },
+    "COMPROMISOVENCREMESA": {
+      "columns": {
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER",
+        "CODREMESA": "INTEGER",
+        "ORDENREMESAS": "INTEGER",
+        "GASTOS": "DOUBLE",
+        "CODASIENTO": "INTEGER"
+      },
+      "primary_keys": [
+        "TIPOCOMPROMISOVENC",
+        "CODCOMPROMISOVENC",
+        "CODREMESA"
+      ],
+      "category": "otros",
+      "record_count": 234
+    },
+    "CONDICIO": {
+      "columns": {
+        "TIPOCLIENTE": "SMALLINT",
+        "CODCLIENTE": "VARCHAR(40)",
+        "TIPOARTICULO": "SMALLINT",
+        "CODARTICULO": "VARCHAR(40)",
+        "CODTIPODIR": "INTEGER",
+        "CANTIDADDESDE": "DOUBLE",
+        "ORDEN": "INTEGER",
+        "OPERADOR": "SMALLINT",
+        "VALOR": "VARCHAR(30)",
+        "FECHADESDE": "DATE"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 1
+    },
+    "CONDICIOCAR": {
+      "columns": {
+        "TIPOCLIENTE": "SMALLINT",
+        "CODCLIENTE": "VARCHAR(40)",
+        "TIPOARTICULO": "SMALLINT",
+        "CODARTICULO": "VARCHAR(40)",
+        "CANTIDADDESDE": "DOUBLE",
+        "ORDEN": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 1
+    },
+    "CONFIGURACION": {
+      "columns": {
+        "CODUSUARIO": "INTEGER",
+        "CLAVE": "VARCHAR(255)",
+        "VALOR": "VARCHAR(255)",
+        "VALORMEMO": "BLOB",
+        "VALORBLOB": "BLOB"
+      },
+      "primary_keys": [],
+      "category": "configuracion",
+      "record_count": 5181
+    },
+    "CONTOBJREPARAR": {
+      "columns": {
+        "CODCONTRATO": "INTEGER",
+        "CODOBJETOREPARAR": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODCONTRATO",
+        "CODOBJETOREPARAR"
+      ],
+      "category": "otros",
+      "record_count": 142
+    },
+    "CONTRATO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "CODCLIENTE": "INTEGER",
+        "CODINSTALACION": "INTEGER",
+        "CODPROYECTO": "VARCHAR(40)",
+        "TIPO": "INTEGER",
+        "FECHAINICIO": "DATE",
+        "FECHAFIN": "DATE",
+        "OBSERVACIONES": "BLOB",
+        "TEXTO": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 24
+    },
+    "CORREO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODCORREOCUENTA": "INTEGER",
+        "CODCORREOCARPETA": "INTEGER",
+        "FECHACREACION": "TIMESTAMP",
+        "FECHA": "TIMESTAMP",
+        "ASUNTO": "VARCHAR(255)",
+        "REMITENTE": "VARCHAR(150)",
+        "DESTINATARIO": "VARCHAR(150)",
+        "CC": "VARCHAR(150)",
+        "BCC": "VARCHAR(150)",
+        "CODTIPOSEGUIMIENTO": "INTEGER",
+        "CODCORREOCATEGORIA": "INTEGER",
+        "CODCORREOORIGEN": "INTEGER",
+        "CODCORREOPLANTILLA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 3740
+    },
+    "CORREOADJUNTO": {
+      "columns": {
+        "CODCORREO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "TIPO": "SMALLINT",
+        "FICHERO": "VARCHAR(255)",
+        "FICHEROSIZE": "BIGINT",
+        "CONTENIDO": "BLOB"
+      },
+      "primary_keys": [
+        "CODCORREO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 5967
+    },
+    "CORREOCARPETA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODCORREOCUENTA": "INTEGER",
+        "NOMBRE": "VARCHAR(150)",
+        "ORDEN": "INTEGER",
+        "TIPO": "SMALLINT",
+        "CODPADRE": "INTEGER",
+        "TOTAL": "INTEGER",
+        "TOTALSINLEER": "INTEGER",
+        "TOTALERRORENVIO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 85
+    },
+    "CORREOCATEGORIA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "FOTO": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "CORREOCONFIG": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "TIPOCORREODEFECTO": "INTEGER",
+        "BORRARSINCONFIRMAR": "CHAR(1)",
+        "PROPONERPORCUENTA": "CHAR(1)",
+        "PROPONERPORUSUARIO": "CHAR(1)",
+        "REGLASENTRADA": "BLOB",
+        "REGLASSALIDA": "BLOB",
+        "GUARDARMENSAJE": "INTEGER",
+        "GUARDARMENSAJEIMAP4REMOTO": "CHAR(1)",
+        "GUARDARMENSAJERUTARED": "VARCHAR(255)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "configuracion",
+      "record_count": 1
+    },
+    "CORREOCUENTA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "EMAIL": "VARCHAR(100)",
+        "NOMBRE": "VARCHAR(255)",
+        "SMTPACTIVO": "CHAR(1)",
+        "SMTPHOST": "VARCHAR(255)",
+        "SMTPPUERTO": "INTEGER",
+        "SMTPTIPOAUTH": "INTEGER",
+        "SMTPCLIENTID": "VARCHAR(255)",
+        "SMTPCLIENTSECRET": "VARCHAR(255)",
+        "SMTPACCESSTOKEN": "VARCHAR(8192)",
+        "CONTACTORECIBIRCODAGENTE": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 17
+    },
+    "CORREOCUENTAUSUARIO": {
+      "columns": {
+        "CODUSUARIO": "INTEGER",
+        "CODCORREOCUENTA": "INTEGER",
+        "ORDEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODUSUARIO",
+        "CODCORREOCUENTA"
+      ],
+      "category": "usuarios",
+      "record_count": 11
+    },
+    "CORREOERRORENVIO": {
+      "columns": {
+        "CODCORREO": "INTEGER",
+        "IDMENSAJE": "INTEGER",
+        "FECHAINICIO": "TIMESTAMP",
+        "FECHAFIN": "TIMESTAMP",
+        "ULTIMOMENSAJE": "BLOB",
+        "MENSAJES": "BLOB",
+        "ERRORSMTP": "INTEGER",
+        "INTENTO": "INTEGER",
+        "REINTENTAR": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODCORREO"
+      ],
+      "category": "otros",
+      "record_count": 3
+    },
+    "CORREOFIRMA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(100)",
+        "CODUSUARIO": "INTEGER",
+        "CODCORREOCUENTA": "INTEGER",
+        "PORDEFECTO": "CHAR(1)",
+        "FIRMA": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 13
+    },
+    "CORREOMENSAJE": {
+      "columns": {
+        "CODCORREO": "INTEGER",
+        "DATOSMENSAJE": "BLOB"
+      },
+      "primary_keys": [
+        "CODCORREO"
+      ],
+      "category": "otros",
+      "record_count": 3740
+    },
+    "CORREOPLANTILLA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "ASUNTO": "VARCHAR(200)",
+        "CONTACTOGENERAR": "CHAR(1)",
+        "CONTACTOCODAGENTE": "INTEGER",
+        "CONTACTOTIPO": "INTEGER",
+        "CONTACTOREALIZADO": "CHAR(1)",
+        "CONTACTODESCRIPCION": "VARCHAR(40)",
+        "CONTACTOOBSERVACIONES": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 8
+    },
+    "CORREOPLANTILLACUERPO": {
+      "columns": {
+        "CODCORREOPLANTILLA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "EMAILDESTINO": "VARCHAR(100)",
+        "CUERPO": "BLOB"
+      },
+      "primary_keys": [
+        "CODCORREOPLANTILLA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 8
+    },
+    "CORREORECIENTE": {
+      "columns": {
+        "CODCORREOCUENTA": "INTEGER",
+        "CODUSUARIO": "INTEGER",
+        "EMAIL": "VARCHAR(100)",
+        "ULTIMOUSO": "TIMESTAMP"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 322
+    },
+    "CUADROMANDO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "ORDEN": "INTEGER",
+        "TIPO": "VARCHAR(40)",
+        "NOMBRE": "VARCHAR(80)",
+        "DATOS": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 135
+    },
+    "CUADROMANDOUSUARIO": {
+      "columns": {
+        "CODCUADRO": "INTEGER",
+        "CODUSUARIO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODCUADRO",
+        "CODUSUARIO"
+      ],
+      "category": "usuarios",
+      "record_count": 12
+    },
+    "CUENTA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "IBAN": "VARCHAR(34)",
+        "BIC": "VARCHAR(11)",
+        "NOMBRE": "VARCHAR(40)",
+        "SUFIJO": "VARCHAR(3)",
+        "CTACONTABLE": "VARCHAR(12)",
+        "RAZONSOCIALORDENANTE": "VARCHAR(80)",
+        "NIFORDENANTE": "VARCHAR(30)",
+        "ANCHOMANDATO": "INTEGER",
+        "DIRSIGLA": "VARCHAR(2)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 15
+    },
+    "DESCOMP": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "ORDEN": "INTEGER",
+        "CODARTICULOHIJO": "VARCHAR(40)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "UNIDADMEDIDAFACTOR": "DOUBLE",
+        "FORMULACANTIDAD": "BLOB",
+        "TIPO": "INTEGER",
+        "OBLIGATORIO": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 3
+    },
+    "DK$COLUMNLOG": {
+      "columns": {
+        "OPER_ID": "BIGINT",
+        "ID": "BIGINT",
+        "ES_BLOB": "SMALLINT",
+        "CAMPO": "VARCHAR(31)",
+        "OLD_VALUE": "VARCHAR(255)",
+        "NEW_VALUE": "VARCHAR(255)",
+        "NEW_BLOB": "BLOB"
+      },
+      "primary_keys": [
+        "OPER_ID",
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 135120634
+    },
+    "DK$KEYLOG": {
+      "columns": {
+        "OPER_ID": "BIGINT",
+        "ID": "BIGINT",
+        "CAMPO": "VARCHAR(31)",
+        "VALOR": "VARCHAR(150)"
+      },
+      "primary_keys": [
+        "OPER_ID",
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 46384454
+    },
+    "DK$LOCK": {
+      "columns": {
+        "TABLA": "VARCHAR(31)",
+        "CLAVE": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "USUARIO": "VARCHAR(50)",
+        "PUESTO": "VARCHAR(255)",
+        "USUARIOOS": "VARCHAR(255)"
+      },
+      "primary_keys": [
+        "TABLA",
+        "CLAVE"
+      ],
+      "category": "otros",
+      "record_count": 64
+    },
+    "DK$OPERATIONLOG": {
+      "columns": {
+        "ID": "BIGINT",
+        "FECHA": "TIMESTAMP",
+        "OPERACION": "INTEGER",
+        "TABLA": "VARCHAR(31)",
+        "ESTADOLOG1": "INTEGER",
+        "ESTADOLOG2": "INTEGER",
+        "ESTADOLOG3": "INTEGER",
+        "ESTADOLOG4": "INTEGER",
+        "USUARIO": "VARCHAR(50)",
+        "SESION_ID": "BIGINT"
+      },
+      "primary_keys": [
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 20736279
+    },
+    "DK$SESION": {
+      "columns": {
+        "ID": "BIGINT",
+        "USUARIO": "VARCHAR(50)",
+        "PUESTO": "VARCHAR(255)",
+        "USUARIOOS": "VARCHAR(255)",
+        "PROGRAMA": "VARCHAR(50)",
+        "VERSION": "DATE",
+        "ENTRADA": "TIMESTAMP",
+        "SALIDA": "TIMESTAMP",
+        "CAUSAENTRADA": "INTEGER",
+        "CAUSASALIDA": "INTEGER"
+      },
+      "primary_keys": [
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 3205
+    },
+    "DOCCAB": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "TIPO": "SMALLINT",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "REVISION": "SMALLINT",
+        "FECHA": "DATE",
+        "FECHAEMISION": "DATE",
+        "CODCLIENTE": "INTEGER",
+        "CODAGENTE": "INTEGER",
+        "CODALMACEN": "INTEGER",
+        "CODIGOLIQUIDAGENTE": "INTEGER",
+        "CODREPARA": "INTEGER",
+        "CODCAMPANHA": "INTEGER",
+        "CODOPORTUNIDAD": "INTEGER",
+        "CODSEGUIMIENTO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 69797
+    },
+    "DOCCABAUTORIZA": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "NIVEL": "SMALLINT",
+        "AUTORIZACIONESNUMERO": "SMALLINT",
+        "NIVELMINIMOREQUERIDO": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "DOCCABAUTORIZAUSU": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODAUTORIZA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "USERCODE": "INTEGER",
+        "FECHAFIRMA": "TIMESTAMP"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODAUTORIZA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "DOCCABDOCUM": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER",
+        "CODTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1145
+    },
+    "DOCCAR": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "CANTIDAD": "DOUBLE",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 534095
+    },
+    "DOCDES": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "NOMBREARTICULO": "VARCHAR(200)",
+        "COSTEPUNTOVERDE": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA"
+      ],
+      "category": "otros",
+      "record_count": 446685
+    },
+    "DOCDESTINO": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODDOCUMENTODESTINO": "INTEGER",
+        "ORDENENVIO": "INTEGER",
+        "ORDENRECEPCION": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODDOCUMENTODESTINO"
+      ],
+      "category": "otros",
+      "record_count": 34311
+    },
+    "DOCLIN": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NIVEL": "SMALLINT",
+        "CODARTICULO": "VARCHAR(40)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "UNIDADMEDIDAFACTOR": "DOUBLE",
+        "PRECIO": "DOUBLE",
+        "COSTE": "DOUBLE",
+        "COSTEINDIRECTO": "DOUBLE",
+        "CODMAESTROFABMAT": "INTEGER",
+        "ESPREVISIONFABMAT": "INTEGER",
+        "CODCABFABMAT": "INTEGER",
+        "CODLINFABMAT": "INTEGER",
+        "CODMAESTROREPMAT": "INTEGER",
+        "ESPREVISIONREPMAT": "INTEGER",
+        "CODCABREPMAT": "INTEGER",
+        "CODLINREPMAT": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 653553
+    },
+    "DOCLINDOCASOC": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 4
+    },
+    "DOCLINIMPUTACION": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "CODPROYECTO": "VARCHAR(40)",
+        "PARTIDA": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "SUBCONTRATA": "VARCHAR(1)"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 27801
+    },
+    "DOCMED": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(50)",
+        "CANTIDAD": "DOUBLE",
+        "FORMULA": "BLOB"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 325942
+    },
+    "DOCMEDDET": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODMED": "INTEGER",
+        "CODCLASE": "INTEGER",
+        "CODCARACT": "INTEGER",
+        "CANTIDAD": "VARCHAR(80)"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODMED",
+        "CODCLASE",
+        "CODCARACT"
+      ],
+      "category": "otros",
+      "record_count": 120595
+    },
+    "DOCREF": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODDOCUMENTODESTINO": "INTEGER",
+        "CODLINEADESTINO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODDOCUMENTODESTINO",
+        "CODLINEADESTINO"
+      ],
+      "category": "otros",
+      "record_count": 242101
+    },
+    "DOCREFVENCOM": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODLINEA": "INTEGER",
+        "CODDOCUMENTODESTINO": "INTEGER",
+        "CODLINEADESTINO": "INTEGER",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODLINEA",
+        "CODDOCUMENTODESTINO",
+        "CODLINEADESTINO"
+      ],
+      "category": "otros",
+      "record_count": 543
+    },
+    "DOCVAR": {
+      "columns": {
+        "TIPO": "INTEGER",
+        "CODDOCUMENTO": "INTEGER",
+        "RAZONSOCIAL": "VARCHAR(80)",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "TIPOIDFISCAL": "SMALLINT",
+        "TIPOPERSONA": "SMALLINT",
+        "TIPORESIDENCIA": "SMALLINT",
+        "DIRCODPAIS": "VARCHAR(2)",
+        "DIRSIGLA": "VARCHAR(2)"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODDOCUMENTO"
+      ],
+      "category": "otros",
+      "record_count": 2391
+    },
+    "DOCVARPERCONTACTO": {
+      "columns": {
+        "TIPO": "INTEGER",
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(40)",
+        "TEL": "VARCHAR(50)",
+        "MOVIL": "VARCHAR(50)",
+        "EMAIL": "VARCHAR(255)",
+        "ORDEN": "SMALLINT",
+        "CODCARGO": "INTEGER",
+        "EXCLUIRCOMUNICACIONEMAIL": "CHAR(1)"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 7
+    },
+    "DOMICILI": {
+      "columns": {
+        "TIPO": "SMALLINT",
+        "CODIGO": "INTEGER",
+        "CODTIPO": "INTEGER",
+        "CODPAIS": "VARCHAR(2)",
+        "DIRSIGLA": "VARCHAR(2)",
+        "DIR": "VARCHAR(50)",
+        "DIRNUM": "VARCHAR(10)",
+        "DIRPISO": "VARCHAR(4)",
+        "DIRLETRA": "VARCHAR(4)",
+        "POB": "VARCHAR(30)"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODIGO",
+        "CODTIPO"
+      ],
+      "category": "otros",
+      "record_count": 11103
+    },
+    "EMPRESA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "PERIODOCONTABLE": "SMALLINT",
+        "NOMBRECOMERCIAL": "VARCHAR(80)",
+        "RAZONSOCIAL": "VARCHAR(80)",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "NSS": "VARCHAR(15)",
+        "DIRSIGLA": "VARCHAR(2)",
+        "DIR": "VARCHAR(50)",
+        "DIRNUMERO": "VARCHAR(10)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "EQUIVAL": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODEQUIVALENTE": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODARTICULO",
+        "CODEQUIVALENTE"
+      ],
+      "category": "otros",
+      "record_count": 6
+    },
+    "ESTALMACEN": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOSTE": "DOUBLE",
+        "IMPCOSTE02": "DOUBLE",
+        "IMPCOSTE03": "DOUBLE",
+        "IMPCOSTE04": "DOUBLE",
+        "IMPCOSTE05": "DOUBLE",
+        "IMPCOSTE06": "DOUBLE",
+        "IMPCOSTE07": "DOUBLE",
+        "IMPCOSTE08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "inventario",
+      "record_count": 18860
+    },
+    "ESTARTICULO": {
+      "columns": {
+        "CODIGO": "VARCHAR(40)",
+        "FECHA": "DATE",
+        "IMPCOMPRA": "DOUBLE",
+        "IMPCOMPRA02": "DOUBLE",
+        "IMPCOMPRA03": "DOUBLE",
+        "IMPCOMPRA04": "DOUBLE",
+        "IMPCOMPRA05": "DOUBLE",
+        "IMPCOMPRA06": "DOUBLE",
+        "IMPCOMPRA07": "DOUBLE",
+        "IMPCOMPRA08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "productos",
+      "record_count": 105652
+    },
+    "ESTCLIENTE": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOSTE": "DOUBLE",
+        "IMPCOSTE02": "DOUBLE",
+        "IMPCOSTE03": "DOUBLE",
+        "IMPCOSTE04": "DOUBLE",
+        "IMPCOSTE05": "DOUBLE",
+        "IMPCOSTE06": "DOUBLE",
+        "IMPCOSTE07": "DOUBLE",
+        "IMPCOSTE08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "clientes",
+      "record_count": 24352
+    },
+    "ESTEMPRESA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOSTE": "DOUBLE",
+        "IMPCOSTE02": "DOUBLE",
+        "IMPCOSTE03": "DOUBLE",
+        "IMPCOSTE04": "DOUBLE",
+        "IMPCOSTE05": "DOUBLE",
+        "IMPCOSTE06": "DOUBLE",
+        "IMPCOSTE07": "DOUBLE",
+        "IMPCOSTE08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "otros",
+      "record_count": 1254
+    },
+    "ESTFAMILIA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOMPRA": "DOUBLE",
+        "IMPCOMPRA02": "DOUBLE",
+        "IMPCOMPRA03": "DOUBLE",
+        "IMPCOMPRA04": "DOUBLE",
+        "IMPCOMPRA05": "DOUBLE",
+        "IMPCOMPRA06": "DOUBLE",
+        "IMPCOMPRA07": "DOUBLE",
+        "IMPCOMPRA08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "otros",
+      "record_count": 17832
+    },
+    "ESTPROVEED": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOMPRA": "DOUBLE",
+        "IMPCOMPRA02": "DOUBLE",
+        "IMPCOMPRA03": "DOUBLE",
+        "IMPCOMPRA04": "DOUBLE",
+        "IMPCOMPRA05": "DOUBLE",
+        "IMPCOMPRA06": "DOUBLE",
+        "IMPCOMPRA07": "DOUBLE",
+        "IMPCOMPRA08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "otros",
+      "record_count": 10915
+    },
+    "ESTTIPOCLI": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "IMPCOSTE": "DOUBLE",
+        "IMPCOSTE02": "DOUBLE",
+        "IMPCOSTE03": "DOUBLE",
+        "IMPCOSTE04": "DOUBLE",
+        "IMPCOSTE05": "DOUBLE",
+        "IMPCOSTE06": "DOUBLE",
+        "IMPCOSTE07": "DOUBLE",
+        "IMPCOSTE08": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO",
+        "FECHA"
+      ],
+      "category": "otros",
+      "record_count": 1286
+    },
+    "EXISTENC": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODALMACEN": "INTEGER",
+        "UBICACION": "VARCHAR(30)",
+        "STOCK1": "DOUBLE",
+        "STOCK2": "DOUBLE",
+        "STOCK3": "DOUBLE",
+        "STOCK4": "DOUBLE",
+        "STOCK5": "DOUBLE",
+        "STOCK6": "DOUBLE",
+        "STOCK7": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODARTICULO",
+        "CODALMACEN"
+      ],
+      "category": "otros",
+      "record_count": 54715
+    },
+    "FABTIPOTRABFASE": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "DESCRIPCION": "VARCHAR(255)",
+        "ORDEN": "INTEGER",
+        "TIPOENLACEHIJAS": "INTEGER",
+        "INICIO": "TIMESTAMP",
+        "DURACION": "TIMESTAMP",
+        "CODTIPOFASE": "INTEGER",
+        "DURACIONFIJA": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 89
+    },
+    "FESTIVO": {
+      "columns": {
+        "TIPOENTIDAD": "INTEGER",
+        "CODENTIDAD": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DIA": "INTEGER",
+        "MES": "INTEGER",
+        "ANHO": "INTEGER",
+        "HORAINICIO": "TIME",
+        "HORAFIN": "TIME",
+        "DESCRIPCION": "VARCHAR(60)",
+        "OBSERVACIONES": "BLOB"
+      },
+      "primary_keys": [
+        "TIPOENTIDAD",
+        "CODENTIDAD",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 26910
+    },
+    "FORMAPAG": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(30)",
+        "TIPO": "SMALLINT",
+        "NUMEROPAGOS": "SMALLINT",
+        "DIASPRIMERVENCIMIENTO": "SMALLINT",
+        "DIASENTREVENCIMIENTOS": "SMALLINT",
+        "DESCUENTOSPP": "VARCHAR(30)",
+        "RECIBOSCODCUENTA": "INTEGER",
+        "RECIBOSMODIFICAR": "CHAR(1)",
+        "RECIBOSCOBRAR": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 46
+    },
+    "FORMAPAGCOBROS": {
+      "columns": {
+        "CODFORMAPAG": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DIAS": "SMALLINT",
+        "COBRAR": "SMALLINT",
+        "PORCENTAJE": "VARCHAR(5)",
+        "CODCUENTA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODFORMAPAG",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "FOTOGRAF": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODIGO": "SMALLINT",
+        "FOTO": "BLOB",
+        "DESCRIPCION": "BLOB",
+        "EXCLUIRWEB": "CHAR(1)",
+        "ORDEN": "SMALLINT",
+        "IDWEB": "INTEGER"
+      },
+      "primary_keys": [
+        "CODARTICULO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 868
+    },
+    "GEOLOC": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "USERCODE": "INTEGER",
+        "USERNAME": "VARCHAR(30)",
+        "FECHAHORA": "TIMESTAMP",
+        "LATITUD": "DOUBLE",
+        "LONGITUD": "DOUBLE",
+        "ALTITUD": "DOUBLE",
+        "RUMBO": "DOUBLE",
+        "VELOCIDAD": "DOUBLE",
+        "PRECISPOS": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 8844
+    },
+    "GESDOC": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODPADRE": "INTEGER",
+        "TIPO": "SMALLINT",
+        "ORDEN": "SMALLINT",
+        "NOMBRE": "VARCHAR(80)",
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODPROVEEDOR": "INTEGER",
+        "CODRECURSO": "INTEGER",
+        "REQUERIR": "VARCHAR(1)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 49
+    },
+    "GESDOCDEFINIC": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODPROVEEDOR": "INTEGER",
+        "CODRECURSO": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "ORDEN": "SMALLINT",
+        "TIPO": "SMALLINT",
+        "CODPLANTILLA": "SMALLINT",
+        "NOMBRE": "VARCHAR(80)",
+        "INIVIGENCIA": "DATE",
+        "FINVIGENCIA": "DATE"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 241
+    },
+    "GESDOCFICHERO": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODPROVEEDOR": "INTEGER",
+        "CODRECURSO": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "FECHAINIVAL": "DATE",
+        "FECHAFINVAL": "DATE",
+        "RUTA": "VARCHAR(255)",
+        "FECHAENTRADA": "TIMESTAMP",
+        "OBSERVACIONES": "BLOB"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 509
+    },
+    "GESDOCPERIODO": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODPROVEEDOR": "INTEGER",
+        "CODRECURSO": "INTEGER",
+        "FECHAINI": "DATE",
+        "FECHAFIN": "DATE",
+        "COMENTARIO": "VARCHAR(255)"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 30
+    },
+    "GESDOCPLANTILLA": {
+      "columns": {
+        "TIPO": "SMALLINT",
+        "CODIGO": "SMALLINT",
+        "ORDEN": "SMALLINT",
+        "NOMBRE": "VARCHAR(80)",
+        "INIVIGENCIA": "DATE",
+        "FINVIGENCIA": "DATE",
+        "NPERIODO": "SMALLINT",
+        "TPERIODO": "SMALLINT",
+        "COMENTARIO": "VARCHAR(255)",
+        "ADELANTADO": "VARCHAR(1)"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 22
+    },
+    "HISTORICOPRECIOS": {
+      "columns": {
+        "ID": "INTEGER",
+        "FECHA": "DATE",
+        "HORA": "TIME",
+        "OPERACION": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "CODCARACT": "INTEGER",
+        "VALORCARACT": "VARCHAR(150)",
+        "CODTARIFA": "INTEGER",
+        "PRECIOANTERIOR": "DOUBLE",
+        "PRECIONUEVO": "DOUBLE"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 28811
+    },
+    "HORARIO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(40)",
+        "DEFECTOEMPRESA": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 5
+    },
+    "HORARIODIAMESTIPOHORA": {
+      "columns": {
+        "CODHORARIO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DIA": "INTEGER",
+        "MES": "INTEGER",
+        "HORAINICIO": "TIME",
+        "HORAFIN": "TIME",
+        "TIPOHORA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODHORARIO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "HORARIODIASEMANATIPOHORA": {
+      "columns": {
+        "CODHORARIO": "INTEGER",
+        "CODTEMPORADA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "LUNES": "CHAR(1)",
+        "MARTES": "CHAR(1)",
+        "MIERCOLES": "CHAR(1)",
+        "JUEVES": "CHAR(1)",
+        "VIERNES": "CHAR(1)",
+        "SABADO": "CHAR(1)",
+        "DOMINGO": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODHORARIO",
+        "CODTEMPORADA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 24
+    },
+    "HORARIOTEMPORADA": {
+      "columns": {
+        "CODHORARIO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(40)",
+        "DIAINICIO": "INTEGER",
+        "MESINICIO": "INTEGER",
+        "DIAFIN": "INTEGER",
+        "MESFIN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODHORARIO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 5
+    },
+    "IDIOMA": {
+      "columns": {
+        "CODIGO": "VARCHAR(10)",
+        "NOMBRE": "VARCHAR(60)",
+        "IMAGEN": "BLOB",
+        "ORDEN": "INTEGER",
+        "EXCLUIRWEB": "CHAR(1)"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 1
+    },
+    "INFORME1": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "ORDEN": "INTEGER",
+        "DESCRIPCION": "VARCHAR(128)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 130
+    },
+    "INFORME2": {
+      "columns": {
+        "CODINFORME": "INTEGER",
+        "CODIGO": "INTEGER",
+        "ORDEN": "INTEGER",
+        "DESCRIPCION": "VARCHAR(128)",
+        "RUTAFORMATO": "VARCHAR(255)"
+      },
+      "primary_keys": [
+        "CODINFORME",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 557
+    },
+    "MARCA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "FOTO": "BLOB",
+        "WEBINACTIVO": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 72
+    },
+    "OBRACAB": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODPROYECTO": "VARCHAR(40)",
+        "ESPREVISION": "INTEGER",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "CODALMACEN": "INTEGER",
+        "FECHA": "DATE",
+        "OBSERVACIONES": "BLOB",
+        "FIRMA": "BLOB",
+        "FIRMATRAZOS": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 46040
+    },
+    "OBRACABFOTO": {
+      "columns": {
+        "CODCAB": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "ORDEN": "SMALLINT",
+        "FOTO": "BLOB",
+        "DESCRIPCION": "BLOB"
+      },
+      "primary_keys": [
+        "CODCAB",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 878
+    },
+    "OBRACOMP": {
+      "columns": {
+        "CODARTICULO": "VARCHAR(40)",
+        "CODIGO": "INTEGER",
+        "TIPOBC3": "INTEGER",
+        "CODARTICULOHIJO": "VARCHAR(40)",
+        "CODRECURSOHIJO": "INTEGER",
+        "CODOBRAPORCENTUALHIJO": "VARCHAR(40)",
+        "ORDEN": "INTEGER",
+        "FECHAINICIO": "TIMESTAMP",
+        "FECHAFIN": "TIMESTAMP",
+        "TIPOHORARIO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODARTICULO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 184
+    },
+    "OBRADOC": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER",
+        "CODTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODPROYECTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 4
+    },
+    "OBRALIN": {
+      "columns": {
+        "CODCAB": "INTEGER",
+        "CODIGO": "INTEGER",
+        "CODPROYECTO": "VARCHAR(40)",
+        "ESPREVISION": "INTEGER",
+        "FECHA": "DATE",
+        "FECHAALTA": "TIMESTAMP",
+        "PARTIDA": "VARCHAR(150)",
+        "TIPOBC3": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "CODRECURSO": "INTEGER",
+        "CODREPARA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODCAB",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 759186
+    },
+    "OBRALINCAR": {
+      "columns": {
+        "CODCAB": "INTEGER",
+        "CODLIN": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 125947
+    },
+    "OBRALINREF": {
+      "columns": {
+        "CODCABORI": "INTEGER",
+        "CODIGOORI": "INTEGER",
+        "CODCABDES": "INTEGER",
+        "CODIGODES": "INTEGER"
+      },
+      "primary_keys": [
+        "CODCABORI",
+        "CODIGOORI",
+        "CODCABDES",
+        "CODIGODES"
+      ],
+      "category": "otros",
+      "record_count": 21248
+    },
+    "OBRAPORCENTUAL": {
+      "columns": {
+        "CODIGO": "VARCHAR(40)",
+        "NOMBRE": "VARCHAR(90)",
+        "DESCRIPCION": "BLOB"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 17
+    },
+    "PERCONTACTO": {
+      "columns": {
+        "TIPODIR": "SMALLINT",
+        "CODIGODIR": "INTEGER",
+        "CODTIPODIR": "INTEGER",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(40)",
+        "TEL": "VARCHAR(50)",
+        "MOVIL": "VARCHAR(50)",
+        "EMAIL": "VARCHAR(255)",
+        "ORDEN": "SMALLINT",
+        "CODCARGO": "INTEGER"
+      },
+      "primary_keys": [
+        "TIPODIR",
+        "CODIGODIR",
+        "CODTIPODIR",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 295
+    },
+    "POLIZA": {
+      "columns": {
+        "CODCUENTA": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "NOMBRE": "VARCHAR(40)",
+        "CODIGO32": "VARCHAR(20)",
+        "CODIGO58": "VARCHAR(20)",
+        "LIMITE": "DOUBLE",
+        "CTACONTABLE": "VARCHAR(12)"
+      },
+      "primary_keys": [
+        "CODCUENTA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "PRESUPROYE": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODPROYSUBCONTRATA": "INTEGER",
+        "CODPRESUPUESTO": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 1446
+    },
+    "PROVEED": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRECOMERCIAL": "VARCHAR(80)",
+        "RAZONSOCIAL": "VARCHAR(80)",
+        "TEL": "VARCHAR(50)",
+        "CP": "INTEGER",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "TIPOIDFISCAL": "SMALLINT",
+        "TIPOPERSONA": "SMALLINT",
+        "TIPORESIDENCIA": "SMALLINT",
+        "CODALMACEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1750
+    },
+    "PROVEEDDOCUM": {
+      "columns": {
+        "CODPROVEEDOR": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER",
+        "CODTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODPROVEEDOR",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "PROYECTOS": {
+      "columns": {
+        "CODIGO": "VARCHAR(40)",
+        "NOMBRE": "VARCHAR(60)",
+        "BASEPRECIOS": "VARCHAR(40)",
+        "ESGASTOSGENERALES": "CHAR(1)",
+        "CLIENTE": "INTEGER",
+        "CODALMACEN": "INTEGER",
+        "CODTIPODIR": "INTEGER",
+        "MEDICION": "SMALLINT",
+        "TIPOOBRA": "SMALLINT",
+        "TIPORETENCION": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1000
+    },
+    "PROYSUBCONTRATA": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "CODPROVEED": "INTEGER",
+        "MEDICION": "SMALLINT",
+        "TIPORETENCION": "SMALLINT",
+        "PORCRETENCION": "VARCHAR(20)",
+        "DIASDEVOLUCIONRETENCION": "INTEGER",
+        "CONDICIONDEVOLUCION": "INTEGER",
+        "FECHAFIN": "DATE"
+      },
+      "primary_keys": [
+        "CODPROYECTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 155
+    },
+    "PROYVAR": {
+      "columns": {
+        "CODPROYECTO": "VARCHAR(40)",
+        "RAZONSOCIAL": "VARCHAR(80)",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "TIPOIDFISCAL": "SMALLINT",
+        "TIPOPERSONA": "SMALLINT",
+        "TIPORESIDENCIA": "SMALLINT",
+        "DIRCODPAIS": "VARCHAR(2)",
+        "DIRSIGLA": "VARCHAR(2)",
+        "DIR": "VARCHAR(50)"
+      },
+      "primary_keys": [
+        "CODPROYECTO"
+      ],
+      "category": "otros",
+      "record_count": 74
+    },
+    "RECIBO1": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "FECHAVENC": "DATE",
+        "FECHAEMISION": "DATE",
+        "CODREMESA": "INTEGER",
+        "CODAGRUPACION": "INTEGER",
+        "ACTIVO": "CHAR(1)",
+        "CODASIENTO": "INTEGER",
+        "IMPORTE": "DOUBLE",
+        "GASTOS": "DOUBLE",
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 19038
+    },
+    "RECIBO1DOCUM": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODDOCUMENTO",
+        "CODRECIBO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "RECIBO3": {
+      "columns": {
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "SMALLINT",
+        "FECHA": "DATE",
+        "CODCOBRO": "SMALLINT",
+        "CODCUENTACOBRO": "INTEGER",
+        "TIPOFORMAPAGO": "INTEGER",
+        "IMPORTE": "DOUBLE",
+        "CODPAGADOR": "INTEGER",
+        "IBANPAGADOR": "VARCHAR(34)",
+        "BICPAGADOR": "VARCHAR(11)",
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER",
+        "CODCOBROCOMPROMISOVENC": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 17271
+    },
+    "RECURSO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODPADRE": "INTEGER",
+        "ORDEN": "INTEGER",
+        "DESCRIPCION": "VARCHAR(90)",
+        "CODPAIS": "VARCHAR(2)",
+        "NIF": "VARCHAR(30)",
+        "NSS": "VARCHAR(15)",
+        "FECHAANTIGUEDAD": "DATE",
+        "GRUPOPROFESIONAL": "VARCHAR(40)",
+        "PUESTOTRABAJO": "VARCHAR(40)",
+        "CODAGENTE": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 171
+    },
+    "RECURSOHORASPREVISTAS": {
+      "columns": {
+        "CODRECURSO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "FECHAINICIO": "TIMESTAMP",
+        "FECHAFIN": "TIMESTAMP",
+        "TIPOHORARIO": "INTEGER",
+        "PRECIOCOSTE": "DOUBLE",
+        "PRECIOVENTA": "DOUBLE",
+        "DESCUENTOS": "VARCHAR(30)",
+        "CODFABRICA": "INTEGER",
+        "ESPREVISIONFABRICA": "INTEGER",
+        "CODCABFABRICA": "INTEGER",
+        "CODLINFABRICA": "INTEGER",
+        "CODREPARA": "INTEGER",
+        "ESPREVISIONREPARA": "INTEGER",
+        "CODCABREPARA": "INTEGER",
+        "CODLINREPARA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODRECURSO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 66
+    },
+    "RECURSOTIPOHORA": {
+      "columns": {
+        "CODRECURSO": "INTEGER",
+        "CODTIPOHORA": "INTEGER",
+        "COSTE": "DOUBLE",
+        "PRECIONOMINA": "DOUBLE",
+        "CODARTICULO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODRECURSO",
+        "CODTIPOHORA"
+      ],
+      "category": "otros",
+      "record_count": 328
+    },
+    "RECURSOVACACIONES": {
+      "columns": {
+        "CODRECURSO": "INTEGER",
+        "ANHO": "INTEGER",
+        "DIAS": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODRECURSO",
+        "ANHO"
+      ],
+      "category": "otros",
+      "record_count": 392
+    },
+    "REMESA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DECLIENTE": "CHAR(1)",
+        "NOMBRE": "VARCHAR(60)",
+        "CODCUENTA": "INTEGER",
+        "FECHAEMISION": "DATE",
+        "FECHACARGO": "DATE",
+        "NUMPRESENTADORES": "INTEGER",
+        "NUMEFECTOS": "INTEGER",
+        "NUMRECIBOS": "INTEGER",
+        "SUMRECIBOS": "DOUBLE"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 57
+    },
+    "REMESARECIBO": {
+      "columns": {
+        "CODREMESA": "INTEGER",
+        "CODDOCUMENTO": "INTEGER",
+        "CODRECIBO": "SMALLINT",
+        "ORDENREMESAS": "INTEGER",
+        "GASTOS": "DOUBLE",
+        "CODASIENTO": "INTEGER",
+        "TIPOCOMPROMISOVENC": "SMALLINT",
+        "CODCOMPROMISOVENC": "INTEGER"
+      },
+      "primary_keys": [
+        "CODREMESA",
+        "CODDOCUMENTO",
+        "CODRECIBO"
+      ],
+      "category": "otros",
+      "record_count": 360
+    },
+    "REPARA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(60)",
+        "FECHA": "DATE",
+        "CODCLIENTE": "INTEGER",
+        "CODREPOBJETO": "VARCHAR(40)",
+        "CODTIPOTRABAJO": "INTEGER",
+        "FECHAINICIO": "TIMESTAMP",
+        "FECHAFIN": "TIMESTAMP"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 6883
+    },
+    "REPARAFOTO": {
+      "columns": {
+        "CODREPARA": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "FOTO": "BLOB",
+        "DESCRIPCION": "BLOB",
+        "ORDEN": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODREPARA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 74
+    },
+    "REPCAB": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODIGO": "INTEGER",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "CODALMACEN": "INTEGER",
+        "FECHA": "DATE",
+        "OBSERVACIONES": "BLOB",
+        "FIRMA": "BLOB",
+        "FIRMATRAZOS": "BLOB"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "ESPREVISION",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 15761
+    },
+    "REPCABFOTO": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODCAB": "INTEGER",
+        "CODIGO": "SMALLINT",
+        "ORDEN": "SMALLINT",
+        "FOTO": "BLOB",
+        "DESCRIPCION": "BLOB"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "ESPREVISION",
+        "CODCAB",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 4288
+    },
+    "REPCAR": {
+      "columns": {
+        "CODREPARA": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODREPARA",
+        "CODCLASE",
+        "CODCARACT",
+        "VALOR"
+      ],
+      "category": "otros",
+      "record_count": 7620
+    },
+    "REPDOC": {
+      "columns": {
+        "CODREPARA": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER",
+        "CODTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODREPARA",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 3
+    },
+    "REPESTCAB": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODIGO": "INTEGER",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "CODALMACEN": "INTEGER",
+        "OBSERVACIONES": "BLOB"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "ESPREVISION",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "REPESTCAR": {
+      "columns": {
+        "CODESTILO": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(60)",
+        "CANTIDAD": "DOUBLE",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODESTILO",
+        "CODCLASE",
+        "CODCARACT",
+        "VALOR"
+      ],
+      "category": "otros",
+      "record_count": 16
+    },
+    "REPESTDOC": {
+      "columns": {
+        "CODESTILO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "RUTA": "VARCHAR(255)",
+        "FECHA": "TIMESTAMP",
+        "PESO": "BIGINT",
+        "CONTENIDO": "BLOB",
+        "COMPRIMIDO": "CHAR(1)",
+        "ORDEN": "INTEGER",
+        "CODTIPO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODESTILO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 1
+    },
+    "REPESTFASE": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "DESCRIPCION": "VARCHAR(255)",
+        "ORDEN": "INTEGER",
+        "TIPOENLACEHIJAS": "INTEGER",
+        "INICIO": "TIMESTAMP",
+        "DURACION": "TIMESTAMP",
+        "CODTIPOFASE": "INTEGER",
+        "DURACIONFIJA": "CHAR(1)"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 93
+    },
+    "REPESTILO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "SERIE": "VARCHAR(10)",
+        "NUMERO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(60)",
+        "CODREPOBJETO": "VARCHAR(40)",
+        "CODTIPOREPOBJETO": "INTEGER",
+        "CODTIPOTRABAJO": "INTEGER",
+        "OBSERVACIONES": "BLOB",
+        "TRABAJOREALIZAR": "BLOB",
+        "CODESTADO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 16
+    },
+    "REPESTLIN": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODCAB": "INTEGER",
+        "CODIGO": "INTEGER",
+        "CODFASE": "INTEGER",
+        "TIPOBC3": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "CODRECURSO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "NIVEL": "INTEGER"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "ESPREVISION",
+        "CODCAB",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 3
+    },
+    "REPFASE": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "DESCRIPCION": "VARCHAR(255)",
+        "ORDEN": "INTEGER",
+        "TIPOENLACEHIJAS": "INTEGER",
+        "INICIO": "TIMESTAMP",
+        "DURACION": "TIMESTAMP",
+        "CODTIPOFASE": "INTEGER",
+        "FECHAINICIOPREVISTA": "TIMESTAMP"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 6
+    },
+    "REPINSTALACION": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "FECHA": "DATE",
+        "CODCLIENTE": "INTEGER",
+        "CODTIPODIR": "INTEGER",
+        "OBSERVACIONES": "BLOB",
+        "CODPROYECTO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 123
+    },
+    "REPINSTALACIONOBJREP": {
+      "columns": {
+        "CODINSTALACION": "INTEGER",
+        "CODREPOBJETO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODINSTALACION",
+        "CODREPOBJETO"
+      ],
+      "category": "otros",
+      "record_count": 108
+    },
+    "REPLIN": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODCAB": "INTEGER",
+        "CODIGO": "INTEGER",
+        "FECHA": "DATE",
+        "FECHAALTA": "TIMESTAMP",
+        "CODFASE": "INTEGER",
+        "TIPOBC3": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "CODRECURSO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODMAESTRO",
+        "ESPREVISION",
+        "CODCAB",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 66456
+    },
+    "REPLINCAR": {
+      "columns": {
+        "CODMAESTRO": "INTEGER",
+        "ESPREVISION": "INTEGER",
+        "CODCAB": "INTEGER",
+        "CODLIN": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "CANTIDAD": "DOUBLE",
+        "UNIDADMEDIDACANTIDAD": "DOUBLE",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 70941
+    },
+    "REPLINREF": {
+      "columns": {
+        "CODMAESTROORI": "INTEGER",
+        "ESPREVISIONORI": "INTEGER",
+        "CODCABORI": "INTEGER",
+        "CODLINEAORI": "INTEGER",
+        "CODMAESTRODES": "INTEGER",
+        "ESPREVISIONDES": "INTEGER",
+        "CODCABDES": "INTEGER",
+        "CODLINEADES": "INTEGER"
+      },
+      "primary_keys": [
+        "CODMAESTROORI",
+        "ESPREVISIONORI",
+        "CODCABORI",
+        "CODLINEAORI",
+        "CODMAESTRODES",
+        "ESPREVISIONDES",
+        "CODCABDES",
+        "CODLINEADES"
+      ],
+      "category": "otros",
+      "record_count": 5
+    },
+    "REPOBJETO": {
+      "columns": {
+        "CODIGO": "VARCHAR(40)",
+        "NOMBRE": "VARCHAR(60)",
+        "CODPROPIETARIO": "INTEGER",
+        "OBSERVACIONES": "BLOB",
+        "FECHAALTA": "DATE",
+        "FECHAINICIOGARANTIA": "DATE",
+        "FECHAFINGARANTIA": "DATE",
+        "CODTIPOREPOBJETO": "INTEGER",
+        "UBICACION": "VARCHAR(30)",
+        "CODRECURSO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 438
+    },
+    "REPPREVEN": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODREPOBJETO": "VARCHAR(40)",
+        "CODESTILO": "INTEGER",
+        "MEDIDA": "SMALLINT",
+        "PERIODICIDAD": "INTEGER",
+        "FECHAINICIO": "DATE",
+        "FECHAFIN": "DATE",
+        "FECHAPRIMERAREVISION": "DATE"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 8
+    },
+    "REPPREVENGEN": {
+      "columns": {
+        "CODPREVEN": "INTEGER",
+        "CODREPARA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODPREVEN",
+        "CODREPARA"
+      ],
+      "category": "otros",
+      "record_count": 2
+    },
+    "REPREPOBJASOC": {
+      "columns": {
+        "CODREPARA": "INTEGER",
+        "CODREPOBJETO": "VARCHAR(40)"
+      },
+      "primary_keys": [
+        "CODREPARA",
+        "CODREPOBJETO"
+      ],
+      "category": "otros",
+      "record_count": 441
+    },
+    "REPREPOBJCARVALOR": {
+      "columns": {
+        "CODREPARA": "INTEGER",
+        "CODREPOBJETO": "VARCHAR(40)",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODREPARA",
+        "CODREPOBJETO",
+        "CODCLASE",
+        "CODCARACT"
+      ],
+      "category": "otros",
+      "record_count": 22
+    },
+    "SECCION": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(30)",
+        "VISIBLE": "CHAR(1)",
+        "COLOR": "INTEGER",
+        "TECLA": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 9
+    },
+    "SEGUIMIENTODOCUMENTO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "COLORFONDO": "INTEGER",
+        "COLORFUENTE": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 10
+    },
+    "SERIE": {
+      "columns": {
+        "TIPO": "SMALLINT",
+        "SERIE": "VARCHAR(10)",
+        "NOMBRE": "VARCHAR(30)",
+        "ULTIMO": "INTEGER",
+        "ABONOS": "CHAR(1)",
+        "CUENTACONTABLE": "VARCHAR(12)",
+        "CODFACTURAEEMPRESA": "INTEGER",
+        "CODTICKETBAIEMPRESA": "INTEGER"
+      },
+      "primary_keys": [],
+      "category": "otros",
+      "record_count": 2057
+    },
+    "SERVCONFIG": {
+      "columns": {
+        "CODIGO": "SMALLINT",
+        "IDSERVICIO": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "configuracion",
+      "record_count": 1
+    },
+    "SERVMENSAJE": {
+      "columns": {
+        "ID": "INTEGER",
+        "TIPO": "INTEGER",
+        "FECHA": "TIMESTAMP",
+        "LEIDO": "CHAR(1)",
+        "REMITENTE": "INTEGER",
+        "DESTINATARIO": "INTEGER",
+        "MENSAJE": "VARCHAR(255)",
+        "VALOR": "BLOB"
+      },
+      "primary_keys": [
+        "ID"
+      ],
+      "category": "otros",
+      "record_count": 491
+    },
+    "SERVMENSAJEUSUARIO": {
+      "columns": {
+        "ID": "INTEGER",
+        "TIPO": "INTEGER",
+        "FECHA": "TIMESTAMP",
+        "LEIDO": "CHAR(1)",
+        "REMITENTE": "INTEGER",
+        "DESTINATARIO": "INTEGER",
+        "MENSAJE": "VARCHAR(255)",
+        "VALOR": "BLOB"
+      },
+      "primary_keys": [
+        "ID"
+      ],
+      "category": "usuarios",
+      "record_count": 5
+    },
+    "TIPO": {
+      "columns": {
+        "TIPO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "ORDEN": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "CUENTACONTABLEVENTA": "VARCHAR(12)",
+        "CUENTACONTABLECOMPRA": "VARCHAR(12)",
+        "OBSERVACIONES": "BLOB",
+        "FOTO": "BLOB",
+        "COMENTARIO": "BLOB"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 236
+    },
+    "TIPOAUSENCIA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "DESCRIPCION": "VARCHAR(80)",
+        "VACACIONES": "CHAR(1)",
+        "COLOR": "INTEGER"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 8
+    },
+    "UNIDADMEDIDA": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "NOMBRE": "VARCHAR(60)",
+        "UNIDAD": "VARCHAR(10)",
+        "DECIMALES": "SMALLINT",
+        "ADVERTIRSTOCKNEGATIVO": "SMALLINT"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 7
+    },
+    "VENCCONTRATO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "CODCONTRATO": "INTEGER",
+        "CADA": "INTEGER",
+        "CODARTICULO": "VARCHAR(40)",
+        "DIAINICIOPERIODO": "INTEGER",
+        "PORADELANTADO": "CHAR(1)",
+        "CANTIDAD": "DOUBLE",
+        "PRECIO": "DOUBLE",
+        "COSTE": "DOUBLE",
+        "DESCUENTO": "VARCHAR(30)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 21
+    },
+    "VENCCONTRATOCARVALOR": {
+      "columns": {
+        "CODVENCIMIENTO": "INTEGER",
+        "CODCLASE": "SMALLINT",
+        "CODCARACT": "SMALLINT",
+        "VALOR": "VARCHAR(150)",
+        "VALORMEMO": "BLOB"
+      },
+      "primary_keys": [
+        "CODVENCIMIENTO",
+        "CODCLASE",
+        "CODCARACT"
+      ],
+      "category": "otros",
+      "record_count": 24
+    },
+    "VISTA": {
+      "columns": {
+        "TIPO": "INTEGER",
+        "CODIGO": "INTEGER",
+        "ORDEN": "INTEGER",
+        "ACTIVO": "CHAR(1)",
+        "DESCRIPCION": "VARCHAR(128)",
+        "FICHERO": "BLOB",
+        "CODGRUPO": "INTEGER"
+      },
+      "primary_keys": [
+        "TIPO",
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 199
+    },
+    "VISTAGRUPO": {
+      "columns": {
+        "CODIGO": "INTEGER",
+        "PADRE": "INTEGER",
+        "ORDEN": "INTEGER",
+        "NOMBRE": "VARCHAR(80)"
+      },
+      "primary_keys": [
+        "CODIGO"
+      ],
+      "category": "otros",
+      "record_count": 23
+    },
+    "VISTAUSUARIO": {
+      "columns": {
+        "CODUSUARIO": "INTEGER",
+        "TIPOVISTA": "INTEGER",
+        "CODVISTA": "INTEGER",
+        "ORDEN": "INTEGER"
+      },
+      "primary_keys": [
+        "CODUSUARIO",
+        "TIPOVISTA",
+        "CODVISTA"
+      ],
+      "category": "usuarios",
+      "record_count": 288
+    }
+  }
+}

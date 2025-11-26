@@ -23,17 +23,17 @@ class ChatService:
 
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
-        logger.info(f"{LogPrefixes.CHAT_SERVICE.value} {LogEmojis.NEW_MESSAGE.value} NUEVO MENSAJE RECIBIDO")
-        logger.info(f"{LogPrefixes.EMISOR.value} Usuario")
-        logger.info(f"{LogPrefixes.MENSAJE.value} {message}")
-        logger.info(f"{LogPrefixes.CONTEXTO.value} model_id={context.get('model_id')}")
+        logger.info(f"{LogPrefixes.CHAT_SERVICE} {LogEmojis.NEW_MESSAGE} NUEVO MENSAJE RECIBIDO")
+        logger.info(f"{LogPrefixes.EMISOR} Usuario")
+        logger.info(f"{LogPrefixes.MENSAJE} {message}")
+        logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
         
         # 1. Get model configuration
         from backend.core.config.model_manager import model_manager
         
         model_id = context.get('model_id', 'gemini-pro')
-        logger.info(f"{LogPrefixes.MODELO.value} Solicitando configuración para: {model_id}")
+        logger.info(f"{LogPrefixes.MODELO} Solicitando configuración para: {model_id}")
         
         model_config = model_manager.get_model(model_id)
         
@@ -101,46 +101,35 @@ INSTRUCCIONES CRÍTICAS:
 1. Usa SOLO las tablas y columnas del esquema arriba
 2. Para "productos" → tabla ARTICULO
 3. Para "clientes" → tabla CLIENTE  
-4. Para "facturas/ventas" → tabla FACTURA
+4. Para "facturas/ventas" → tabla CAB_FACTURA
 5. Genera SQL válido para Firebird 2.5
 6. Delimita SQL con ```sql y ```
 7. Si no requiere SQL, responde directamente
-8. NUNCA inventes tablas o columnas
-9. Para limitar resultados usa FIRST N (ej: SELECT FIRST 10)
-10. Los precios están en PVPIVA (con IVA) o PVPSIVA (sin IVA)
-
-EJEMPLOS:
-- "productos más caros" → SELECT FIRST 10 * FROM ARTICULO ORDER BY PVPIVA DESC
-- "cuántos productos" → SELECT COUNT(*) FROM ARTICULO
-- "productos con stock" → SELECT * FROM ARTICULO WHERE STOCK > 0
-- "clientes con descuento" → SELECT * FROM CLIENTE WHERE DESCUENTO > 0
+8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
+9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
 """
+        logger.info(f"[AI PROVIDER] 📤 Enviando mensaje al modelo...")
+        logger.info(f"[AI PROVIDER] System Prompt:\n{system_prompt}")
+        logger.info(f"[AI PROVIDER] User Message: {message}")
         
-        logger.info(f"{LogPrefixes.AI_PROVIDER.value} {LogEmojis.SEND.value} Enviando mensaje al modelo {model_config['name']}")
-        logger.info(f"{LogPrefixes.AI_PROVIDER.value} System Prompt: {len(system_prompt)} caracteres")
-        logger.info(f"{LogPrefixes.AI_PROVIDER.value} Mensaje del usuario: '{message}'")
-        
-        # 4. Generate SQL or Response
         response_text = await provider.generate_text(message, system_instruction=system_prompt)
-        
-        logger.info(f"[AI PROVIDER] 📥 Respuesta recibida del modelo")
         logger.info(f"[AI PROVIDER] Respuesta completa: {response_text}")
         
         # 5. Execute SQL if present
         if "```sql" in response_text:
             logger.info(f"[SQL] 🔍 Detectada consulta SQL en la respuesta")
             try:
-                sql_query = response_text.split(SQLDelimiters.START.value)[1].split(SQLDelimiters.END.value)[0].strip()
+                sql_query = response_text.split(SQLDelimiters.START)[1].split(SQLDelimiters.END)[0].strip()
                 
                 # Limpiar query: remover punto y coma al final
                 sql_query = sql_query.rstrip(';').strip()
                 
                 # Añadir FIRST si es SELECT y no tiene FIRST
                 sql_upper = sql_query.upper()
-                if sql_upper.startswith(SQLKeywords.SELECT.value) and SQLKeywords.FIRST.value not in sql_upper:
+                if sql_upper.startswith(SQLKeywords.SELECT) and SQLKeywords.FIRST not in sql_upper:
                     # Insertar FIRST después de SELECT
-                    sql_query = sql_query[:6] + f' {SQLKeywords.FIRST.value} {SQLLimits.DEFAULT_FIRST.value}' + sql_query[6:]
-                    logger.info(f"{LogPrefixes.SQL.value} {LogEmojis.WARNING.value} Añadido FIRST {SQLLimits.DEFAULT_FIRST.value} automáticamente para limitar resultados")
+                    sql_query = sql_query[:6] + f' {SQLKeywords.FIRST} {SQLLimits.DEFAULT_FIRST}' + sql_query[6:]
+                    logger.info(f"{LogPrefixes.SQL} {LogEmojis.WARNING} Añadido FIRST {SQLLimits.DEFAULT_FIRST} automáticamente para limitar resultados")
                 
                 logger.info(f"[SQL] Consulta extraída: {sql_query}")
                 logger.info(f"[DATABASE] 🔄 Ejecutando consulta SQL...")
@@ -152,13 +141,17 @@ EJEMPLOS:
                 logger.info(f"[DATABASE] Datos: {results[:3] if len(results) > 3 else results}")  # First 3 rows
                 
                 # 6. Interpret Results
-                interpretation_prompt = f"""
-                Pregunta original: {message}
-                Consulta SQL ejecutada: {sql_query}
-                Resultados obtenidos: {results}
-                
-                Responde al usuario de forma natural resumiendo los resultados.
-                """
+                interpretation_prompt = (
+                    f"Pregunta original: {message}\n"
+                    f"Consulta SQL ejecutada: {sql_query}\n"
+                    f"Resultados obtenidos: {results}\n\n"
+                    "Responde al usuario siguiendo estas REGLAS ESTRICTAS:\n"
+                    "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
+                    "2. Sé objetivo y directo. Evita frases subjetivas como 'Es importante destacar', 'Los precios pueden variar', etc.\n"
+                    "3. Los precios están en EUROS (EUR). Nunca uses el símbolo $.\n"
+                    "4. Presenta los datos de forma clara y concisa (lista o tabla si es apropiado).\n"
+                    "5. Si no hay resultados, dilo claramente."
+                )
                 
                 logger.info(f"[AI PROVIDER] 📤 Solicitando interpretación de resultados...")
                 final_response = await provider.generate_text(interpretation_prompt)
@@ -218,15 +211,24 @@ EJEMPLOS:
         Esquema de la Base de Datos:
         {db_context}
         
-        Instrucciones:
-        1. Si la pregunta requiere datos, genera una consulta SQL SELECT válida para Firebird 2.5.
-        2. La consulta debe estar delimitada por ```sql y ```.
-        3. Si la pregunta es general o no requiere datos, responde amablemente.
-        4. NO inventes tablas ni campos. Usa solo los del esquema.
-        5. Para contar, usa COUNT(*).
+        INSTRUCCIONES CRÍTICAS:
+        1. Usa SOLO las tablas y columnas definidas en el esquema proporcionado arriba.
+        2. NO asumas la existencia de columnas como PVPIVA, STOCK, etc. si no están en el esquema.
+        3. Genera SQL válido para Firebird 2.5.
+        4. Delimita SQL con ```sql y ```.
+        5. Si no requiere SQL, responde directamente.
+        6. Para limitar resultados usa FIRST N (ej: SELECT FIRST 10).
+        7. Si te preguntan por precios, busca columnas relacionadas con precio/importe en el esquema.
+        
+        EJEMPLOS GENÉRICOS:
+        - "productos más caros" -> SELECT FIRST 10 * FROM [TABLA_ARTICULOS] ORDER BY [COLUMNA_PRECIO] DESC
+        - "cuántos productos" -> SELECT COUNT(*) FROM [TABLA_ARTICULOS]
         """
         
         # 4. Generate SQL or Response
+        logger.info(f"{LogPrefixes.DATABASE} Esquema semántico COMPLETO:\n{db_context}")
+        logger.info(f"{LogPrefixes.AI_PROVIDER} System Prompt COMPLETO:\n{system_prompt}")
+        
         response_text = await provider.generate_text(message, system_instruction=system_prompt)
         
         # 5. Execute SQL if present
@@ -241,7 +243,12 @@ EJEMPLOS:
                 Consulta SQL ejecutada: {sql_query}
                 Resultados obtenidos: {results}
                 
-                Responde al usuario de forma natural resumiendo los resultados.
+                Responde al usuario siguiendo estas REGLAS ESTRICTAS:
+                1. NO inventes datos. Usa SOLO los resultados proporcionados.
+                2. Sé objetivo y directo. Evita frases subjetivas como "Es importante destacar", "Los precios pueden variar", etc.
+                3. Los precios están en EUROS (EUR). Nunca uses el símbolo $.
+                4. Presenta los datos de forma clara y concisa (lista o tabla si es apropiado).
+                5. Si no hay resultados, dilo claramente.
                 """
                 final_response = await provider.generate_text(interpretation_prompt)
                 return final_response
@@ -259,7 +266,7 @@ EJEMPLOS:
             logger.info(f"[DATABASE] Conectando a: {db_params.get('host')}:{db_params.get('port')}")
             logger.info(f"[DATABASE] Base de datos: {db_params.get('database')}")
             
-            driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD.value)
+            driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
             # Map username to user for DBConfig
             config_params = db_params.copy()
             if 'username' in config_params:
@@ -328,7 +335,7 @@ EJEMPLOS:
             try:
                 logger.info(f"[DATABASE] Intento {retry_count + 1}/{max_retries}")
                 
-                driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD.value)
+                driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
                 
                 # Map username to user for DBConfig
                 config_params = db_params.copy()

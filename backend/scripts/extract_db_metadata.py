@@ -7,15 +7,26 @@ import firebirdsql
 import json
 from collections import defaultdict
 
-# Configuración de conexión
+import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+
+# Configuración de conexión desde .env
 DB_CONFIG = {
-    'host': 'HOST1',
-    'port': 3050,
-    'database': r'C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb',
-    'user': 'SYSDBA',
-    'password': 'masterkey',
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', 3050)),
+    'database': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER', 'SYSDBA'),
+    'password': os.getenv('DB_PASSWORD', 'masterkey'),
     'charset': 'latin1'
 }
+
+print(f"DEBUG: DB Config loaded: Host={DB_CONFIG['host']}, DB={DB_CONFIG['database']}, User={DB_CONFIG['user']}")
+if not DB_CONFIG['database']:
+    print("❌ ERROR: DB_NAME not found in .env")
+    exit(1)
 
 def connect_db():
     """Conectar a la base de datos"""

@@ -59,34 +59,76 @@ Todo el código debe estar ultra-organizado. Máximo 500 líneas por fichero.
 ```
 /
 ├── backend/
-│   ├── core/                   # Lógica central del sistema
-│   │   ├── abstract/           # Clases base abstractas (Interfaces)
-│   │   ├── config/             # Gestión de configuración
-│   │   ├── factory/            # Fábricas de objetos
-│   │   └── utils/              # Utilidades generales
-│   ├── drivers/                # Implementaciones específicas
-│   │   ├── ai/                 # Drivers de IA (Gemini, Groq...)
-│   │   └── db/                 # Drivers de BD (Firebird, Postgres...)
-│   ├── modules/                # Módulos de negocio
-│   │   ├── articles/           # Gestión de Artículos (Ejemplo)
-│   │   └── prompts/            # Gestión de Prompts
-│   └── main.py                 # Punto de entrada API
+│   ├── core/                          # Lógica central del sistema
+│   │   ├── abstract/                  # Clases base abstractas (Interfaces)
+│   │   │   ├── ai.py                  # Interface para proveedores de IA
+│   │   │   └── database.py            # Interface para drivers de BD
+│   │   ├── config/                    # ⚙️ CONFIGURACIÓN CENTRALIZADA
+│   │   │   ├── settings.py            # Variables de entorno (.env)
+│   │   │   ├── ai_models_config.json  # 🤖 Modelos IA disponibles
+│   │   │   ├── db_metadata_optimized.json  # 📊 METADATOS BD REALES
+│   │   │   ├── database_metadata.py   # Wrapper de metadatos (usa JSON)
+│   │   │   ├── metadata_manager.py    # Gestor de metadatos semánticos
+│   │   │   └── model_manager.py       # Gestor de modelos IA
+│   │   ├── factory/                   # Fábricas de objetos
+│   │   │   ├── ai_factory.py          # Factory para proveedores IA
+│   │   │   └── db_factory.py          # Factory para drivers BD
+│   │   └── utils/                     # Utilidades generales
+│   │       └── constants.py           # 🔧 CONSTANTES DEL SISTEMA
+│   ├── drivers/                       # Implementaciones específicas
+│   │   ├── ai/                        # Drivers de IA
+│   │   │   ├── gemini_driver.py       # Google Gemini
+│   │   │   ├── groq_driver.py         # Groq (Llama)
+│   │   │   └── openai_compatible_driver.py  # OpenAI/OpenRouter
+│   │   └── db/                        # Drivers de BD
+│   │       ├── firebird_driver.py     # Firebird SQL
+│   │       └── firebird_queries.py    # Queries específicas Firebird
+│   ├── modules/                       # Módulos de negocio
+│   │   ├── chat/                      # 💬 CHAT CON IA (Text-to-SQL)
+│   │   │   ├── router.py              # Endpoints FastAPI
+│   │   │   └── service.py             # 🧠 Lógica de chat y SQL
+│   │   ├── models/                    # Gestión de modelos IA
+│   │   │   └── router.py              # CRUD de modelos
+│   │   └── prompts/                   # Gestión de prompts
+│   │       └── router.py              # CRUD de prompts
+│   ├── scripts/                       # 🛠️ Scripts de utilidad
+│   │   ├── extract_db_metadata.py     # Extracción automática de esquema
+│   │   └── diagnose_schema.py         # Diagnóstico de conexión BD
+│   └── main.py                        # 🚀 Punto de entrada API
 │
 ├── frontend/
 │   ├── assets/
-│   │   ├── css/                # Estilos modulares
-│   │   └── js/                 # Lógica de cliente
-│   │       ├── core/           # Framework ligero propio
-│   │       └── modules/        # Lógica por pantalla
-│   └── index.html              # SPA Entry Point
+│   │   ├── css/                       # Estilos modulares
+│   │   │   ├── base.css               # Estilos base
+│   │   │   └── components.css         # Componentes UI
+│   │   └── js/                        # Lógica de cliente
+│   │       ├── core/                  # Framework ligero propio
+│   │       │   ├── api.js             # Cliente HTTP
+│   │       │   ├── constants.js       # Constantes frontend
+│   │       │   └── router.js          # Enrutador SPA
+│   │       └── modules/               # Lógica por pantalla
+│   │           ├── chat.js            # 💬 Interfaz de chat
+│   │           └── models.js          # Gestión de modelos
+│   └── index.html                     # SPA Entry Point
 │
-├── docs/                       # Documentación
-│   └── DEVIA.MD                # Este archivo
-│
-└── config/                     # Archivos de configuración externos
-    ├── ai_config.json
-    └── db_config.json
+├── .env                               # 🔐 SECRETOS (API Keys, DB creds)
+├── .env.example                       # Plantilla de .env
+├── .gitignore                         # Archivos ignorados por Git
+├── DEVIA.MD                           # 📖 Este archivo
+├── README.md                          # Documentación general
+└── start_system.bat                   # Script de inicio (Windows)
 ```
+
+### 📌 Archivos Clave para Modificar
+
+| Archivo | Propósito | Cuándo Modificar |
+|---------|-----------|------------------|
+| `backend/core/config/db_metadata_optimized.json` | **Esquema de BD real** | Al cambiar tablas/columnas en la BD |
+| `backend/core/config/ai_models_config.json` | Modelos IA disponibles | Al añadir/quitar modelos IA |
+| `backend/core/utils/constants.py` | Constantes del sistema | Al añadir nuevas constantes |
+| `backend/modules/chat/service.py` | Lógica Text-to-SQL | Al cambiar prompts o lógica de chat |
+| `.env` | API Keys y credenciales | Al cambiar claves o BD |
+
 
 ---
 
@@ -288,3 +330,53 @@ python backend/scripts/extract_db_metadata.py
 2.  Definir rutas en `router.py`.
 3.  Implementar servicios y repositorios.
 4.  Añadir UI en `frontend/assets/js/modules/nuevo_modulo.js`.
+
+---
+
+## 🛠️ ESTADO ACTUAL DEL PROYECTO (Noviembre 2025)
+
+### ✅ Funcionalidades Implementadas
+1.  **Backend Unificado**: Servidor FastAPI (`backend/main.py`) sirviendo API y Frontend estático.
+2.  **Gestión de Modelos IA**:
+    *   Soporte para **OpenAI, Google Gemini, Groq, OpenRouter**.
+    *   Configuración dinámica vía UI y `.env`.
+    *   Sistema de "Drivers" para estandarizar la comunicación con diferentes proveedores.
+3.  **Chat con Base de Datos (Text-to-SQL)**:
+    *   Conversión de lenguaje natural a SQL (Firebird 2.5).
+    *   **Sistema de Metadatos Semánticos**: `database_metadata.py` mapea conceptos de negocio (e.g., "ventas") a tablas reales (`CAB_FACT_VENTA`).
+    *   **Prompt Engineering Avanzado**: Instrucciones estrictas para evitar alucinaciones y forzar formato JSON/SQL.
+4.  **Seguridad**:
+    *   Gestión de secretos vía `.env` (API Keys, credenciales BD).
+    *   Sanitización de logs (truncado de claves).
+
+### 🚧 En Progreso / Pendiente
+1.  **Validación de Esquema BD**:
+    *   Ajuste fino de nombres de tablas/columnas (`CAB_FACT_VENTA`, `PVP`) basado en feedback de errores reales.
+    *   Script de extracción automática de metadatos (`extract_db_metadata.py`) pendiente de depuración de conexión.
+2.  **Mejoras de UI**:
+    *   Visualización de tablas de datos más rica en el chat.
+    *   Historial de conversaciones persistente.
+
+### 📝 Notas de Configuración
+*   **Base de Datos**: Firebird 2.5.
+*   **Conexión**: Se usa `firebirdsql` (driver puro Python).
+*   **Metadatos**: Definidos manualmente en `backend/core/config/database_metadata.py` para garantizar precisión semántica.
+
+---
+
+## 🔄 FLUJO DE CHAT (Text-to-SQL)
+
+1.  **Usuario**: Envía pregunta (e.g., "¿Productos más caros?").
+2.  **ChatService**:
+    *   Carga configuración del modelo seleccionado.
+    *   Recupera el **Esquema Semántico** (`get_semantic_schema()`).
+    *   Construye el **System Prompt** con instrucciones estrictas y el esquema.
+3.  **IA**: Genera consulta SQL (e.g., `SELECT FIRST 10 ...`).
+4.  **ChatService**:
+    *   Detecta bloque ` ```sql `.
+    *   Ejecuta la consulta contra Firebird.
+    *   Recibe resultados (lista de diccionarios).
+5.  **ChatService**:
+    *   Construye un segundo prompt con la pregunta original + SQL ejecutado + Resultados.
+    *   Solicita a la IA una **Interpretación** en lenguaje natural (con reglas estrictas: Euros, Objetividad).
+6.  **Usuario**: Recibe la respuesta interpretada.

@@ -10,12 +10,12 @@
 export const API = {
     BASE_URL: '/api',
     ENDPOINTS: {
-        CHAT: '/chat',
-        CHAT_SEND: '/chat/send',
-        MODELS: '/models',
-        MODELS_ENABLED: '/models/?enabled_only=true',
-        PROMPTS: '/prompts',
-        ARTICLES: '/articles'
+        CHAT: '/api/chat',
+        CHAT_SEND: '/api/chat/send',
+        MODELS: '/api/models',
+        MODELS_ENABLED: '/api/models/?enabled_only=true',
+        PROMPTS: '/api/prompts',
+        ARTICLES: '/api/articles'
     },
     HEADERS: {
         CONTENT_TYPE: 'application/json'

@@ -1,0 +1,111 @@
+{
+    "tables": {
+        "ARTICULO": {
+            "category": "productos",
+            "record_count": 1000,
+            "description": "Productos/artículos del inventario",
+            "primary_keys": [
+                "CODIGO"
+            ],
+            "columns": {
+                "CODIGO": "VARCHAR(20) - Código único del artículo",
+                "NOMBRE": "VARCHAR(100) - Nombre/descripción del producto",
+                "PRECIOCMPONDERADO": "DECIMAL(10,2) - Precio de compra ponderado",
+                "COSTE": "DECIMAL(10,2) - Precio de coste",
+                "STOCK": "DECIMAL(10,2) - Cantidad en stock/inventario",
+                "CODFAMILIA": "VARCHAR(10) - Código de familia/categoría",
+                "CODMARCA": "VARCHAR(10) - Código de marca",
+                "OBSERVACIONES": "BLOB - Observaciones del artículo"
+            },
+            "consultas_comunes": [
+                "productos más caros: ORDER BY PRECIOCMPONDERADO DESC FIRST 10",
+                "productos por precio compra: ORDER BY PRECIOCMPONDERADO DESC",
+                "productos con stock: WHERE STOCK > 0",
+                "productos sin stock: WHERE STOCK = 0 OR STOCK IS NULL",
+                "productos por familia: WHERE CODFAMILIA = 'X'",
+                "contar productos: COUNT(*)",
+                "productos por nombre: WHERE NOMBRE LIKE '%texto%'"
+            ]
+        },
+        "CLIENTE": {
+            "category": "clientes",
+            "record_count": 500,
+            "description": "Clientes de la empresa",
+            "primary_keys": [
+                "CODIGO"
+            ],
+            "columns": {
+                "CODIGO": "VARCHAR(20) - Código único del cliente",
+                "NOMBRE": "VARCHAR(100) - Nombre o razón social",
+                "NIF": "VARCHAR(20) - NIF/CIF",
+                "DIRECCION": "VARCHAR(200) - Dirección postal",
+                "TELEFONO": "VARCHAR(20) - Teléfono de contacto",
+                "EMAIL": "VARCHAR(100) - Email de contacto",
+                "DESCUENTO": "DECIMAL(5,2) - Descuento aplicable"
+            },
+            "consultas_comunes": [
+                "buscar cliente por nombre: WHERE NOMBRE LIKE '%X%'",
+                "clientes con descuento: WHERE DESCUENTO > 0"
+            ]
+        },
+        "CAB_FACTURA": {
+            "category": "ventas",
+            "record_count": 5000,
+            "description": "Cabeceras de facturas de venta",
+            "primary_keys": [
+                "NUMERO"
+            ],
+            "columns": {
+                "NUMERO": "INTEGER - Número de factura",
+                "FECHA": "DATE - Fecha de emisión",
+                "CODCLIENTE": "VARCHAR(20) - Código del cliente",
+                "TOTALNETO": "DECIMAL(12,2) - Importe total neto",
+                "TOTALFACTURA": "DECIMAL(12,2) - Importe total factura",
+                "PAGADO": "CHAR(1) - Estado de pago (S/N)"
+            },
+            "consultas_comunes": [
+                "facturas por cliente: WHERE CODCLIENTE = X",
+                "facturas pendientes: WHERE PAGADO = 'N'",
+                "total facturado: SUM(TOTALFACTURA)",
+                "facturas por fecha: WHERE FECHA BETWEEN X AND Y"
+            ]
+        },
+        "PROVEEDOR": {
+            "category": "proveedores",
+            "record_count": 200,
+            "description": "Proveedores de productos",
+            "primary_keys": [
+                "CODIGO"
+            ],
+            "columns": {
+                "CODIGO": "VARCHAR(20) - Código único del proveedor",
+                "NOMBRE": "VARCHAR(100) - Nombre o razón social",
+                "NIF": "VARCHAR(20) - NIF/CIF",
+                "CONTACTO": "VARCHAR(100) - Persona de contacto",
+                "TELEFONO": "VARCHAR(20) - Teléfono"
+            },
+            "consultas_comunes": [
+                "buscar proveedor: WHERE NOMBRE LIKE '%X%'"
+            ]
+        },
+        "PEDIDO": {
+            "category": "compras",
+            "record_count": 1000,
+            "description": "Pedidos de compra a proveedores",
+            "primary_keys": [
+                "NUMERO"
+            ],
+            "columns": {
+                "NUMERO": "INTEGER - Número de pedido",
+                "FECHA": "DATE - Fecha del pedido",
+                "PROVEEDOR": "VARCHAR(20) - Código del proveedor",
+                "TOTAL": "DECIMAL(12,2) - Importe total",
+                "RECIBIDO": "CHAR(1) - Estado de recepción (S/N)"
+            },
+            "consultas_comunes": [
+                "pedidos pendientes: WHERE RECIBIDO = 'N'",
+                "pedidos por proveedor: WHERE PROVEEDOR = X"
+            ]
+        }
+    }
+}
