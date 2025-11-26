@@ -10,6 +10,7 @@ from backend.core.utils.constants import (
 )
 from backend.drivers.db.firebird_queries import QUERY_TABLES, QUERY_TABLE_COLUMNS
 from backend.core.config.database_metadata import get_semantic_schema, get_table_for_concept
+from backend.modules.chat.sql_corrector import SQLCorrector
 import logging
 
 # Configure logger
@@ -19,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 class ChatService:
     
     def __init__(self):
-        pass
+        self.sql_corrector = SQLCorrector()
 
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
@@ -134,7 +135,15 @@ INSTRUCCIONES CRÍTICAS:
                 logger.info(f"[SQL] Consulta extraída: {sql_query}")
                 logger.info(f"[DATABASE] 🔄 Ejecutando consulta SQL...")
                 
-                results = self._execute_sql(sql_query, context.get('db_params'))
+                # Execute with auto-correction
+                results = await self.sql_corrector.execute_with_correction(
+                    sql_query=sql_query,
+                    original_question=message,
+                    db_context=db_context,
+                    ai_provider=provider,
+                    execute_func=lambda q: self._execute_sql(q, context.get('db_params')),
+                    max_retries=DBDefaults.MAX_SQL_CORRECTION_RETRIES
+                )
                 
                 logger.info(f"[DATABASE] ✓ Consulta ejecutada exitosamente")
                 logger.info(f"[DATABASE] Resultados: {len(results)} filas")

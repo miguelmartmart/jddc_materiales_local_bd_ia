@@ -34,7 +34,7 @@ env/
 # Environment variables
 .env
 .env.local
-
+*.env*copy
 # Logs
 *.log
 logs/
