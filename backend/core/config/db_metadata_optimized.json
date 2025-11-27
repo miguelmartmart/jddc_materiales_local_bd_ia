@@ -11,7 +11,6 @@
                 "CODIGO": "VARCHAR(20) - Código único del artículo",
                 "NOMBRE": "VARCHAR(100) - Nombre/descripción del producto",
                 "PRECIOCMPONDERADO": "DECIMAL(10,2) - Precio de compra ponderado",
-                "COSTE": "DECIMAL(10,2) - Precio de coste",
                 "STOCK": "DECIMAL(10,2) - Cantidad en stock/inventario",
                 "CODFAMILIA": "VARCHAR(10) - Código de familia/categoría",
                 "CODMARCA": "VARCHAR(10) - Código de marca",
@@ -19,11 +18,7 @@
             },
             "consultas_comunes": [
                 "productos más caros: ORDER BY PRECIOCMPONDERADO DESC FIRST 10",
-                "productos por precio compra: ORDER BY PRECIOCMPONDERADO DESC",
                 "productos con stock: WHERE STOCK > 0",
-                "productos sin stock: WHERE STOCK = 0 OR STOCK IS NULL",
-                "productos por familia: WHERE CODFAMILIA = 'X'",
-                "contar productos: COUNT(*)",
                 "productos por nombre: WHERE NOMBRE LIKE '%texto%'"
             ]
         },
@@ -48,26 +43,30 @@
                 "clientes con descuento: WHERE DESCUENTO > 0"
             ]
         },
-        "CAB_FACTURA": {
+        "DOCCAB": {
             "category": "ventas",
-            "record_count": 5000,
-            "description": "Cabeceras de facturas de venta",
+            "record_count": 69927,
+            "description": "Documentos de venta (facturas, presupuestos, albaranes)",
             "primary_keys": [
                 "NUMERO"
             ],
             "columns": {
-                "NUMERO": "INTEGER - Número de factura",
+                "NUMERO": "INTEGER - Número de documento",
+                "TIPO": "INTEGER - Tipo de documento",
+                "SERIE": "VARCHAR(10) - Serie del documento",
                 "FECHA": "DATE - Fecha de emisión",
-                "CODCLIENTE": "VARCHAR(20) - Código del cliente",
-                "TOTALNETO": "DECIMAL(12,2) - Importe total neto",
-                "TOTALFACTURA": "DECIMAL(12,2) - Importe total factura",
-                "PAGADO": "CHAR(1) - Estado de pago (S/N)"
+                "CODCLIENTE": "INTEGER - Código del cliente",
+                "IMPORTETOTAL": "DECIMAL(12,2) - Importe total del documento",
+                "IMPORTEBASE": "DECIMAL(12,2) - Importe base imponible",
+                "IMPORTEIVA": "DECIMAL(12,2) - Importe del IVA",
+                "DESCRIPCION": "VARCHAR(200) - Descripción del documento",
+                "OBSERVACIONES": "BLOB - Observaciones"
             },
             "consultas_comunes": [
-                "facturas por cliente: WHERE CODCLIENTE = X",
-                "facturas pendientes: WHERE PAGADO = 'N'",
-                "total facturado: SUM(TOTALFACTURA)",
-                "facturas por fecha: WHERE FECHA BETWEEN X AND Y"
+                "documentos por cliente: WHERE CODCLIENTE = X",
+                "documentos por fecha: WHERE FECHA BETWEEN X AND Y",
+                "total facturado: SUM(IMPORTETOTAL)",
+                "documentos este mes: WHERE EXTRACT(MONTH FROM FECHA) = EXTRACT(MONTH FROM CURRENT_DATE)"
             ]
         },
         "PROVEEDOR": {

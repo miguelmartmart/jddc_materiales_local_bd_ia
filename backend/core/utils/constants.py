@@ -44,6 +44,22 @@ class AILimits:
     MAX_API_RETRIES = 2
 
 
+class ModelFallbackConfig:
+    """Configuración de fallback entre modelos IA"""
+    RETRY_DELAY_SECONDS = 5  # Espera entre reintentos del mismo modelo
+    MAX_RETRIES_PER_MODEL = 1  # 1 reintento = 2 intentos totales por modelo
+    
+    # Prioridad de modelos (mayor número = mayor prioridad)
+    # Se intentarán en orden descendente de prioridad
+    MODEL_PRIORITY = {
+        "gemini-2.0-flash-exp": 100,
+        "gemini-1.5-pro": 90,
+        "groq-llama-70b": 80,
+        "gpt-4": 70,
+        "groq-llama-8b": 50,
+    }
+
+
 # ============================================================================
 # CONSTANTES DE BASE DE DATOS
 # ============================================================================
@@ -162,6 +178,16 @@ class UIMessages:
     SELECT_MODEL = "Por favor selecciona un modelo IA"
 
 
+class UserFeedbackMessages:
+    """Mensajes de feedback durante generación SQL con fallback"""
+    TRYING_MODEL = "🤖 Intentando con {model_name}..."
+    RETRYING_MODEL = "🔄 Reintentando con {model_name} (intento {attempt}/{max_attempts})..."
+    SWITCHING_MODEL = "⚠️ Cambiando a modelo alternativo: {model_name}"
+    ALL_MODELS_FAILED = "❌ No se pudo generar la consulta con ningún modelo disponible. Por favor, inténtalo más tarde."
+    SUCCESS = "✅ Consulta generada correctamente con {model_name}"
+    WAITING = "⏳ Esperando {seconds} segundos antes de reintentar..."
+
+
 class ChatRoles:
     """Roles en el chat"""
     USER = "user"
@@ -180,6 +206,7 @@ class UILimits:
     """Límites de la interfaz"""
     MAX_MESSAGE_LENGTH = 2000
     CHAT_HISTORY_LIMIT = 50
+    CONVERSATION_MEMORY_MESSAGES = 10  # Número de mensajes anteriores a recordar en el contexto
 
 
 # ============================================================================

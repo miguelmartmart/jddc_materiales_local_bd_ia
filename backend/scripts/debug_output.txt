@@ -1,0 +1,1 @@
+Error debug columns: Error conectando a Firebird: Your user name and password are not defined. Ask your database administrator to set up a Firebird login.

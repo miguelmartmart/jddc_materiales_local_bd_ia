@@ -95,7 +95,7 @@ class SQLCorrector:
         Returns:
             Corrected SQL query or None if correction failed
         """
-        correction_prompt = f"""La siguiente consulta SQL falló con un error.
+        correction_prompt = f"""La siguiente consulta SQL falló con un error en Firebird 2.5.
 
 PREGUNTA ORIGINAL DEL USUARIO:
 {original_question}
@@ -113,16 +113,27 @@ TIPO DE ERROR: {error_info['type']}
 ESQUEMA DE BASE DE DATOS DISPONIBLE:
 {db_context}
 
+REGLAS CRÍTICAS DE FIREBIRD 2.5:
+1. Para limitar resultados: SELECT FIRST N ... (NO uses LIMIT, ROWS, o TOP)
+2. Para calcular fechas:
+   - Sintaxis CORRECTA: DATEADD(MONTH, -N, CURRENT_DATE)
+   - Sintaxis INCORRECTA: DATEADD(-N MONTH TO ...) ← NO FUNCIONA
+   - Sintaxis INCORRECTA: DATEADD(-N MONTH FROM ...) ← NO FUNCIONA
+3. Ejemplos de fechas:
+   - Mes pasado: DATEADD(MONTH, -1, CURRENT_DATE)
+   - Hace 2 meses: DATEADD(MONTH, -2, CURRENT_DATE)
+   - Año pasado: DATEADD(YEAR, -1, CURRENT_DATE)
+
 INSTRUCCIONES:
-1. Analiza el error y la consulta fallida
-2. Genera una consulta SQL CORREGIDA que:
-   - Resuelva el error específico mencionado
+1. Analiza el error específico: "{error_message}"
+2. Si el error menciona "Token unknown" y "MONTH", probablemente es sintaxis incorrecta de DATEADD
+3. Genera una consulta SQL CORREGIDA que:
+   - Resuelva el error específico
    - Use SOLO las tablas y columnas del esquema proporcionado
-   - Mantenga la intención original de la pregunta del usuario
-   - Sea válida para Firebird 2.5
-   - Use FIRST para limitar resultados (NO uses LIMIT, ROWS, o TOP)
-3. Devuelve SOLO la consulta SQL corregida entre ```sql y ```
-4. NO añadas explicaciones, solo el SQL corregido
+   - Mantenga la intención original de la pregunta
+   - Use sintaxis válida de Firebird 2.5
+4. Devuelve SOLO la consulta SQL corregida entre ```sql y ```
+5. NO añadas explicaciones
 
 CONSULTA SQL CORREGIDA:"""
 

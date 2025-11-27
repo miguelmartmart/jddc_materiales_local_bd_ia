@@ -11,6 +11,7 @@ from backend.core.utils.constants import (
 from backend.drivers.db.firebird_queries import QUERY_TABLES, QUERY_TABLE_COLUMNS
 from backend.core.config.database_metadata import get_semantic_schema, get_table_for_concept
 from backend.modules.chat.sql_corrector import SQLCorrector
+from backend.modules.chat.model_fallback_orchestrator import ModelFallbackOrchestrator
 import logging
 
 # Configure logger
@@ -21,6 +22,7 @@ class ChatService:
     
     def __init__(self):
         self.sql_corrector = SQLCorrector()
+        self.model_orchestrator = ModelFallbackOrchestrator()
 
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
@@ -30,91 +32,199 @@ class ChatService:
         logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
         
-        # 1. Get model configuration
-        from backend.core.config.model_manager import model_manager
+        # DEBUG: List tables command
+        if message.strip() == "DEBUG_TABLES":
+            try:
+                logger.info("[DEBUG] Ejecutando comando DEBUG_TABLES")
+                driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
+                
+                # Map username to user for DBConfig
+                config_params = context.get('db_params', {}).copy()
+                if 'username' in config_params:
+                    config_params['user'] = config_params.pop('username')
+                
+                config = DBConfig(**config_params)
+                driver.connect(config)
+                
+                # List tables
+                query = "SELECT TRIM(RDB$RELATION_NAME) as NAME FROM RDB$RELATIONS WHERE RDB$SYSTEM_FLAG = 0 ORDER BY RDB$RELATION_NAME"
+                results = driver.execute_query(query)
+                tables = [r['NAME'] for r in results]
+                
+                # Find candidates
+                keywords = ['FACT', 'VENT', 'CAB', 'ALB']
+                candidates = []
+                for t in tables:
+                    if any(k in t for k in keywords):
+                        try:
+                            count_res = driver.execute_query(f"SELECT COUNT(*) as C FROM {t}")
+                            count = count_res[0]['C']
+                            candidates.append(f"{t} ({count} filas)")
+                            
+                            # Log columns for candidates
+                            col_res = driver.execute_query(f"SELECT TRIM(RDB$FIELD_NAME) as F FROM RDB$RELATION_FIELDS WHERE TRIM(RDB$RELATION_NAME) = '{t}'")
+                            cols = [c['F'] for c in col_res]
+                            logger.info(f"[DEBUG] Tabla {t}: {', '.join(cols)}")
+                        except:
+                            candidates.append(f"{t} (Error leyendo)")
+                
+                driver.disconnect()
+                return f"Tablas encontradas ({len(tables)}): {', '.join(tables)}\n\nCandidatos facturas:\n" + "\n".join(candidates)
+            except Exception as e:
+                logger.error(f"[DEBUG ERROR] {str(e)}")
+                return f"Error debug: {str(e)}"
         
-        model_id = context.get('model_id', 'gemini-pro')
-        logger.info(f"{LogPrefixes.MODELO} Solicitando configuración para: {model_id}")
-        
-        model_config = model_manager.get_model(model_id)
-        
-        if not model_config:
-            logger.error(f"[ERROR] Modelo '{model_id}' no encontrado")
-            return f"Error: Modelo '{model_id}' no encontrado en la configuración."
-        
-        if not model_config.get('enabled', False):
-            logger.warning(f"[WARNING] Modelo '{model_config['name']}' está deshabilitado")
-            return f"Error: Modelo '{model_config['name']}' está deshabilitado."
-        
-        logger.info(f"[MODELO] ✓ Configuración cargada: {model_config['name']}")
-        logger.info(f"[MODELO] Provider: {model_config['provider']}, Model ID: {model_config['model_id']}")
-        
-        # 2. Configure AI Provider
-        # Use 'schema' to determine which provider class to use (openai_compatible, gemini_native, etc.)
-        provider_schema = model_config.get('schema', model_config['provider'])  # Fallback to provider if no schema
-        logger.info(f"[AI PROVIDER] Inicializando provider schema: {provider_schema}")
-        provider = AIFactory.get_provider(provider_schema)
-        
-        api_key = model_config.get('api_key')
-        if not api_key:
-            logger.error(f"[ERROR] No hay API Key configurada para {model_config['name']}")
-            return f"Error: No se ha configurado la API Key para el modelo '{model_config['name']}'."
+        # DEBUG: Inspect columns command
+        if message.strip().startswith("DEBUG_COLUMNS"):
+            try:
+                table_name = message.strip().split(" ")[1]
+                logger.info(f"[DEBUG] Inspeccionando tabla {table_name}")
+                driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
+                
+                config_params = context.get('db_params', {}).copy()
+                if 'username' in config_params:
+                    config_params['user'] = config_params.pop('username')
+                
+                config = DBConfig(**config_params)
+                driver.connect(config)
+                
+                query = f"""
+                SELECT TRIM(RDB$FIELD_NAME) as FIELD_NAME
+                FROM RDB$RELATION_FIELDS 
+                WHERE TRIM(RDB$RELATION_NAME) = '{table_name}'
+                ORDER BY RDB$FIELD_POSITION
+                """
+                results = driver.execute_query(query)
+                columns = [r['FIELD_NAME'] for r in results]
+                
+                # Try to get sample data
+                sample = ""
+                try:
+                    sample_res = driver.execute_query(f"SELECT FIRST 1 * FROM {table_name}")
+                    if sample_res:
+                        sample = f"\nEjemplo de datos:\n{sample_res[0]}"
+                except:
+                    sample = "\nNo se pudo obtener datos de ejemplo"
 
-        # Build config with base_url and headers if needed
-        config_dict = {
-            'api_key': api_key[:10] + "..." if api_key else "None",  # Log only first 10 chars
-            'model': model_config['model_id']
-        }
-        if model_config.get('base_url'):
-            config_dict['base_url'] = model_config['base_url']
-        if model_config.get('headers'):
-            config_dict['headers'] = model_config['headers']
+                driver.disconnect()
+                return f"Columnas de {table_name}:\n" + "\n".join(columns) + sample
+            except Exception as e:
+                return f"Error debug columns: {str(e)}"
         
-        logger.info(f"[AI PROVIDER] Configuración: {config_dict}")
-        
-        # Create AI config (with full api_key, not truncated)
-        ai_config_params = {
-            'api_key': api_key,
-            'model': model_config['model_id']
-        }
-        if model_config.get('base_url'):
-            ai_config_params['base_url'] = model_config['base_url']
-        if model_config.get('headers'):
-            ai_config_params['headers'] = model_config['headers']
-        
-        ai_config = AIConfig(**ai_config_params)
-        provider.configure(ai_config)
-        logger.info(f"[AI PROVIDER] ✓ Provider configurado correctamente")
-
-        # 2. Get DB Schema Context - Use semantic schema
+        # 1. Get DB Schema Context - Use semantic schema
         logger.info(f"[DATABASE] Generando esquema semántico optimizado...")
         db_context = get_semantic_schema()
         logger.info(f"[DATABASE] Esquema semántico: {len(db_context)} caracteres (optimizado para tokens)")
+        
+        # 2. Build conversation history context
+        from backend.core.utils.constants import UILimits
+        conversation_history = context.get('conversation_history', [])
+        
+        # Limit to last N messages
+        max_history = UILimits.CONVERSATION_MEMORY_MESSAGES
+        recent_history = conversation_history[-max_history:] if len(conversation_history) > max_history else conversation_history
+        
+        # Format conversation history for prompt
+        history_context = ""
+        if recent_history:
+            history_context = "\n\n=== CONTEXTO DE CONVERSACIÓN ANTERIOR ===\n"
+            for msg in recent_history:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                if role == 'user':
+                    history_context += f"Usuario: {content}\n"
+                elif role == 'assistant':
+                    history_context += f"Asistente: {content}\n"
+            history_context += "=== FIN DEL CONTEXTO ===\n"
+            logger.info(f"[CHAT] Incluyendo {len(recent_history)} mensajes de historial en el contexto")
         
         # 3. Prompt Engineering for Text-to-SQL
         system_prompt = f"""
 Eres un asistente experto en bases de datos Firebird SQL.
 Convierte preguntas en lenguaje natural a consultas SQL válidas.
-
+{history_context}
 {db_context}
 
 INSTRUCCIONES CRÍTICAS:
 1. Usa SOLO las tablas y columnas del esquema arriba
 2. Para "productos" → tabla ARTICULO
 3. Para "clientes" → tabla CLIENTE  
-4. Para "facturas/ventas" → tabla CAB_FACTURA
+4. Para "facturas/ventas" → tabla DOCCAB
 5. Genera SQL válido para Firebird 2.5
 6. Delimita SQL con ```sql y ```
 7. Si no requiere SQL, responde directamente
 8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
 9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
+
+SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
+10. Para calcular fechas en Firebird 2.5, usa CAST con aritmética de fechas:
+    - Mes actual: WHERE CAST(FECHA AS DATE) >= CAST('FIRST_DAY_OF_MONTH' AS DATE)
+    - Mes pasado: Calcula manualmente el primer y último día del mes anterior
+    
+11. Ejemplos CORRECTOS para consultas de fechas:
+    - "facturas de este mes":
+      WHERE EXTRACT(MONTH FROM FECHA) = EXTRACT(MONTH FROM CURRENT_DATE)
+      AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE)
+    
+    - "facturas del mes pasado" (USAR ESTA SINTAXIS):
+      WHERE FECHA >= CAST(EXTRACT(YEAR FROM CURRENT_DATE) || '-' || 
+                          CASE WHEN EXTRACT(MONTH FROM CURRENT_DATE) = 1 THEN 12 
+                               ELSE EXTRACT(MONTH FROM CURRENT_DATE) - 1 END || '-01' AS DATE)
+      AND FECHA < CAST(EXTRACT(YEAR FROM CURRENT_DATE) || '-' || 
+                       EXTRACT(MONTH FROM CURRENT_DATE) || '-01' AS DATE)
+    
+    - ALTERNATIVA MÁS SIMPLE para "mes pasado" (RECOMENDADA):
+      WHERE (EXTRACT(YEAR FROM FECHA) * 12 + EXTRACT(MONTH FROM FECHA)) = 
+            (EXTRACT(YEAR FROM CURRENT_DATE) * 12 + EXTRACT(MONTH FROM CURRENT_DATE) - 1)
+    
+    - "hace 2 meses":
+      WHERE (EXTRACT(YEAR FROM FECHA) * 12 + EXTRACT(MONTH FROM FECHA)) = 
+            (EXTRACT(YEAR FROM CURRENT_DATE) * 12 + EXTRACT(MONTH FROM CURRENT_DATE) - 2)
+
+12. NUNCA uses DATEADD dentro de EXTRACT - NO FUNCIONA en Firebird 2.5
+
+
 """
-        logger.info(f"[AI PROVIDER] 📤 Enviando mensaje al modelo...")
+        logger.info(f"[AI PROVIDER] 📤 Usando sistema de fallback multi-modelo...")
         logger.info(f"[AI PROVIDER] System Prompt:\n{system_prompt}")
         logger.info(f"[AI PROVIDER] User Message: {message}")
         
-        response_text = await provider.generate_text(message, system_instruction=system_prompt)
+        # Use ModelFallbackOrchestrator for robust multi-model generation
+        response_text, used_model_id = await self.model_orchestrator.execute_with_fallback(
+            system_prompt=system_prompt,
+            user_message=message,
+            feedback_callback=None  # TODO: Implement real-time feedback to user
+        )
+        
+        if not response_text:
+            logger.error(f"[AI PROVIDER] ❌ Todos los modelos fallaron")
+            return "❌ No se pudo generar la consulta con ningún modelo disponible. Por favor, inténtalo más tarde."
+        
+        logger.info(f"[AI PROVIDER] ✅ Respuesta generada con modelo: {used_model_id}")
         logger.info(f"[AI PROVIDER] Respuesta completa: {response_text}")
+        
+        # Configure provider for SQL correction and result interpretation
+        from backend.core.config.model_manager import model_manager
+        model_config = model_manager.get_model(used_model_id)
+        
+        if model_config:
+            provider_schema = model_config.get('schema', model_config.get('provider'))
+            provider = AIFactory.get_provider(provider_schema)
+            
+            ai_config_params = {
+                'api_key': model_config.get('api_key'),
+                'model': model_config['model_id']
+            }
+            if model_config.get('base_url'):
+                ai_config_params['base_url'] = model_config['base_url']
+            if model_config.get('headers'):
+                ai_config_params['headers'] = model_config['headers']
+            
+            ai_config = AIConfig(**ai_config_params)
+            provider.configure(ai_config)
+        else:
+            logger.warning(f"[AI PROVIDER] ⚠️ No se pudo configurar provider para interpretación")
+            provider = None
         
         # 5. Execute SQL if present
         if "```sql" in response_text:
