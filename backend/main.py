@@ -48,6 +48,9 @@ app.include_router(models_router, prefix="/api/models", tags=["AI Models"])
 from backend.modules.chat.router import router as chat_router
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 
+from backend.modules.database.router import router as database_router
+app.include_router(database_router, prefix="/api/database", tags=["Database Config"])
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=settings.PORT, reload=settings.DEBUG)

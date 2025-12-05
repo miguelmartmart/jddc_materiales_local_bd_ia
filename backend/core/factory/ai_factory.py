@@ -8,9 +8,9 @@ class AIFactory:
     @staticmethod
     def get_provider(provider_name: str) -> AIProvider:
         """Get an AI provider by name."""
-        if provider_name == "gemini":
+        if provider_name == "gemini" or provider_name == "gemini_native":
             return GeminiProvider()
-        elif provider_name == "openai_compatible":
+        elif provider_name == "openai_compatible" or provider_name == "openrouter":
             return OpenAICompatibleProvider()
         else:
             raise ValueError(f"Unsupported AI provider: {provider_name}")

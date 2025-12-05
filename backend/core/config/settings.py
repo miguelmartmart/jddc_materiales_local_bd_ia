@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     COPILOT_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
     
+    # Privacy
+    REQUIRE_DB_DATA_CONFIRMATION: bool = True
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

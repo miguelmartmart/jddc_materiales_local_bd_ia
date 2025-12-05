@@ -21,6 +21,7 @@
                     <li data-view="articles">📦 Gestión Artículos</li>
                     <li data-view="prompts">⚙️ Configuración Prompts</li>
                     <li data-view="models">🤖 Modelos IA</li>
+                    <li data-view="database-config">🗄️ Configuración BD</li>
                     <li data-view="chat">💬 Chat IA</li>
                 </ul>
             </nav>
@@ -170,6 +171,40 @@
                                     <button type="button" id="btn-cancel-model" class="btn secondary">Cancelar</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Database Config -->
+                <div id="view-database-config" class="view-section" style="display: none;">
+                    <div class="card">
+                        <h3>Configuración de Base de Datos</h3>
+                        <div class="toolbar" style="margin-bottom: 20px;">
+                            <div style="display: flex; gap: 10px; align-items: center; flex: 1;">
+                                <label>Analizar Tabla:</label>
+                                <select id="db-table-selector"
+                                    style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px;">
+                                    <option value="">Cargando tablas...</option>
+                                </select>
+                                <button id="btn-analyze-table" class="btn secondary">🤖 Analizar con IA</button>
+                            </div>
+                            <button id="btn-save-metadata" class="btn primary">💾 Guardar Cambios</button>
+                        </div>
+
+                        <div style="display: flex; gap: 20px;">
+                            <div style="flex: 1;">
+                                <h4>Editor de Metadatos (JSON)</h4>
+                                <textarea id="metadata-editor"
+                                    style="width: 100%; height: 500px; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+                            </div>
+                            <div style="flex: 1; display: none;" id="analysis-preview-container">
+                                <h4>Vista Previa Análisis</h4>
+                                <div id="analysis-preview"
+                                    style="background: #f5f5f5; padding: 10px; border-radius: 4px; height: 450px; overflow-y: auto; font-family: monospace; white-space: pre-wrap;">
+                                </div>
+                                <button id="btn-append-analysis" class="btn primary"
+                                    style="width: 100%; margin-top: 10px;">⬇️ Añadir al Editor</button>
+                            </div>
                         </div>
                     </div>
                 </div>

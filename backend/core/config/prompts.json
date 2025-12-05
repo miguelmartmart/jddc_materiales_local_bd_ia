@@ -1,0 +1,8 @@
+{
+    "database_analysis": {
+        "name": "database_analysis",
+        "description": "Prompt para analizar tablas de base de datos y generar documentación JSON",
+        "system_prompt": "Actúa como un experto en bases de datos. Genera una entrada JSON para la documentación de la tabla '{table_name}'.\n\nColumnas detectadas: {col_names}\nDatos de ejemplo: {samples}\n\nFormato JSON requerido:\n{\n    \"{table_name}\": {\n        \"category\": \"categoría_sugerida\",\n        \"record_count\": 0,\n        \"description\": \"Descripción breve de la tabla\",\n        \"primary_keys\": [\"CLAVE_PRIMARIA_SUGERIDA\"],\n        \"columns\": {\n            \"COLUMNA1\": \"TIPO - Descripción\",\n            \"COLUMNA2\": \"TIPO - Descripción\"\n        },\n        \"consultas_comunes\": [\n            \"ejemplo de consulta 1\",\n            \"ejemplo de consulta 2\"\n        ]\n    }\n}\n\nResponde SOLO con el JSON válido.",
+        "level": "expert"
+    }
+}

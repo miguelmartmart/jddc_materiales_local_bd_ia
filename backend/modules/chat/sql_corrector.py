@@ -156,6 +156,30 @@ CONSULTA SQL CORREGIDA:"""
         
         return None
     
+    def enforce_case_insensitive(self, sql: str) -> str:
+        """
+        Programmatically enforces case-insensitive LIKE clauses.
+        Converts: col LIKE '%val%' -> UPPER(col) LIKE UPPER('%val%')
+        """
+        import re
+        
+        # Regex to find simple LIKE clauses: column LIKE 'value'
+        # Matches: NOMBRE LIKE '%val%', T.NOMBRE LIKE '%val%'
+        # Does NOT match: UPPER(NOMBRE) LIKE ... (due to parenthesis check implied by \s+LIKE)
+        pattern = re.compile(r'\b([a-zA-Z0-9_.]+)\s+LIKE\s+\'([^\']*)\'', re.IGNORECASE)
+        
+        def replace_like(match):
+            col = match.group(1)
+            val = match.group(2)
+            return f"UPPER({col}) LIKE UPPER('{val}')"
+            
+        new_sql = pattern.sub(replace_like, sql)
+        if new_sql != sql:
+            logger.info(f"[SQL AUTO-CORRECTION] 🛡️ Aplicada corrección CASE-INSENSITIVE automática")
+            logger.info(f"[SQL AUTO-CORRECTION] Original: {sql}")
+            logger.info(f"[SQL AUTO-CORRECTION] Corregida: {new_sql}")
+        return new_sql
+
     async def execute_with_correction(
         self,
         sql_query: str,
@@ -184,6 +208,10 @@ CONSULTA SQL CORREGIDA:"""
         Raises:
             Exception: If all correction attempts fail
         """
+        # Enforce case-insensitive search on first attempt
+        if attempt == 0:
+            sql_query = self.enforce_case_insensitive(sql_query)
+
         try:
             # Try to execute the query
             results = execute_func(sql_query)

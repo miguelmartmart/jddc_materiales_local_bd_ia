@@ -52,11 +52,17 @@ class ModelFallbackConfig:
     # Prioridad de modelos (mayor número = mayor prioridad)
     # Se intentarán en orden descendente de prioridad
     MODEL_PRIORITY = {
-        "gemini-2.0-flash-exp": 100,
-        "gemini-1.5-pro": 90,
-        "groq-llama-70b": 80,
-        "gpt-4": 70,
+        "gemini-1.5-pro": 100,      # "Gemini 3.0"
+        "grok-2-1212": 95,          # "Grok 4.1"
+        "groq-llama-70b": 90,       # "Groq Llama 70B"
+        "claude-3.5-sonnet-openrouter": 85,
+        "gemini-1.5-flash": 80,
+        "deepseek-r1-openrouter": 75,
+        "llama-3.3-70b-openrouter": 70,
+        "gpt-4": 60,
         "groq-llama-8b": 50,
+        "groq-mixtral": 40,
+        "qwen3-72b-openrouter": 30
     }
 
 

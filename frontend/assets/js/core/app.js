@@ -2,6 +2,7 @@ import { ArticleModule } from '../modules/articles.js';
 import { PromptModule } from '../modules/prompts.js';
 import { ChatModule } from '../modules/chat.js';
 import { ModelsModule } from '../modules/models.js';
+import { DatabaseConfigModule } from '../modules/database_config.js';
 
 class App {
     constructor() {
@@ -10,7 +11,8 @@ class App {
             articles: new ArticleModule(),
             prompts: new PromptModule(),
             chat: new ChatModule(),
-            models: new ModelsModule()
+            models: new ModelsModule(),
+            databaseConfig: new DatabaseConfigModule()
         };
         this.init();
     }
@@ -21,6 +23,7 @@ class App {
         this.modules.prompts.init();
         this.modules.chat.init();
         this.modules.models.init();
+        this.modules.databaseConfig.init();
     }
 
     setupNavigation() {
@@ -51,7 +54,8 @@ class App {
             'articles': 'Gestión de Artículos',
             'prompts': 'Configuración de Prompts',
             'models': 'Modelos IA',
-            'chat': 'Chat IA'
+            'chat': 'Chat IA',
+            'database-config': 'Configuración Base de Datos'
         };
         document.getElementById('page-title').textContent = titles[viewName] || 'DEVIA';
 

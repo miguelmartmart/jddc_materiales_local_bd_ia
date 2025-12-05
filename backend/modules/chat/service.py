@@ -45,7 +45,6 @@ class ChatService:
                 
                 config = DBConfig(**config_params)
                 driver.connect(config)
-                
                 # List tables
                 query = "SELECT TRIM(RDB$RELATION_NAME) as NAME FROM RDB$RELATIONS WHERE RDB$SYSTEM_FLAG = 0 ORDER BY RDB$RELATION_NAME"
                 results = driver.execute_query(query)
@@ -97,14 +96,9 @@ class ChatService:
                 results = driver.execute_query(query)
                 columns = [r['FIELD_NAME'] for r in results]
                 
-                # Try to get sample data
+                # Data sampling removed for privacy and performance
                 sample = ""
-                try:
-                    sample_res = driver.execute_query(f"SELECT FIRST 1 * FROM {table_name}")
-                    if sample_res:
-                        sample = f"\nEjemplo de datos:\n{sample_res[0]}"
-                except:
-                    sample = "\nNo se pudo obtener datos de ejemplo"
+
 
                 driver.disconnect()
                 return f"Columnas de {table_name}:\n" + "\n".join(columns) + sample
@@ -156,11 +150,27 @@ INSTRUCCIONES CRÍTICAS:
 8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
 9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
 
-SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
-10. Para calcular fechas en Firebird 2.5, usa CAST con aritmética de fechas:
-    - Mes actual: WHERE CAST(FECHA AS DATE) >= CAST('FIRST_DAY_OF_MONTH' AS DATE)
-    - Mes pasado: Calcula manualmente el primer y último día del mes anterior
-    
+TIPOS DE DOCUMENTOS (TABLA DOCCAB, COLUMNA TIPO):
+- Para "facturas" -> WHERE TIPO = 13
+- Para "albaranes" -> WHERE TIPO = 11
+- Para "presupuestos" -> WHERE TIPO = 0
+- Para "pedidos" -> WHERE TIPO = 12
+- Para "abonos" -> WHERE TIPO = 3
+- Para "recibos" -> WHERE TIPO = 61
+- Para "contratos" -> WHERE TIPO = 10
+- Para "certificaciones" -> WHERE TIPO = 51
+- Para "ordenes de trabajo" o "SAT" -> WHERE TIPO = 2
+
+TERMINOLOGÍA ESPECÍFICA (CONTEXTO AIRE ACONDICIONADO):
+- "Split" se refiere a equipos de aire acondicionado.
+- "Gas" se refiere a refrigerantes (R-32, R-410A, etc.).
+
+BÚSQUEDAS DE TEXTO (OBLIGATORIO CASE INSENSITIVE):
+- SIEMPRE usa `UPPER(columna) LIKE UPPER('%texto%')` para CUALQUIER búsqueda de texto.
+- NUNCA uses `LIKE '%TEXTO%'` directo, ya que Firebird es case-sensitive.
+- Ejemplo CORRECTO: `WHERE UPPER(NOMBRE) LIKE UPPER('%SPLIT%')`
+- Ejemplo INCORRECTO: `WHERE NOMBRE LIKE '%SPLIT%'`
+
 11. Ejemplos CORRECTOS para consultas de fechas:
     - "facturas de este mes":
       WHERE EXTRACT(MONTH FROM FECHA) = EXTRACT(MONTH FROM CURRENT_DATE)
@@ -183,6 +193,12 @@ SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
 
 12. NUNCA uses DATEADD dentro de EXTRACT - NO FUNCIONA en Firebird 2.5
 
+13. REGLA DE AÑO ACTUAL (CRÍTICA):
+    - Si el usuario menciona un mes (ej: "octubre", "noviembre") SIN especificar año, ASUME SIEMPRE EL AÑO ACTUAL.
+    - EJEMPLO: "facturas de octubre" -> 
+      WHERE EXTRACT(MONTH FROM FECHA) = 10 
+      AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE)
+    - SOLO si el usuario dice explícitamente "de todos los años" o "histórico", omite el filtro de año.
 
 """
         logger.info(f"[AI PROVIDER] 📤 Usando sistema de fallback multi-modelo...")
@@ -235,9 +251,11 @@ SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
                 # Limpiar query: remover punto y coma al final
                 sql_query = sql_query.rstrip(';').strip()
                 
-                # Añadir FIRST si es SELECT y no tiene FIRST
+                # Añadir FIRST si es SELECT y no tiene FIRST, y NO es una consulta de agregación simple
                 sql_upper = sql_query.upper()
-                if sql_upper.startswith(SQLKeywords.SELECT) and SQLKeywords.FIRST not in sql_upper:
+                is_aggregate = any(agg in sql_upper for agg in ['COUNT(', 'SUM(', 'AVG(', 'MAX(', 'MIN('])
+                
+                if sql_upper.startswith(SQLKeywords.SELECT) and SQLKeywords.FIRST not in sql_upper and not is_aggregate:
                     # Insertar FIRST después de SELECT
                     sql_query = sql_query[:6] + f' {SQLKeywords.FIRST} {SQLLimits.DEFAULT_FIRST}' + sql_query[6:]
                     logger.info(f"{LogPrefixes.SQL} {LogEmojis.WARNING} Añadido FIRST {SQLLimits.DEFAULT_FIRST} automáticamente para limitar resultados")
@@ -259,6 +277,23 @@ SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
                 logger.info(f"[DATABASE] Resultados: {len(results)} filas")
                 logger.info(f"[DATABASE] Datos: {results[:3] if len(results) > 3 else results}")  # First 3 rows
                 
+                # --- DATA PRIVACY CHECK ---
+                # Check if we need user confirmation before sending data to AI
+                require_confirmation = getattr(settings, 'REQUIRE_DB_DATA_CONFIRMATION', True)
+                confirm_sending = context.get('confirm_data_sending', False) if context else False
+                
+                if require_confirmation and results and not confirm_sending:
+                    logger.info(f"[PRIVACY] 🛑 Deteniendo para confirmación de usuario")
+                    return {
+                        "status": "confirmation_required",
+                        "message": "Por favor confirma el envío de estos datos a la IA.",
+                        "sql": sql_query,
+                        "data_preview": results[:5], # Send a preview
+                        "total_rows": len(results),
+                        "full_data": results # Send full data to frontend to hold
+                    }
+                # --------------------------
+                
                 # 6. Interpret Results
                 interpretation_prompt = (
                     f"Pregunta original: {message}\n"
@@ -273,7 +308,17 @@ SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
                 )
                 
                 logger.info(f"[AI PROVIDER] 📤 Solicitando interpretación de resultados...")
-                final_response = await provider.generate_text(interpretation_prompt)
+                
+                # Use ModelFallbackOrchestrator for interpretation to handle rate limits
+                final_response, _ = await self.model_orchestrator.execute_with_fallback(
+                    system_prompt="Eres un asistente experto en análisis de datos.",
+                    user_message=interpretation_prompt,
+                    feedback_callback=None
+                )
+                
+                if not final_response:
+                    final_response = f"He obtenido {len(results)} resultados, pero no he podido generar una explicación detallada en este momento debido a una alta carga en los servidores de IA. Aquí tienes los datos crudos: {results[:5]}"
+                
                 logger.info(f"[AI PROVIDER] 📥 Interpretación recibida")
                 logger.info(f"[RESPUESTA FINAL] {final_response}")
                 logger.info("="*80)
@@ -460,6 +505,10 @@ SINTAXIS FIREBIRD PARA FECHAS (MUY IMPORTANTE):
                 config_params = db_params.copy()
                 if 'username' in config_params:
                     config_params['user'] = config_params.pop('username')
+                
+                # Filter out non-DB params
+                if 'confirm_data_sending' in config_params:
+                    del config_params['confirm_data_sending']
                 
                 config = DBConfig(**config_params)
                 

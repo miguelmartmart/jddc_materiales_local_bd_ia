@@ -16,6 +16,7 @@ class FirebirdDriver(DatabaseDriver):
             # latin1 is more permissive and handles special bytes better
             charset = getattr(config, 'charset', 'latin1')
             
+            self.last_config = config
             self.conn = firebirdsql.connect(
                 host=config.host,
                 port=config.port,
@@ -35,28 +36,51 @@ class FirebirdDriver(DatabaseDriver):
             self.conn = None
 
     def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-        """Execute a SELECT query and return results with safe encoding handling."""
-        if not self.conn:
-            raise Exception("No hay conexión activa a la base de datos.")
+        """Execute a SELECT query and return results with safe encoding handling and auto-reconnect."""
+        max_retries = 3
+        last_error = None
         
-        cursor = self.conn.cursor()
-        try:
-            if params:
-                cursor.execute(query, params)
-            else:
-                cursor.execute(query)
-            
-            columns = [desc[0] for desc in cursor.description]
-            results = []
-            
-            # Use row_to_dict_safe for robust encoding handling
-            for row in cursor.fetchall():
-                row_dict = row_to_dict_safe(columns, row, verbose=False)
-                results.append(row_dict)
-            
-            return results
-        finally:
-            cursor.close()
+        for attempt in range(max_retries):
+            try:
+                if not self.conn:
+                    # Try to reconnect if we have config, otherwise raise
+                    if hasattr(self, 'last_config') and self.last_config:
+                        self.connect(self.last_config)
+                    else:
+                        raise Exception("No hay conexión activa a la base de datos.")
+                
+                cursor = self.conn.cursor()
+                try:
+                    if params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    columns = [desc[0] for desc in cursor.description]
+                    results = []
+                    
+                    # Use row_to_dict_safe for robust encoding handling
+                    for row in cursor.fetchall():
+                        row_dict = row_to_dict_safe(columns, row, verbose=False)
+                        results.append(row_dict)
+                    
+                    return results
+                finally:
+                    cursor.close()
+                    
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+                # Check for specific disconnection/protocol errors
+                if "op_code = 0" in error_str or "closed" in error_str.lower() or "network" in error_str.lower():
+                    print(f"⚠️ DB Connection Error (Attempt {attempt+1}/{max_retries}): {error_str}. Reconnecting...")
+                    self.disconnect()
+                    # Loop will try to reconnect at start of next iteration
+                else:
+                    # If it's a syntax error or other logic error, don't retry
+                    raise e
+        
+        raise last_error
 
     def execute_command(self, command: str, params: Optional[tuple] = None) -> int:
         """Execute an INSERT/UPDATE/DELETE command and return affected rows."""

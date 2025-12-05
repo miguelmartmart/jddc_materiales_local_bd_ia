@@ -1,5 +1,21 @@
 {
     "tables": {
+        "ALMACEN": {
+            "category": "inventario",
+            "record_count": 10,
+            "description": "Almacenes de la empresa",
+            "primary_keys": [
+                "CODIGO"
+            ],
+            "columns": {
+                "CODIGO": "INTEGER - Código único del almacén",
+                "DESCRIPCION": "VARCHAR(40) - Nombre o descripción del almacén"
+            },
+            "consultas_comunes": [
+                "listar almacenes: SELECT * FROM ALMACEN",
+                "buscar almacén por nombre: WHERE DESCRIPCION LIKE '%X%'"
+            ]
+        },
         "ARTICULO": {
             "category": "productos",
             "record_count": 1000,
@@ -52,7 +68,7 @@
             ],
             "columns": {
                 "NUMERO": "INTEGER - Número de documento",
-                "TIPO": "INTEGER - Tipo de documento",
+                "TIPO": "INTEGER - Tipo de documento: 0=Presupuesto, 11=Albarán, 12=Pedido, 51=Certificado obra, 21=Transferencia, 13=Factura, 2=Orden trabajo SAT, 3=Abono, 61=Recibo, 10=Contrato",
                 "SERIE": "VARCHAR(10) - Serie del documento",
                 "FECHA": "DATE - Fecha de emisión",
                 "CODCLIENTE": "INTEGER - Código del cliente",
