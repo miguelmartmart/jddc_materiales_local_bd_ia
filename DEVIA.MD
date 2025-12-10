@@ -348,6 +348,10 @@ python backend/scripts/extract_db_metadata.py
 4.  **Seguridad**:
     *   Gestión de secretos vía `.env` (API Keys, credenciales BD).
     *   Sanitización de logs (truncado de claves).
+5.  **Integración de Correo (IMAP)**:
+    *   Lectura de bandejas Outlook/Office365 con fallback a Gmail.
+    *   Soporte robusto para 2FA usando App Passwords.
+    *   Notificaciones de escritorio integradas.
 
 ### 🚧 En Progreso / Pendiente
 1.  **Validación de Esquema BD**:
@@ -380,3 +384,46 @@ python backend/scripts/extract_db_metadata.py
     *   Construye un segundo prompt con la pregunta original + SQL ejecutado + Resultados.
     *   Solicita a la IA una **Interpretación** en lenguaje natural (con reglas estrictas: Euros, Objetividad).
 6.  **Usuario**: Recibe la respuesta interpretada.
+
+---
+
+## 📧 MÓDULO DE CORREO (Integración Outlook/Gmail) {#outlook}
+
+El sistema cuenta con un módulo dedicado para la lectura y gestión de correos electrónicos corporativos, con capacidades de autenticación híbrida y notificaciones en tiempo real.
+
+### Características Principales
+1.  **Bandeja de Entrada Unificada**: Interfaz limpia para leer correos recientes.
+2.  **Autenticación Híbrida Inteligente** (`Hybrid Auth Strategy`):
+    *   **Nivel 1**: Intenta conectar a Outlook (`outlook.office365.com`) con credenciales nativas.
+    *   **Nivel 2**: Intenta conectar a Outlook con App Password (para cuentas 2FA).
+    *   **Nivel 3 (Híbrido)**: Si falla Outlook, intenta usar credenciales de **Gmail** pero contra el servidor de Outlook (caso borde de migración).
+    *   **Nivel 4 (Fallback Gmail)**: Si todo falla, conecta a Gmail (`imap.gmail.com`) directamente.
+3.  **Notificaciones en Tiempo Real**:
+    *   Polling automático cada 60 segundos.
+    *   Alertas de escritorio del sistema (Windows/Browser).
+    *   Actualización instatánea de la lista de correos ("Zero-Latency UI update").
+
+### Configuración (`.env`)
+El módulo se autoconfigura si detecta las siguientes variables:
+
+```env
+# Credenciales Principales (Outlook/Office365)
+OUTLOOK_EMAIL=usuario@dominio.com
+OUTLOOK_PASSWORD=contraseña_o_app_password
+OUTLOOK_PASSWORD_APP=app_password_especifica_si_existe
+
+# Credenciales de Respaldo (Gmail Connection)
+GMAIL_EMAIL=usuario@gmail.com
+GMAIL_PASSWORD=app_password_gmail
+```
+
+### Arquitectura del Módulo
+*   **Backend**: `backend/modules/outlook/`
+    *   `router.py`: Maneja la lógica de fallback y endpoints API.
+    *   `service.py`: Abstracción de `imaplib` con soporte SSL y manejo de errores.
+*   **Frontend**: `frontend/assets/js/modules/outlook.js`
+    *   Gestión de estado local.
+    *   Visualización diferencial (Bordes Azules/Rojos según proveedor).
+    *   Optimización de renderizado (Prepend local para evitar doble fetch).
+
+---

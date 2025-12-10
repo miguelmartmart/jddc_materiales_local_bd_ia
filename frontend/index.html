@@ -23,6 +23,7 @@
                     <li data-view="models">🤖 Modelos IA</li>
                     <li data-view="database-config">🗄️ Configuración BD</li>
                     <li data-view="chat">💬 Chat IA</li>
+                    <li data-view="outlook">📧 Outlook</li>
                 </ul>
             </nav>
         </aside>
@@ -230,6 +231,113 @@
                             <input type="text" id="chat-input" placeholder="Escribe tu mensaje..."
                                 style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                             <button id="btn-send-chat" class="btn primary">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Outlook View -->
+                <div id="view-outlook" class="view-section" style="display: none;">
+                    <div class="card">
+                        <div class="panel-header">
+                            <div>
+                                <h3>📧 Bandeja de Entrada Unificada</h3>
+                                <p class="text-sm text-gray-500" style="margin: 0; color: #666; font-size: 0.9em;">
+                                    Sincronización automática activa <span class="live-indicator"></span>
+                                </p>
+                            </div>
+                            <div id="connection-status" class="status-badge disconnected">
+                                ⚪ Desconectado
+                            </div>
+                        </div>
+
+                        <!-- Credentials Warning (Collapsible potentially, but keep visible for now) -->
+                        <div class="alert-box info" id="config-alert"
+                            style="display: none; background: #e3f2fd; color: #0d47a1; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+                            <p><small>Configura tus credenciales en el archivo <code>.env</code> para auto-conexión
+                                    (Outlook o Gmail).</small></p>
+                        </div>
+
+                        <!-- Manual Login Form (Hidden if configured) -->
+                        <div id="manual-login-form" class="form-group"
+                            style="display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <label>Usuario</label>
+                                <input type="email" id="outlook-email" placeholder="usuario@..."
+                                    style="width: 100%; padding: 8px;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label>Contraseña</label>
+                                <input type="password" id="outlook-password" placeholder="***"
+                                    style="width: 100%; padding: 8px;">
+                            </div>
+                        </div>
+
+                        <div class="toolbar-actions">
+                            <button id="btn-fetch-emails" class="btn primary">🔄 Sincronizar Ahora</button>
+                            <input type="number" id="analyze-limit" value="5" min="1" max="20"
+                                style="width: 60px; padding: 8px; border: 1px solid #bbdefb; border-radius: 4px; color: #1565c0; text-align: center; margin-right: 5px;"
+                                title="Cantidad de correos a analizar">
+                            <button id="btn-analyze-emails" class="btn secondary"
+                                style="background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb;">🧠 Analizar con
+                                IA</button>
+                            <button id="btn-enable-notifications" class="btn secondary">🔔 Activar Alertas</button>
+                            <span id="last-updated"
+                                style="margin-left: auto; font-size: 0.85em; color: #888; align-self: center;">
+                                Actualizado: Nunca
+                            </span>
+                        </div>
+
+                        <!-- Analysis Panel (Hidden by default) -->
+                        <div id="analysis-panel"
+                            style="display: none; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                            <h4 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                📊 Reporte de Inteligencia Artificial
+                                <button id="close-analysis"
+                                    style="margin-left: auto; background: none; border: none; cursor: pointer; font-size: 1.2em;">✖</button>
+                            </h4>
+
+                            <div class="stats-grid"
+                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div class="stat-card"
+                                    style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    <div style="font-size: 0.9em; color: #666;">Correos Analizados</div>
+                                    <div id="stat-total" style="font-size: 1.5em; font-weight: bold; color: #333;">0
+                                    </div>
+                                </div>
+                                <div class="stat-card"
+                                    style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    <div style="font-size: 0.9em; color: #666;">Sin Leer (Total)</div>
+                                    <div id="stat-unread" style="font-size: 1.5em; font-weight: bold; color: #d32f2f;">0
+                                    </div>
+                                </div>
+                                <div class="stat-card"
+                                    style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    <div style="font-size: 0.9em; color: #666;">Con Adjuntos</div>
+                                    <div id="stat-attachments"
+                                        style="font-size: 1.5em; font-weight: bold; color: #1976d2;">0</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom: 20px;">
+                                <h5>📅 Actividad (Últimos días)</h5>
+                                <div id="stat-timeline" style="font-size: 0.9em; color: #555;"></div>
+                            </div>
+
+                            <h5 style="margin-bottom: 10px;">📝 Resúmenes Inteligentes</h5>
+                            <div id="analysis-results" style="display: flex; flex-direction: column; gap: 10px;">
+                                <!-- Cards will be injected here -->
+                                <div style="text-align: center; color: #999;">Cargando análisis...</div>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+                        <div id="email-results">
+                            <div id="email-list" class="email-list-container">
+                                <div class="no-data"
+                                    style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                                    Esperando sincronización...
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

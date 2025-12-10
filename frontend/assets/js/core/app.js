@@ -3,6 +3,7 @@ import { PromptModule } from '../modules/prompts.js';
 import { ChatModule } from '../modules/chat.js';
 import { ModelsModule } from '../modules/models.js';
 import { DatabaseConfigModule } from '../modules/database_config.js';
+import { OutlookModule } from '../modules/outlook.js';
 
 class App {
     constructor() {
@@ -12,7 +13,8 @@ class App {
             prompts: new PromptModule(),
             chat: new ChatModule(),
             models: new ModelsModule(),
-            databaseConfig: new DatabaseConfigModule()
+            databaseConfig: new DatabaseConfigModule(),
+            outlook: new OutlookModule()
         };
         this.init();
     }
@@ -24,6 +26,7 @@ class App {
         this.modules.chat.init();
         this.modules.models.init();
         this.modules.databaseConfig.init();
+        this.modules.outlook.init();
     }
 
     setupNavigation() {
@@ -55,7 +58,8 @@ class App {
             'prompts': 'Configuración de Prompts',
             'models': 'Modelos IA',
             'chat': 'Chat IA',
-            'database-config': 'Configuración Base de Datos'
+            'database-config': 'Configuración Base de Datos',
+            'outlook': 'Lector de Correos'
         };
         document.getElementById('page-title').textContent = titles[viewName] || 'DEVIA';
 

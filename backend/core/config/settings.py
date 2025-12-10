@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: Optional[str] = None
     COPILOT_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
+
+    # Outlook
+    OUTLOOK_EMAIL: Optional[str] = None
+    OUTLOOK_PASSWORD: Optional[str] = None
+    OUTLOOK_PASSWORD_APP: Optional[str] = None
+
+    # Gmail
+    GMAIL_EMAIL: Optional[str] = None
+    GMAIL_PASSWORD: Optional[str] = None
     
     # Privacy
     REQUIRE_DB_DATA_CONFIRMATION: bool = True

@@ -190,3 +190,119 @@ table tr:hover {
     border-radius: 4px;
     font-family: inherit;
 }
+
+/* Email List */
+.email-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.email-item {
+    border: 1px solid #eee;
+    padding: 15px;
+    border-radius: 6px;
+    background: #f9fafb;
+    /* Add border-left for status color */
+    border-left: 4px solid transparent;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.email-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: #1a73e8;
+    /* Accent color on hover */
+}
+
+/* Status Colors applied to the left border */
+.email-item.source-outlook {
+    border-left-color: #0078d4;
+}
+
+.email-item.source-gmail {
+    border-left-color: #d93025;
+}
+
+.email-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    /* Align top in case of wrapping */
+    margin-bottom: 8px;
+}
+
+.email-date {
+    font-size: 0.85rem;
+    color: #666;
+    white-space: nowrap;
+    /* Keep date on one line */
+    margin-left: 10px;
+}
+
+.email-meta {
+    font-size: 0.9rem;
+    color: #4b5563;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.email-body {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.95rem;
+    color: #374151;
+    background: #fff;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+/* Animations */
+@keyframes pulse-dot {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+    }
+
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 5px rgba(76, 175, 80, 0);
+    }
+
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+    }
+}
+
+.live-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4caf50;
+    margin-right: 5px;
+    animation: pulse-dot 2s infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .form-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
