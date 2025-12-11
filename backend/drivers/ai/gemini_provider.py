@@ -32,8 +32,6 @@ class GeminiProvider(AIProvider):
         if not self.model:
             raise Exception("Gemini provider not configured")
             
-        # Enforce JSON structure via prompt engineering for now, 
-        # as strict JSON mode varies by model version.
         json_prompt = f"""
         {prompt}
         
@@ -44,9 +42,19 @@ class GeminiProvider(AIProvider):
         """
         
         if system_instruction:
+            # For Gemini models, system_instruction should ideally be passed at __init__, 
+            # but since we reuse the instance, we prepend it. 
+            # (Alternatively, we could re-init the model per request if we wanted true system prompt support)
             json_prompt = f"System Instruction: {system_instruction}\n\n{json_prompt}"
             
-        response = self.model.generate_content(json_prompt)
+        # Try-catch for model versions that might not support generation_config
+        try:
+             generation_config = {"response_mime_type": "application/json"}
+             response = self.model.generate_content(json_prompt, generation_config=generation_config)
+        except:
+             # Fallback to standard text generation
+             response = self.model.generate_content(json_prompt)
+             
         text = response.text.strip()
         
         # Clean up markdown code blocks if present

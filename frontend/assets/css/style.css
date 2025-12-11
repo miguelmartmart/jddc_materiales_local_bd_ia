@@ -293,6 +293,88 @@ table tr:hover {
     animation: pulse-dot 2s infinite;
 }
 
+/* NEW: Scrollable Lists for Outlook */
+.scrollable-list {
+    max-height: 500px;
+    /* Approx 3 items height depending on content */
+    overflow-y: auto;
+    padding-right: 5px;
+    /* Spacing for scrollbar */
+}
+
+/* Custom Scrollbar for clearer UI */
+.scrollable-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 3px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* Collapsible markers custom styling */
+details>summary {
+    list-style: none;
+}
+
+details>summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Toast Notification */
+.toast-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    border-left: 5px solid #2196f3;
+    padding: 15px 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 9999;
+    max-width: 350px;
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+.toast-notification.hide {
+    animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .panel-header {

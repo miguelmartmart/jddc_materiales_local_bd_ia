@@ -271,17 +271,39 @@
                             </div>
                         </div>
 
-                        <div class="toolbar-actions">
+                        <div class="toolbar-actions"
+                            style="background: #f5f9ff; padding: 10px; border-radius: 6px; border: 1px solid #e3f2fd; align-items: center; flex-wrap: wrap; gap: 10px;">
                             <button id="btn-fetch-emails" class="btn primary">🔄 Sincronizar Ahora</button>
-                            <input type="number" id="analyze-limit" value="5" min="1" max="20"
-                                style="width: 60px; padding: 8px; border: 1px solid #bbdefb; border-radius: 4px; color: #1565c0; text-align: center; margin-right: 5px;"
-                                title="Cantidad de correos a analizar">
+
+                            <div
+                                style="display: flex; align-items: center; gap: 5px; border-right: 1px solid #ddd; padding-right: 10px; margin-right: 5px;">
+                                <label style="font-size: 0.9em; color: #1565c0;">Límite:</label>
+                                <input type="number" id="analyze-limit" value="30" min="1" max="50"
+                                    style="width: 50px; padding: 6px; border: 1px solid #bbdefb; border-radius: 4px; text-align: center;">
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 10px; margin-right: 10px;">
+                                <label
+                                    style="display: flex; align-items: center; gap: 5px; font-size: 0.9em; cursor: pointer; color: #333;">
+                                    <input type="checkbox" id="analyze-unread-only">
+                                    Solo No Leídos
+                                </label>
+
+                                <select id="analyze-date-filter"
+                                    style="padding: 6px; border: 1px solid #bbdefb; border-radius: 4px; font-size: 0.9em; color: #333;">
+                                    <option value="all">📅 Todo el historial</option>
+                                    <option value="today">📅 Solo Hoy</option>
+                                    <option value="yesterday">📅 Solo Ayer</option>
+                                    <option value="week">📅 Esta Semana</option>
+                                </select>
+                            </div>
+
                             <button id="btn-analyze-emails" class="btn secondary"
-                                style="background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb;">🧠 Analizar con
-                                IA</button>
-                            <button id="btn-enable-notifications" class="btn secondary">🔔 Activar Alertas</button>
-                            <span id="last-updated"
-                                style="margin-left: auto; font-size: 0.85em; color: #888; align-self: center;">
+                                style="background: #1565c0; color: white;">🧠 Analizar con IA</button>
+
+                            <button id="btn-enable-notifications" class="btn secondary" style="margin-left: auto;">🔔
+                                Alertas</button>
+                            <span id="last-updated" style="font-size: 0.85em; color: #888; align-self: center;">
                                 Actualizado: Nunca
                             </span>
                         </div>
@@ -317,22 +339,36 @@
                                 </div>
                             </div>
 
-                            <div style="margin-bottom: 20px;">
-                                <h5>📅 Actividad (Últimos días)</h5>
-                                <div id="stat-timeline" style="font-size: 0.9em; color: #555;"></div>
-                            </div>
+                            <!-- Timeline (Collapsible) -->
+                            <details open style="margin-bottom: 20px;">
+                                <summary
+                                    style="cursor: pointer; font-weight: 600; color: #333; list-style: none; display: flex; align-items: center; gap: 5px; margin-bottom: 10px;">
+                                    📅 Actividad (Últimos días)
+                                    <span style="font-size: 0.8em; color: #888;">▼</span>
+                                </summary>
+                                <ul id="timeline-list"
+                                    style="list-style: none; padding: 0 0 0 10px; margin: 0; color: #555; border-left: 3px solid #eee;">
+                                </ul>
+                            </details>
 
-                            <h5 style="margin-bottom: 10px;">📝 Resúmenes Inteligentes</h5>
-                            <div id="analysis-results" style="display: flex; flex-direction: column; gap: 10px;">
-                                <!-- Cards will be injected here -->
-                                <div style="text-align: center; color: #999;">Cargando análisis...</div>
-                            </div>
+                            <!-- AI Results (Collapsible) -->
+                            <details open>
+                                <summary
+                                    style="cursor: pointer; font-weight: 600; color: #333; list-style: none; display: flex; align-items: center; gap: 5px; margin-bottom: 10px;">
+                                    📝 Resúmenes Inteligentes
+                                    <span style="font-size: 0.8em; color: #888;">▼</span>
+                                </summary>
+                                <div id="analysis-results" style="display: flex; flex-direction: column; gap: 10px;">
+                                    <!-- Cards will be injected here -->
+                                    <div style="text-align: center; color: #999;">Cargando análisis...</div>
+                                </div>
+                            </details>
                         </div>
 
                         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
 
                         <div id="email-results">
-                            <div id="email-list" class="email-list-container">
+                            <div id="email-list" class="email-list-container scrollable-list">
                                 <div class="no-data"
                                     style="color: #666; font-style: italic; text-align: center; padding: 20px;">
                                     Esperando sincronización...

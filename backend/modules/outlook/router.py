@@ -17,6 +17,8 @@ class FetchRequest(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     limit: int = 5
+    unread_only: bool = False
+    date_filter: str = "all" # all, today, yesterday, week
 
 @router.post("/test-connection")
 async def test_connection(request: ConnectionRequest):
@@ -44,7 +46,49 @@ async def analyze_emails(request: FetchRequest):
     
     # helper to fetch
     def try_fetch(e, p, server="outlook.office365.com"):
-        return service.fetch_recent_emails(e, p, request.limit, imap_server=server, full_content=True)
+        # Fetch a buffer (limit * 3) to allow for filtering
+        buffer_limit = request.limit * 3
+        raw_emails = service.fetch_recent_emails(e, p, buffer_limit, imap_server=server, full_content=True)
+        
+        # Apply Filters (Python side for robustness)
+        filtered = raw_emails
+        
+        # 1. Unread Filter
+        if request.unread_only:
+             filtered = [e for e in filtered if not e.get('is_read', False)]
+             
+        # 2. Date Filter
+        if request.date_filter != 'all':
+             import datetime
+             from email.utils import parsedate_tz, mktime_tz
+             
+             now = datetime.datetime.now()
+             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+             
+             filtered_by_date = []
+             for e in filtered:
+                 try:
+                     # Parse Date
+                     dt_tuple = parsedate_tz(str(e.get('date', '')))
+                     if dt_tuple:
+                          dt = datetime.datetime.fromtimestamp(mktime_tz(dt_tuple))
+                          
+                          if request.date_filter == 'today':
+                              if dt >= today_start: filtered_by_date.append(e)
+                          elif request.date_filter == 'yesterday':
+                              yesterday_start = today_start - datetime.timedelta(days=1)
+                              if yesterday_start <= dt < today_start: filtered_by_date.append(e)
+                          elif request.date_filter == 'week':
+                              # Start of week (Monday)
+                              start_week = today_start - datetime.timedelta(days=now.weekday())
+                              if dt >= start_week: filtered_by_date.append(e)
+                 except:
+                     pass # Include if date parse fails? No, exclude safely
+             
+             filtered = filtered_by_date
+
+        # Slice to requested limit
+        return filtered[:request.limit]
 
     emails = []
     source = "outlook"
@@ -81,12 +125,21 @@ async def analyze_emails(request: FetchRequest):
 
     # 3. Analyze
     stats = analyzer.calculate_stats(emails, unread)
+    
+    # 4. Global Daily Stats (New) - Wrapped in try/except for robustness
+    global_daily = []
+    try:
+        global_daily = service.get_global_daily_stats(email, final_password, days=3)
+    except Exception as e:
+        logger.error(f"Failed to fetch global daily stats: {e}")
+    
     ai_results = await analyzer.analyze_content(emails)
 
     return {
         "success": True,
         "source": source,
         "stats": stats,
+        "global_daily": global_daily,
         "analysis": ai_results
     }
 

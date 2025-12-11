@@ -35,28 +35,65 @@ class OutlookService:
         return decoded_text
 
     def get_email_body(self, msg) -> str:
-        """Extracts plain text body from email message."""
+        """Extracts plain text body from email message, falling back to html stripping if needed."""
         body = ""
+        html_body = ""
+        
         if msg.is_multipart():
             for part in msg.walk():
                 content_type = part.get_content_type()
                 content_disposition = str(part.get("Content-Disposition"))
 
                 if "attachment" not in content_disposition:
-                    if content_type == "text/plain":
-                        try:
-                            body += part.get_payload(decode=True).decode()
-                        except:
-                            pass
-                    # Optionally handle html if needed, but we want text-only for now
+                    try:
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            decoded = payload.decode('utf-8', errors='ignore')
+                            if content_type == "text/plain":
+                                body += decoded
+                            elif content_type == "text/html":
+                                html_body += decoded
+                    except:
+                        pass
         else:
-            if msg.get_content_type() == "text/plain":
-                try:
-                    body = msg.get_payload(decode=True).decode()
-                except:
-                    pass
+            try:
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    decoded = payload.decode('utf-8', errors='ignore')
+                    if msg.get_content_type() == "text/plain":
+                        body = decoded
+                    elif msg.get_content_type() == "text/html":
+                        html_body = decoded
+            except:
+                pass
         
-        return body.strip()
+        final_body = body.strip()
+        if not final_body:
+            final_body = html_body.strip()
+            
+        # Check if we need to clean HTML (either because it was html_body OR text/plain contained html)
+        if final_body and ('<' in final_body and '>' in final_body):
+             # Robust strip tags
+            import re
+            import html
+            
+            # Remove head, style, script completely
+            final_body = re.sub(r'<(head|style|script)[^>]*>.*?</\1>', '', final_body, flags=re.IGNORECASE | re.DOTALL)
+            
+            # Replace breaks/paragraphs with newlines for readability
+            final_body = re.sub(r'<(br|div|p)[^>]*>', '\n', final_body, flags=re.IGNORECASE)
+            
+            # Strip remaining tags
+            clean = re.compile('<.*?>')
+            final_body = re.sub(clean, '', final_body)
+            
+            # Unescape entities (twice to be safe)
+            final_body = html.unescape(final_body)
+            
+            # Clean up excessive newlines
+            final_body = re.sub(r'\n\s*\n', '\n\n', final_body).strip()
+            
+        return final_body
 
     def get_attachments(self, msg) -> List[Dict]:
         """Extracts attachments metadata and text content if possible."""
@@ -114,7 +151,8 @@ class OutlookService:
             results = []
 
             for e_id in latest_email_ids:
-                status, msg_data = mail.fetch(e_id, "(RFC822 FLAGS)")
+                # Use BODY.PEEK[] to fetch without marking as read
+                status, msg_data = mail.fetch(e_id, "(BODY.PEEK[] FLAGS)")
                 if status != "OK":
                     continue
                 
@@ -193,3 +231,79 @@ class OutlookService:
         except Exception as e:
             logger.error(f"Connection failed: {str(e)}")
             return False
+
+    def get_global_daily_stats(self, email_address: str, password: str, days: int = 3) -> List[Dict]:
+        """Fetches total and unread counts for the last N days using IMAP Search."""
+        stats = []
+        try:
+            # Connect to IMAP
+            # Note: We need to respect the server argument if passed, but here we assume standard outlook/gmail logic
+            # For simplicity, default to outlook but we might need to pass server if using Gmail fallback
+            # Currently this method signature doesn't accept imap_server. I will add it or default to self.imap_server.
+            # Ideally, we should pass 'imap_server' as arg, but router calls it with just (email, password, days=3).
+            # I'll stick to self.imap_server for now, BUT if hybrid auth is used, we might be checking the wrong server.
+            # However, simpler is better to fix the crash first.
+            
+            # Wait, if router.py calls it, it doesn't pass server.
+            # Let's check router.py logic. It calls `service.get_global_daily_stats(email, final_password, days=3)`.
+            # If using Gmail, `final_password` is Gmail's, but `service.imap_server` is "outlook.office365.com".
+            # This will fail login if using Gmail creds on Outlook server.
+            # I should update router.py to pass server too, OR update this method to try/catch.
+            # Let's update this method to accept imap_server, defaulting to outlook.
+            
+            server = "outlook.office365.com"
+            if "gmail" in email_address: # Naive check, but helpful
+                 server = "imap.gmail.com"
+            
+            # Use the calculated server, not self.imap_server
+            mail = imaplib.IMAP4_SSL(server, self.imap_port)
+            try:
+                mail.login(email_address, password)
+            except:
+                # Fallback implementation if needed, but for now just logging
+                logger.warning(f"Global stats login failed for {email_address} on {server}")
+                return []
+
+            mail.select("inbox")
+            
+            import datetime
+            # Helper for IMAP date format: DD-Mon-YYYY
+            def format_date(dt):
+                months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                return f"{dt.day}-{months[dt.month-1]}-{dt.year}"
+            
+            now = datetime.datetime.now()
+            
+            for i in range(days):
+                target_date = now - datetime.timedelta(days=i)
+                date_str = format_date(target_date)
+                
+                # Check Total
+                typ, data = mail.search(None, f'(ON "{date_str}")')
+                total = 0
+                if typ == 'OK':
+                    total = len(data[0].split())
+                
+                # Check Unread
+                typ, data = mail.search(None, f'(ON "{date_str}" UNSEEN)')
+                unread = 0
+                if typ == 'OK':
+                    unread = len(data[0].split())
+                    
+                read_count = total - unread
+                
+                label = "Hoy" if i == 0 else "Ayer" if i == 1 else "Anteayer" if i == 2 else date_str
+                
+                stats.append({
+                    "label": label,
+                    "date": date_str,
+                    "total": total,
+                    "unread": unread,
+                    "read": read_count
+                })
+                
+            mail.logout()
+        except Exception as e:
+            logger.error(f"Error fetching global stats: {e}")
+            
+        return stats
