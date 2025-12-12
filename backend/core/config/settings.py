@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: Optional[str] = None
     COPILOT_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
+    ALIBABA_API_KEY: Optional[str] = None
+    QWEN_API_KEY: Optional[str] = None
 
     # Outlook
     OUTLOOK_EMAIL: Optional[str] = None

@@ -1,12 +1,12 @@
 {
   "models": [
     {
-      "id": "gemini-1.5-pro",
-      "name": "Gemini 1.5 Pro",
+      "id": "gemini-2.0-flash",
+      "name": "Gemini 2.0 Flash Experimental",
       "provider": "gemini",
-      "model_id": "gemini-1.5-pro",
-      "description": "Gemini 1.5 Pro - Modelo avanzado de Google",
-      "enabled": true,
+      "model_id": "gemini-2.0-flash-exp",
+      "description": "Gemini 2.0 Flash - Último modelo de Google, gratis y potente",
+      "enabled": false,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 8000
@@ -25,11 +25,35 @@
       }
     },
     {
-      "id": "grok-2-1212",
-      "name": "Grok 2 (OpenRouter)",
-      "provider": "openrouter",
-      "model_id": "x-ai/grok-2-1212",
-      "description": "Grok 2 - Modelo avanzado de xAI",
+      "id": "gemini-1.5-pro",
+      "name": "Gemini 1.5 Pro",
+      "provider": "gemini",
+      "model_id": "gemini-1.5-pro",
+      "description": "Gemini 1.5 Pro - Modelo avanzado de Google",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "llama-3.1-8b-groq",
+      "name": "Llama 3.1 8B (Groq)",
+      "provider": "groq",
+      "model_id": "llama-3.1-8b-instant",
+      "description": "Llama 3.1 8B en Groq - Ultra rápido y gratuito",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "gemma2-9b-groq",
+      "name": "Gemma 2 9B (Groq)",
+      "provider": "groq",
+      "model_id": "gemma2-9b-it",
+      "description": "Gemma 2 9B en Groq - Modelo de Google, gratuito",
       "enabled": true,
       "parameters": {
         "temperature": 0.7,
@@ -46,54 +70,6 @@
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 8000
-      }
-    },
-    {
-      "id": "deepseek-r1-openrouter",
-      "name": "DeepSeek R1 (OpenRouter)",
-      "provider": "openrouter",
-      "model_id": "deepseek/deepseek-r1",
-      "description": "DeepSeek R1 - Modelo de razonamiento avanzado",
-      "enabled": true,
-      "parameters": {
-        "temperature": 0.7,
-        "max_tokens": 8000
-      }
-    },
-    {
-      "id": "claude-3.5-sonnet-openrouter",
-      "name": "Claude 3.5 Sonnet (OpenRouter)",
-      "provider": "openrouter",
-      "model_id": "anthropic/claude-3.5-sonnet",
-      "description": "Claude 3.5 Sonnet - Excelente para análisis y código",
-      "enabled": true,
-      "parameters": {
-        "temperature": 0.7,
-        "max_tokens": 8000
-      }
-    },
-    {
-      "id": "llama-3.3-70b-openrouter",
-      "name": "Llama 3.3 70B (OpenRouter)",
-      "provider": "openrouter",
-      "model_id": "meta-llama/llama-3.3-70b-instruct",
-      "description": "Meta Llama 3.3 70B - Open source de alta calidad",
-      "enabled": true,
-      "parameters": {
-        "temperature": 0.7,
-        "max_tokens": 8000
-      }
-    },
-    {
-      "id": "gpt4-turbo-openrouter",
-      "name": "GPT-4 Turbo (OpenRouter)",
-      "provider": "openrouter",
-      "model_id": "openai/gpt-4-turbo",
-      "description": "GPT-4 Turbo - Modelo más avanzado de OpenAI",
-      "enabled": false,
-      "parameters": {
-        "temperature": 0.7,
-        "max_tokens": 4096
       }
     },
     {
@@ -121,15 +97,123 @@
       }
     },
     {
+      "id": "deepseek-chat",
+      "name": "DeepSeek Chat",
+      "provider": "deepseek",
+      "model_id": "deepseek-chat",
+      "description": "DeepSeek Chat - Modelo gratuito y potente",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "provider": "openai",
+      "model_id": "gpt-4o-mini",
+      "description": "GPT-4o Mini - Rápido y económico de OpenAI",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 16000
+      }
+    },
+    {
+      "id": "qwen-turbo",
+      "name": "Qwen Turbo",
+      "provider": "qwen",
+      "model_id": "qwen-turbo",
+      "description": "Qwen Turbo - Modelo de Alibaba, rápido y gratuito",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "mistral-small",
+      "name": "Mistral Small",
+      "provider": "mistral",
+      "model_id": "mistral-small-latest",
+      "description": "Mistral Small - Rápido y eficiente",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "deepseek-r1-openrouter",
+      "name": "DeepSeek R1 (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "deepseek/deepseek-r1",
+      "description": "DeepSeek R1 - Modelo de razonamiento avanzado",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "claude-3.5-sonnet-openrouter",
+      "name": "Claude 3.5 Sonnet (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "anthropic/claude-3.5-sonnet",
+      "description": "Claude 3.5 Sonnet - Excelente para análisis y código",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "llama-3.3-70b-openrouter",
+      "name": "Llama 3.3 70B (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "meta-llama/llama-3.3-70b-instruct",
+      "description": "Meta Llama 3.3 70B - Open source de alta calidad",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
       "id": "qwen3-72b-openrouter",
       "name": "Qwen 2.5 72B (OpenRouter)",
       "provider": "openrouter",
       "model_id": "qwen/qwen-2.5-72b-instruct",
       "description": "Qwen 2.5 72B vía OpenRouter - Multilingüe y versátil",
-      "enabled": true,
+      "enabled": false,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 8000
+      }
+    },
+    {
+      "id": "grok-2-1212",
+      "name": "Grok 2 (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "x-ai/grok-2-1212",
+      "description": "Grok 2 - Modelo avanzado de xAI",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8000
+      }
+    },
+    {
+      "id": "gpt4-turbo-openrouter",
+      "name": "GPT-4 Turbo (OpenRouter)",
+      "provider": "openrouter",
+      "model_id": "openai/gpt-4-turbo",
+      "description": "GPT-4 Turbo - Modelo más avanzado de OpenAI",
+      "enabled": false,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
       }
     }
   ]

@@ -32,7 +32,11 @@ class ModelManager:
             'GROQ_API_KEY': settings.GROQ_API_KEY,
             'OPENROUTER_API_KEY': settings.OPENROUTER_API_KEY,
             'GEMINI_API_KEY': settings.GEMINI_API_KEY,
-            'OPENAI_API_KEY': settings.OPENAI_API_KEY
+            'OPENAI_API_KEY': settings.OPENAI_API_KEY,
+            'DEEPSEEK_API_KEY': settings.DEEPSEEK_API_KEY,
+            'ALIBABA_API_KEY': settings.ALIBABA_API_KEY,
+            'QWEN_API_KEY': settings.QWEN_API_KEY,
+            'MISTRAL_API_KEY': settings.MISTRAL_API_KEY
         }
         return key_mapping.get(env_var_name)
     

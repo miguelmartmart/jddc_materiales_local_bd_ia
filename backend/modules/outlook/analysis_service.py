@@ -150,6 +150,64 @@ class EmailAnalyzer:
         
         raise last_error
 
+    async def generate_reply_suggestion(self, email_context: str, sender: str) -> str:
+        """Generates a draft reply based on the email context."""
+        
+        # Fallback template if AI fails
+        fallback_template = f"""Estimado/a {sender.split('@')[0] if '@' in sender else sender},
+
+Gracias por su correo.
+
+[Por favor, complete aquí su respuesta]
+
+Saludos cordiales,
+[Su nombre]"""
+        
+        prompt = f"""
+        Actúa como un asistente ejecutivo profesional. 
+        Redacta una respuesta de correo electrónico formal, amable y concisa para el siguiente correo recibido de '{sender}'.
+        
+        Contenido del correo original:
+        "{email_context[:2000]}"
+        
+        Instrucciones:
+        - Saludo apropiado.
+        - Agradece el correo.
+        - Dejar espacios [...] para que el usuario complete detalles específicos si faltan.
+        - Despedida profesional.
+        - Idioma: Español.
+        - Solo devuelve el cuerpo del correo, sin introducciones ni explicaciones extra.
+        """
+        
+        try:
+            # Try to get an AI model using the same logic as analyze_content
+            model = None
+            for model_config in settings.AI_MODELS:
+                try:
+                    ai_config = AIConfig(
+                        provider=model_config.get("provider"),
+                        model=model_config.get("model"),
+                        api_key=model_config.get("api_key"),
+                        temperature=0.3
+                    )
+                    model = AIFactory.create(ai_config)
+                    logger.info(f"Using model for reply: {model_config.get('model')} ({model_config.get('provider')})")
+                    break
+                except Exception as e:
+                    logger.warning(f"Model {model_config.get('model')} failed for reply: {e}")
+                    continue
+            
+            if not model:
+                logger.warning("No AI model available for reply generation, using fallback template")
+                return fallback_template
+            
+            response = await model.generate_content_async(prompt)
+            return response.text.strip()
+            
+        except Exception as e:
+            logger.error(f"Error generating reply suggestion: {e}")
+            return fallback_template
+
     async def analyze_content(self, emails: List[Dict]) -> List[Dict]:
         """Summarizes each email and its attachments using AI."""
         results = []
@@ -158,20 +216,33 @@ class EmailAnalyzer:
             "type": "object",
             "properties": {
                 "summary": {"type": "string", "description": "Resumen conciso (1-2 frases) que especifique detalles clave como: tipo de productos, cargos/puestos exactos, importes, fechas límite o nombres de proyectos. Evita generalidades."},
-                "category": {"type": "string", "enum": ["Trabajo", "Personal", "Notificación", "Spam", "Factura", "Otro"]},
+                "category": {"type": "string", "enum": ["Trabajo", "Personal", "Notificación", "Spam", "Factura", "Publicidad", "Otro"]},
+                "subcategory": {"type": "string", "description": "Tipo específico dentro de la categoría. Ej: 'Newsletter', 'Oferta', 'Recibo', 'Recordatorio', 'Reunión'"},
                 "priority": {"type": "string", "enum": ["Alta", "Media", "Baja"]},
+                "action_needed": {"type": "boolean", "description": "True si requiere acción del usuario (pagar, responder, confirmar)"},
                 "attachments_analysis": {"type": "string", "description": "Resumen del contenido de los adjuntos si existen, o 'Sin adjuntos'"}
             },
-            "required": ["summary", "category", "priority"]
+            "required": ["summary", "category", "subcategory", "priority", "action_needed"]
         }
 
         for email in emails:
             # Base result structure (ensures ID/metadata always exists)
+            # Clean attachments for frontend (remove content to reduce payload size)
+            clean_attachments = []
+            for att in email.get('attachments', []):
+                clean_attachments.append({
+                    "filename": att.get('filename'),
+                    "content_type": att.get('content_type'),
+                    "size": att.get('size', 0)
+                })
+            
             result_item = {
                 "id": email['id'],
                 "subject": email.get('subject', '(Sin Asunto)'),
                 "sender": email.get('sender', 'Desconocido'),
                 "date": email.get('date', ''),
+                "is_read": email.get('is_read', False),
+                "attachments": clean_attachments,  # Metadata only, no content
                 "ai_data": {}
             }
             

@@ -395,6 +395,151 @@ export class OutlookModule {
                 timelineList.appendChild(tableLi);
             }
 
+            // 2. Render "Detailed Analysis Breakdown" (Tree View) - HIERARCHICAL
+            const analysisData = data.analysis || [];
+
+            const breakdownLi = document.createElement('li');
+            breakdownLi.style.marginBottom = '15px';
+            breakdownLi.style.listStyle = 'none';
+
+            // Data Structure: Date -> Status -> Category -> Subcategory
+            const hierarchy = {};
+
+            analysisData.forEach(item => {
+                // 1. Normalize Date (simple string matching)
+                // The backend returns various formats, but usually fairly consistent. 
+                // We'll rely on the string provided.
+                const dateKey = item.date ? item.date.split(',')[0].trim() : "Fecha Desconocida";
+
+                // 2. Status
+                const statusKey = item.is_read ? "Leídos" : "No Leídos";
+
+                // 3. Category/Subcategory
+                const ai = item.ai_data || {};
+                const cat = ai.category || 'Otros';
+                const sub = ai.subcategory || 'General';
+                const prio = ai.priority || 'Baja';
+
+                // Initialize path
+                if (!hierarchy[dateKey]) hierarchy[dateKey] = { total: 0, statuses: {} };
+                hierarchy[dateKey].total++;
+
+                if (!hierarchy[dateKey].statuses[statusKey]) hierarchy[dateKey].statuses[statusKey] = { total: 0, cats: {} };
+                hierarchy[dateKey].statuses[statusKey].total++;
+
+                const statusNode = hierarchy[dateKey].statuses[statusKey];
+
+                if (!statusNode.cats[cat]) statusNode.cats[cat] = { total: 0, subs: {}, priorities: { 'Alta': 0, 'Media': 0, 'Baja': 0 } };
+                statusNode.cats[cat].total++;
+
+                if (!statusNode.cats[cat].subs[sub]) statusNode.cats[cat].subs[sub] = { count: 0, items: [] };
+                statusNode.cats[cat].subs[sub].count++;
+                statusNode.cats[cat].subs[sub].items.push({
+                    subject: item.subject,
+                    sender: item.sender
+                });
+
+                // Priority Count
+                if (statusNode.cats[cat].priorities[prio] !== undefined) {
+                    statusNode.cats[cat].priorities[prio]++;
+                }
+            });
+
+            // Helper for Search URL
+            const isGmail = (data.source && data.source.includes('gmail'));
+            const getSearchLink = (term) => {
+                const encoded = encodeURIComponent(term);
+                return isGmail
+                    ? `https://mail.google.com/mail/u/0/#search/${encoded}`
+                    : `https://outlook.live.com/mail/0/options/mail/search/inbox?q=${encoded}`;
+            };
+
+            // Build HTML
+            let breakdownHtml = '';
+
+            // Iterate Dates
+            for (const [date, dateInfo] of Object.entries(hierarchy)) {
+                let statusHtml = '';
+
+                // Iterate Statuses
+                for (const [status, statusInfo] of Object.entries(dateInfo.statuses)) {
+                    let catHtml = '';
+
+                    // Iterate Categories
+                    for (const [cat, catInfo] of Object.entries(statusInfo.cats)) {
+                        let subHtml = '';
+                        // Subcategories
+                        for (const [sub, subInfo] of Object.entries(catInfo.subs)) {
+                            // Subcategory Items List
+                            const itemsHtml = subInfo.items.map(i =>
+                                `<li style="margin-bottom:2px;">
+                                    <span style="font-weight:500;">${this.escapeHtml(i.subject)}</span> 
+                                    <span style="color:#888; font-size:0.9em;">(${this.escapeHtml(i.sender)})</span>
+                                 </li>`
+                            ).join('');
+
+                            const searchUrl = getSearchLink(sub);
+                            const toggleId = `sub-toggle-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                            subHtml += `
+                                <div style="padding-left:15px; font-size:0.85em; color:#666; margin-top:4px; display:flex; align-items:flex-start; flex-direction:column;">
+                                    <div style="display:flex; align-items:center; gap:5px;">
+                                        <span>• ${this.escapeHtml(sub)} (${subInfo.count})</span>
+                                        <a href="${searchUrl}" target="_blank" title="Buscar en Web" style="text-decoration:none; cursor:pointer;">🔗</a>
+                                        <span onclick="document.getElementById('${toggleId}').hidden = !document.getElementById('${toggleId}').hidden" title="Ver correos" style="cursor:pointer;">⬇️</span>
+                                    </div>
+                                    <ul id="${toggleId}" hidden style="margin:5px 0 0 5px; padding-left:15px; border-left:1px dashed #ccc; list-style:none;">
+                                        ${itemsHtml}
+                                    </ul>
+                                </div>`;
+                        }
+
+                        // Priority Badges
+                        let prioBadges = '';
+                        if (catInfo.priorities['Alta'] > 0) prioBadges += `<span style="font-size:0.7em; background:#ffebee; color:#c62828; padding:1px 4px; border-radius:3px; margin-left:4px;">Alta: ${catInfo.priorities['Alta']}</span>`;
+                        if (catInfo.priorities['Media'] > 0) prioBadges += `<span style="font-size:0.7em; background:#fff3e0; color:#ef6c00; padding:1px 4px; border-radius:3px; margin-left:4px;">Media: ${catInfo.priorities['Media']}</span>`;
+
+                        catHtml += `
+                            <details style="margin-left:10px; margin-bottom:4px;">
+                                <summary style="cursor:pointer; font-size:0.9em; color:#1565c0;">${this.escapeHtml(cat)} (${catInfo.total}) ${prioBadges}</summary>
+                                <div style="margin-left:10px; border-left:2px solid #eee;">${subHtml}</div>
+                            </details>
+                        `;
+                    }
+
+                    const statusColor = status === "No Leídos" ? "#d32f2f" : "#388e3c";
+                    const statusIcon = status === "No Leídos" ? "🔴" : "🟢";
+
+                    statusHtml += `
+                        <div style="margin-bottom:8px; margin-left:5px;">
+                            <div style="font-weight:600; font-size:0.9em; color:${statusColor}; margin-bottom:3px;">
+                                ${statusIcon} ${status} (${statusInfo.total})
+                            </div>
+                            <div style="margin-left:5px;">${catHtml}</div>
+                        </div>
+                    `;
+                }
+
+                breakdownHtml += `
+                    <div style="background:white; border:1px solid #e0e0e0; border-radius:6px; padding:8px; margin-bottom:10px;">
+                        <div style="font-weight:bold; color:#333; border-bottom:1px solid #eee; padding-bottom:4px; margin-bottom:6px;">📅 ${this.escapeHtml(date)} (${dateInfo.total})</div>
+                        ${statusHtml}
+                    </div>
+                `;
+            }
+
+            if (analysisData.length === 0) {
+                breakdownHtml = '<div style="font-size:0.8em; color:#999; font-style:italic; padding:10px;">Sin datos para desglosar.</div>';
+            }
+
+            breakdownLi.innerHTML = `
+                <div style="background:#f0f7ff; border:1px solid #bbdefb; border-radius:6px; padding:10px;">
+                    <div style="font-weight:600; font-size:0.9em; color:#0d47a1; margin-bottom:8px;">🧐 Desglose Avanzado (${analysisData.length}):</div>
+                    ${breakdownHtml}
+                </div>
+            `;
+            timelineList.appendChild(breakdownLi);
+
             if (Array.isArray(items)) {
                 items.forEach(day => {
                     const li = document.createElement('li');
@@ -472,14 +617,50 @@ export class OutlookModule {
                 </div>
                 <div style="font-size: 0.9em; color: #555; margin-bottom: 8px;">De: <b>${this.escapeHtml(item.sender || 'Desconocido')}</b></div>
                 
-                <div style="margin-bottom: 10px;">
+                <div style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center;">
                     <span style="background: ${badgeColor}; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 500;">${this.escapeHtml(ai.category || 'General')}</span>
+                    ${ai.subcategory ? `<span style="background: #e0f7fa; color: #006064; padding: 3px 8px; border-radius: 12px; font-size: 0.75em; border: 1px solid #b2ebf2;">${this.escapeHtml(ai.subcategory)}</span>` : ''}
                     <span style="background: #f5f5f5; color: #666; padding: 3px 8px; border-radius: 12px; font-size: 0.75em; border: 1px solid #ddd;">${this.escapeHtml(ai.priority || 'Baja')}</span>
+                    ${ai.action_needed ? `<span style="border: 1px solid #ff5722; color: #ff5722; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; font-weight: bold;">⚠️ Acción Requerida</span>` : ''}
                 </div>
 
                 <div style="font-size: 0.95em; color: #333; line-height: 1.5; background: #fafafa; padding: 12px; border-radius: 6px; border: 1px dashed #e0e0e0; margin-bottom: 15px;">
                     🤖 "${this.escapeHtml(ai.summary || 'Sin resumen')}"
                 </div>
+
+                ${item.attachments && item.attachments.length > 0 ? `
+                    <div style="margin-bottom:10px; padding: 10px; background: #fff3e0; border: 1px solid #ffe0b2; border-radius: 6px;">
+                        <div style="font-weight: 600; color: #e65100; margin-bottom: 8px; display: flex; align-items: center; gap: 5px;">
+                            <span>📎</span>
+                            <span>Adjuntos (${item.attachments.length})</span>
+                        </div>
+                        ${item.attachments.map((att, idx) => {
+                const sizeKB = (att.size / 1024).toFixed(1);
+                const fileIcon = att.content_type.includes('pdf') ? '📄' :
+                    att.content_type.includes('image') ? '🖼️' :
+                        att.content_type.includes('word') ? '📝' :
+                            att.content_type.includes('excel') || att.content_type.includes('spreadsheet') ? '📊' :
+                                att.content_type.includes('text') ? '📃' : '📎';
+
+                return `
+                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: white; border: 1px solid #ffcc80; border-radius: 4px; margin-bottom: 5px; font-size: 0.85em;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                                        <span>${fileIcon}</span>
+                                        <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(att.filename)}">${this.escapeHtml(att.filename)}</span>
+                                        <span style="color: #999; font-size: 0.9em;">(${sizeKB} KB)</span>
+                                    </div>
+                                    <button class="btn-analyze-attachment" 
+                                            data-email-id="${item.id}"
+                                            data-attachment-index="${idx}"
+                                            data-filename="${this.escapeHtml(att.filename)}"
+                                            style="padding: 4px 10px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; white-space: nowrap;">
+                                        🔍 Analizar
+                                    </button>
+                                </div>
+                            `;
+            }).join('')}
+                    </div>
+                ` : ''}
 
                 ${ai.attachments_analysis && ai.attachments_analysis !== 'Sin adjuntos' && ai.attachments_analysis !== 'None' ?
                     `<div style="margin-bottom:10px; font-size: 0.85em; color: #0277bd; padding: 5px; border-radius: 4px; display:flex; align-items:center; gap:5px;">
@@ -489,6 +670,11 @@ export class OutlookModule {
                 <div class="card-actions" style="display:flex; gap:10px; border-top:1px solid #eee; padding-top:10px;">
                      <button class="btn small secondary" onclick="document.getElementById('${toggleId}').style.display = document.getElementById('${toggleId}').style.display === 'none' ? 'block' : 'none'">📜 Ver correo completo</button>
                      <button class="btn small primary" onclick="window.open('${externalLink}', '_blank')">🔗 Abrir en Web</button>
+                     <button class="btn small btn-ai-reply" 
+                             style="background:#f3e5f5; color:#4a148c; border:1px solid #d1c4e9;" 
+                             data-context="${this.escapeHtml(ai.summary || "Responder al correo")}" 
+                             data-sender="${this.escapeHtml(item.sender)}" 
+                             data-link="${externalLink}">🤖 Responder con IA</button>
                 </div>
 
                 <div id="${toggleId}" style="display:none; margin-top:10px; background:#fff; border:1px solid #eee; padding:10px; font-size:0.85em; font-family:monospace; white-space:pre-wrap; max-height:200px; overflow-y:auto;">
@@ -497,6 +683,178 @@ export class OutlookModule {
             `;
             container.appendChild(el);
         });
+
+        // Event Delegation for AI Reply Buttons
+        if (!window.aiReplyHandlerAttached) {
+            window.aiReplyHandlerAttached = true;
+
+            document.addEventListener('click', async (e) => {
+                if (e.target.classList.contains('btn-ai-reply') || e.target.closest('.btn-ai-reply')) {
+                    const btn = e.target.classList.contains('btn-ai-reply') ? e.target : e.target.closest('.btn-ai-reply');
+                    const context = btn.dataset.context;
+                    const sender = btn.dataset.sender;
+                    const link = btn.dataset.link;
+
+                    // Create or show overlay
+                    let overlay = document.getElementById('reply-overlay');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.id = 'reply-overlay';
+                        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;";
+                        document.body.appendChild(overlay);
+                    }
+
+                    overlay.style.display = 'flex';
+                    overlay.innerHTML = `
+                        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:600px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+                            <h3 style="margin-top:0; color:#1565c0; display:flex; align-items:center; gap:10px;">
+                                 🤖 Redactando respuesta para ${sender}...
+                            </h3>
+                            <div id="ai-reply-loading" style="color:#666; font-style:italic;">Conectando con el cerebro del sistema...</div>
+                            <textarea id="ai-draft-text" style="width:100%; height:200px; margin:10px 0; padding:10px; border:1px solid #ccc; border-radius:4px; font-family:sans-serif; display:none;"></textarea>
+                            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                                <button id="btn-cancel-reply" style="padding:8px 15px; border:none; background:#eee; cursor:pointer; border-radius:4px;">Cancelar</button>
+                                <button id="btn-copy-open" disabled style="padding:8px 15px; border:none; background:#1565c0; color:white; cursor:pointer; border-radius:4px; opacity:0.5;">Copiar y Abrir Email</button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Add event listeners
+                    overlay.querySelector('#btn-cancel-reply').onclick = () => { overlay.style.display = 'none'; };
+
+                    try {
+                        const apiBase = `${window.location.protocol}//${window.location.hostname}:8001/api/outlook`;
+
+                        const res = await fetch(`${apiBase}/reply-suggestion`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: context, sender: sender })
+                        });
+                        const json = await res.json();
+
+                        if (json.success) {
+                            const txtArea = overlay.querySelector('#ai-draft-text');
+                            const loading = overlay.querySelector('#ai-reply-loading');
+                            loading.style.display = 'none';
+                            txtArea.style.display = 'block';
+                            txtArea.value = json.reply;
+
+                            const btnCopy = overlay.querySelector('#btn-copy-open');
+                            btnCopy.textContent = '✉️ Abrir en Gmail/Outlook';
+                            btnCopy.disabled = false;
+                            btnCopy.style.opacity = '1';
+                            btnCopy.onclick = () => {
+                                // Use mailto to open default email client with pre-filled content
+                                const subject = 'Re: ' + (context.substring(0, 50) || 'Su correo');
+                                const mailtoLink = `mailto:${encodeURIComponent(sender)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(txtArea.value)}`;
+                                window.location.href = mailtoLink;
+                                overlay.style.display = 'none';
+                            };
+                        } else {
+                            alert("Error AI: " + (json.message || 'Error desconocido'));
+                            overlay.style.display = 'none';
+                        }
+                    } catch (e) {
+                        alert("Error generando respuesta: " + e.message);
+                        overlay.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        // Event Delegation for Analyze Attachment Buttons
+        if (!window.attachmentAnalyzeHandlerAttached) {
+            window.attachmentAnalyzeHandlerAttached = true;
+
+            document.addEventListener('click', async (e) => {
+                if (e.target.classList.contains('btn-analyze-attachment') || e.target.closest('.btn-analyze-attachment')) {
+                    const btn = e.target.classList.contains('btn-analyze-attachment') ? e.target : e.target.closest('.btn-analyze-attachment');
+                    const emailId = btn.dataset.emailId;
+                    const attachmentIndex = parseInt(btn.dataset.attachmentIndex);
+                    const filename = btn.dataset.filename;
+
+                    // Create or show overlay
+                    let overlay = document.getElementById('attachment-analysis-overlay');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.id = 'attachment-analysis-overlay';
+                        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;";
+                        document.body.appendChild(overlay);
+                    }
+
+                    overlay.style.display = 'flex';
+                    overlay.innerHTML = `
+                        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:700px; max-height:80vh; overflow-y:auto; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+                            <h3 style="margin-top:0; color:#4caf50; display:flex; align-items:center; gap:10px;">
+                                 🔍 Analizando: ${filename}
+                            </h3>
+                            <div id="attachment-analysis-loading" style="color:#666; font-style:italic; padding: 20px; text-align:center;">
+                                <div style="margin-bottom:10px;">⏳ Extrayendo y analizando contenido...</div>
+                                <div style="font-size:0.85em; color:#999;">Esto puede tardar unos segundos para archivos grandes</div>
+                            </div>
+                            <div id="attachment-analysis-result" style="display:none; padding:15px; background:#f9f9f9; border-radius:6px; margin:10px 0; white-space:pre-wrap; line-height:1.6;"></div>
+                            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+                                <button id="btn-close-attachment-analysis" style="padding:8px 15px; border:none; background:#eee; cursor:pointer; border-radius:4px;">Cerrar</button>
+                            </div>
+                        </div>
+                    `;
+
+                    overlay.querySelector('#btn-close-attachment-analysis').onclick = () => { overlay.style.display = 'none'; };
+
+                    try {
+                        const apiBase = `${window.location.protocol}//${window.location.hostname}:8001/api/outlook`;
+
+                        const res = await fetch(`${apiBase}/analyze-attachment`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email_id: emailId,
+                                attachment_index: attachmentIndex,
+                                email_address: "",
+                                password: ""
+                            })
+                        });
+                        const json = await res.json();
+
+                        const loading = overlay.querySelector('#attachment-analysis-loading');
+                        const result = overlay.querySelector('#attachment-analysis-result');
+
+                        loading.style.display = 'none';
+                        result.style.display = 'block';
+
+                        if (json.success) {
+                            result.innerHTML = `
+                                <div style="margin-bottom:10px; padding:10px; background:#e8f5e9; border-left:4px solid #4caf50; border-radius:4px;">
+                                    <strong>📄 Archivo:</strong> ${json.filename}<br>
+                                    <strong>📊 Tipo:</strong> ${json.content_type}<br>
+                                    <strong>💾 Tamaño:</strong> ${(json.size / 1024).toFixed(1)} KB
+                                </div>
+                                <div style="padding:10px; background:white; border:1px solid #ddd; border-radius:4px;">
+                                    <strong style="color:#4caf50;">📝 Análisis:</strong><br><br>
+                                    ${this.escapeHtml(json.analysis)}
+                                </div>
+                            `;
+                        } else {
+                            result.innerHTML = `
+                                <div style="padding:10px; background:#ffebee; border-left:4px solid #f44336; border-radius:4px; color:#c62828;">
+                                    <strong>❌ Error:</strong> ${this.escapeHtml(json.error || 'Error desconocido')}
+                                </div>
+                            `;
+                        }
+                    } catch (e) {
+                        const loading = overlay.querySelector('#attachment-analysis-loading');
+                        const result = overlay.querySelector('#attachment-analysis-result');
+                        loading.style.display = 'none';
+                        result.style.display = 'block';
+                        result.innerHTML = `
+                            <div style="padding:10px; background:#ffebee; border-left:4px solid #f44336; border-radius:4px; color:#c62828;">
+                                <strong>❌ Error de conexión:</strong> ${this.escapeHtml(e.message)}
+                            </div>
+                        `;
+                    }
+                }
+            });
+        }
     }
 
     setText(id, value) {

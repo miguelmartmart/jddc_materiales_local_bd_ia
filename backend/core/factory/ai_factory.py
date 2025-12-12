@@ -10,7 +10,8 @@ class AIFactory:
         """Get an AI provider by name."""
         if provider_name == "gemini" or provider_name == "gemini_native":
             return GeminiProvider()
-        elif provider_name == "openai_compatible" or provider_name == "openrouter":
+        elif provider_name in ["openai_compatible", "openrouter", "groq", "openai", "deepseek", "qwen", "mistral"]:
+            # All these providers use OpenAI-compatible API
             return OpenAICompatibleProvider()
         else:
             raise ValueError(f"Unsupported AI provider: {provider_name}")

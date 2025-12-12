@@ -109,16 +109,16 @@ class OutlookService:
                 filename = self.decode_mime_header(filename)
                 content_type = part.get_content_type()
                 
-                text_content = None
+                content_b64 = None
                 size = 0
                 
                 try:
                     payload = part.get_payload(decode=True)
                     if payload:
                         size = len(payload)
-                        # Try to extract text for analysis
-                        if "text" in content_type or "json" in content_type or "csv" in content_type:
-                           text_content = payload.decode('utf-8', errors='ignore')
+                        # Store content as base64 for all types (can be decoded later)
+                        import base64
+                        content_b64 = base64.b64encode(payload).decode('utf-8')
                 except:
                     pass
 
@@ -126,11 +126,11 @@ class OutlookService:
                     "filename": filename,
                     "content_type": content_type,
                     "size": size,
-                    "content": text_content 
+                    "content": content_b64  # Base64 encoded content
                 })
         return attachments
 
-    def fetch_recent_emails(self, email_address: str, password: str, limit: int = 5, imap_server: str = "outlook.office365.com", full_content: bool = False) -> List[Dict]:
+    def fetch_recent_emails(self, email_address: str, password: str, limit: int = 5, imap_server: str = "outlook.office365.com", full_content: bool = False, date_filter: str = "all") -> List[Dict]:
         """Connects to IMAP Server and fetches recent emails."""
         try:
             # Connect to IMAP
@@ -138,13 +138,43 @@ class OutlookService:
             mail.login(email_address, password)
             mail.select("inbox")
 
-            # Search for all emails
-            status, messages = mail.search(None, "ALL")
+            # Build Search Criteria
+            search_criteria = "ALL"
+            if date_filter:
+                import datetime
+                now = datetime.datetime.now()
+                target_date = None
+                
+                if date_filter == "today":
+                    target_date = now
+                elif date_filter == "yesterday":
+                     target_date = now - datetime.timedelta(days=1)
+                elif date_filter == "week":
+                     target_date = now - datetime.timedelta(days=7)
+                elif date_filter == "3days": # New explicit option
+                     target_date = now - datetime.timedelta(days=3)
+
+                if target_date:
+                    # IMAP Format: DD-Mon-YYYY
+                    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                    date_str = f"{target_date.day}-{months[target_date.month-1]}-{target_date.year}"
+                    search_criteria = f'(SINCE "{date_str}")'
+
+            # Search
+            status, messages = mail.search(None, search_criteria)
             if status != "OK":
                 return []
 
             email_ids = messages[0].split()
+            
+            # Smart Limit: If Date Filter is active, we might want MORE than the default limit of 30 if the user asks for "today"
+            # But we must respect the hard limit passed by the router to avoid explosion
+            # The router should pass a higher limit (e.g. 100) if date_filter is set.
+            
             # Get the last 'limit' emails
+            if not email_ids:
+                 return []
+                 
             latest_email_ids = email_ids[-limit:]
             latest_email_ids.reverse() # Newest first
 

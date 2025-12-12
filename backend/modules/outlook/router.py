@@ -1,9 +1,12 @@
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional
+import logging
 from .service import OutlookService
 from .analysis_service import EmailAnalyzer
 from backend.core.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/outlook", tags=["Outlook"])
 service = OutlookService()
@@ -45,50 +48,34 @@ async def analyze_emails(request: FetchRequest):
     # For now, let's assume the happy path or simple retry matches get_messages.
     
     # helper to fetch
-    def try_fetch(e, p, server="outlook.office365.com"):
-        # Fetch a buffer (limit * 3) to allow for filtering
-        buffer_limit = request.limit * 3
-        raw_emails = service.fetch_recent_emails(e, p, buffer_limit, imap_server=server, full_content=True)
-        
-        # Apply Filters (Python side for robustness)
-        filtered = raw_emails
-        
-        # 1. Unread Filter
-        if request.unread_only:
-             filtered = [e for e in filtered if not e.get('is_read', False)]
-             
-        # 2. Date Filter
-        if request.date_filter != 'all':
-             import datetime
-             from email.utils import parsedate_tz, mktime_tz
-             
-             now = datetime.datetime.now()
-             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-             
-             filtered_by_date = []
-             for e in filtered:
-                 try:
-                     # Parse Date
-                     dt_tuple = parsedate_tz(str(e.get('date', '')))
-                     if dt_tuple:
-                          dt = datetime.datetime.fromtimestamp(mktime_tz(dt_tuple))
-                          
-                          if request.date_filter == 'today':
-                              if dt >= today_start: filtered_by_date.append(e)
-                          elif request.date_filter == 'yesterday':
-                              yesterday_start = today_start - datetime.timedelta(days=1)
-                              if yesterday_start <= dt < today_start: filtered_by_date.append(e)
-                          elif request.date_filter == 'week':
-                              # Start of week (Monday)
-                              start_week = today_start - datetime.timedelta(days=now.weekday())
-                              if dt >= start_week: filtered_by_date.append(e)
-                 except:
-                     pass # Include if date parse fails? No, exclude safely
-             
-             filtered = filtered_by_date
+    # Determine date filter (but always respect user's limit)
+    date_filter = None
+    
+    if request.date_filter in ["today", "yesterday", "week", "3days"]:
+        date_filter = request.date_filter
 
-        # Slice to requested limit
-        return filtered[:request.limit]
+    def try_fetch(addr, pwd, server="outlook.office365.com"):
+        fetched = service.fetch_recent_emails(
+            addr, pwd, 
+            limit=request.limit,  # Always use user's limit
+            imap_server=server,
+            full_content=True,
+            date_filter=date_filter
+        )
+        
+        # Filter Logic (Service does date filtering broadly, we refine here if needed)
+        filtered = []
+        
+        for e in fetched:
+            # Unread Filter
+            if request.unread_only and e.get('is_read'):
+                continue
+            filtered.append(e)
+            
+        # Final Slice: Only if NO date filter was applied do we respect the strict numeric limit.
+        if not date_filter:
+             return filtered[:request.limit]
+        return filtered
 
     emails = []
     source = "outlook"
@@ -260,3 +247,125 @@ async def get_config_status():
         "configured": bool(settings.OUTLOOK_EMAIL and settings.OUTLOOK_PASSWORD),
         "email": settings.OUTLOOK_EMAIL if settings.OUTLOOK_EMAIL else None
     }
+
+class ReplyRequest(BaseModel):
+    content: str
+    sender: str
+
+@router.post("/reply-suggestion")
+async def generate_reply(request: ReplyRequest):
+    suggestion = await analyzer.generate_reply_suggestion(request.content, request.sender)
+    return {"success": True, "reply": suggestion}
+
+class AttachmentAnalysisRequest(BaseModel):
+    email_id: str
+    attachment_index: int
+    email_address: str
+    password: str
+
+@router.post("/analyze-attachment")
+async def analyze_attachment(request: AttachmentAnalysisRequest):
+    """Analyze a specific attachment from an email."""
+    from backend.modules.outlook.attachment_analyzer import attachment_analyzer
+    
+    try:
+        # Use same 3-step authentication logic as messages endpoint
+        email = request.email_address or settings.OUTLOOK_EMAIL
+        primary_password = request.password or settings.OUTLOOK_PASSWORD
+        app_password = settings.OUTLOOK_PASSWORD_APP
+        gmail_email = settings.GMAIL_EMAIL
+        gmail_password = settings.GMAIL_PASSWORD
+        
+        emails = []
+        source = "unknown"
+        
+        # Step 1: Try Outlook with primary/app password
+        if email and (primary_password or app_password):
+            password_to_try = app_password if app_password else primary_password
+            try:
+                logger.info(f"Step 1: Trying Outlook for attachment analysis: {email}")
+                emails = service.fetch_recent_emails(email, password_to_try, limit=1000, full_content=True)
+                source = "outlook"
+                logger.info(f"Outlook successful, got {len(emails)} emails")
+            except Exception as e1:
+                logger.warning(f"Step 1 failed: {e1}")
+                
+                # Step 1b: Retry with app password if different
+                if password_to_try == primary_password and app_password and app_password != primary_password:
+                    try:
+                        logger.info(f"Step 1b: Retrying Outlook with app password")
+                        emails = service.fetch_recent_emails(email, app_password, limit=1000, full_content=True)
+                        source = "outlook_app"
+                        logger.info(f"Outlook app password successful, got {len(emails)} emails")
+                    except Exception as e1b:
+                        logger.warning(f"Step 1b failed: {e1b}")
+        
+        # Step 2: Try Hybrid (Outlook server + Gmail creds)
+        if not emails and gmail_email and gmail_password:
+            try:
+                logger.info(f"Step 2: Trying HYBRID (Outlook server + Gmail creds): {gmail_email}")
+                emails = service.fetch_recent_emails(gmail_email, gmail_password, limit=1000, full_content=True)
+                source = "outlook_hybrid"
+                logger.info(f"Hybrid successful, got {len(emails)} emails")
+            except Exception as e2:
+                logger.warning(f"Step 2 failed: {e2}")
+        
+        # Step 3: Try Gmail fallback (Gmail server + Gmail creds)
+        if not emails and gmail_email and gmail_password:
+            try:
+                logger.info(f"Step 3: Trying Gmail fallback: {gmail_email}")
+                emails = service.fetch_recent_emails(gmail_email, gmail_password, limit=1000, full_content=True, imap_server="imap.gmail.com")
+                source = "gmail"
+                logger.info(f"Gmail fallback successful, got {len(emails)} emails")
+            except Exception as e3:
+                logger.warning(f"Step 3 failed: {e3}")
+        
+        if not emails:
+            error_msg = "Could not fetch emails after trying all authentication methods (Outlook, Hybrid, Gmail)"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+        
+        logger.info(f"Successfully fetched {len(emails)} emails using {source}")
+        
+        # Find the specific email by ID
+        target_email = None
+        for e in emails:
+            if e['id'] == request.email_id:
+                target_email = e
+                break
+        
+        if not target_email:
+            return {"success": False, "error": "Email not found"}
+        
+        attachments = target_email.get('attachments', [])
+        
+        if request.attachment_index >= len(attachments):
+            return {"success": False, "error": "Attachment index out of range"}
+        
+        attachment = attachments[request.attachment_index]
+        
+        if not attachment.get('content'):
+            return {"success": False, "error": "Attachment content not available"}
+        
+        # Decode base64 content
+        import base64
+        content_bytes = base64.b64decode(attachment['content'])
+        
+        # Analyze the attachment
+        analysis = await attachment_analyzer.analyze_attachment(
+            content_bytes,
+            attachment['filename'],
+            attachment['content_type']
+        )
+        
+        return {
+            "success": True,
+            "filename": attachment['filename'],
+            "content_type": attachment['content_type'],
+            "size": attachment['size'],
+            "analysis": analysis
+        }
+        
+    except Exception as e:
+        logger.error(f"Error analyzing attachment: {e}")
+        return {"success": False, "error": str(e)}

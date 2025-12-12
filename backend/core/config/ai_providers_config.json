@@ -34,6 +34,30 @@
             "schema": "openai_compatible",
             "description": "OpenAI - GPT models directos",
             "headers": {}
+        },
+        "deepseek": {
+            "name": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "schema": "openai_compatible",
+            "description": "DeepSeek - Modelos de razonamiento avanzado",
+            "headers": {}
+        },
+        "qwen": {
+            "name": "Qwen (Alibaba)",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_key_env": "ALIBABA_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Qwen - Modelos de Alibaba Cloud",
+            "headers": {}
+        },
+        "mistral": {
+            "name": "Mistral AI",
+            "base_url": "https://api.mistral.ai/v1",
+            "api_key_env": "MISTRAL_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Mistral - Modelos europeos de código abierto",
+            "headers": {}
         }
     }
 }

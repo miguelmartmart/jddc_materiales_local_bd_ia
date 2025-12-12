@@ -275,13 +275,6 @@
                             style="background: #f5f9ff; padding: 10px; border-radius: 6px; border: 1px solid #e3f2fd; align-items: center; flex-wrap: wrap; gap: 10px;">
                             <button id="btn-fetch-emails" class="btn primary">🔄 Sincronizar Ahora</button>
 
-                            <div
-                                style="display: flex; align-items: center; gap: 5px; border-right: 1px solid #ddd; padding-right: 10px; margin-right: 5px;">
-                                <label style="font-size: 0.9em; color: #1565c0;">Límite:</label>
-                                <input type="number" id="analyze-limit" value="30" min="1" max="50"
-                                    style="width: 50px; padding: 6px; border: 1px solid #bbdefb; border-radius: 4px; text-align: center;">
-                            </div>
-
                             <div style="display: flex; align-items: center; gap: 10px; margin-right: 10px;">
                                 <label
                                     style="display: flex; align-items: center; gap: 5px; font-size: 0.9em; cursor: pointer; color: #333;">
@@ -289,13 +282,19 @@
                                     Solo No Leídos
                                 </label>
 
-                                <select id="analyze-date-filter"
-                                    style="padding: 6px; border: 1px solid #bbdefb; border-radius: 4px; font-size: 0.9em; color: #333;">
+                                <select id="analyze-date-filter" class="form-select" style="max-width: 140px;">
                                     <option value="all">📅 Todo el historial</option>
-                                    <option value="today">📅 Solo Hoy</option>
-                                    <option value="yesterday">📅 Solo Ayer</option>
-                                    <option value="week">📅 Esta Semana</option>
+                                    <option value="today">📅 Hoy</option>
+                                    <option value="yesterday">📅 Ayer</option>
+                                    <option value="3days" selected>📅 Últimos 3 días</option>
+                                    <option value="week">📅 Esta semana</option>
                                 </select>
+
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <label style="font-size: 0.9em; color: #1565c0;">Límite:</label>
+                                    <input type="number" id="analyze-limit" value="30" min="1" max="150"
+                                        style="width: 60px; padding: 6px; border: 1px solid #bbdefb; border-radius: 4px; text-align: center;">
+                                </div>
                             </div>
 
                             <button id="btn-analyze-emails" class="btn secondary"
