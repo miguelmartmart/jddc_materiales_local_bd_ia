@@ -1,0 +1,156 @@
+# HVAC Domain Configuration
+# Defines canonical terms, negative packs, and mode templates for HVAC domain
+
+domain_triggers:
+  - "aire acondicionado"
+  - "aire"
+  - "split"
+  - "climatización"
+  - "bomba de calor"
+  - "fancoil"
+  - "cassette"
+  - "conductos"
+  - "termostato"
+  - "hvac"
+
+canonical_objects:
+  split_indoor:
+    triggers: ["split", "pared", "interior", "mural"]
+    english_term: "wall-mounted split air conditioner indoor unit (HVAC)"
+    description: "Standard wall unit"
+  
+  split_outdoor:
+    triggers: ["unidad exterior", "condensadora", "motor", "afuera"]
+    english_term: "outdoor condenser unit for split air conditioner"
+    description: "Outdoor compressor box"
+
+  cassette:
+    triggers: ["cassette", "techo", "caset"]
+    english_term: "ceiling cassette air conditioner unit"
+    description: "Ceiling mounted square unit"
+
+  ducted:
+    triggers: ["conductos", "conducto", "centralizado"]
+    english_term: "ducted air conditioner unit (concealed)"
+    description: "Metal unit for ducts"
+
+  portable:
+    triggers: ["portatil", "pingüino"]
+    english_term: "portable air conditioner unit"
+    description: "Mobile unit with hose"
+
+  heat_pump:
+    triggers: ["aerotermia", "bomba de calor"]
+    english_term: "heat pump system (HVAC)"
+    description: "Heat pump"
+
+attributes:
+  colors:
+    azul: 
+      triggers: ["azul", "blue", "celeste", "azulado", "azulada"]
+      positive: "blue casing, dark blue matte finish"
+      negative: "white casing, gray casing"
+    negro:
+      triggers: ["negro", "negra", "black", "oscuro", "oscura"]
+      positive: "black matte casing, modern black finish"
+      negative: "white casing, silver casing"
+    rojo:
+      triggers: ["rojo", "roja", "red", "granate", "rojizo", "rojiza"]
+      positive: "red casing, vibrant red finish"
+      negative: "white casing, gray casing"
+    gris:
+      triggers: ["gris", "grey", "plata", "silver", "inox", "plateado", "plateada"]
+      positive: "silver metallic casing, brushed steel finish"
+      negative: "white casing, beige casing"
+    blanco:
+      triggers: ["blanco", "blanca", "white", "nieve"]
+      positive: "white casing, clean white finish"
+      negative: "gray casing, black casing, colors"
+    madera:
+      triggers: ["madera", "wood", "roble", "nogal"]
+      positive: "wood texture casing, wooden panel finish"
+      negative: "glossy plastic, white casing"
+    verde:
+      triggers: ["verde", "green", "verdoso", "esmeralda"]
+      positive: "green casing, bright green matte finish, emerald green, mint green"
+      negative: "white casing, gray casing, red casing"
+    amarillo:
+      triggers: ["amarillo", "yellow", "mostaza", "dorado", "ocre"]
+      positive: "yellow casing, bright yellow body, primary color yellow, matte yellow finish"
+      negative: "white casing, gray casing"
+
+  finishes:
+    mate:
+      triggers: ["mate", "matte", "opaco", "opaca"]
+      positive: "matte finish, non-reflective"
+      negative: "glossy, shiny, reflection"
+    brillante:
+      triggers: ["brillante", "glossy", "brillo"]
+      positive: "high gloss finish, reflective surface"
+      negative: "matte, rough"
+    metalico:
+      triggers: ["metalico", "metalica", "metallic", "metal"]
+      positive: "metallic casing, industrial finish"
+      negative: "plastic"
+
+negative_packs:
+  # Crucial to prevent SD1.5 from hallucinating furniture instead of AC
+  hvac_anti_confusion: 
+    - "cabinet"
+    - "sideboard"
+    - "dresser"
+    - "tv stand"
+    - "console table"
+    - "drawer"
+    - "desk lamp"
+    - "floor lamp"
+    - "vacuum cleaner"
+    - "steam mop"
+    - "iron"
+    - "humidifier"
+    - "air purifier"
+    - "fan" 
+    - "radiator"
+    - "heater"
+
+  ecommerce_clean:
+    - "text"
+    - "logo"
+    - "watermark"
+    - "signature"
+    - "username"
+    - "person"
+    - "hand"
+    - "finger"
+    - "bokeh"
+    - "blur"
+    - "dof"
+
+modes:
+  packshot:
+    triggers: ["ecommerce", "producto", "tienda", "venta", "aislado", "fondo blanco"]
+    positive_prefix: "product photo of a"
+    positive_suffix: ", front view, centered, isolated on pure white background, studio lighting, soft shadow, ultra sharp, clean product packshot, no room, no wall, no furniture, 3d render"
+    negative_additions: 
+      - "room"
+      - "interior"
+      - "living room"
+      - "bedroom"
+      - "kitchen"
+      - "wall"
+      - "furniture"
+      - "scene"
+      - "warm ambient lighting"
+    required_negatives: ["hvac_anti_confusion", "ecommerce_clean"]
+
+  lifestyle:
+    triggers: ["salon", "instalado", "habitacion", "oficina", "casa", "pared"]
+    positive_prefix: "interior design photo of a modern living room with a"
+    positive_suffix: "installed on the wall, photorealistic, 8k, architectural digest style, cozy atmosphere"
+    negative_additions:
+      - "isolated"
+      - "white background"
+      - "cutout"
+      - "3d render"
+      - "cabinet" # Duplicate but safe
+    required_negatives: ["hvac_anti_confusion", "ecommerce_clean"] # Basic clean but allows room

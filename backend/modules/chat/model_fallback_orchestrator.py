@@ -16,6 +16,7 @@ Versión: 1.0.0
 
 import asyncio
 import logging
+# DEVIA: backend/modules/chat/DEVIA_ROBUSTNESS.md
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 
@@ -49,27 +50,33 @@ class ModelFallbackOrchestrator:
         self.retry_delay = ModelFallbackConfig.RETRY_DELAY_SECONDS
         self.max_retries_per_model = ModelFallbackConfig.MAX_RETRIES_PER_MODEL
         
-    def _get_prioritized_models(self) -> List[Dict[str, Any]]:
+    def _get_prioritized_models(self, preferred_model_id: str = None) -> List[Dict[str, Any]]:
         """
-        Obtiene lista de modelos disponibles ordenados por prioridad.
+        Obtiene lista de modelos disponibles ordenados por prioridad (Score > Tier).
+        Si se especifica preferred_model_id, ese modelo se coloca primero (si existe y está habilitado).
         
         Returns:
-            Lista de configuraciones de modelos ordenada por prioridad descendente
+            Lista de configuraciones de modelos ordenada.
         """
-        all_models = self.model_manager.list_models()
-        enabled_models = [m for m in all_models if m.get('enabled', False)]
+        # ModelManager.list_models already sorts by Blocked -> Score -> Tier
+        sorted_models = self.model_manager.list_models(enabled_only=True) or []
         
-        # Ordenar por prioridad definida en constantes
-        def get_priority(model: Dict[str, Any]) -> int:
-            model_id = model.get('id', '')
-            return ModelFallbackConfig.MODEL_PRIORITY.get(model_id, 0)
+        # If preferred model is requested, move it to top
+        if preferred_model_id:
+            preferred_model = next((m for m in sorted_models if m['id'] == preferred_model_id), None)
+            if preferred_model:
+                # Remove from current position and insert at beginning
+                sorted_models = [m for m in sorted_models if m['id'] != preferred_model_id]
+                sorted_models.insert(0, preferred_model)
+                logger.info(f"{LogPrefixes.AI_PROVIDER} ⭐ Modelo PREFERIDO seleccionado: {preferred_model['name']}")
         
-        sorted_models = sorted(enabled_models, key=get_priority, reverse=True)
-        
-        logger.info(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEARCH} Modelos disponibles ordenados por prioridad:")
+        logger.info(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEARCH} Modelos disponibles ordenados por Prioridad:")
+        if not sorted_models:
+            logger.warning(f"  {LogEmojis.WARNING} No se encontraron modelos habilitados.")
+            
         for idx, model in enumerate(sorted_models, 1):
-            priority = get_priority(model)
-            logger.info(f"  {idx}. {model.get('name')} (prioridad: {priority})")
+            marker = "⭐ " if model['id'] == preferred_model_id else ""
+            logger.info(f"  {idx}. {marker}{model.get('name')} (Score: {model.get('score')})")
         
         return sorted_models
     
@@ -78,6 +85,7 @@ class ModelFallbackOrchestrator:
         model_config: Dict[str, Any],
         system_prompt: str,
         user_message: str,
+        images: Optional[List[str]] = None,
         attempt: int = 1
     ) -> Optional[str]:
         """
@@ -126,7 +134,8 @@ class ModelFallbackOrchestrator:
             # Generar respuesta
             response = await provider.generate_text(
                 prompt=user_message,
-                system_instruction=system_prompt
+                system_instruction=system_prompt,
+                images=images
             )
             
             if response:
@@ -134,12 +143,14 @@ class ModelFallbackOrchestrator:
                     f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SUCCESS} "
                     f"Respuesta exitosa de {model_name}"
                 )
+                self.model_manager.report_result(model_id, True)
                 return response
             else:
                 logger.warning(
                     f"{LogPrefixes.AI_PROVIDER} {LogEmojis.WARNING} "
                     f"Respuesta vacía de {model_name}"
                 )
+                self.model_manager.report_result(model_id, False, error_type="empty", error_msg="empty response")
                 return None
                 
         except Exception as e:
@@ -147,13 +158,21 @@ class ModelFallbackOrchestrator:
                 f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} "
                 f"Error con {model_name}: {str(e)}"
             )
+            # Try to extract status code if available
+            err_code = getattr(e, "status_code", None)
+            if not err_code and hasattr(e, "response") and hasattr(e.response, "status_code"):
+                err_code = e.response.status_code
+            
+            self.model_manager.report_result(model_id, False, error_type=str(err_code) if err_code else None, error_msg=str(e))
             return None
     
     async def execute_with_fallback(
         self,
         system_prompt: str,
         user_message: str,
-        feedback_callback: Optional[callable] = None
+        images: Optional[List[str]] = None,
+        feedback_callback: Optional[callable] = None,
+        preferred_model_id: str = None
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Ejecuta generación de respuesta con fallback entre modelos.
@@ -162,17 +181,29 @@ class ModelFallbackOrchestrator:
             system_prompt: Prompt del sistema
             user_message: Mensaje del usuario
             feedback_callback: Función opcional para enviar feedback al usuario
+            preferred_model_id: ID del modelo preferido (intentar primero)
             
         Returns:
             Tupla (respuesta, model_id) o (None, None) si todos fallan
         """
-        prioritized_models = self._get_prioritized_models()
+        prioritized_models = self._get_prioritized_models(preferred_model_id)
         
         if not prioritized_models:
             logger.error(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} No hay modelos disponibles")
             if feedback_callback:
                 feedback_callback(UserFeedbackMessages.ALL_MODELS_FAILED)
             return None, None
+            
+        # --- GLOBAL ANONYMIZER INTEGRATION ---
+        try:
+            from backend.modules.anonymizer.service import AnonymizerService
+            anonymizer = AnonymizerService()
+            # Anonymize User Message if enabled for 'chat'
+            # Note: We don't anonymize System Prompt as it defines rules, not data.
+            user_message = anonymizer.anonymize_if_enabled(user_message, "chat")
+        except Exception as anon_err:
+            logger.warning(f"Anonymizer skipped due to error: {anon_err}")
+        # -------------------------------------
         
         # Iterar por cada modelo
         for model_idx, model_config in enumerate(prioritized_models):
@@ -207,6 +238,7 @@ class ModelFallbackOrchestrator:
                     model_config=model_config,
                     system_prompt=system_prompt,
                     user_message=user_message,
+                    images=images,
                     attempt=attempt
                 )
                 

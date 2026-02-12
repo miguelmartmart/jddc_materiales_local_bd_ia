@@ -1,4 +1,6 @@
 from typing import Dict, Any, List
+# DEVIA: backend/modules/chat/DEVIA.md
+import json
 from backend.core.factory.ai_factory import AIFactory
 from backend.core.abstract.ai import AIConfig
 from backend.core.config.settings import settings
@@ -13,6 +15,13 @@ from backend.core.config.database_metadata import get_semantic_schema, get_table
 from backend.modules.chat.sql_corrector import SQLCorrector
 from backend.modules.chat.model_fallback_orchestrator import ModelFallbackOrchestrator
 import logging
+import os
+import base64
+import asyncio
+
+# Image Services Integration
+from backend.modules.images.service import ImageService
+from backend.modules.images.core.storage import LocalStorageManager
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -23,6 +32,53 @@ class ChatService:
     def __init__(self):
         self.sql_corrector = SQLCorrector()
         self.model_orchestrator = ModelFallbackOrchestrator()
+        self.model_orchestrator = ModelFallbackOrchestrator()
+        self._load_config()
+        self.image_service = ImageService()
+        self.storage = LocalStorageManager()
+        
+    async def _analyze_images(self, images: List[str]) -> str:
+        """
+        Analyzes uploaded images using the ImageService.
+        Returns a combined description string.
+        """
+        descriptions = []
+        for i, img_data in enumerate(images):
+            try:
+                # Decode Base64 (handle data:image/png;base64, prefix)
+                if "," in img_data:
+                    header, encoded = img_data.split(",", 1)
+                    mime_type = header.split(":")[1].split(";")[0]
+                else:
+                    encoded = img_data
+                    mime_type = "image/png" # Default fallback
+                
+                content = base64.b64decode(encoded)
+                
+                # Save to temp storage
+                path = await self.storage.save_file(content, mime_type, job_id=f"chat_analysis_{i}", role="temp")
+                
+                # Call Image Service
+                result = await self.image_service.describe_image(user_id="chat_user", image_path=path)
+                desc = result.get("description", "No description available")
+                descriptions.append(f"Imagen {i+1}: {desc}")
+                
+            except Exception as e:
+                logger.error(f"Error analysing image {i}: {e}")
+                descriptions.append(f"Imagen {i+1}: Error al analizar ({str(e)})")
+        
+        return "\n".join(descriptions)
+
+    def _load_config(self):
+        config_path = os.path.join(os.path.dirname(__file__), "config.json")
+        self.config = {"max_sql_retries": DBDefaults.MAX_SQL_CORRECTION_RETRIES}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    self.config.update(json.load(f))
+            except Exception as e:
+                logger.warning(f"Error loading chat config: {e}")
+
 
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
@@ -132,8 +188,28 @@ class ChatService:
             history_context += "=== FIN DEL CONTEXTO ===\n"
             logger.info(f"[CHAT] Incluyendo {len(recent_history)} mensajes de historial en el contexto")
         
-        # 3. Prompt Engineering for Text-to-SQL
-        system_prompt = f"""
+        # 3. Intent Detection & Prompt Engineering
+        # Check for visual intent keywords
+        msg_lower = message.lower()
+        visual_keywords = ["que se ve", "que hay", "describe", "analiza la imagen", "que puedes ver", "descripción"]
+        is_visual_request = context.get('images') and any(k in msg_lower for k in visual_keywords)
+        
+        system_prompt = ""
+        
+        if is_visual_request:
+            logger.info(f"[CHAT] 👁️ Intención Visual Detectada (Bypassing SQL Mode)")
+            system_prompt = f"""
+Eres un asistente experto en análisis visual.
+Tu trabajo es DESCRIBIR las imágenes que el usuario ha subido, basándote únicamente en el análisis proporcionado.
+NO tienes acceso a ninguna base de datos SQL.
+NO intentes generar consultas SQL.
+Si ves texto en la imagen, transcríbelo pero NO lo busques en ninguna tabla.
+
+{history_context}
+"""
+        else:
+            # Standard SQL Mode
+            system_prompt = f"""
 Eres un asistente experto en bases de datos Firebird SQL.
 Convierte preguntas en lenguaje natural a consultas SQL válidas.
 {history_context}
@@ -149,7 +225,32 @@ INSTRUCCIONES CRÍTICAS:
 7. Si no requiere SQL, responde directamente
 8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
 9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
+"""
+        # Dynamic Context Injection based on History
+        last_ai_msg = ""
+        if 'conversation_history' in context:
+            history = context['conversation_history']
+            if history and len(history) > 0:
+                # Get last message from assistant
+                for msg in reversed(history):
+                    if msg.get('role') == 'assistant':
+                        last_ai_msg = msg.get('content', '')
+                        break
+        
+        # Check if previous message was an image generation
+        if "[GENERAR_IMAGEN:" in last_ai_msg or "¡Imagen Generada!" in last_ai_msg or "Job ID:" in last_ai_msg:
+             logger.info(f"[CHAT] 🎨 Contexto detectado: SEGUIMIENTO DE IMAGEN")
+             system_prompt += """
+SITUACIÓN: Acabas de generar una imagen.
+ANALIZA LA INTENCIÓN DEL USUARIO:
+1. MODIFICACIÓN: Si pide cambios (ej: "ponle más luz", "quita el fondo", "hazlo azul"), RESPONDE con [GENERAR_IMAGEN: ...] y el prompt ajustado.
+2. ANÁLISIS/PREGUNTA: Si pregunta "¿qué es?", "¿qué ves?", "describe la imagen", RESPONDE TEXTUALMENTE explicando qué generaste (básate en el prompt que escribiste antes).
+3. SQL: Si pide buscar datos (ej: "tengo esto en stock?"), genera SQL.
 
+NO generes imágenes si solo te preguntan qué hay en la anterior.
+"""
+
+        system_prompt += """
 TIPOS DE DOCUMENTOS (TABLA DOCCAB, COLUMNA TIPO):
 - Para "facturas" -> WHERE TIPO = 13
 - Para "albaranes" -> WHERE TIPO = 11
@@ -200,16 +301,58 @@ BÚSQUEDAS DE TEXTO (OBLIGATORIO CASE INSENSITIVE):
       AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE)
     - SOLO si el usuario dice explícitamente "de todos los años" o "histórico", omite el filtro de año.
 
+    - SOLO si el usuario dice explícitamente "de todos los años" o "histórico", omite el filtro de año.
+
+CAPACIDADES DE GENERACIÓN DE IMAGEN:
+- PUEDES generar imágenes si el usuario lo pide (ej: "dibuja un gato", "crea una imagen de...").
+- Para generar una imagen, responde SOLAMENTE con este comando:
+  [GENERAR_IMAGEN: <detalle_del_prompt>]
+- Ejemplo: Si el usuario dice "dibuja un paisaje", responde:
+  [GENERAR_IMAGEN: paisaje futurista con montañas de neón, alta calidad]
+- NO generes SQL para peticiones de dibujo.
+- MODIFICACIÓN DE IMÁGENES:
+  - Si el usuario pide "cambia X por Y" o "hazlo más rojo" sobre una imagen generada anteriormente:
+  - RESPONDE con un NUEVO comando [GENERAR_IMAGEN: ...] que combine el contexto anterior con el cambio.
+  - Ejemplo: Si antes dibujaste un "pájaro azul" y el usuario dice "ponlo verde", responde:
+    [GENERAR_IMAGEN: pájaro verde detallado, alta calidad...]
+  - NO INTENTES EJECUTAR SQL PARA MODIFICAR IMÁGENES.
+
 """
         logger.info(f"[AI PROVIDER] 📤 Usando sistema de fallback multi-modelo...")
         logger.info(f"[AI PROVIDER] System Prompt:\n{system_prompt}")
         logger.info(f"[AI PROVIDER] User Message: {message}")
         
+        if context.get('images'):
+            logger.info(f"{LogPrefixes.CONTEXTO} 📸 Imágenes adjuntas: {len(context['images'])}")
+            
+            # Perform Image Analysis BEFORE sending to SQL/Text AI
+            try:
+                logger.info("[CHAT] 🖼️ Iniciando análisis visual profundo...")
+                image_analysis = await self._analyze_images(context['images'])
+                logger.info(f"[CHAT] 🕵️ Resultado análisis visual: {image_analysis}")
+                
+                # Inject analysis into the conversation context
+                # This ensures the LLM 'sees' the image content textually
+                system_prompt += f"\n\n[SISTEMA DE VISIÓN]: El usuario ha adjuntado imágenes. Análisis automático pre-generado:\n{image_analysis}\n\n"
+                system_prompt += "=== REGLAS PRIORITARIAS PARA IMÁGENES (SOBRESCRIBEN TODO LO DEMÁS) ===\n"
+                system_prompt += "1. SI EL USUARIO PREGUNTA '¿Qué es esto?', '¿Qué ves?', 'Describe la imagen':\n"
+                system_prompt += "   - TU OBJETIVO ES DESCRIBIR VISUALMENTE. Tienes el análisis arriba.\n"
+                system_prompt += "   - PROHIBIDO GENERAR SQL. No busques en la base de datos palabras que veas en la imagen (como 'DEVIA' o marcas).\n"
+                system_prompt += "   - Responde ÚNICAMENTE basándote en el texto del [SISTEMA DE VISIÓN].\n"
+                system_prompt += "2. SOLO genera SQL si el usuario vincula explícitamente la imagen con la DB (ej: '¿Tenemos stock de este producto?', 'Busca el precio de lo que ves').\n"
+                system_prompt += "3. Ante la duda entre describir o buscar: DESCRIBE y pregunta si quiere buscar.\n"
+                system_prompt += "========================================================================\n"
+                
+            except Exception as e:
+                logger.error(f"[CHAT] ❌ Falló el análisis de imagen: {e}")
+
         # Use ModelFallbackOrchestrator for robust multi-model generation
         response_text, used_model_id = await self.model_orchestrator.execute_with_fallback(
             system_prompt=system_prompt,
             user_message=message,
-            feedback_callback=None  # TODO: Implement real-time feedback to user
+            images=context.get('images'),
+            feedback_callback=None,  # TODO: Implement real-time feedback to user
+            preferred_model_id=context.get('model_id')
         )
         
         if not response_text:
@@ -242,7 +385,63 @@ BÚSQUEDAS DE TEXTO (OBLIGATORIO CASE INSENSITIVE):
             logger.warning(f"[AI PROVIDER] ⚠️ No se pudo configurar provider para interpretación")
             provider = None
         
-        # 5. Execute SQL if present
+        
+        # 5. Check for Image Generation Command
+        if "[GENERAR_IMAGEN:" in response_text:
+            try:
+                logger.info(f"[IMAGE GEN] 🎨 Detectada solicitud de imagen")
+                import re
+                match = re.search(r"\[GENERAR_IMAGEN:(.*?)\]", response_text, re.DOTALL)
+                if match:
+                    img_prompt = match.group(1).strip()
+                    logger.info(f"[IMAGE GEN] Prompt: {img_prompt}")
+                    
+                    # Call Image Service
+                    from backend.modules.images.schemas import GenerateRequest
+                    
+                    # Async generation (fire and forget for the chat, but user gets job ID)
+                    req = GenerateRequest(prompt=img_prompt)
+                    job_response = await self.image_service.generate_image(req, user_id="chat_user")
+                    
+                    # WAIT FOR JOB COMPLETION to show the image directly
+                    import asyncio
+                    # Poll max 60s
+                    job_data = None
+                    for _ in range(30):
+                        await asyncio.sleep(2)
+                        job_data = await self.image_service.get_job(job_response.job_id)
+                        if job_data and job_data.get("status") in ["COMPLETED", "FAILED"]:
+                            break
+                    
+                    if job_data and job_data.get("status") == "COMPLETED":
+                         # Construct image URL
+                         # Assuming backend serves output images at /api/images/files/output/{filename}
+                         # We need to ensure ImageRouter has this endpoint or similar.
+                         # For now, we assume the filename is available.
+                         result_data = job_data.get("result_data", {})
+                         files = result_data.get("files", [])
+                         
+                         img_markdown = ""
+                         if files:
+                             # Use the first file
+                             filename = files[0]
+                             # URL relative to frontend
+                             # TODO: Ensure Router exposes file serving
+                             img_url = f"/api/images/files/output/{filename}" 
+                             img_markdown = f"\n\n![Propuesta de diseño]({img_url})"
+                         
+                         return f"🎨 ¡Imagen Generada!\n\n📄 **Prompt:** {img_prompt}\n{img_markdown}\n\n(ID: `{job_response.job_id}`)"
+                    elif job_data and job_data.get("status") == "FAILED":
+                         error = job_data.get("error", "Unknown error")
+                         return f"❌ Falló la generación: {error}"
+                    else:
+                         return f"⏳ La imagen se está generando en segundo plano (tarda más de lo esperado).\n🆔 **Job ID:** `{job_response.job_id}`"
+                         
+            except Exception as e:
+                logger.error(f"[IMAGE GEN] Error request: {e}", exc_info=True)
+                return f"❌ Error al intentar generar la imagen: {str(e)}"
+
+        # 6. Execute SQL if present
         if "```sql" in response_text:
             logger.info(f"[SQL] 🔍 Detectada consulta SQL en la respuesta")
             try:
@@ -270,7 +469,7 @@ BÚSQUEDAS DE TEXTO (OBLIGATORIO CASE INSENSITIVE):
                     db_context=db_context,
                     ai_provider=provider,
                     execute_func=lambda q: self._execute_sql(q, context.get('db_params')),
-                    max_retries=DBDefaults.MAX_SQL_CORRECTION_RETRIES
+                    max_retries=self.config.get("max_sql_retries", 3)
                 )
                 
                 logger.info(f"[DATABASE] ✓ Consulta ejecutada exitosamente")
@@ -332,94 +531,8 @@ BÚSQUEDAS DE TEXTO (OBLIGATORIO CASE INSENSITIVE):
         logger.info(f"[RESPUESTA FINAL] {response_text}")
         logger.info("="*80)
         return response_text
-        # 1. Get model configuration
-        from backend.core.config.model_manager import model_manager
-        
-        model_id = context.get('model_id', 'gemini-pro')
-        model_config = model_manager.get_model(model_id)
-        
-        if not model_config:
-            return f"Error: Modelo '{model_id}' no encontrado en la configuración."
-        
-        if not model_config.get('enabled', False):
-            return f"Error: Modelo '{model_config['name']}' está deshabilitado."
-        
-        # 2. Configure AI Provider
-        provider_name = model_config['provider']
-        provider = AIFactory.get_provider(provider_name)
-        
-        api_key = model_config.get('api_key')
-        if not api_key:
-            return f"Error: No se ha configurado la API Key para el modelo '{model_config['name']}'."
 
-        # Build config with base_url if needed
-        config_dict = {
-            'api_key': api_key,
-            'model': model_config['model_id']
-        }
-        if model_config.get('base_url'):
-            config_dict['base_url'] = model_config['base_url']
-        
-        config = AIConfig(**config_dict)
-        provider.configure(config)
 
-        # 2. Get DB Schema Context (Simplified)
-        # In a real app, we would cache this or retrieve only relevant parts
-        db_context = self._get_db_context(context.get('db_params'))
-        
-        # 3. Prompt Engineering for Text-to-SQL
-        system_prompt = f"""
-        Eres un asistente experto en bases de datos Firebird SQL.
-        Tu tarea es responder a preguntas sobre los datos convirtiéndolas en consultas SQL.
-        
-        Esquema de la Base de Datos:
-        {db_context}
-        
-        INSTRUCCIONES CRÍTICAS:
-        1. Usa SOLO las tablas y columnas definidas en el esquema proporcionado arriba.
-        2. NO asumas la existencia de columnas como PVPIVA, STOCK, etc. si no están en el esquema.
-        3. Genera SQL válido para Firebird 2.5.
-        4. Delimita SQL con ```sql y ```.
-        5. Si no requiere SQL, responde directamente.
-        6. Para limitar resultados usa FIRST N (ej: SELECT FIRST 10).
-        7. Si te preguntan por precios, busca columnas relacionadas con precio/importe en el esquema.
-        
-        EJEMPLOS GENÉRICOS:
-        - "productos más caros" -> SELECT FIRST 10 * FROM [TABLA_ARTICULOS] ORDER BY [COLUMNA_PRECIO] DESC
-        - "cuántos productos" -> SELECT COUNT(*) FROM [TABLA_ARTICULOS]
-        """
-        
-        # 4. Generate SQL or Response
-        logger.info(f"{LogPrefixes.DATABASE} Esquema semántico COMPLETO:\n{db_context}")
-        logger.info(f"{LogPrefixes.AI_PROVIDER} System Prompt COMPLETO:\n{system_prompt}")
-        
-        response_text = await provider.generate_text(message, system_instruction=system_prompt)
-        
-        # 5. Execute SQL if present
-        if "```sql" in response_text:
-            try:
-                sql_query = response_text.split("```sql")[1].split("```")[0].strip()
-                results = self._execute_sql(sql_query, context.get('db_params'))
-                
-                # 6. Interpret Results
-                interpretation_prompt = f"""
-                Pregunta original: {message}
-                Consulta SQL ejecutada: {sql_query}
-                Resultados obtenidos: {results}
-                
-                Responde al usuario siguiendo estas REGLAS ESTRICTAS:
-                1. NO inventes datos. Usa SOLO los resultados proporcionados.
-                2. Sé objetivo y directo. Evita frases subjetivas como "Es importante destacar", "Los precios pueden variar", etc.
-                3. Los precios están en EUROS (EUR). Nunca uses el símbolo $.
-                4. Presenta los datos de forma clara y concisa (lista o tabla si es apropiado).
-                5. Si no hay resultados, dilo claramente.
-                """
-                final_response = await provider.generate_text(interpretation_prompt)
-                return final_response
-            except Exception as e:
-                return f"Intenté ejecutar una consulta pero falló: {str(e)}\nConsulta: {sql_query}"
-        
-        return response_text
 
     def _get_db_context(self, db_params: Dict[str, Any]) -> str:
         if not db_params:

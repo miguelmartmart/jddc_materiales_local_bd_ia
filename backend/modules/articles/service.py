@@ -35,7 +35,22 @@ class ArticleService:
             "confidence": "number"
         }
         
+        
         # 4. Generate Analysis
+        # --- ANONYMIZER INTEGRATION ---
+        try:
+            from backend.modules.anonymizer.service import AnonymizerService
+            anonymizer = AnonymizerService()
+            # "chat" feature flag is generic enough, or we could add "articles" later. 
+            # For now, let's use "chat" or "database" or check a new "articles" flag?
+            # User only asked for checks for chat, outlook, db. Let's use 'database' logic or 'chat' logic?
+            # Actually, let's assume if Database Analysis is enabled, Article Analysis (which is DB related) is too.
+            article_name = anonymizer.anonymize_if_enabled(article_name, "database")
+        except Exception as e:
+            # Fallback
+            pass
+        # ------------------------------
+
         prompt = f"Analiza el siguiente artículo de ferretería/construcción: '{article_name}'."
         result = await provider.generate_json(prompt, schema)
         

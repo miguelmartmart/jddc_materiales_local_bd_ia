@@ -18,6 +18,8 @@ class DatabaseService:
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "core", "config", "db_metadata_optimized.json"
         )
+        from backend.modules.chat.chat_history_service import ChatHistoryService
+        self.chat_history = ChatHistoryService()
 
     def get_metadata(self) -> Dict[str, Any]:
         """Reads the current metadata JSON file."""
@@ -31,8 +33,81 @@ class DatabaseService:
     def save_metadata(self, data: Dict[str, Any]) -> None:
         """Saves the metadata JSON file."""
         try:
+            # 1. Read existing file for Diff calculation
+            old_data = {}
+            if os.path.exists(self.metadata_path):
+                with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                    old_data = json.load(f)
+            
+            # 2. Calculate Diff
+            import difflib
+            changes = []
+            involved_models = set()
+            
+            new_tables = data.get('tables', {})
+            old_tables = old_data.get('tables', {})
+            
+            # Check for added or modified tables
+            for table_name, table_data in new_tables.items():
+                # Extract model info if present (and cleaner for diffs potentially, but let's keep it for now)
+                ai_model = table_data.get('_ai_model', 'Manual/Unknown')
+                if ai_model != 'Manual/Unknown':
+                    involved_models.add(ai_model)
+
+                if table_name not in old_tables:
+                    changes.append(f"[NEW] Table '{table_name}' added (via {ai_model}).\nContent: {json.dumps(table_data, ensure_ascii=False, indent=2)}")
+                elif table_data != old_tables[table_name]:
+                    changes.append(f"[MODIFIED] Table '{table_name}' updated (via {ai_model}).")
+                    changes.append(f"New Content: {json.dumps(table_data, ensure_ascii=False, indent=2)}")
+
+            # Check for deleted tables
+            for table_name in old_tables:
+                if table_name not in new_tables:
+                     changes.append(f"[DELETED] Table '{table_name}' removed.")
+            
+            # 3. Save new data
             with open(self.metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
+            
+            # 4. Force reload of indices
+            from backend.core.config.metadata_manager import get_metadata_manager
+            manager = get_metadata_manager()
+            manager.load_metadata()
+            manager._build_indexes()
+            logger.info("Metadata indices reloaded successfully")
+
+            # 5. Log Permanent Change if there are changes
+            if changes:
+                try:
+                    from backend.modules.interaction_history.service import InteractionHistoryService
+                    history_service = InteractionHistoryService()
+                    
+                    diff_text = "\n\n".join(changes)
+                    
+                    # Determine primary model for the log tag
+                    if len(involved_models) == 1:
+                        primary_model = list(involved_models)[0]
+                    elif len(involved_models) > 1:
+                        primary_model = "MIXED_MODELS"
+                    else:
+                        primary_model = "MANUAL_USER"
+
+                    history_service.log_interaction(
+                        module="DATABASE",
+                        action="SAVE_METADATA",
+                        input_context="User clicked Save Changes",
+                        output_result=f"File Modified: {self.metadata_path}\n\nCHANGES:\n{diff_text}",
+                        model_id=primary_model,
+                        metadata={
+                            "file": self.metadata_path, 
+                            "table_count": len(new_tables),
+                            "changes_count": len(changes),
+                            "models": list(involved_models)
+                        }
+                    )
+                except Exception as log_error:
+                    logger.error(f"Failed to log save action: {log_error}")
+            
         except Exception as e:
             logger.error(f"Error saving metadata: {e}")
             raise
@@ -152,19 +227,28 @@ class DatabaseService:
                 Responde SOLO con el JSON válido."""
 
             # Prepare prompt
+            # Prepare prompt
             prompt = system_prompt_template.replace("{table_name}", table_name)\
                                          .replace("{col_names}", ', '.join(col_names))\
                                          .replace("{samples}", str(samples))
+
+            # --- GLOBAL ANONYMIZER INTEGRATION ---
+            # Anonymize the prompt containing samples and schema
+            from backend.modules.anonymizer.service import AnonymizerService
+            anonymizer = AnonymizerService()
+            prompt = anonymizer.anonymize_if_enabled(prompt, "database")
+            # -------------------------------------
 
             # Select Model (Robust)
             # 1. Try preferred models
             preferred_models = ["gemini-1.5-flash", "gemini-1.5-pro", "grok-2-1212", "groq-llama-70b"]
             model_config = None
             
-            # Check enabled models
-            enabled_models = [m for m in model_manager.list_models() if m.get('enabled')]
+            # Check enabled models with valid API Key
+            enabled_models = [m for m in model_manager.list_models() if m.get('enabled') and m.get('api_key')]
+            
             if not enabled_models:
-                raise Exception("No AI models enabled for analysis")
+                raise Exception("No AI models enabled with valid API Key for analysis")
                 
             # Try to find a preferred model that is enabled
             for pref in preferred_models:
@@ -186,7 +270,7 @@ class DatabaseService:
 
             provider = AIFactory.get_provider(model_config['provider'])
             ai_config = AIConfig(
-                api_key=model_config['api_key'],
+                api_key=model_config.get('api_key'),
                 model=model_config['model_id'],
                 base_url=model_config.get('base_url')
             )
@@ -228,8 +312,36 @@ class DatabaseService:
             # Extract JSON
             import re
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            
+            # --- LOGGING TO CHAT HISTORY (Restored for Export) ---
+            try:
+                session_id = self.chat_history.create_session(model_config['model_id'], f"Analysis: {table_name}")
+                self.chat_history.add_message(
+                    session_id, 
+                    "user", 
+                    prompt, 
+                    {"type": "analysis_prompt", "table": table_name, "model": model_config['name']}
+                )
+                self.chat_history.add_message(
+                    session_id, 
+                    "assistant", 
+                    response, 
+                    {"type": "analysis_result", "model": model_config['model_id'], "success": bool(json_match)}
+                )
+            except Exception as log_ex:
+                logger.error(f"Failed to log analysis to chat history: {log_ex}")
+            # -----------------------------------------------------
+
             if json_match:
-                return json.loads(json_match.group(0))
+                result_json = json.loads(json_match.group(0))
+                
+                # Inject AI Model info for traceability
+                for tbl_name, tbl_data in result_json.items():
+                    if isinstance(tbl_data, dict):
+                        tbl_data['_ai_model'] = model_config['model_id']
+                        tbl_data['_analyzed_at'] = __import__('datetime').datetime.now().isoformat()
+
+                return result_json
             else:
                 raise Exception("AI did not return valid JSON")
 

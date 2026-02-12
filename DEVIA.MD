@@ -87,6 +87,14 @@ Todo el código debe estar ultra-organizado. Máximo 500 líneas por fichero.
 │   │   ├── chat/                      # 💬 CHAT CON IA (Text-to-SQL)
 │   │   │   ├── router.py              # Endpoints FastAPI
 │   │   │   └── service.py             # 🧠 Lógica de chat y SQL
+│   │   ├── email_simulation/          # 🔮 SIMULACIÓN DE RESPUESTA
+│   │   │   ├── router.py              # Endpoint de simulación
+│   │   │   ├── service.py             # Lógica de decisión IA
+│   │   │   └── DEVIA.MD               # Documentación del módulo
+│   │   ├── interaction_history/       # 📜 HISTORIAL DE INTERACCIONES
+│   │   │   ├── router.py              # API de historial
+│   │   │   ├── service.py             # Servicio de logging (SQLite)
+│   │   │   └── DEVIA.MD               # Documentación
 │   │   ├── models/                    # Gestión de modelos IA
 │   │   │   └── router.py              # CRUD de modelos
 │   │   └── prompts/                   # Gestión de prompts
@@ -417,6 +425,25 @@ GMAIL_EMAIL=usuario@gmail.com
 GMAIL_PASSWORD=app_password_gmail
 ```
 
+## 🛡️ Resilience & Error Handling
+
+To ensure system stability when dealing with third-party AI providers, a **Fail-Fast** mechanism is implemented in the `Outlook` and `Email Simulation` modules.
+
+### Fail-Fast Provider Logic
+- **Scope**: Applied to batch analysis, deep analysis, reply generation, and next-step simulation.
+- **Trigger**: If any model from a provider returns a critical error (e.g., `429 Quota Exceeded`, `401 Unauthorized`), the system marks that **entire provider** as failed for the current request.
+- **Behavior**:
+    1.  Catches the critical error.
+    2.  Logs the failure to the **Interaction History** with status `FAILURE`.
+    3.  Skipping: Automatically skips all subsequent models from the same provider in the iteration loop.
+    4.  Fallback: Immediately proceeds to the next available provider (e.g., switches from OpenAI to Cohere).
+- **Benefit**: Reduces wait times from ~1 minute (trying 10 models that all fail) to <2 seconds.
+
+## 📜 Interaction History
+The system tracks all User <-> AI interactions.
+- **Success**: Output and metadata are logged.
+- **Failure**: Error messages and types (e.g., 'quota') are logged to help debugging.
+- **UI**: Accessible via the "📜 Historial" button in the Outlook toolbar.
 ### Arquitectura del Módulo
 *   **Backend**: `backend/modules/outlook/`
     *   `router.py`: Maneja la lógica de fallback y endpoints API.
@@ -427,3 +454,41 @@ GMAIL_PASSWORD=app_password_gmail
     *   Optimización de renderizado (Prepend local para evitar doble fetch).
 
 ---
+
+## 💻 HERRAMIENTAS DE DESARROLLO
+
+### Notas Técnicas Importantes
+
+#### 1. Ciclo de Desarrollo y Compilación
+La aplicación de escritorio (`desktop-codelab`) está construida con Electron y React (Vite).
+*   **Modo Producción:** El script `start_codelab.bat` ejecuta la versión compilada (`dist/`).
+*   **Aplicar Cambios:** Cualquier modificación en el código fuente (`src/`) **NO se reflejará** hasta que se reconstruya el proyecto.
+*   **Solución Implementada:** Se ha modificado `start_codelab.bat` para ejecutar automáticamente `npm run build` antes de iniciar. Esto asegura que siempre se ejecute la última versión del código, aunque añade unos segundos al tiempo de inicio.
+*   **Problema Resuelto (Botones Invisibles):** Los botones de "Acción" no aparecían porque la aplicación estaba ejecutando una versión antigua (pre-compilada) que no tenía la lógica de regex actualizada. La recompilación forzada solucionó esto.
+
+#### 2. Detección de Acciones (Regex)
+El sistema utiliza una expresión regular robusta para detectar bloques de acción en los mensajes del asistente:
+`\[\[\s*NEXT_ACTION\s*:\s*([\s\S]*?)\]\]`
+*   Soporta múltiples líneas.
+*   Ignora mayúsculas/minúsculas.
+*   Limpia artefactos de Markdown (bloques de código json) antes de procesar.
+
+### AI Code Lab (Entorno de Desarrollo Asistido)
+
+El proyecto incluye un entorno de desarrollo integrado (IDE) potenciado por IA para facilitar la creación de nuevas funcionalidades.
+
+#### Ubicación
+El código del IDE se encuentra en la carpeta `desktop-codelab/`.
+
+#### Inicio Rápido
+Para iniciar el entorno (Backend + Frontend Electron) de forma automatizada:
+
+```bash
+# Desde la raíz del proyecto
+start_codelab.bat
+```
+
+Este script:
+1. Verifica dependencias (Python, Node.js).
+2. Lanza el servidor backend dedicado en el puerto 8002.
+3. Inicia la aplicación de escritorio.

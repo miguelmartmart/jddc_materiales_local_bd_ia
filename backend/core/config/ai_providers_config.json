@@ -58,6 +58,104 @@
             "schema": "openai_compatible",
             "description": "Mistral - Modelos europeos de código abierto",
             "headers": {}
+        },
+        "anthropic": {
+            "name": "Anthropic",
+            "base_url": "https://api.anthropic.com/v1",
+            "api_key_env": "ANTHROPIC_CLAUDE_API_KEY",
+            "schema": "anthropic_native",
+            "description": "Anthropic Claude - Modelos de alta seguridad y razonamiento",
+            "headers": {
+                "anthropic-version": "2023-06-01"
+            }
+        },
+        "cohere": {
+            "name": "Cohere",
+            "base_url": "https://api.cohere.ai/v1",
+            "api_key_env": "COHERE_API_KEY",
+            "schema": "cohere_native",
+            "description": "Cohere - Especialistas en RAG y empresas",
+            "headers": {}
+        },
+        "zhipu": {
+            "name": "Zhipu AI (GLM)",
+            "base_url": "https://open.bigmodel.cn/api/paas/v4",
+            "api_key_env": "ZAI_GLM_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Zhipu GLM - Modelos líderes en China",
+            "headers": {}
+        },
+        "moonshot": {
+            "name": "Moonshot AI (Kimi)",
+            "base_url": "https://api.moonshot.cn/v1",
+            "api_key_env": "APIDOG_KIMI_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Kimi - Contexto largo y matemáticas",
+            "headers": {}
+        },
+        "01ai": {
+            "name": "01.ai (Yi)",
+            "base_url": "https://api.01.ai/v1",
+            "api_key_env": "YI_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Yi 01.ai - Potente en razonamiento",
+            "headers": {}
+        },
+        "reka": {
+            "name": "Reka AI",
+            "base_url": "https://api.reka.ai/v1",
+            "api_key_env": "REKA_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Reka Core - Multimodal eficiente",
+            "headers": {}
+        },
+        "together": {
+            "name": "Together AI",
+            "base_url": "https://api.together.xyz/v1",
+            "api_key_env": "TOGETHER_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Together AI - Hosting de modelos open source",
+            "headers": {}
+        },
+        "dashscope": {
+            "name": "DashScope (Alibaba)",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_key_env": "DASHSCOPE_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Alibaba Cloud - Qwen Max y otros",
+            "headers": {}
+        },
+        "ai21": {
+            "name": "AI21 Labs",
+            "base_url": "https://api.ai21.com/studio/v1",
+            "api_key_env": "AI21_API_KEY",
+            "schema": "openai_compatible",
+            "description": "AI21 Jamba - Mamba architecture",
+            "headers": {}
+        },
+        "snowflake": {
+            "name": "Snowflake",
+            "base_url": "https://cortex.snowflake.com/api/v1",
+            "api_key_env": "SNOWFLAKE_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Snowflake Arctic - Enterprise SQL AI",
+            "headers": {}
+        },
+        "fireworks": {
+            "name": "Fireworks AI",
+            "base_url": "https://api.fireworks.ai/inference/v1",
+            "api_key_env": "FIREWORKS_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Fireworks - Inferencia de alta velocidad",
+            "headers": {}
+        },
+        "huggingface": {
+            "name": "Hugging Face",
+            "base_url": "https://router.huggingface.co/v1",
+            "api_key_env": "HUGGINGFACE_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Hugging Face Unified Router",
+            "headers": {}
         }
     }
 }

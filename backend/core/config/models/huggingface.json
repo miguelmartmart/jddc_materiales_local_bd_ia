@@ -1,0 +1,292 @@
+{
+  "models": [
+    {
+      "id": "meta-llama-3-8b",
+      "name": "Llama 3 8B (Hugging Face)",
+      "family": "llama",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "description": "Versión ligera de Llama 3 vía Hugging Face. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": true,
+      "score": 10,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 17,
+        "failure": 20
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "meta-llama-3-3-70b-hf",
+      "name": "Llama 3.3 70B (Hugging Face)",
+      "family": "llama",
+      "tier": "high",
+      "provider": "huggingface",
+      "model_id": "meta-llama/Llama-3.3-70B-Instruct",
+      "description": "Llama 3.3 70B vía Hugging Face. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": true,
+      "score": 10,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 54,
+        "failure": 19
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "mistral-7b-hf",
+      "name": "Mistral 7B (Hugging Face)",
+      "family": "mistral",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+      "description": "Mistral 7B v0.3 (Disabled)",
+      "enabled": false,
+      "score": 78,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 3
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "phi-3-mini-hf",
+      "name": "Phi-3 Mini (Hugging Face)",
+      "family": "phi",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "microsoft/Phi-3-mini-4k-instruct",
+      "description": "Phi-3 Mini (Disabled)",
+      "enabled": false,
+      "score": 74,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 3
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "qwen-2-5-7b-hf",
+      "name": "Qwen 2.5 7B (Hugging Face)",
+      "family": "qwen",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "description": "Qwen 2.5 7B vía Hugging Face. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": true,
+      "score": 10,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 13,
+        "failure": 18
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "hf-llama-3-2-3b",
+      "name": "Llama 3.2 3B (HF)",
+      "family": "llama",
+      "tier": "low",
+      "provider": "huggingface",
+      "model_id": "meta-llama/Llama-3.2-3B-Instruct",
+      "description": "Muy rápido y ligero. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": true,
+      "score": 2,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 5,
+        "failure": 16
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "hf-qwen-2-5-14b",
+      "name": "Qwen 2.5 14B (HF)",
+      "family": "qwen",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "Qwen/Qwen2.5-14B-Instruct",
+      "description": "Balance perfecto tamaño/potencia. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": false,
+      "score": 82,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 3
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "hf-qwen-2-5-32b",
+      "name": "Qwen 2.5 32B (HF)",
+      "family": "qwen",
+      "tier": "high",
+      "provider": "huggingface",
+      "model_id": "Qwen/Qwen2.5-32B-Instruct",
+      "description": "Muy potente, rivaliza con 70B. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": false,
+      "score": 86,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 3
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    },
+    {
+      "id": "hf-mistral-nemo",
+      "name": "Mistral Nemo (HF)",
+      "family": "mistral",
+      "tier": "medium",
+      "provider": "huggingface",
+      "model_id": "mistralai/Mistral-Nemo-Instruct-v0.1",
+      "description": "Nuevo modelo eficiente de Mistral/NVIDIA. (Key: https://huggingface.co/settings/tokens)",
+      "enabled": false,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 1
+      },
+      "base_url": "https://router.huggingface.co/v1",
+      "usage": [
+        "chat"
+      ]
+    }
+  ]
+}

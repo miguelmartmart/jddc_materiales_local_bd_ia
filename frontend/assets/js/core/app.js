@@ -4,6 +4,7 @@ import { ChatModule } from '../modules/chat.js';
 import { ModelsModule } from '../modules/models.js';
 import { DatabaseConfigModule } from '../modules/database_config.js';
 import { OutlookModule } from '../modules/outlook.js';
+import { AnonymizerModule } from '../modules/anonymizer.js';
 
 class App {
     constructor() {
@@ -14,7 +15,8 @@ class App {
             chat: new ChatModule(),
             models: new ModelsModule(),
             databaseConfig: new DatabaseConfigModule(),
-            outlook: new OutlookModule()
+            outlook: new OutlookModule(),
+            anonymizer: new AnonymizerModule()
         };
         this.init();
     }
@@ -27,6 +29,7 @@ class App {
         this.modules.models.init();
         this.modules.databaseConfig.init();
         this.modules.outlook.init();
+        this.modules.anonymizer.init();
     }
 
     setupNavigation() {
@@ -59,7 +62,8 @@ class App {
             'models': 'Modelos IA',
             'chat': 'Chat IA',
             'database-config': 'Configuración Base de Datos',
-            'outlook': 'Lector de Correos'
+            'outlook': 'Lector de Correos',
+            'anonymizer': 'Anonimizador de Datos'
         };
         document.getElementById('page-title').textContent = titles[viewName] || 'DEVIA';
 

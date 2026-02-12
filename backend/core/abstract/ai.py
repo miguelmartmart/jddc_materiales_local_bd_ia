@@ -18,11 +18,28 @@ class AIProvider(ABC):
         pass
 
     @abstractmethod
-    async def generate_text(self, prompt: str, system_instruction: Optional[str] = None) -> str:
-        """Generate text response from the model."""
+    async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, images: list = None, audios: list = None, videos: list = None) -> str:
+        """Generate text response from the model.
+        
+        Args:
+            prompt: The text prompt
+            system_instruction: Optional system instruction
+            images: Optional list of base64 encoded images
+            audios: Optional list of base64 encoded audio
+            videos: Optional list of base64 encoded videos
+        """
         pass
 
     @abstractmethod
     async def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: Optional[str] = None) -> Dict[str, Any]:
         """Generate structured JSON response from the model."""
+        pass
+
+    @abstractmethod
+    async def generate_image(self, prompt: str, size: str = "1024x1024", quality: str = "standard") -> str:
+        """Generate an image from a text prompt.
+        
+        Returns:
+            str: URL or Base64 of the generated image.
+        """
         pass

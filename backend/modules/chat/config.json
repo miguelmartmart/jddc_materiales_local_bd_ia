@@ -1,0 +1,5 @@
+{
+    "max_sql_retries": 4,
+    "enable_auto_correction": true,
+    "log_sql_errors": true
+}

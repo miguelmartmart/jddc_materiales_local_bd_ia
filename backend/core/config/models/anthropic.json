@@ -1,0 +1,266 @@
+{
+  "models": [
+    {
+      "id": "claude-4-5-sonnet",
+      "name": "Claude 4.5 Sonnet",
+      "provider": "anthropic",
+      "family": "claude",
+      "tier": "elite",
+      "model_id": "claude-3-5-sonnet-20241022",
+      "enabled": false,
+      "score": 88,
+      "capabilities": [
+        "text",
+        "vision",
+        "code",
+        "agents"
+      ],
+      "usage": [
+        "chat",
+        "code",
+        "complex_reasoning",
+        "agents"
+      ],
+      "description": "Nueva generación. Mayor razonamiento y capacidad.",
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 6
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "name": "Claude 3.5 Sonnet (Latest)",
+      "family": "claude",
+      "tier": "elite",
+      "provider": "anthropic",
+      "model_id": "claude-3-5-sonnet-latest",
+      "description": "Versión estándar más estable (la que usan empresas).",
+      "enabled": true,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "email",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 30
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-4-5-sonnet-1m",
+      "name": "Claude 4.5 Sonnet (1M)",
+      "provider": "anthropic",
+      "family": "claude",
+      "tier": "elite",
+      "model_id": "anthropic/claude-sonnet-4.5:1m",
+      "enabled": false,
+      "score": 88,
+      "capabilities": [
+        "text",
+        "vision",
+        "code",
+        "long_context"
+      ],
+      "usage": [
+        "rag",
+        "complex_reasoning"
+      ],
+      "description": "Versión 4.5 Sonnet con ventana de contexto extendida (1M).",
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 6
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-4-5-opus",
+      "name": "Claude 4.5 Opus",
+      "provider": "anthropic",
+      "family": "claude",
+      "tier": "elite",
+      "model_id": "claude-3-5-sonnet-20241022",
+      "enabled": false,
+      "score": 87,
+      "capabilities": [
+        "text",
+        "vision",
+        "complex_reasoning"
+      ],
+      "usage": [
+        "complex_reasoning",
+        "agents"
+      ],
+      "description": "El modelo más potente para tareas complejas y escritura creativa.",
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 6
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-4-5-haiku",
+      "name": "Claude 4.5 Haiku",
+      "provider": "anthropic",
+      "family": "claude",
+      "tier": "high",
+      "model_id": "claude-3-5-sonnet-20241022",
+      "enabled": false,
+      "score": 92,
+      "capabilities": [
+        "text",
+        "fast"
+      ],
+      "usage": [
+        "chat",
+        "email"
+      ],
+      "description": "Modelo rápido y eficiente de la serie 4.5.",
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 0
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-3-5-sonnet-20241022",
+      "name": "Claude 3.5 Sonnet (2024-10-22)",
+      "family": "claude",
+      "tier": "elite",
+      "provider": "anthropic",
+      "model_id": "claude-3-5-sonnet-20241022",
+      "description": "Versión específica por fecha (útil para reproducibilidad).",
+      "enabled": true,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 30
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-3-5-haiku",
+      "name": "Claude 3.5 Haiku",
+      "family": "claude",
+      "tier": "medium",
+      "provider": "anthropic",
+      "model_id": "claude-3-5-haiku-20241022",
+      "description": "Versión ligera, rápida y económica (lanzada nov 2025).",
+      "enabled": true,
+      "score": 2,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "email"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 22
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    },
+    {
+      "id": "claude-3-opus",
+      "name": "Claude 3 Opus",
+      "family": "claude",
+      "tier": "elite",
+      "provider": "anthropic",
+      "model_id": "claude-3-opus-20240229",
+      "description": "Modelo más capaz (elite), pero más lento y caro.",
+      "enabled": true,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "complex_reasoning"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 28
+      },
+      "base_url": "https://api.anthropic.com/v1"
+    }
+  ]
+}

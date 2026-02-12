@@ -43,3 +43,13 @@ export function formatDate(dateString) {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('es-ES');
 }
+
+export async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        return false;
+    }
+}

@@ -12,6 +12,10 @@ export class DatabaseConfigModule {
         this.previewContainer = document.getElementById('analysis-preview-container');
         this.analysisPreview = document.getElementById('analysis-preview');
         this.btnAppend = document.getElementById('btn-append-analysis');
+        this.btnHistory = document.getElementById('btn-db-history');
+        this.btnExportChat = document.getElementById('btn-export-chat-history');
+        this.historyModal = document.getElementById('db-history-modal');
+        this.historyList = document.getElementById('db-history-list');
 
         this.currentAnalysis = null;
     }
@@ -27,6 +31,10 @@ export class DatabaseConfigModule {
         this.btnSave.addEventListener('click', () => this.saveMetadata());
         this.btnAnalyze.addEventListener('click', () => this.analyzeTable());
         this.btnAppend.addEventListener('click', () => this.appendAnalysis());
+        this.btnHistory.addEventListener('click', () => this.showHistory());
+        this.btnExportChat.addEventListener('click', () => {
+            window.open('/api/chat/export-full', '_blank');
+        });
     }
 
     async loadMetadata() {
@@ -142,5 +150,80 @@ export class DatabaseConfigModule {
             console.error('Error appending analysis:', error);
             showNotification('Error al añadir: JSON inválido en el editor', 'error');
         }
+    }
+
+    async showHistory() {
+        this.historyModal.showModal();
+        this.historyList.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px;">Cargando historial...</div>';
+
+        try {
+            // Fetch logs for module=DATABASE and action=ANALYZE_TABLE
+            // Prefix is /api/history (main.py) + /logs (router.py) -> /history/logs
+
+            const response = await api.get('/history/logs?module=DATABASE&action=ANALYZE_TABLE&limit=20');
+            const data = response.logs || response;
+
+            if (!data || data.length === 0) {
+                this.historyList.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px;">No hay historial de análisis.</div>';
+                return;
+            }
+
+            this.renderHistory(data);
+
+        } catch (error) {
+            console.error('Error loading history:', error);
+            this.historyList.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 20px;">Error cargando historial.</div>';
+        }
+    }
+
+    renderHistory(logs) {
+        this.historyList.innerHTML = '';
+        logs.forEach(log => {
+            const card = document.createElement('div');
+            card.className = 'history-card';
+            card.style.cssText = 'background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
+
+            const date = new Date(log.timestamp).toLocaleString();
+            const table = log.metadata?.table || 'Desconocida';
+            const model = log.model_id || 'N/A';
+
+            // Format input context (truncated)
+            let inputPreview = log.input_context || '';
+            if (inputPreview.length > 150) inputPreview = inputPreview.substring(0, 150) + '...';
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+                    <span style="font-weight: 600; color: #334155;">📅 ${date}</span>
+                    <span style="font-size: 0.9em; background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 12px;">${table}</span>
+                </div>
+                <div style="font-size: 0.9em; color: #475569; margin-bottom: 8px;">
+                    <strong>🧠 Modelo:</strong> ${model}
+                </div>
+                <div style="background: #f8fafc; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #333; margin-bottom: 8px;">
+                    <strong>📥 Input (Contexto):</strong><br>
+                    ${inputPreview}
+                </div>
+                <div class="expand-content" style="display: none;">
+                    <div style="background: #f0fdf4; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #166534; margin-top: 5px; white-space: pre-wrap;">
+                        <strong>📤 Output (IA):</strong><br>
+                        ${log.output_result}
+                    </div>
+                </div>
+                <button class="btn-toggle-details" style="background: none; border: none; color: #2563eb; cursor: pointer; font-size: 0.9em; padding: 0; text-decoration: underline;">
+                    Ver Detalles Completos
+                </button>
+            `;
+
+            const btnToggle = card.querySelector('.btn-toggle-details');
+            const expandContent = card.querySelector('.expand-content');
+
+            btnToggle.addEventListener('click', () => {
+                const isHidden = expandContent.style.display === 'none';
+                expandContent.style.display = isHidden ? 'block' : 'none';
+                btnToggle.textContent = isHidden ? 'Ocultar Detalles' : 'Ver Detalles Completos';
+            });
+
+            this.historyList.appendChild(card);
+        });
     }
 }

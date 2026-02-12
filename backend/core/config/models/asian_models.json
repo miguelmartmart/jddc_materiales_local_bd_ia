@@ -1,0 +1,375 @@
+{
+  "models": [
+    {
+      "id": "glm-4-6",
+      "name": "GLM-4.6",
+      "family": "glm",
+      "tier": "high",
+      "provider": "zhipu",
+      "model_id": "glm-4.6",
+      "description": "Codificación, tareas de programación. 200k tokens. (Key: https://open.bigmodel.cn/usercenter/apikeys)",
+      "enabled": true,
+      "score": 4,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "usage": [
+        "code"
+      ],
+      "parameters": {
+        "temperature": 0.5,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 20
+      },
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    },
+    {
+      "id": "glm-4-6v",
+      "name": "GLM-4.6V",
+      "family": "glm",
+      "tier": "high",
+      "provider": "zhipu",
+      "model_id": "glm-4.6v",
+      "description": "Multimodal (visión-texto), tool calling nativo. 128k. (Key: https://open.bigmodel.cn/usercenter/apikeys)",
+      "enabled": true,
+      "score": 4,
+      "capabilities": [
+        "text",
+        "vision",
+        "code",
+        "tools"
+      ],
+      "usage": [
+        "vision",
+        "agents"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 20
+      },
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    },
+    {
+      "id": "qwen3-omni",
+      "name": "Qwen3-Omni",
+      "family": "qwen",
+      "tier": "elite",
+      "provider": "dashscope",
+      "model_id": "qwen3-omni",
+      "description": "Audio, video, multimodalidad nativa. Apache 2.0. (Key: https://bailian.console.aliyun.com)",
+      "enabled": false,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "vision",
+        "audio",
+        "video"
+      ],
+      "usage": [
+        "vision",
+        "audio",
+        "multimodal"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 17
+      },
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "id": "qwen-max",
+      "name": "Qwen Max (Alibaba)",
+      "family": "qwen",
+      "tier": "elite",
+      "provider": "dashscope",
+      "model_id": "qwen-max",
+      "description": "Modelo avanzado multimodal y de alto razonamiento. (Key: https://bailian.console.aliyun.com)",
+      "enabled": false,
+      "score": 0,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "code",
+        "vision"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 17
+      },
+      "base_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+    },
+    {
+      "id": "deepseek-v3",
+      "name": "DeepSeek V3",
+      "provider": "deepseek",
+      "family": "deepseek",
+      "tier": "elite",
+      "model_id": "deepseek-chat",
+      "score": 0,
+      "capabilities": [
+        "text",
+        "code",
+        "reasoning"
+      ],
+      "usage": [
+        "code",
+        "complex_reasoning"
+      ],
+      "description": "SOTA en codificación y razonamiento.",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 28
+      },
+      "base_url": "https://api.deepseek.com"
+    },
+    {
+      "id": "deepseek-coder-v2",
+      "name": "DeepSeek Coder V2",
+      "provider": "deepseek",
+      "family": "deepseek",
+      "tier": "high",
+      "model_id": "deepseek/deepseek-coder-v2",
+      "score": 10,
+      "capabilities": [
+        "code"
+      ],
+      "usage": [
+        "code"
+      ],
+      "description": "Especializado puramente en código.",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 16
+      },
+      "base_url": "https://api.deepseek.com"
+    },
+    {
+      "id": "qwen-2-5-72b",
+      "name": "Qwen 2.5 72B",
+      "provider": "dashscope",
+      "family": "qwen",
+      "tier": "high",
+      "model_id": "qwen/qwen-2.5-72b-instruct",
+      "score": 0,
+      "capabilities": [
+        "text",
+        "code",
+        "multilingual"
+      ],
+      "usage": [
+        "chat",
+        "code",
+        "rag"
+      ],
+      "description": "Muy fuerte en tareas generales y multilingües.",
+      "enabled": true,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 24
+      },
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "id": "glm-4-plus",
+      "name": "GLM-4 Plus",
+      "family": "glm",
+      "tier": "high",
+      "provider": "zhipu",
+      "model_id": "glm-4-plus",
+      "description": "Modelo líder chino, multimodal. 100 req/día gratis.",
+      "enabled": true,
+      "score": 6,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "vision"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 3600
+      },
+      "stats": {
+        "success": 0,
+        "failure": 20
+      },
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    },
+    {
+      "id": "yi-large",
+      "name": "Yi-Large (01.ai)",
+      "family": "yi",
+      "tier": "high",
+      "provider": "01ai",
+      "model_id": "yi-large",
+      "description": "Potente en matemáticas y lógica. 1M tokens gratis. (Key: https://platform.01.ai/key)",
+      "enabled": true,
+      "score": 37,
+      "capabilities": [
+        "text",
+        "code",
+        "math"
+      ],
+      "usage": [
+        "math",
+        "reasoning"
+      ],
+      "parameters": {
+        "temperature": 0.6,
+        "max_tokens": 4000
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 27
+      },
+      "base_url": "https://api.01.ai/v1"
+    },
+    {
+      "id": "qwen2.5-72b",
+      "name": "Qwen 2.5 72B Instruct (Together)",
+      "family": "qwen",
+      "tier": "high",
+      "provider": "together",
+      "model_id": "Qwen/Qwen2.5-72B-Instruct",
+      "description": "Excelente multilingüe y coding. Gratis en Together. (Key: https://api.together.xyz/settings/api-keys)",
+      "enabled": false,
+      "score": 12,
+      "capabilities": [
+        "text",
+        "code"
+      ],
+      "usage": [
+        "code",
+        "chat"
+      ],
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 8
+      },
+      "base_url": "https://api.together.xyz/v1"
+    },
+    {
+      "id": "openbrain-70b",
+      "name": "OpenBrain 70B",
+      "family": "openbrain",
+      "tier": "high",
+      "provider": "openbrain",
+      "model_id": "openbrain/openbrain-70b",
+      "description": "Fine-tune especializado en razonamiento. Gratis para investigación.",
+      "enabled": false,
+      "score": 70,
+      "capabilities": [
+        "text",
+        "reasoning",
+        "math"
+      ],
+      "usage": [
+        "reasoning"
+      ],
+      "parameters": {
+        "temperature": 0.3,
+        "max_tokens": 8000
+      },
+      "quota": {
+        "blocked": false,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 9
+      }
+    }
+  ]
+}

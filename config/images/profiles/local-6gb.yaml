@@ -1,0 +1,17 @@
+# Profile: Local 6GB VRAM (RTX 3060)
+# Optimized for stability on consumer hardware
+
+profile_name: "Local 6GB VRAM"
+
+providers:
+  comfyui_local:
+    pool_size: 1 # Strictly 1 job at a time
+
+limits:
+  max_width: 768    # Limit max resolution to avoid OOM
+  max_height: 768
+  max_steps: 40     # Reasonable wait time
+  max_batch_size: 1 # No batches
+
+security:
+  auth_required: false # Relaxed for local/LAN usage if configured

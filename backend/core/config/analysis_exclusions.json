@@ -1,0 +1,80 @@
+[
+  {
+    "type": "subject_contains",
+    "value": "oferta de trabajo",
+    "enabled": true,
+    "id": "715ad681-4d7b-4616-bf6f-f0a62bf3e210"
+  },
+  {
+    "type": "subject_contains",
+    "value": "Ofertas de empleo",
+    "enabled": true,
+    "id": "4ab5ad75-08cd-4852-8fef-40aadec2d3dc"
+  },
+  {
+    "type": "subject_contains",
+    "value": "Newsletter de Merkal",
+    "enabled": true,
+    "id": "edd39157-d80a-47bd-85cb-4d8adf721b0f"
+  },
+  {
+    "type": "subject_contains",
+    "value": "regalos para Navidad",
+    "enabled": true,
+    "id": "15e2ea02-21cc-4758-8832-b019f2a2a620"
+  },
+  {
+    "type": "subject_contains",
+    "value": "Oferta de empleo",
+    "enabled": true,
+    "id": "f828fe49-dd42-494f-abe4-05a3c9b070c5"
+  },
+  {
+    "type": "subject_contains",
+    "value": "Ofertas de trabajo",
+    "enabled": true,
+    "id": "69c7c08a-66f1-4e24-b8a3-b798a7531f40"
+  },
+  {
+    "type": "sender",
+    "value": "Merkal <info@mklnews.merkal.com>",
+    "enabled": true,
+    "id": "9da75fc6-5710-4135-8a41-20d46c86f525"
+  },
+  {
+    "type": "sender",
+    "value": "Alertas de empleo de LinkedIn <jobalerts-noreply@linkedin.com>",
+    "enabled": true,
+    "id": "62a3e343-cdcb-41e9-87de-6a4c212da7ce"
+  },
+  {
+    "type": "sender",
+    "value": "Alerta de empleo InfoJobs <ofertas@push.infojobs.net>",
+    "enabled": true,
+    "id": "986ca40e-4ccc-4c8d-aabb-6f8ffedd1252"
+  },
+  {
+    "type": "sender",
+    "value": "LinkedIn <messages-noreply@linkedin.com>",
+    "enabled": true,
+    "id": "c57212e9-a839-45b4-99bf-a422d969540e"
+  },
+  {
+    "type": "sender",
+    "value": "Humble Bundle <contact@mailer.humblebundle.com>",
+    "enabled": true,
+    "id": "506e38a3-077e-4bf5-871e-318768554ac9"
+  },
+  {
+    "type": "sender",
+    "value": "\"OCU\" <maillist@comunica.ocu.org>",
+    "enabled": true,
+    "id": "3d58207a-b070-47a6-bc85-ed238d33a9b8"
+  },
+  {
+    "type": "sender",
+    "value": "La Noria Outlet <info@lanoriaoutlet.es>",
+    "enabled": true,
+    "id": "30816dd1-1a81-46c6-be2f-8f67d6ef9b77"
+  }
+]

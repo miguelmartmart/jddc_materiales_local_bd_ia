@@ -228,7 +228,7 @@ class OutlookService:
         except imaplib.IMAP4.error as e:
             error_msg = str(e)
             logger.error(f"IMAP Error: {error_msg}")
-            if "LOGIN failed" in error_msg:
+            if "LOGIN failed" in error_msg or "AUTHENTICATE failed" in error_msg or "AuthFailed" in error_msg:
                 raise Exception("Error de autenticación: Verifica tu usuario y contraseña. Si usas 2FA, necesitas una Contraseña de Aplicación.")
             raise Exception(f"Error IMAP Outlook: {error_msg}")
         except Exception as e:

@@ -1,0 +1,3 @@
+Bienvenido al juego de Tres en Raya.
+Para jugar, simplemente ingresa el número de la casilla donde deseas colocar tu símbolo (X o O).
+El juego termina cuando un jugador tenga tres símbolos en línea, o cuando todas las casillas estén ocupadas.

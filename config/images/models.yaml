@@ -1,0 +1,22 @@
+# Models Catalog
+# Defines available checkpoints and their capabilities
+
+models:
+  sd15_base:
+    name: "Stable Diffusion 1.5 Base"
+    filename: "v1-5-pruned-emaonly.safetensors"
+    type: "sd15"
+    min_vram_gb: 4
+    recommended_resolutions: [512, 768]
+    supported_modes: ["general", "ecommerce_packshot", "interior_lifestyle"]
+    description: "Standard SD1.5 model, good general purpose."
+
+  # Placeholder for potential ecommerce specific model
+  sd15_realistic:
+    name: "Realistic Vision V5"
+    filename: "realisticVisionV51_v51VAE.safetensors"
+    type: "sd15"
+    min_vram_gb: 4
+    recommended_resolutions: [512, 768]
+    supported_modes: ["ecommerce_packshot", "interior_lifestyle"]
+    description: "High realism model (if available)."

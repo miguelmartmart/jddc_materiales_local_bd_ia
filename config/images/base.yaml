@@ -1,0 +1,26 @@
+# Base Configuration
+# Defaults for all environments
+
+providers:
+  default: "comfyui_local"
+  
+  comfyui_local:
+    url: "http://127.0.0.1:8188"
+    pool_size: 1
+    timeout: 300
+
+limits:
+  max_width: 1024
+  max_height: 1024
+  max_steps: 50
+  max_batch_size: 1
+  allowed_formats: ["png", "jpg", "webp"]
+
+security:
+  auth_required: true   # Default secure
+  allow_local_paths: false
+  
+storage:
+  type: "local"
+  base_path: "data/images"
+  retention_days: 7

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     
     # AI (API Keys)
     GEMINI_API_KEY: Optional[str] = None
+    GOOGLE_AI_STUDIO_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
@@ -27,6 +28,20 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: Optional[str] = None
     ALIBABA_API_KEY: Optional[str] = None
     QWEN_API_KEY: Optional[str] = None
+    
+    # Extended Providers
+    ANTHROPIC_CLAUDE_API_KEY: Optional[str] = None
+    APIDOG_KIMI_API_KEY: Optional[str] = None
+    ZAI_GLM_API_KEY: Optional[str] = None
+    COHERE_API_KEY: Optional[str] = None
+    REKA_API_KEY: Optional[str] = None
+    YI_API_KEY: Optional[str] = None
+    DASHSCOPE_API_KEY: Optional[str] = None
+    AI21_API_KEY: Optional[str] = None
+    SNOWFLAKE_API_KEY: Optional[str] = None
+    TOGETHER_API_KEY: Optional[str] = None
+    FIREWORKS_API_KEY: Optional[str] = None
+    HUGGINGFACE_API_KEY: Optional[str] = None
 
     # Outlook
     OUTLOOK_EMAIL: Optional[str] = None
@@ -43,5 +58,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Allow extra keys in .env without crashing
 
 settings = Settings()

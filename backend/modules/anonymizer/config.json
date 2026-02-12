@@ -1,0 +1,16 @@
+{
+    "api_url": "https://api.groq.com/openai/v1",
+    "model": "llama-3.3-70b-versatile",
+    "system_prompt": "You are a professional anonymization tool.",
+    "enable_chat": true,
+    "enable_outlook": true,
+    "enable_database": true,
+    "anonymize_ids": true,
+    "anonymize_names": true,
+    "anonymize_emails": true,
+    "anonymize_phones": true,
+    "anonymize_locations": true,
+    "anonymize_dates": false,
+    "anonymize_orgs": true,
+    "exceptions": []
+}

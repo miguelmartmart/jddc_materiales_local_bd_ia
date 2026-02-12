@@ -1,0 +1,24 @@
+# Workflows Catalog
+# Defines available workflows and their node bindings (Manifest)
+
+workflows:
+  txt2img_sd15_base:
+    file: "txt2img.json"
+    type: "txt2img"
+    description: "Basic Text-to-Image for SD1.5"
+    manifest:
+      # Node Binding (Logical Name -> ComfyUI Node ID)
+      positive_prompt: "6"
+      negative_prompt: "7"
+      seed: "3"
+      steps: "3"
+      cfg: "3"
+      sampler_name: "3"
+      scheduler: "3"
+      width: "5"
+      height: "5"
+      checkpoint: "4"
+      save_image: "9"
+
+  # Future workflow for inpainting or img2img
+  # img2img_sd15_base: ...

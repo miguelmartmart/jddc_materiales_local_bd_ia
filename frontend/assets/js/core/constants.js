@@ -100,7 +100,10 @@ export const DOM_SELECTORS = {
         SEND_BTN: 'btn-send-chat',
         INPUT: 'chat-input',
         MESSAGES: 'chat-messages',
-        MODEL_SELECTOR: 'chat-model-selector'
+        MODEL_SELECTOR: 'chat-model-selector',
+        ATTACH_BTN: 'btn-attach-file',
+        FILE_INPUT: 'chat-file-input',
+        PREVIEW: 'chat-preview-container'
     },
     ARTICLES: {
         ANALYZE_BTN: 'btn-analyze',

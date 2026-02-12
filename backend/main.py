@@ -45,6 +45,9 @@ app.include_router(db_explorer_router, prefix="/api/db-explorer", tags=["DB Expl
 app.include_router(data_quality_router, prefix="/api/data-quality", tags=["Data Quality"])
 app.include_router(models_router, prefix="/api/models", tags=["AI Models"])
 
+from backend.modules.models.test_router import router as test_router
+app.include_router(test_router) # Prefix defined in router
+
 from backend.modules.chat.router import router as chat_router
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 
@@ -53,6 +56,25 @@ app.include_router(database_router, prefix="/api/database", tags=["Database Conf
 
 from backend.modules.outlook.router import router as outlook_router
 app.include_router(outlook_router) # The prefix is already defined in the router itself
+
+from backend.modules.email_simulation.router import router as email_simulation_router
+app.include_router(email_simulation_router, prefix="/api/simulation", tags=["Email Simulation"])
+
+from backend.modules.interaction_history.router import router as interaction_history_router
+app.include_router(interaction_history_router, prefix="/api/history", tags=["Interaction History"])
+
+from backend.modules.anonymizer.router import router as anonymizer_router
+app.include_router(anonymizer_router, prefix="/api/anonymizer", tags=["Anonymizer"])
+
+from backend.modules.images.router import router as images_router
+app.include_router(images_router, prefix="/api/images", tags=["Image Services"])
+
+from backend.modules.resources.router import router as resources_router
+app.include_router(resources_router, prefix="/api", tags=["Resources"])
+
+from backend.modules.employees.router import router as employees_router
+app.include_router(employees_router, prefix="/api", tags=["Employees"])
+
 
 if __name__ == "__main__":
     import uvicorn

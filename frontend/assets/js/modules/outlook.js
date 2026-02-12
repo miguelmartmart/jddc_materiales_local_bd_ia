@@ -1,3 +1,5 @@
+import { InteractionHistoryModule } from './interaction_history.js';
+
 export class OutlookModule {
     constructor() {
         this.apiBase = '/api/outlook';
@@ -6,6 +8,7 @@ export class OutlookModule {
         this.pollingInterval = null;
         this.lastEmailId = null;
         this.currentSource = null; // 'outlook' | 'gmail' | null
+        this.currentEmails = [];
     }
 
     init() {
@@ -35,6 +38,32 @@ export class OutlookModule {
             btnCloseAnalysis.addEventListener('click', () => {
                 document.getElementById('analysis-panel').style.display = 'none';
             });
+        }
+
+        const btnSettings = document.getElementById('btn-outlook-settings');
+        if (btnSettings) {
+            btnSettings.addEventListener('click', () => {
+                const modal = document.getElementById('outlook-exclusions-modal');
+                if (modal) {
+                    modal.showModal();
+                    this.loadExclusions();
+                }
+            });
+        }
+
+
+        // --- History Button ---
+        const btnHistory = document.getElementById('btn-history');
+        if (btnHistory) {
+            btnHistory.addEventListener('click', () => {
+                const history = new InteractionHistoryModule();
+                history.showHistoryModal();
+            });
+        }
+
+        const btnAddExclusion = document.getElementById('btn-add-exclusion');
+        if (btnAddExclusion) {
+            btnAddExclusion.addEventListener('click', () => this.addExclusion());
         }
     }
 
@@ -309,6 +338,7 @@ export class OutlookModule {
             const data = await response.json();
             if (!data.success) throw new Error(data.detail || "Error en análisis");
 
+            this.currentEmails = data.analysis || [];
             this.renderAnalysis(data);
 
         } catch (e) {
@@ -381,6 +411,14 @@ export class OutlookModule {
 
                 tableLi.innerHTML = `
                         <div style="font-weight:600; margin-bottom:5px; font-size:0.9em; color:#333;">📊 Resumen Global (Todo el buzón):</div>
+                        
+                        ${data.global_digest ? `
+                            <div style="background:#e8f5e9; padding:10px; border-radius:6px; border:1px solid #c8e6c9; margin-bottom:10px; font-size:0.9em; color:#2e7d32; line-height:1.5;">
+                                <strong>💡 Briefing Ejecutivo:</strong> ${this.escapeHtml(data.global_digest)}
+                            </div>
+                        ` : ''}
+
+                        <table style="width:100%; font-size:0.85em; border-collapse:collapse; color:#444;">
                         <div style="border:1px solid #e0e0e0; border-radius:6px; overflow:hidden;">
                             <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
                                 <tr style="background:#f5f5f5;">
@@ -472,9 +510,15 @@ export class OutlookModule {
                         for (const [sub, subInfo] of Object.entries(catInfo.subs)) {
                             // Subcategory Items List
                             const itemsHtml = subInfo.items.map(i =>
-                                `<li style="margin-bottom:2px;">
-                                    <span style="font-weight:500;">${this.escapeHtml(i.subject)}</span> 
-                                    <span style="color:#888; font-size:0.9em;">(${this.escapeHtml(i.sender)})</span>
+                                `<li style="margin-bottom:4px; display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px dashed #f0f0f0;">
+                                    <div style="flex:1;">
+                                        <span style="font-weight:500;">${this.escapeHtml(i.subject)}</span> 
+                                        <span style="color:#888; font-size:0.9em;">(${this.escapeHtml(i.sender)})</span>
+                                    </div>
+                                    <div style="display:flex; gap:5px;">
+                                        <button class="btn-quick-exclude" data-type="sender" data-value="${this.escapeHtml(i.sender)}" title="Bloquear Remitente (Nunca más)" style="background:none; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:0.8em; padding:2px 5px; color:#555;">🚫👤</button>
+                                        <button class="btn-quick-exclude" data-type="subject_contains" data-value="${this.escapeHtml(i.subject)}" title="Bloquear Asunto (Nunca más)" style="background:none; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:0.8em; padding:2px 5px; color:#555;">🚫📝</button>
+                                    </div>
                                  </li>`
                             ).join('');
 
@@ -563,6 +607,23 @@ export class OutlookModule {
                     timelineList.appendChild(li);
                 });
             }
+        }
+
+        // Event Delegation for Quick Exclusion Buttons
+        // const timelineList = document.getElementById('timeline-list'); // Duplicate removed
+        if (timelineList && !timelineList.hasAttribute('data-listeners-attached')) {
+            timelineList.setAttribute('data-listeners-attached', 'true');
+            timelineList.addEventListener('click', (e) => {
+                const btn = e.target.closest('.btn-quick-exclude');
+                if (btn) {
+                    e.stopPropagation(); // prevent detail toggle
+                    const type = btn.dataset.type;
+                    const value = btn.dataset.value;
+                    if (confirm(`¿Bloquear ${type === 'sender' ? 'Remitente' : 'Asunto'}?\n\n"${value}"\n\nNo se analizará en el futuro.`)) {
+                        this.addExclusion(type, value);
+                    }
+                }
+            });
         }
 
 
@@ -675,6 +736,12 @@ export class OutlookModule {
                              data-context="${this.escapeHtml(ai.summary || "Responder al correo")}" 
                              data-sender="${this.escapeHtml(item.sender)}" 
                              data-link="${externalLink}">🤖 Responder con IA</button>
+                     <button class="btn small btn-deep-analysis" 
+                             style="background:#e3f2fd; color:#0d47a1; border:1px solid #bbdefb;" 
+                             data-id="${item.id}">🧠 Análisis Profundo</button>
+                    <button class="btn small btn-simulate" 
+                             style="background:#fff3e0; color:#e65100; border:1px solid #ffe0b2;" 
+                             data-id="${item.id}">🔮 Simular Siguiente Paso</button>
                 </div>
 
                 <div id="${toggleId}" style="display:none; margin-top:10px; background:#fff; border:1px solid #eee; padding:10px; font-size:0.85em; font-family:monospace; white-space:pre-wrap; max-height:200px; overflow-y:auto;">
@@ -694,6 +761,7 @@ export class OutlookModule {
                     const context = btn.dataset.context;
                     const sender = btn.dataset.sender;
                     const link = btn.dataset.link;
+                    const emailId = btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || ""; // Hacky fallback if needed
 
                     // Create or show overlay
                     let overlay = document.getElementById('reply-overlay');
@@ -757,6 +825,23 @@ export class OutlookModule {
                     } catch (e) {
                         alert("Error generando respuesta: " + e.message);
                         overlay.style.display = 'none';
+                    }
+                }
+
+                // --- Simulation Button Handler ---
+                if (e.target.classList.contains('btn-simulate') || e.target.closest('.btn-simulate')) {
+                    const btn = e.target.classList.contains('btn-simulate') ? e.target : e.target.closest('.btn-simulate');
+                    const id = btn.dataset.id;
+                    const emailData = this.currentEmails.find(e => e.id === id);
+                    if (emailData) this.simulateNextStep(emailData);
+                }
+
+                // --- Deep Analysis Button Handler ---
+                if (e.target.classList.contains('btn-deep-analysis') || e.target.closest('.btn-deep-analysis')) {
+                    const btn = e.target.classList.contains('btn-deep-analysis') ? e.target : e.target.closest('.btn-deep-analysis');
+                    const emailId = btn.dataset.id;
+                    if (emailId) {
+                        this.triggerDeepAnalysis(emailId);
                     }
                 }
             });
@@ -872,11 +957,293 @@ export class OutlookModule {
             .replace(/'/g, "&#039;");
     }
 
+    // --- Exclusion Rules Logic ---
+
+    async loadExclusions() {
+        const container = document.getElementById('exclusions-list');
+        if (!container) return;
+
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">Cargando reglas...</div>';
+
+        try {
+            const res = await fetch(`${this.apiBase}/config/exclusions`);
+            const rules = await res.json();
+
+            if (!Array.isArray(rules) || rules.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No hay reglas activas.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            rules.forEach(rule => {
+                const div = document.createElement('div');
+                div.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white;";
+
+                const typeLabel = rule.type === 'sender' ? 'Remitente' : 'Asunto';
+                const typeIcon = rule.type === 'sender' ? '👤' : '📝';
+
+                div.innerHTML = `
+                    <div>
+                        <span style="font-weight: 500; font-size: 0.9em; color: #333;">${typeIcon} ${typeLabel}:</span> 
+                        <span style="color: #666;">"${this.escapeHtml(rule.value)}"</span>
+                    </div>
+                    <button class="btn-delete-rule" data-id="${rule.id}" style="border: none; background: none; cursor: pointer; color: #ef5350;" title="Eliminar regla">🗑️</button>
+                `;
+                container.appendChild(div);
+            });
+
+            // Listeners for delete buttons
+            container.querySelectorAll('.btn-delete-rule').forEach(btn => {
+                btn.onclick = (e) => this.removeExclusion(e.target.closest('.btn-delete-rule').dataset.id);
+            });
+
+        } catch (e) {
+            container.innerHTML = `<div style="color: red; padding: 10px;">Error cargando reglas: ${e.message}</div>`;
+        }
+    }
+
+    async addExclusion(typeArg = null, valueArg = null) {
+        let type = typeArg;
+        let value = valueArg;
+        let fromUI = false;
+
+        if (!type || !value) {
+            fromUI = true;
+            const typeEl = document.getElementById('exclusion-type');
+            const valueEl = document.getElementById('exclusion-value');
+            if (!typeEl || !valueEl) return;
+
+            type = typeEl.value;
+            value = valueEl.value.trim();
+        }
+
+        if (!value) return alert("Por favor escribe un valor para la regla.");
+
+        if (fromUI) {
+            const btn = document.getElementById('btn-add-exclusion');
+            if (btn) btn.disabled = true;
+        }
+
+        try {
+            const res = await fetch(`${this.apiBase}/config/exclusions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, value, enabled: true })
+            });
+
+            if (res.ok) {
+                if (fromUI) {
+                    document.getElementById('exclusion-value').value = '';
+                    this.loadExclusions();
+                    alert("Regla añadida correctamente.");
+                } else {
+                    alert(`✅ Regla añadida: bloquear ${type === 'sender' ? 'remitente' : 'asunto'} "${value}".\n\nEste correo dejará de aparecer en futuros análisis.`);
+                }
+            } else {
+                alert("Error guardando regla");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error: " + e.message);
+        } finally {
+            if (fromUI) {
+                const btn = document.getElementById('btn-add-exclusion');
+                if (btn) btn.disabled = false;
+            }
+        }
+    }
+
+    async removeExclusion(id) {
+        if (!confirm("¿Eliminar esta regla?")) return;
+
+        try {
+            const res = await fetch(`${this.apiBase}/config/exclusions/${id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                this.loadExclusions();
+            } else {
+                alert("Error eliminando regla");
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+
     formatDate(dateStr) {
         try {
             return new Date(dateStr).toLocaleString();
         } catch (e) {
             return dateStr;
+        }
+    }
+
+    async triggerDeepAnalysis(emailId) {
+        const email = this.currentEmails.find(e => e.id === emailId);
+        if (!email) return alert("Correo no encontrado");
+
+        const modal = document.getElementById('deep-analysis-modal');
+        const content = document.getElementById('deep-analysis-content');
+
+        // Reset and Show Modal
+        content.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #64748b;">
+                <div class="spinner" style="margin: 0 auto 15px;"></div>
+                <p style="font-size: 1.1em; font-weight: 500;">Consultando modelos de inteligencia superior...</p>
+                <p style="font-size: 0.9em; opacity: 0.8;">Analizando fechas, intenciones y tareas ocultas.</p>
+            </div>
+        `;
+        modal.showModal();
+
+        try {
+            const res = await fetch(`${this.apiBase}/analyze-deep`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: email.subject || "(Sin asunto)",
+                    sender: email.sender || "(Desconocido)",
+                    body: email.body || "(Sin contenido)"
+                })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                const analysis = data.analysis;
+
+                // Render Result
+                content.innerHTML = `
+                    <div style="margin-bottom: 25px;">
+                        <h4 style="color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">📑 Resumen Ejecutivo</h4>
+                        <p style="text-align: justify; color: #475569;">${this.escapeHtml(analysis.summary)}</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                        <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border: 1px solid #bae6fd;">
+                            <h4 style="color: #0369a1; margin-top: 0; margin-bottom: 10px;">🧠 Conclusiones Clave</h4>
+                            <ul style="padding-left: 20px; margin: 0; color: #0c4a6e;">
+                                ${(analysis.useful_conclusions || []).map(c => `<li style="margin-bottom: 5px;">${this.escapeHtml(c)}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div style="background: #fdf2f8; padding: 15px; border-radius: 8px; border: 1px solid #fbcfe8;">
+                            <h4 style="color: #be185d; margin-top: 0; margin-bottom: 10px;">⚡ Acción Requerida</h4>
+                            <ul style="padding-left: 20px; margin: 0; color: #831843;">
+                                ${(analysis.action_items || []).map(a => `<li style="margin-bottom: 5px;">${this.escapeHtml(a)}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="color: #334155; margin-bottom: 10px;">📅 Fechas Importantes</h4>
+                        ${(analysis.key_dates || []).length > 0
+                        ? `<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                ${(analysis.key_dates || []).map(d => `<span style="background: #fffbeb; color: #b45309; padding: 4px 10px; border-radius: 15px; font-size: 0.9em; border: 1px solid #fde68a;">🗓️ ${this.escapeHtml(d)}</span>`).join('')}
+                               </div>`
+                        : '<p style="color: #94a3b8; font-style: italic;">No se detectaron fechas críticas.</p>'
+                    }
+                    </div>
+
+                    <div style="background: #f8fafc; padding: 10px 15px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block;">
+                        <span style="font-weight: 600; color: #475569;">🎭 Tono detectado:</span> 
+                        <span style="color: #334155;">${this.escapeHtml(analysis.sentiment)}</span>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = `<div style="color: red; padding: 20px; text-align: center;">Error: ${data.detail || 'Fallo desconocido'}</div>`;
+            }
+
+        } catch (e) {
+            content.innerHTML = `<div style="color: red; padding: 20px; text-align: center;">Error de conexión: ${e.message}</div>`;
+        }
+    }
+
+    async simulateNextStep(email) {
+        // Create or show overlay
+        let overlay = document.getElementById('simulation-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'simulation-overlay';
+            overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; display:flex; justify-content:center; align-items:center;";
+            document.body.appendChild(overlay);
+        }
+
+        overlay.style.display = 'flex';
+        overlay.innerHTML = `
+            <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:650px; box-shadow:0 10px 30px rgba(0,0,0,0.3); font-family: 'Segoe UI', sans-serif;">
+                <h3 style="margin-top:0; color:#e65100; display:flex; align-items:center; gap:10px; border-bottom: 2px solid #ffe0b2; padding-bottom: 10px;">
+                        🔮 Simulando Siguiente Paso...
+                </h3>
+                <div id="sim-loading" style="padding: 20px; text-align: center; color: #666;">
+                    <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #ff9800; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                    Analizando intención, contexto y posibles acciones...
+                    <style>@keyframes spin {0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);}}</style>
+                </div>
+                <div id="sim-content" style="display:none;"></div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top: 1px solid #eee; padding-top: 15px;">
+                    <button id="btn-close-sim" style="padding:8px 20px; border:none; background:#eee; cursor:pointer; border-radius:6px; font-weight: 500; transition: background 0.2s;">Cerrar</button>
+                    <button id="btn-act-sim" style="padding:8px 20px; border:none; background:#e65100; color:white; cursor:pointer; border-radius:6px; font-weight: 500; display:none;">✨ Ejecutar Acción</button>
+                </div>
+            </div>
+        `;
+
+        overlay.querySelector('#btn-close-sim').onclick = () => { overlay.style.display = 'none'; };
+
+        try {
+            const apiBase = `${window.location.protocol}//${window.location.hostname}:8001/api/simulation`;
+            const res = await fetch(`${apiBase}/simulate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: email.subject,
+                    sender: email.sender,
+                    body: email.ai_data?.body_preview || email.body || ""
+                })
+            });
+            const json = await res.json();
+
+            if (json.success) {
+                const result = json.result;
+                const loading = overlay.querySelector('#sim-loading');
+                const content = overlay.querySelector('#sim-content');
+                const btnAct = overlay.querySelector('#btn-act-sim');
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+                let badgeColor = "#999";
+                if (result.action === 'REPLY') badgeColor = "#2196f3"; // Blue
+                if (result.action === 'IGNORE') badgeColor = "#9e9e9e"; // Grey
+                if (result.action === 'USER_ACTION') badgeColor = "#f44336"; // Red
+
+                content.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:15px; margin-bottom: 20px;">
+                        <span style="background:${badgeColor}; color:white; padding:5px 12px; border-radius:20px; font-weight:bold; font-size:1em;">${result.action}</span>
+                        <span style="color:#555; font-style:italic;">${result.reasoning}</span>
+                    </div>
+                    
+                    <div style="background:#fafafa; border:1px solid #ddd; border-radius:8px; padding:15px;">
+                        <div style="font-weight:600; color:#333; margin-bottom:10px;">📄 Simulación / Contenido Sugerido:</div>
+                        <div style="white-space: pre-wrap; font-family: monospace; color: #444; font-size: 0.95em; max-height: 300px; overflow-y: auto;">${this.escapeHtml(result.simulation_content)}</div>
+                    </div>
+                `;
+
+                // If it's a REPLY, we could enable the "Act" button to copy/open mail
+                if (result.action === 'REPLY') {
+                    btnAct.style.display = 'block';
+                    btnAct.textContent = '✉️ Redactar en Outlook/Gmail';
+                    btnAct.onclick = () => {
+                        const subject = `Re: ${encodeURIComponent(email.subject || 'Asunto')}`;
+                        const body = encodeURIComponent(result.simulation_content);
+                        window.open(`mailto:${email.sender}?subject=${subject}&body=${body}`);
+                    };
+                }
+            } else {
+                alert("Error en la simulación");
+                overlay.style.display = 'none';
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error conectando con el servicio de simulación");
+            overlay.style.display = 'none';
         }
     }
 }

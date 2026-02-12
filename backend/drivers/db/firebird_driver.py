@@ -15,14 +15,18 @@ class FirebirdDriver(DatabaseDriver):
             # Use latin1 charset for maximum compatibility with Spanish/European characters
             # latin1 is more permissive and handles special bytes better
             charset = getattr(config, 'charset', 'latin1')
+            user = config.user or 'SYSDBA'
+            password = config.password or 'masterkey'
+            if not config.user or not config.password:
+                print("⚠️ Firebird credentials missing; using SYSDBA/masterkey fallback")
             
             self.last_config = config
             self.conn = firebirdsql.connect(
                 host=config.host,
                 port=config.port,
                 database=config.database,
-                user=config.user,
-                password=config.password,
+                user=user,
+                password=password,
                 charset=charset
             )
             return self.conn

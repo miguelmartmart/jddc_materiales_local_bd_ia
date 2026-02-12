@@ -29,6 +29,10 @@ class AttachmentAnalyzer:
             chunks.append(chunk)
             current_pos += max_size
         
+        # --- LOGGING START ---
+        logger.info(f"\n[ATTACHMENT CHUNKING] Original size: {len(text)} chars. Split into {len(chunks)} chunks (Max: {max_size})")
+        # --- LOGGING END ---
+        
         return chunks
     
     async def analyze_text_attachment(self, content: str, filename: str) -> str:
@@ -47,10 +51,13 @@ Proporciona un resumen conciso en español de:
 2. Contenido principal
 3. Información relevante o importante
 """
+            logger.info(f"\n[ATTACHMENT ANALYSIS] Processing Single Chunk for {filename}")
             return await self._generate_with_fallback(prompt)
         
         # Multiple chunks - analyze each and combine
         chunk_summaries = []
+        logger.info(f"\n[ATTACHMENT ANALYSIS] Processing {len(chunks)} Chunks for {filename}")
+
         for i, chunk in enumerate(chunks):
             prompt = f"""Analiza la parte {i+1}/{len(chunks)} del archivo: {filename}
 
@@ -69,6 +76,7 @@ Proporciona un resumen breve de esta sección."""
 
 Proporciona un resumen final conciso y coherente en español."""
         
+        logger.info(f"\n[ATTACHMENT ANALYSIS] Combining {len(chunks)} summaries for {filename}")
         return await self._generate_with_fallback(combined_prompt)
     
     async def analyze_pdf(self, content: bytes, filename: str) -> str:
@@ -191,7 +199,7 @@ Proporciona un resumen final conciso y coherente en español."""
         """Generate text using available AI models with fallback."""
         from backend.core.config.model_manager import model_manager
         
-        models = model_manager.list_models(enabled_only=True)
+        models = model_manager.list_models(enabled_only=True, capability="text")
         
         for model_config in models:
             try:
@@ -210,11 +218,27 @@ Proporciona un resumen final conciso y coherente en español."""
                 provider = AIFactory.get_provider(provider_name)
                 provider.configure(ai_config)
                 
+                # --- LOGGING START ---
+                logger.info(f"\n{'-'*40}\n[AI ATTACHMENT REQUEST] Model: {model_config.get('model_id')}\nPROMPT:\n{prompt}\n{'-'*40}")
+                # --- LOGGING END ---
+
                 response = await provider.generate_text(prompt)
+                
+                # --- LOGGING START ---
+                logger.info(f"\n{'-'*40}\n[AI ATTACHMENT RESPONSE]\nTEXT:\n{response.strip()}\n{'-'*40}")
+                # --- LOGGING END ---
+                
+                model_manager.report_result(model_config['id'], True)
                 return response.strip()
                 
             except Exception as e:
                 logger.warning(f"Model {model_config.get('model_id')} failed: {e}")
+                
+                # Report Failure
+                error_str = str(e).lower()
+                error_type = 'quota' if '429' in error_str or 'quota' in error_str else 'other'
+                model_manager.report_result(model_config['id'], False, error_type)
+                
                 continue
         
         return "No se pudo generar análisis: todos los modelos AI fallaron"

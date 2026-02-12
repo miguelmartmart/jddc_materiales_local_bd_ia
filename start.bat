@@ -1,0 +1,3 @@
+@echo off
+echo Redirecting to AI Code Lab startup...
+call start_codelab.bat

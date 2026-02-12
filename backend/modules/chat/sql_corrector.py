@@ -2,6 +2,7 @@
 SQL Auto-Correction System
 Detects SQL errors and requests corrected queries from AI models.
 """
+# DEVIA: backend/modules/chat/DEVIA_ROBUSTNESS.md
 
 from typing import Dict, Any, List
 import logging
@@ -53,16 +54,28 @@ class SQLCorrector:
                 'message': 'La columna especificada no existe en la tabla'
             }
         
-        # Syntax error
-        if 'SYNTAX' in error_upper or 'TOKEN UNKNOWN' in error_upper:
-            token = None
-            if 'Token unknown' in error_message:
-                parts = error_message.split('Token unknown')
-                if len(parts) > 1:
-                    token = parts[1].strip().split()[0] if parts[1].strip() else None
+        # Limit/Rows/Top invalid keywords
+        if 'TOKEN UNKNOWN' in error_upper:
+            parts = error_message.split('Token unknown')
+            token = parts[1].strip().split()[0] if len(parts) > 1 and parts[1].strip() else None
+            
+            if token and token.upper() in ['LIMIT', 'ROWS', 'TOP']:
+                return {
+                    'type': 'invalid_keyword',
+                    'token': token,
+                    'message': f"El comando '{token}' NO existe en Firebird 2.5. Para limitar filas debes usar 'SELECT FIRST N ...'"
+                }
+            
             return {
                 'type': 'syntax_error',
                 'token': token,
+                'message': 'Error de sintaxis SQL (Token desconocido)'
+            }
+        
+        # Syntax error (General)
+        if 'SYNTAX' in error_upper:
+            return {
+                'type': 'syntax_error',
                 'message': 'Error de sintaxis SQL'
             }
         
@@ -109,6 +122,7 @@ ERROR RECIBIDO:
 {error_message}
 
 TIPO DE ERROR: {error_info['type']}
+MENSAJE AMIGABLE: {error_info.get('message', '')}
 
 ESQUEMA DE BASE DE DATOS DISPONIBLE:
 {db_context}
@@ -126,8 +140,9 @@ REGLAS CRÍTICAS DE FIREBIRD 2.5:
 
 INSTRUCCIONES:
 1. Analiza el error específico: "{error_message}"
-2. Si el error menciona "Token unknown" y "MONTH", probablemente es sintaxis incorrecta de DATEADD
-3. Genera una consulta SQL CORREGIDA que:
+2. Si el error es 'invalid_keyword' (LIMIT/ROWS), REESCRIBE usando 'SELECT FIRST N'.
+3. Si el error menciona "Token unknown" y "MONTH", revisa sintaxis DATEADD.
+4. Genera una consulta SQL CORREGIDA que:
    - Resuelva el error específico
    - Use SOLO las tablas y columnas del esquema proporcionado
    - Mantenga la intención original de la pregunta
@@ -179,6 +194,49 @@ CONSULTA SQL CORREGIDA:"""
             logger.info(f"[SQL AUTO-CORRECTION] Original: {sql}")
             logger.info(f"[SQL AUTO-CORRECTION] Corregida: {new_sql}")
         return new_sql
+        
+    def clean_firebird_sql(self, sql: str) -> str:
+        """
+        Aggressively cleans SQL to match Firebird 2.5 constraints.
+        1. Removes 'LIMIT N' -> Converts to 'SELECT FIRST N' if possible or just strips it.
+        2. Removes 'OFFSET N' -> Not supported in FB 2.5 easily.
+        """
+        import re
+        
+        # 1. Handle LIMIT
+        # Pattern: SELECT ... LIMIT N ...
+        # Goal: SELECT FIRST N ... ...
+        
+        # Check if LIMIT exists
+        if re.search(r'\bLIMIT\s+\d+', sql, re.IGNORECASE):
+            # Extract limit value
+            limit_match = re.search(r'\bLIMIT\s+(\d+)', sql, re.IGNORECASE)
+            if limit_match:
+                limit_val = limit_match.group(1)
+                
+                # Check if it already has FIRST
+                if not re.search(r'SELECT\s+FIRST\s+\d+', sql, re.IGNORECASE):
+                    # Insert FIRST N after SELECT
+                    # This is naive but works for standard queries
+                    sql = re.sub(r'SELECT\s+', f'SELECT FIRST {limit_val} ', sql, count=1, flags=re.IGNORECASE)
+                    
+                # Remove the LIMIT clause
+                sql = re.sub(r'\bLIMIT\s+\d+', '', sql, flags=re.IGNORECASE)
+                
+                logger.info(f"[SQL CLEANER] 🧹 Fixed LIMIT clause -> FIRST {limit_val}")
+
+        # 2. Handle ROWS (Alternative to LIMIT often used by AI)
+        if re.search(r'\bROWS\s+\d+', sql, re.IGNORECASE):
+             # Similar logic
+             rows_match = re.search(r'\bROWS\s+(\d+)', sql, re.IGNORECASE)
+             if rows_match:
+                 val = rows_match.group(1)
+                 if not re.search(r'SELECT\s+FIRST\s+\d+', sql, re.IGNORECASE):
+                     sql = re.sub(r'SELECT\s+', f'SELECT FIRST {val} ', sql, count=1, flags=re.IGNORECASE)
+                 sql = re.sub(r'\bROWS\s+\d+(\s+TO\s+\d+)?', '', sql, flags=re.IGNORECASE)
+                 logger.info(f"[SQL CLEANER] 🧹 Fixed ROWS clause -> FIRST {val}")
+
+        return sql
 
     async def execute_with_correction(
         self,
@@ -211,6 +269,7 @@ CONSULTA SQL CORREGIDA:"""
         # Enforce case-insensitive search on first attempt
         if attempt == 0:
             sql_query = self.enforce_case_insensitive(sql_query)
+            sql_query = self.clean_firebird_sql(sql_query) # Apply aggressive cleaning using regex
 
         try:
             # Try to execute the query
