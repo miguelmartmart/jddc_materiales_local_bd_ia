@@ -341,7 +341,7 @@ python backend/scripts/extract_db_metadata.py
 
 ---
 
-## 🛠️ ESTADO ACTUAL DEL PROYECTO (Noviembre 2025)
+## 🛠️ ESTADO ACTUAL DEL PROYECTO
 
 ### ✅ Funcionalidades Implementadas
 1.  **Backend Unificado**: Servidor FastAPI (`backend/main.py`) sirviendo API y Frontend estático.
@@ -360,6 +360,39 @@ python backend/scripts/extract_db_metadata.py
     *   Lectura de bandejas Outlook/Office365 con fallback a Gmail.
     *   Soporte robusto para 2FA usando App Passwords.
     *   Notificaciones de escritorio integradas.
+6.  **Módulo Employees** *(añadido 20/02/2026)*:
+    *   Endpoint `GET /api/employees-real` que expone la tabla `RECURSO` de Firebird.
+    *   Campos `parentCode` (CODPADRE) y `departmentOrder` (ORDEN) para jerarquía departamental.
+    *   Integración con el Portal de Empleados JDDC (NestJS, puerto 3000).
+    *   **38 tests** unitarios e integración (100% passing). Ver [`backend/modules/employees/DEVIA.MD`](backend/modules/employees/DEVIA.MD).
+
+### 🧪 Sistema de Tests
+
+El proyecto cuenta con una suite de tests automatizados con pytest.
+
+**Estructura:**
+```
+backend/tests/
+├── __init__.py
+└── modules/
+    ├── __init__.py
+    └── employees/
+        ├── __init__.py
+        ├── test_service.py   # 25 tests: mapeo de datos + servicio
+        └── test_router.py    # 13 tests: endpoint HTTP
+```
+
+**Configuración:**
+- `pytest.ini`: testpaths, pythonpath, verbosidad
+- `conftest.py`: sys.path + env vars mínimas para tests
+
+**Ejecutar todos los tests:**
+```bash
+pushd "C:\...\interjddcia"
+.venv\Scripts\python.exe -m pytest backend/tests --rootdir=. -v
+```
+
+**Resultado actual:** `38 passed, 1 warning in 1.13s`
 
 ### 🚧 En Progreso / Pendiente
 1.  **Validación de Esquema BD**:
@@ -368,6 +401,7 @@ python backend/scripts/extract_db_metadata.py
 2.  **Mejoras de UI**:
     *   Visualización de tablas de datos más rica en el chat.
     *   Historial de conversaciones persistente.
+3.  **Ampliar cobertura de tests** a otros módulos (articles, chat, resources).
 
 ### 📝 Notas de Configuración
 *   **Base de Datos**: Firebird 2.5.
