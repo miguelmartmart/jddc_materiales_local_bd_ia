@@ -1,5 +1,1057 @@
 {
   "version": "1.0",
-  "generated": "2026-03-06T11:59:22.663863",
-  "tables": {}
+  "generated": "2026-03-06T13:43:37.386505",
+  "tables": {
+    "ACC_ACC": {
+      "cat": "configuracion",
+      "desc": "Relación de permisos de acceso por usuario y recurso en el sistema, indicando el nivel de acceso permitido.",
+      "n": 10804,
+      "pk": [
+        "USERCODE",
+        "RESOURCE"
+      ],
+      "cols_key": [
+        "USERCODE",
+        "RESOURCE"
+      ],
+      "related": [],
+      "kw": [
+        "acc_acc",
+        "acceso",
+        "accesslevel",
+        "nivel",
+        "permisos",
+        "permisos de sistema",
+        "recursos",
+        "resource",
+        "roles",
+        "usercode",
+        "usuarios"
+      ],
+      "fks": [],
+      "cols_all": [
+        "USERCODE",
+        "RESOURCE",
+        "ACCESSLEVEL"
+      ],
+      "note": "El campo ACCESSLEVEL es numérico y representa niveles de acceso; valores no válidos pueden causar errores en lógica de permisos. Verificar que los valores estén dentro del rango esperado (0-65535).",
+      "queries": [
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC ORDER BY USERCODE",
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC WHERE USERCODE = 1001",
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC WHERE RESOURCE = 'SISTEMA' ORDER BY RESOURCE",
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC WHERE ACCESSLEVEL = 2",
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC WHERE UPPER(RESOURCE) LIKE UPPER('%SISTEMA%')",
+        "SELECT FIRST 5 USERCODE, RESOURCE, ACCESSLEVEL FROM ACC_ACC WHERE USERCODE IN (1001, 1002) ORDER BY USERCODE"
+      ]
+    },
+    "ACC_EXTRANET": {
+      "cat": "configuracion",
+      "desc": "Tabla de usuarios de extranet con credenciales de acceso para clientes y proveedores",
+      "n": 0,
+      "pk": [
+        "CUENTA"
+      ],
+      "cols_key": [
+        "CUENTA"
+      ],
+      "related": [
+        "PROVEED",
+        "CLIENTE"
+      ],
+      "kw": [
+        "acc_extranet",
+        "acceso",
+        "activo",
+        "cliente",
+        "codcliente",
+        "codproveed",
+        "codusuario",
+        "contraseña",
+        "credenciales",
+        "cuenta",
+        "extranet",
+        "login",
+        "proveedor",
+        "usuario"
+      ],
+      "fks": [
+        {
+          "field": "CODCLIENTE",
+          "ref_table": "CLIENTE",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODPROVEED",
+          "ref_table": "PROVEED",
+          "ref_field": "CODIGO"
+        }
+      ],
+      "cols_all": [
+        "CUENTA",
+        "PASSWORD",
+        "CODUSUARIO",
+        "CODCLIENTE",
+        "CODPROVEED",
+        "ACTIVO"
+      ],
+      "note": "La columna PASSWORD es sensible y debe tratarse con cuidado. No se debe incluir en consultas de producción ni mostrar en logs. El campo ACTIVO es de tipo CHAR(1), por lo que solo acepta valores 'S' o 'N'.",
+      "queries": [
+        "SELECT FIRST 5 CUENTA, CODCLIENTE, CODPROVEED, ACTIVO FROM ACC_EXTRANET WHERE ACTIVO = 'S' ORDER BY CUENTA",
+        "SELECT FIRST 5 CUENTA, PASSWORD FROM ACC_EXTRANET WHERE UPPER(CUENTA) = UPPER('usuario@empresa.com')",
+        "SELECT FIRST 5 CUENTA, CODCLIENTE, CODPROVEED FROM ACC_EXTRANET WHERE CODCLIENTE IS NOT NULL",
+        "SELECT FIRST 5 CUENTA, ACTIVO FROM ACC_EXTRANET WHERE ACTIVO = 'N' AND CODCLIENTE IS NOT NULL"
+      ]
+    },
+    "ACC_USR": {
+      "cat": "configuracion",
+      "desc": "Tabla de usuarios del sistema con credenciales y parámetros de configuración",
+      "n": 89,
+      "pk": [
+        "USERCODE"
+      ],
+      "cols_key": [
+        "USERCODE",
+        "FECHAFIN"
+      ],
+      "related": [],
+      "kw": [
+        "acc_usr",
+        "acceso",
+        "configuracion",
+        "contraseña",
+        "credenciales",
+        "fechafin",
+        "login",
+        "parametros",
+        "permisos",
+        "usercode",
+        "username",
+        "usuarios"
+      ],
+      "fks": [],
+      "cols_all": [
+        "USERCODE",
+        "USERNAME",
+        "PASSWORD",
+        "PARAMETROS",
+        "FECHAFIN"
+      ],
+      "note": "La columna PASSWORD contiene datos sensibles y debe manejarse con cuidado. Evitar consultas que devuelvan contraseñas en resultados.",
+      "queries": [
+        "SELECT FIRST 5 USERCODE, USERNAME, FECHAFIN FROM ACC_USR ORDER BY USERCODE",
+        "SELECT FIRST 5 USERNAME FROM ACC_USR WHERE UPPER(USERNAME) LIKE UPPER('%admin%')",
+        "SELECT FIRST 5 USERCODE, USERNAME FROM ACC_USR WHERE FECHAFIN IS NOT NULL"
+      ]
+    },
+    "ADMINPROG": {
+      "cat": "configuracion",
+      "desc": "Programas de administración de tareas o procesos automatizados en el sistema de climatización",
+      "n": 1,
+      "pk": [
+        "ID"
+      ],
+      "cols_key": [
+        "ID",
+        "NOMBRE",
+        "DESCRIPCION",
+        "TIPO"
+      ],
+      "related": [],
+      "kw": [
+        "activo",
+        "activos",
+        "adminprog",
+        "automatización",
+        "configuración",
+        "cron",
+        "descripcion",
+        "domingo",
+        "ejecución",
+        "estado",
+        "horadesde",
+        "horarios",
+        "jueves",
+        "lunes",
+        "martes",
+        "miercoles",
+        "nombre",
+        "orden",
+        "parametros",
+        "programas"
+      ],
+      "fks": [],
+      "cols_all": [
+        "ID",
+        "ORDEN",
+        "ACTIVO",
+        "TIPO",
+        "NOMBRE",
+        "DESCRIPCION",
+        "PARAMETROS",
+        "LUNES",
+        "MARTES",
+        "MIERCOLES",
+        "JUEVES",
+        "VIERNES",
+        "SABADO",
+        "DOMINGO",
+        "HORADESDE",
+        "HORAHASTA",
+        "RETARDOINICIAL",
+        "PERIODICIDAD",
+        "REINTENTAR",
+        "RUTA",
+        "SCRIPT",
+        "ULTIMAEJECUCION",
+        "ULTIMORESULTADO",
+        "DESACTIVARDESPUESEJECUTAR",
+        "BDPRINCIPAL",
+        "BDSECUNDARIA"
+      ],
+      "note": "El campo TIPO solo tiene valor 1, lo que sugiere un tipo único de programa. Verificar si hay otros valores en producción. El campo DESCRIPCION y PARAMETROS son BLOB, por lo que pueden contener datos no legibles. El campo ULTIMORESULTADO es BLOB y puede contener errores o resultados de ejecución.",
+      "queries": [
+        "SELECT FIRST 5 ID, NOMBRE, TIPO, ACTIVO, HORADESDE, HORAHASTA, ULTIMAEJECUCION FROM ADMINPROG WHERE ACTIVO = 'S' ORDER BY ORDEN",
+        "SELECT FIRST 5 ID, NOMBRE, DESCRIPCION, PARAMETROS, RUTA, SCRIPT FROM ADMINPROG WHERE TIPO = 1 AND ACTIVO = 'S'",
+        "SELECT FIRST 5 ID, NOMBRE, LUNES, MARTES, MIERCOLES, JUEVES, VIERNES, SABADO, DOMINGO, HORADESDE, HORAHASTA FROM ADMINPROG WHERE ACTIVO = 'S' AND TIPO = 1",
+        "SELECT FIRST 5 ID, NOMBRE, ULTIMAEJECUCION, ULTIMORESULTADO, DESACTIVARDESPUESEJECUTAR FROM ADMINPROG WHERE ULTIMAEJECUCION IS NOT NULL ORDER BY ULTIMAEJECUCION DESC"
+      ]
+    },
+    "AGEGAST": {
+      "cat": "ventas",
+      "desc": "Registro de operaciones de agentes relacionadas con servicios de climatización, incluyendo fechas, importes y estados de pendiente o avisado.",
+      "n": 2314,
+      "pk": [],
+      "cols_key": [
+        "DESCRIPCION",
+        "CODIGO",
+        "CODIGOLIQUIDAGENTE",
+        "FECHA",
+        "FECHASOLUCIONADO",
+        "IMPORTE",
+        "TIPO",
+        "CODTIPODIR"
+      ],
+      "related": [
+        "LIQAGE",
+        "RECURRENCIA",
+        "DOCCAB",
+        "RECURSO",
+        "CORREO",
+        "AGENTES",
+        "CAMPANHA",
+        "AGENTE",
+        "OPORTUNIDAD"
+      ],
+      "kw": [
+        "agegast",
+        "agentes",
+        "avisos",
+        "clientes",
+        "climatizacion",
+        "codagente",
+        "codcliente",
+        "codfabrica",
+        "codigo",
+        "codigoliquidagente",
+        "codoperacion",
+        "codproyecto",
+        "descripcion",
+        "duracion",
+        "facturas",
+        "fecha",
+        "fechasolucionado",
+        "importe",
+        "operaciones",
+        "pendiente"
+      ],
+      "fks": [
+        {
+          "field": "CODCAMPANHA",
+          "ref_table": "CAMPANHA",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODRECURRENCIA",
+          "ref_table": "RECURRENCIA",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODRECURSO",
+          "ref_table": "RECURSO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODAGENTE",
+          "ref_table": "AGENTE",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODIGOLIQUIDAGENTE",
+          "ref_table": "LIQAGE",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODCORREO",
+          "ref_table": "CORREO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCCAB",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODOPORTUNIDAD",
+          "ref_table": "OPORTUNIDAD",
+          "ref_field": "CODIGO"
+        }
+      ],
+      "cols_all": [
+        "CODAGENTE",
+        "CODOPERACION",
+        "CODIGO",
+        "TIPO",
+        "FECHA",
+        "DURACION",
+        "DESCRIPCION",
+        "IMPORTE",
+        "CODCLIENTE",
+        "OBSERVACIONES",
+        "CODFABRICA",
+        "PENDIENTE",
+        "CODIGOLIQUIDAGENTE",
+        "FECHASOLUCIONADO",
+        "CODPROYECTO",
+        "CODDOCUMENTO",
+        "CODREPARA",
+        "CODCAMPANHA",
+        "CODOPORTUNIDAD",
+        "CODRECURSO",
+        "CODTIPODIR",
+        "ANTELACION",
+        "PERIODICIDAD",
+        "AVISAR",
+        "PROXIMOAVISO",
+        "AVISADO",
+        "CODRECIBO",
+        "CODCORREO",
+        "LOCALIZACION",
+        "CODRECURRENCIA",
+        "INDICERECURRENCIA",
+        "GEOLOCALTA"
+      ],
+      "note": "La columna DURACION tiene valores fijos (1899-12-30 01:25:00), lo que sugiere un error de carga o un valor predeterminado no válido. Verificar si se debe interpretar como duración real o si es un campo sin uso. La columna TIPO solo tiene valor '1', lo que indica un tipo único de operación.",
+      "queries": [
+        "SELECT FIRST 5 CODAGENTE, CODOPERACION, DESCRIPCION, IMPORTE, FECHA, DURACION, PENDIENTE, AVISADO FROM AGEGAST WHERE PENDIENTE = 'S' ORDER BY FECHA DESC",
+        "SELECT FIRST 5 CODCLIENTE, DESCRIPCION, IMPORTE, FECHA, DURACION, CODOPERACION FROM AGEGAST WHERE UPPER(DESCRIPCION) LIKE UPPER('%reparacion%')",
+        "SELECT FIRST 5 CODAGENTE, CODOPERACION, DESCRIPCION, IMPORTE, FECHA, DURACION, PENDIENTE, AVISADO FROM AGEGAST WHERE FECHA >= '2023-01-01' AND FECHA <= '2023-12-31' ORDER BY FECHA",
+        "SELECT FIRST 5 CODAGENTE, DESCRIPCION, IMPORTE, FECHA, DURACION, PENDIENTE, AVISADO FROM AGEGAST WHERE CODOPERACION = 1 AND PENDIENTE = 'S' ORDER BY FECHA",
+        "SELECT FIRST 5 CODCLIENTE, DESCRIPCION, IMPORTE, FECHA, DURACION, PENDIENTE, AVISADO FROM AGEGAST WHERE CODCLIENTE = 12345 AND PENDIENTE = 'S' ORDER BY FECHA"
+      ]
+    },
+    "AGEGASTCALENDARIOWEBLOG": {
+      "cat": "otros",
+      "desc": "Registro de eventos en el calendario web de la empresa de climatizacion, vinculado a agentes y operaciones.",
+      "n": 0,
+      "pk": [
+        "CODCALENDARIOWEB",
+        "UID"
+      ],
+      "cols_key": [
+        "CODCALENDARIOWEB",
+        "UID",
+        "AGEGASTCODIGO",
+        "TIPO"
+      ],
+      "related": [
+        "AGEGAST",
+        "CALENDARIOWEB"
+      ],
+      "kw": [
+        "agegastcalendarioweblog",
+        "agegastcodagente",
+        "agegastcodigo",
+        "agegastcodoperacion",
+        "agenda",
+        "agendamiento",
+        "agente",
+        "calendario",
+        "calendario web",
+        "codcalendarioweb",
+        "eventos",
+        "operacion",
+        "registro",
+        "sistema",
+        "tipo",
+        "web"
+      ],
+      "fks": [
+        {
+          "field": "AGEGASTCODAGENTE",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODAGENTE"
+        },
+        {
+          "field": "CODCALENDARIOWEB",
+          "ref_table": "CALENDARIOWEB",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "AGEGASTCODAGENTE",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "AGEGASTCODAGENTE",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODOPERACION"
+        },
+        {
+          "field": "AGEGASTCODOPERACION",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODAGENTE"
+        },
+        {
+          "field": "AGEGASTCODOPERACION",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "AGEGASTCODOPERACION",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODOPERACION"
+        },
+        {
+          "field": "AGEGASTCODIGO",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODAGENTE"
+        },
+        {
+          "field": "AGEGASTCODIGO",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "AGEGASTCODIGO",
+          "ref_table": "AGEGAST",
+          "ref_field": "CODOPERACION"
+        }
+      ],
+      "cols_all": [
+        "CODCALENDARIOWEB",
+        "UID",
+        "TIPO",
+        "AGEGASTCODAGENTE",
+        "AGEGASTCODOPERACION",
+        "AGEGASTCODIGO"
+      ],
+      "note": "La tabla no contiene registros. Verificar si el sistema de sincronización del calendario web está activo. Los campos AGEGASTCODAGENTE, AGEGASTCODOPERACION y AGEGASTCODIGO podrían ser nulos si no se vinculan correctamente a las tablas AGEGAST o CALENDARIOWEB.",
+      "queries": [
+        "SELECT FIRST 5 CODCALENDARIOWEB, UID, TIPO, AGEGASTCODAGENTE, AGEGASTCODOPERACION, AGEGASTCODIGO FROM AGEGASTCALENDARIOWEBLOG WHERE UPPER(UID) LIKE UPPER('%%')",
+        "SELECT FIRST 5 UID, TIPO, AGEGASTCODAGENTE, AGEGASTCODOPERACION, AGEGASTCODIGO FROM AGEGASTCALENDARIOWEBLOG WHERE AGEGASTCODAGENTE = 123",
+        "SELECT FIRST 5 UID, TIPO, AGEGASTCODOPERACION, AGEGASTCODIGO FROM AGEGASTCALENDARIOWEBLOG WHERE AGEGASTCODOPERACION = 456"
+      ]
+    },
+    "AGEGASTDOCUM": {
+      "cat": "documentos",
+      "desc": "Documentos relacionados con agentes y operaciones de gas refrigerante, incluyendo archivos comprimidos y contenido binario.",
+      "n": 0,
+      "pk": [],
+      "cols_key": [
+        "DESCRIPCION",
+        "CODIGO",
+        "FECHA",
+        "CODTIPO"
+      ],
+      "related": [
+        "AGENTES"
+      ],
+      "kw": [
+        "agegastdocum",
+        "agentes",
+        "archivos",
+        "codagegast",
+        "codagente",
+        "codcliente",
+        "codigo",
+        "codoperacion",
+        "codtipo",
+        "comprimido",
+        "comprimidos",
+        "contenido",
+        "contenidos",
+        "descripcion",
+        "documentos",
+        "fecha",
+        "fechas",
+        "gas",
+        "operaciones",
+        "orden"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODAGENTE",
+        "CODOPERACION",
+        "CODAGEGAST",
+        "CODIGO",
+        "CODCLIENTE",
+        "DESCRIPCION",
+        "RUTA",
+        "FECHA",
+        "PESO",
+        "CONTENIDO",
+        "COMPRIMIDO",
+        "ORDEN",
+        "CODTIPO"
+      ],
+      "note": "La columna CONTENIDO es de tipo BLOB, lo que puede causar problemas de rendimiento en consultas. Asegúrate de no seleccionarla en consultas frecuentes.",
+      "queries": [
+        "SELECT FIRST 5 CODAGENTE, CODOPERACION, CODAGEGAST, CODIGO, CODCLIENTE, DESCRIPCION, RUTA, FECHA, PESO, COMPRIMIDO, ORDEN, CODTIPO FROM AGEGASTDOCUM WHERE CODAGENTE = 1"
+      ]
+    },
+    "AGEGASTPRGAVAGENTE": {
+      "cat": "ventas",
+      "desc": "Relación entre programas de gastos y agentes, indicando cuándo se completó la asignación y el correo asociado.",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "CODAGENTE"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "CODAGENTE",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "AGENTES",
+        "AGEGASTPROG",
+        "AGENTE"
+      ],
+      "kw": [
+        "agegastprgavagente",
+        "agente",
+        "asignación",
+        "codagegastprog",
+        "codagente",
+        "codcorreo",
+        "comisión",
+        "completado",
+        "correo",
+        "fechacompletado",
+        "gasto",
+        "programa",
+        "venta"
+      ],
+      "fks": [
+        {
+          "field": "CODAGENTE",
+          "ref_table": "AGENTE",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "CODAGENTE",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "La tabla no tiene registros. Verificar si los datos deben cargarse o si hay un error en la sincronización. Asegurarse de que CODAGENTE y CODAGEGASTPROG existan en sus tablas referenciadas.",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, CODAGENTE, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVAGENTE WHERE CODAGENTE = 100",
+        "SELECT FIRST 5 CODAGENTE, FECHACOMPLETADO FROM AGEGASTPRGAVAGENTE WHERE FECHACOMPLETADO >= '2023-01-01' ORDER BY FECHACOMPLETADO DESC",
+        "SELECT FIRST 5 CODAGENTE, COUNT(*) FROM AGEGASTPRGAVAGENTE GROUP BY CODAGENTE HAVING COUNT(*) > 1"
+      ]
+    },
+    "AGEGASTPRGAVDCVAR": {
+      "cat": "documentos",
+      "desc": "Relación de programas de gastos con documentos y correos asociados, vinculada a registros de gastos y documentos variados.",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "DOCVAR",
+        "AGEGASTPROG"
+      ],
+      "kw": [
+        "agegastprgavdcvar",
+        "asociados",
+        "codagegastprog",
+        "codcorreo",
+        "coddocumento",
+        "comprobantes",
+        "correos",
+        "documentos",
+        "facturas",
+        "fechacompletado",
+        "gastos",
+        "programas",
+        "relación",
+        "tipo"
+      ],
+      "fks": [
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPO",
+          "ref_table": "DOCVAR",
+          "ref_field": "CODDOCUMENTO"
+        },
+        {
+          "field": "TIPO",
+          "ref_table": "DOCVAR",
+          "ref_field": "TIPO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCVAR",
+          "ref_field": "CODDOCUMENTO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCVAR",
+          "ref_field": "TIPO"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "La tabla no contiene registros. Verificar si se debe a falta de datos o error en carga. Asegurarse de que las claves foráneas existan en las tablas referenciadas (AGEGASTPROG, DOCVAR).",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVAR WHERE TIPO = 1 AND CODDOCUMENTO = 100",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVAR WHERE FECHACOMPLETADO >= '01/01/2023' ORDER BY FECHACOMPLETADO DESC",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVAR WHERE CODCORREO IS NOT NULL"
+      ]
+    },
+    "AGEGASTPRGAVDCVARPER": {
+      "cat": "documentos",
+      "desc": "Relación de programas de gastos con variables de contacto y documentos, incluyendo fechas de completado y correos asociados.",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO",
+        "CODPERCONTACTO"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO",
+        "CODPERCONTACTO",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "DOCVARPERCONTACTO",
+        "AGEGASTPROG"
+      ],
+      "kw": [
+        "agegastprgavdcvarper",
+        "codagegastprog",
+        "codcorreo",
+        "coddocumento",
+        "codpercontacto",
+        "completado",
+        "contactos",
+        "correos",
+        "documentos",
+        "fechacompletado",
+        "gastos",
+        "programas",
+        "relación",
+        "tipo",
+        "variables"
+      ],
+      "fks": [
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODDOCUMENTO"
+        },
+        {
+          "field": "TIPO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "TIPO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODDOCUMENTO"
+        },
+        {
+          "field": "CODDOCUMENTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "TIPO"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "CODDOCUMENTO"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "DOCVARPERCONTACTO",
+          "ref_field": "TIPO"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "TIPO",
+        "CODDOCUMENTO",
+        "CODPERCONTACTO",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "La tabla no contiene registros. Verificar que las claves foráneas (CODAGEGASTPROG, TIPO, CODDOCUMENTO, CODPERCONTACTO) existan en las tablas referenciadas.",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVARPER WHERE TIPO = 1",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVARPER WHERE FECHACOMPLETADO IS NOT NULL",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPO, CODDOCUMENTO, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDCVARPER WHERE CODCORREO = 100"
+      ]
+    },
+    "AGEGASTPRGAVDOMICILI": {
+      "cat": "ventas",
+      "desc": "Relación de programas de gastos con domicilios y correos asociados, posiblemente para facturación o envíos de servicios.",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "DOMICILI",
+        "AGEGASTPROG"
+      ],
+      "kw": [
+        "agegastprgavdomicili",
+        "codagegastprog",
+        "codclientedir",
+        "codcorreo",
+        "codtipodir",
+        "completado",
+        "correos",
+        "domicilios",
+        "facturación",
+        "fechacompletado",
+        "gastos",
+        "programa",
+        "programas",
+        "servicios",
+        "tipodir"
+      ],
+      "fks": [
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODTIPO"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "TIPO"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODTIPO"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "TIPO"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "CODTIPO"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "DOMICILI",
+          "ref_field": "TIPO"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "La tabla no tiene registros. Verificar si se debe a falta de datos o error en la carga. Los campos FECHACOMPLETADO y CODCORREO pueden ser nulos.",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDOMICILI WHERE FECHACOMPLETADO IS NOT NULL ORDER BY FECHACOMPLETADO DESC",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDOMICILI WHERE UPPER(CODAGEGASTPROG) LIKE UPPER('%%')",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVDOMICILI WHERE CODCORREO = 1"
+      ]
+    },
+    "AGEGASTPRGAVPERCONT": {
+      "cat": "otros",
+      "desc": "Relación de contactos asociados a programas de gastos, con información de dirección y correo electrónico.",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR",
+        "CODPERCONTACTO"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR",
+        "CODPERCONTACTO",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "PERCONTACTO",
+        "AGEGASTPROG"
+      ],
+      "kw": [
+        "agegastprgavpercont",
+        "codagegastprog",
+        "codclientedir",
+        "codcorreo",
+        "codpercontacto",
+        "codtipodir",
+        "contacto",
+        "contactos",
+        "correo",
+        "dirección",
+        "fechacompletado",
+        "gastos",
+        "programa",
+        "programas",
+        "relación",
+        "tipodir"
+      ],
+      "fks": [
+        {
+          "field": "TIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGODIR"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODTIPODIR"
+        },
+        {
+          "field": "TIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "TIPODIR"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGODIR"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODTIPODIR"
+        },
+        {
+          "field": "CODCLIENTEDIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "TIPODIR"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGODIR"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODTIPODIR"
+        },
+        {
+          "field": "CODTIPODIR",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "TIPODIR"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODIGODIR"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "CODTIPODIR"
+        },
+        {
+          "field": "CODPERCONTACTO",
+          "ref_table": "PERCONTACTO",
+          "ref_field": "TIPODIR"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "TIPODIR",
+        "CODCLIENTEDIR",
+        "CODTIPODIR",
+        "CODPERCONTACTO",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "La tabla no contiene registros. Verificar si los datos deben ser cargados o si hay un problema en la sincronización de datos.",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPERCONT WHERE CODAGEGASTPROG = 1",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPERCONT WHERE TIPODIR = 2",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPERCONT WHERE CODCLIENTEDIR = 3",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPERCONT WHERE CODTIPODIR = 4",
+        "SELECT FIRST 5 CODAGEGASTPROG, TIPODIR, CODCLIENTEDIR, CODTIPODIR, CODPERCONTACTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPERCONT WHERE CODPERCONTACTO = 5"
+      ]
+    },
+    "AGEGASTPRGAVPRVAR": {
+      "cat": "finanzas",
+      "desc": "Relación entre programas de gastos y proyectos, con fecha de completado y código de correo asociado",
+      "n": 0,
+      "pk": [
+        "CODAGEGASTPROG",
+        "CODPROYECTO"
+      ],
+      "cols_key": [
+        "CODAGEGASTPROG",
+        "CODPROYECTO",
+        "FECHACOMPLETADO"
+      ],
+      "related": [
+        "PROYVAR",
+        "AGEGASTPROG"
+      ],
+      "kw": [
+        "agegastprgavprvar",
+        "codagegastprog",
+        "codcorreo",
+        "codproyecto",
+        "completado",
+        "correo",
+        "fechacompletado",
+        "finanzas",
+        "gastos",
+        "programas",
+        "proyectos",
+        "relación"
+      ],
+      "fks": [
+        {
+          "field": "CODAGEGASTPROG",
+          "ref_table": "AGEGASTPROG",
+          "ref_field": "CODIGO"
+        },
+        {
+          "field": "CODPROYECTO",
+          "ref_table": "PROYVAR",
+          "ref_field": "CODPROYECTO"
+        }
+      ],
+      "cols_all": [
+        "CODAGEGASTPROG",
+        "CODPROYECTO",
+        "FECHACOMPLETADO",
+        "CODCORREO"
+      ],
+      "note": "El campo CODAGEGASTPROG debe existir en la tabla AGEGASTPROG, y CODPROYECTO en PROYVAR, de lo contrario la consulta fallará por clave foránea inválida.",
+      "queries": [
+        "SELECT FIRST 5 CODAGEGASTPROG, CODPROYECTO, FECHACOMPLETADO, CODCORREO FROM AGEGASTPRGAVPRVAR WHERE CODAGEGASTPROG = 100"
+      ]
+    }
+  }
 }
