@@ -56,8 +56,11 @@ echo  [4] Diagnostico rapido (sin arrancar nada)
 echo      Verifica puertos, BD Firebird, IA local, Docker
 echo.
 set /p OPCION="  Elige opcion [1-4] (Enter = opcion 1): "
+if not defined OPCION set OPCION=1
 if "%OPCION%"=="" set OPCION=1
-call :LOG "Opcion elegida: %OPCION%"
+if "%OPCION%"==" " set OPCION=1
+if not "%OPCION%"=="1" if not "%OPCION%"=="2" if not "%OPCION%"=="3" if not "%OPCION%"=="4" set OPCION=1
+echo [INFO] Opcion seleccionada: %OPCION%
 
 echo.
 
@@ -70,7 +73,7 @@ echo [VERIFICANDO] Entorno del sistema...
 echo.
 
 call :CHECK_VENV
-if errorlevel 1 (
+if "%_VENV_OK%"=="0" (
     echo.
     echo [ERROR CRITICO] No se puede continuar sin el entorno Python.
     call :LOG "ERROR CRITICO: venv no encontrado"
@@ -102,7 +105,7 @@ echo.
 
 REM Resolver el puerto para DEVIA
 call :RESOLVE_PORT "%DEVIA_PORT%" "%DEVIA_PORTS_ALT%" DEVIA_PORT_FINAL
-if "%DEVIA_PORT_FINAL%"=="" (
+if "!DEVIA_PORT_FINAL!"=="" (
     echo.
     echo [ERROR CRITICO] No se encontro ningun puerto libre para el DEVIA.
     echo  Puertos intentados: %DEVIA_PORT% %DEVIA_PORTS_ALT%
@@ -112,33 +115,33 @@ if "%DEVIA_PORT_FINAL%"=="" (
     exit /b 1
 )
 
-call :LOG "Puerto DEVIA resuelto: %DEVIA_PORT_FINAL%"
+call :LOG "Puerto DEVIA resuelto: !DEVIA_PORT_FINAL!"
 
 echo.
 echo  URLs disponibles tras el arranque:
-echo    Chat IA web:       http://localhost:%DEVIA_PORT_FINAL%
-echo    Constructor BD:    http://localhost:%DEVIA_PORT_FINAL%  (pestana "Constructor BD")
-echo    API docs:          http://localhost:%DEVIA_PORT_FINAL%/docs
-echo    Health:            http://localhost:%DEVIA_PORT_FINAL%/health
-echo    Config chat:       http://localhost:%DEVIA_PORT_FINAL%/api/chat/config
-echo    Metadata Builder:  http://localhost:%DEVIA_PORT_FINAL%/api/metadata-builder/status
-echo    Desde red:         http://192.168.0.38:%DEVIA_PORT_FINAL%
+echo    Chat IA web:       http://localhost:!DEVIA_PORT_FINAL!
+echo    Constructor BD:    http://localhost:!DEVIA_PORT_FINAL!  (pestana "Constructor BD")
+echo    API docs:          http://localhost:!DEVIA_PORT_FINAL!/docs
+echo    Health:            http://localhost:!DEVIA_PORT_FINAL!/health
+echo    Config chat:       http://localhost:!DEVIA_PORT_FINAL!/api/chat/config
+echo    Metadata Builder:  http://localhost:!DEVIA_PORT_FINAL!/api/metadata-builder/status
+echo    Desde red:         http://192.168.0.38:!DEVIA_PORT_FINAL!
 echo.
 
 set PYTHONPATH=%ROOT%
-call :LOG "Lanzando uvicorn en puerto %DEVIA_PORT_FINAL%"
-start "DEVIA Backend :%DEVIA_PORT_FINAL%" cmd /k "cd /d %ROOT% && set PYTHONPATH=%ROOT% && echo. && echo === DEVIA Backend - Puerto %DEVIA_PORT_FINAL% === && echo. && .venv\Scripts\uvicorn.exe backend.main:app --host 0.0.0.0 --port %DEVIA_PORT_FINAL% --log-level info"
+call :LOG "Lanzando uvicorn en puerto !DEVIA_PORT_FINAL!"
+start "DEVIA Backend :!DEVIA_PORT_FINAL!" cmd /k "cd /d %ROOT% && set PYTHONPATH=%ROOT% && echo. && echo === DEVIA Backend - Puerto !DEVIA_PORT_FINAL! === && echo. && .venv\Scripts\uvicorn.exe backend.main:app --host 0.0.0.0 --port !DEVIA_PORT_FINAL! --log-level info"
 
 echo  Esperando que el backend arranque...
-call :WAIT_FOR_DEVIA "%DEVIA_PORT_FINAL%" DEVIA_OK
-if "%DEVIA_OK%"=="1" (
-    echo [OK] Backend DEVIA arrancado correctamente en puerto %DEVIA_PORT_FINAL%
-    call :LOG "DEVIA arrancado OK en puerto %DEVIA_PORT_FINAL%"
+call :WAIT_FOR_DEVIA "!DEVIA_PORT_FINAL!" DEVIA_OK
+if "!DEVIA_OK!"=="1" (
+    echo [OK] Backend DEVIA arrancado correctamente en puerto !DEVIA_PORT_FINAL!
+    call :LOG "DEVIA arrancado OK en puerto !DEVIA_PORT_FINAL!"
 ) else (
-    echo [ERROR] El backend DEVIA no responde en el puerto %DEVIA_PORT_FINAL%.
-    echo  Revisa la ventana "DEVIA Backend :%DEVIA_PORT_FINAL%" para ver el error.
+    echo [ERROR] El backend DEVIA no responde en el puerto !DEVIA_PORT_FINAL!.
+    echo  Revisa la ventana "DEVIA Backend :!DEVIA_PORT_FINAL!" para ver el error.
     echo  Log de arranque: %LOG_FILE%
-    call :LOG "ERROR: DEVIA no responde en puerto %DEVIA_PORT_FINAL%"
+    call :LOG "ERROR: DEVIA no responde en puerto !DEVIA_PORT_FINAL!"
 )
 echo.
 
@@ -156,13 +159,13 @@ echo ============================================================
 echo.
 
 call :RESOLVE_PORT "%CODELAB_PORT%" "%CODELAB_PORTS_ALT%" CODELAB_PORT_FINAL
-if "%CODELAB_PORT_FINAL%"=="" (
+if "!CODELAB_PORT_FINAL!"=="" (
     echo [AVISO] No se encontro puerto libre para CodeLab. Continuando sin el.
     call :LOG "AVISO: ningun puerto libre para CodeLab"
     goto :ARRANCAR_ELECTRON
 )
 
-call :LOG "Puerto CodeLab resuelto: %CODELAB_PORT_FINAL%"
+call :LOG "Puerto CodeLab resuelto: !CODELAB_PORT_FINAL!"
 
 if not exist "%ROOT%\desktop-codelab\node_modules" (
     echo [AVISO] node_modules no encontrado en desktop-codelab
@@ -170,11 +173,11 @@ if not exist "%ROOT%\desktop-codelab\node_modules" (
     call :LOG "AVISO: node_modules no encontrado en desktop-codelab"
 )
 
-start "CodeLab Backend :%CODELAB_PORT_FINAL%" cmd /k "cd /d %ROOT% && set PYTHONPATH=%ROOT% && echo. && echo === CodeLab Backend - Puerto %CODELAB_PORT_FINAL% === && echo. && .venv\Scripts\python.exe desktop-codelab\backend\server.py"
+start "CodeLab Backend :!CODELAB_PORT_FINAL!" cmd /k "cd /d %ROOT% && set PYTHONPATH=%ROOT% && echo. && echo === CodeLab Backend - Puerto !CODELAB_PORT_FINAL! === && echo. && .venv\Scripts\python.exe desktop-codelab\backend\server.py"
 
 echo  Esperando que el backend CodeLab arranque (3 segundos)...
 timeout /t 3 /nobreak >nul
-echo [OK] Backend CodeLab lanzado en puerto %CODELAB_PORT_FINAL%
+echo [OK] Backend CodeLab lanzado en puerto !CODELAB_PORT_FINAL!
 echo.
 
 REM ============================================================
@@ -221,11 +224,11 @@ REM ============================================================
 REM  ABRIR NAVEGADOR
 REM ============================================================
 :ABRIR_NAVEGADOR
-if "%DEVIA_PORT_FINAL%"=="" set DEVIA_PORT_FINAL=%DEVIA_PORT%
+if "!DEVIA_PORT_FINAL!"=="" set DEVIA_PORT_FINAL=%DEVIA_PORT%
 echo [INFO] Abriendo interfaz web en el navegador...
-call :LOG "Abriendo navegador en http://localhost:%DEVIA_PORT_FINAL%"
+call :LOG "Abriendo navegador en http://localhost:!DEVIA_PORT_FINAL!"
 timeout /t 2 /nobreak >nul
-start "" "http://localhost:%DEVIA_PORT_FINAL%"
+start "" "http://localhost:!DEVIA_PORT_FINAL!"
 goto :FINAL
 
 REM ============================================================
@@ -279,26 +282,26 @@ REM ============================================================
 REM  RESUMEN FINAL
 REM ============================================================
 :FINAL
-if "%DEVIA_PORT_FINAL%"=="" set DEVIA_PORT_FINAL=%DEVIA_PORT%
+if "!DEVIA_PORT_FINAL!"=="" set DEVIA_PORT_FINAL=%DEVIA_PORT%
 echo.
 echo ============================================================
 echo   SISTEMA DEVIA - RESUMEN
 echo ============================================================
-echo   Chat IA web:       http://localhost:%DEVIA_PORT_FINAL%
-echo   Constructor BD:    http://localhost:%DEVIA_PORT_FINAL%  (pestana "Constructor BD")
-echo   Indices SIUO:      http://localhost:%DEVIA_PORT_FINAL%  (pestana "Indices SIUO")
-echo   API docs:          http://localhost:%DEVIA_PORT_FINAL%/docs
-echo   Health check:      http://localhost:%DEVIA_PORT_FINAL%/health
-echo   Desde gafas:       http://192.168.0.38:%DEVIA_PORT_FINAL%
+echo   Chat IA web:       http://localhost:!DEVIA_PORT_FINAL!
+echo   Constructor BD:    http://localhost:!DEVIA_PORT_FINAL!  (pestana "Constructor BD")
+echo   Indices SIUO:      http://localhost:!DEVIA_PORT_FINAL!  (pestana "Indices SIUO")
+echo   API docs:          http://localhost:!DEVIA_PORT_FINAL!/docs
+echo   Health check:      http://localhost:!DEVIA_PORT_FINAL!/health
+echo   Desde gafas:       http://192.168.0.38:!DEVIA_PORT_FINAL!
 echo   Log de arranque:   %LOG_FILE%
 echo ============================================================
 echo.
 echo   COMANDOS UTILES:
 echo.
-echo   curl http://localhost:%DEVIA_PORT_FINAL%/health
-echo   curl http://localhost:%DEVIA_PORT_FINAL%/api/chat/config
-echo   curl http://localhost:%DEVIA_PORT_FINAL%/api/siuo/stats
-echo   curl http://localhost:%DEVIA_PORT_FINAL%/api/metadata-builder/status
+echo   curl http://localhost:!DEVIA_PORT_FINAL!/health
+echo   curl http://localhost:!DEVIA_PORT_FINAL!/api/chat/config
+echo   curl http://localhost:!DEVIA_PORT_FINAL!/api/siuo/stats
+echo   curl http://localhost:!DEVIA_PORT_FINAL!/api/metadata-builder/status
 echo.
 echo   Para PARAR todo: ejecuta PARAR_DEVIA.bat
 echo ============================================================
@@ -306,7 +309,7 @@ echo.
 echo  Cierra esta ventana cuando quieras.
 echo  Los servidores siguen corriendo en sus propias ventanas.
 echo.
-call :LOG "Script finalizado. Puerto DEVIA: %DEVIA_PORT_FINAL%"
+call :LOG "Script finalizado. Puerto DEVIA: !DEVIA_PORT_FINAL!"
 pause
 goto :EOF
 
@@ -328,23 +331,24 @@ goto :EOF
 REM ------------------------------------------------------------
 REM  :CHECK_VENV
 REM  Verifica que existe el entorno virtual Python
-REM  Devuelve errorlevel 1 si no existe
+REM  Establece _VENV_OK=1 si OK, _VENV_OK=0 si no existe
 REM ------------------------------------------------------------
 :CHECK_VENV
-if exist "%ROOT%\.venv\Scripts\uvicorn.exe" (
-    echo   [OK] Entorno Python (.venv) encontrado
-    call :LOG "CHECK_VENV: OK"
-    exit /b 0
-) else (
-    echo   [ERROR] No se encuentra .venv\Scripts\uvicorn.exe
-    echo.
-    echo   Para crear el entorno virtual:
-    echo     cd %ROOT%
-    echo     python -m venv .venv
-    echo     .venv\Scripts\pip install -r requirements.txt
-    call :LOG "CHECK_VENV: ERROR - uvicorn no encontrado"
-    exit /b 1
-)
+set "_VENV_OK=0"
+if exist "%ROOT%\.venv\Scripts\uvicorn.exe" set "_VENV_OK=1"
+if "%_VENV_OK%"=="1" goto :CHECK_VENV_OK
+echo   [ERROR] No se encuentra .venv\Scripts\uvicorn.exe
+echo.
+echo   Para crear el entorno virtual:
+echo     cd %ROOT%
+echo     python -m venv .venv
+echo     .venv\Scripts\pip install -r requirements.txt
+call :LOG "CHECK_VENV: ERROR - uvicorn no encontrado"
+goto :EOF
+:CHECK_VENV_OK
+echo   [OK] Entorno Python (.venv) encontrado
+call :LOG "CHECK_VENV: OK"
+goto :EOF
 
 REM ------------------------------------------------------------
 REM  :CHECK_ENV_FILE

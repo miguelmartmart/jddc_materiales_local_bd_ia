@@ -1,23 +1,12 @@
-feat: db_explorer + SIUO + privacidad + arranque ultra-resiliente
+fix: ARRANCAR_DEVIA.bat - corregir error "No se esperaba"
 
-CAMBIOS PRINCIPALES:
-- fix: alias POSITION -> FIELD_POS en firebird_metadata_queries.py (palabra reservada Firebird 2.5)
-- feat: ARRANCAR_DEVIA.bat v3.1.0 ultra-resiliente (deteccion Docker, puertos alternativos, logs)
-- fix: context_retriever.py filtra columnas sensibles en fallback v1 (NIF, EMAIL, IBAN, etc.)
-- fix: Columnas principales en lugar de Columnas clave (evitar colision con CLAVE en SENSITIVE_COLUMNS)
+- CHECK_VENV: reemplazar if/else con call :LOG por goto (el call dentro
+  de un bloque if() causa "No se esperaba encontrado en este momento")
+- Proteger OPCION contra valores vacios/invalidos tras set /p
+- Todas las variables post-subrutina usan delayed expansion (!VAR!)
+- Eliminar archivos temporales de debug (test_bat_syntax.bat, commit_msg.txt)
 
-NUEVAS FUNCIONALIDADES:
-- backend/modules/db_explorer/: SIUO (Sistema de Indices Unificado Optimizado)
-  - deep_indexer_service.py: indexacion profunda de la BD Firebird
-  - metadata_builder_service.py + router: constructor de metadatos con IA local
-  - context_retriever.py: recuperacion de contexto optimo para el chat
-  - siuo_router.py: API REST del SIUO
-  - constants.py: PrivacyConfig con 24 columnas sensibles protegidas
-- backend/core/utils/network_audit.py: auditor de red (detecta llamadas a internet)
-- backend/drivers/ai/jddcia_provider.py: proveedor IA local Qwen3 VL 30B
-- frontend: pestanas Constructor BD e Indices SIUO
-
-TESTS:
-- test_cambios_recientes.py: 37/37 OK (5 suites)
-- test_privacidad_datos.py: 28/28 OK, 0 fallidos (6 sistemas)
-- test_fix_position.py: 5/5 OK
+El bat ahora arranca correctamente:
+- Detecta puerto 8001 ocupado por jddc_signing_service (Docker)
+- Selecciona automaticamente puerto alternativo 8010
+- DEVIA arranca en 8010 y health responde OK
