@@ -4,6 +4,12 @@
 > **Fecha**: 06/03/2026  
 > **Basado en**: revisión del código real de `context_retriever.py`, `deep_indexer_service.py`, `constants.py`
 
+> **PREMISA FUNDAMENTAL (confirmada por el usuario)**:  
+> **Qwen3 está en la red local LAN (192.168.0.36). Los datos de la BD SÍ pueden enviarse a Qwen3.**  
+> La única restricción es que **ningún dato salga a internet** (OpenAI, Groq, Gemini, etc.).  
+> Esto cambia radicalmente el alcance: Qwen3 puede ver valores reales, datos de clientes,  
+> importes, fechas, NIFs, etc. — todo lo que necesite para analizar y entender la BD.
+
 ---
 
 ## RESUMEN EJECUTIVO DE PROBLEMAS DETECTADOS
@@ -58,36 +64,44 @@ Lo que SÍ tiene sentido proteger son los **valores reales** (el NIF de un clien
 
 ### Plan de cambio
 
-**Separar dos conceptos que ahora están mezclados:**
+**Separar tres conceptos que ahora están mezclados en uno:**
 
 ```
-ANTES (incorrecto):
-  SENSITIVE_COLUMNS → ocultar nombre de columna a Qwen3 LAN
-                    → ocultar nombre de columna al chat
-                    → ocultar valores a Qwen3 LAN
+ANTES (incorrecto — mezcla todo):
+  SENSITIVE_COLUMNS → ocultar nombre de columna a Qwen3 LAN  ← INNECESARIO
+                    → ocultar nombre de columna al chat       ← PARCIALMENTE INCORRECTO
+                    → ocultar valores a Qwen3 LAN             ← INNECESARIO (Qwen3 es LAN)
 
-DESPUÉS (correcto):
-  SENSITIVE_DATA_COLUMNS → ocultar VALORES a Qwen3 LAN (muestra de datos)
-                         → NO ocultar el nombre de columna a Qwen3 LAN
-                         → SÍ ocultar valores al chat (nunca datos reales)
-  
-  CHAT_HIDDEN_COLUMNS → columnas que el chat NO debe usar para generar SQL
-                      → solo: PASSWORD, PASS, CLAVE, TOKEN, SECRET, FIRMA
-                      → NIF, EMAIL, TELEFONO SÍ deben estar disponibles
-                        para que la IA pueda buscar por cliente
+DESPUÉS (correcto — 3 niveles distintos):
+
+  [1] Qwen3 LAN (indexación):
+      → Puede ver TODO: nombres de columna, valores reales, NIFs, emails, importes
+      → Solo excluir: BLOB (demasiado grande), PASSWORD/TOKEN/SECRET (credenciales)
+      → Qwen3 necesita ver datos reales para entender la BD correctamente
+
+  [2] Contexto del chat (lo que la IA generadora de SQL puede ver):
+      → Puede ver: nombres de columna incluyendo NIF, EMAIL, TELEFONO
+      → NO puede ver: valores reales de datos personales (solo estructura)
+      → NO puede ver: PASSWORD, TOKEN, SECRET, FIRMA, DATOSPASARELA
+
+  [3] Respuestas al usuario (lo que se muestra en pantalla):
+      → Nunca mostrar valores de NIF, IBAN, PASSWORD, etc. en resultados
+      → Esto se controla en el ChatService, no en el SIUO
 ```
 
 **Archivos a modificar:**
-- `constants.py`: dividir `SENSITIVE_COLUMNS` en `DATA_PRIVACY_COLUMNS` y `CHAT_BLOCKED_COLUMNS`
-- `deep_indexer_service.py`: `_get_column_values()` → solo excluir `DATA_PRIVACY_COLUMNS` de muestras
-- `deep_indexer_service.py`: `_ask_ai_for_description()` → incluir todos los nombres de columna
-- `context_retriever.py`: `_build_table_block()` → incluir NIF, EMAIL, etc. en cols_key
+- `constants.py`: eliminar `SENSITIVE_COLUMNS`, crear `QWEN3_SKIP_COLUMNS` (solo BLOBs y credenciales) y `CHAT_BLOCKED_COLUMNS` (credenciales y datos de pago)
+- `deep_indexer_service.py`: `_get_column_values()` → solo saltar `QWEN3_SKIP_COLUMNS` (BLOBs + credenciales)
+- `deep_indexer_service.py`: `_ask_ai_for_description()` → incluir TODOS los nombres de columna y valores reales
+- `deep_indexer_service.py`: `_analyze_data_quality()` → puede usar muestra completa (con NIF, email, etc.)
+- `context_retriever.py`: `_build_table_block()` → incluir NIF, EMAIL, TELEFONO en cols_key
 - `context_retriever.py`: `_get_fallback_context()` → solo filtrar `CHAT_BLOCKED_COLUMNS`
 
 **Resultado esperado:**
-- Qwen3 LAN entiende mejor la estructura (sabe que hay NIF, EMAIL, TELEFONO)
-- El chat puede generar SQL que busque por NIF o EMAIL cuando el usuario lo pida
-- Los valores reales (datos de personas) nunca salen de la BD hacia ningún sitio
+- Qwen3 LAN ve la BD completa → descripciones semánticas mucho más precisas
+- Qwen3 puede detectar que NIF es el campo de búsqueda principal de CLIENTE
+- El chat puede generar SQL que busque por NIF, EMAIL, TELEFONO
+- Los valores reales nunca salen a internet (solo van a Qwen3 LAN)
 
 ---
 
@@ -366,42 +380,54 @@ if structure["record_count"] > 100:
 ```python
 async def _analyze_data_quality(self, table_name, structure, col_values) -> Dict:
     """
-    Envía a Qwen3 LAN una muestra de datos reales (sin columnas sensibles)
-    y le pide que detecte:
+    Envía a Qwen3 LAN una muestra de datos reales y le pide que detecte:
     1. Inconsistencias de formato (mayúsculas/minúsculas, espacios, guiones)
     2. Valores que parecen erróneos (texto en columna numérica, etc.)
     3. Columnas que parecen contener datos de otra categoría
     4. Sugerencias de normalización para SQL
     
+    NOTA: Qwen3 está en LAN → puede ver TODOS los datos incluyendo NIF, email, etc.
+    Solo se excluyen BLOBs (demasiado grandes) y columnas de credenciales (PASSWORD, TOKEN).
+    
     Resultado guardado en table_index como "data_quality"
     """
-    # Leer muestra real de la tabla (sin columnas sensibles)
+    # Leer muestra real de la tabla
+    # Solo excluir BLOBs (no caben en el prompt) y credenciales (PASSWORD, TOKEN, SECRET)
+    QWEN3_SKIP = {"PASSWORD", "PASS", "CLAVE", "TOKEN", "SECRET", "FIRMA", "FIRMATRAZOS",
+                  "DATOSPASARELA", "DATOSPASARELADESTINO", "EFACTURACONTENIDO", "EFACTURAREGISTRO"}
+    
     sample_cols = [
         c["name"] for c in structure["columns"]
-        if not c["is_sensitive"] and "BLOB" not in c.get("type", "")
-    ][:10]
+        if c["name"].upper() not in QWEN3_SKIP
+        and "BLOB" not in c.get("type", "")
+    ][:15]  # Más columnas ahora que no filtramos NIF/EMAIL
     
     sample_rows = driver.execute_query(
-        f"SELECT FIRST 20 {', '.join(sample_cols)} FROM {table_name}"
+        f"SELECT FIRST 30 {', '.join(sample_cols)} FROM {table_name}"
     )
+    # 30 filas en lugar de 20 — más datos = mejor análisis
     
     prompt = f"""
     Analiza esta muestra de datos de la tabla {table_name} de una empresa de climatización.
     
-    MUESTRA (20 filas, columnas no sensibles):
+    MUESTRA (30 filas):
     {json.dumps(sample_rows, ensure_ascii=False, default=str)}
     
     Detecta y describe:
-    1. Inconsistencias de formato en columnas de texto
+    1. Inconsistencias de formato en columnas de texto (mayúsculas, espacios, guiones)
     2. Valores que parecen erróneos o fuera de lugar
-    3. Patrones de datos mal introducidos
-    4. Sugerencias SQL para buscar correctamente (UPPER, TRIM, LIKE, etc.)
+    3. Patrones de datos mal introducidos (ej: FAMILIA con variantes del mismo concepto)
+    4. Columnas que parecen contener datos de otra categoría
+    5. Sugerencias SQL para buscar correctamente (UPPER, TRIM, LIKE, etc.)
+    6. Si hay columnas de fecha, ¿el formato es consistente?
+    7. Si hay columnas de importe, ¿hay valores negativos o cero que parezcan erróneos?
     
     Responde en JSON:
     {{
       "inconsistencies": ["descripción de cada problema encontrado"],
       "sql_hints": ["sugerencia SQL para cada problema"],
-      "data_quality_score": 0-10
+      "data_quality_score": 0-10,
+      "key_search_columns": ["columnas más útiles para buscar registros de esta tabla"]
     }}
     """
     
