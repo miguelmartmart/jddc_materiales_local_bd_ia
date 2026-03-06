@@ -1,0 +1,582 @@
+{
+  "queries": [
+    {
+      "ts": "2026-03-04T15:40:31.890615",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "almacen"
+      ],
+      "tables_used": [
+        "ALMACEN",
+        "ARTICULO",
+        "DOCLIN"
+      ],
+      "unknown_kws": [
+        "articulos",
+        "ventas",
+        "facturas",
+        "clientes",
+        "proveedores"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.900020",
+      "question": "facturas del mes pasado",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.908768",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "articulos",
+        "ventas",
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.920594",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "pedidos",
+        "proveedores",
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.932699",
+      "question": "cuantos articulos hay",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "articulos"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.943071",
+      "question": "clientes de Madrid",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "clientes",
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:34.518675",
+      "question": "usuarios del sistema",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "usuarios",
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.810000",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-04T15:46:47.818573",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.826197",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.833397",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.840157",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-04T15:46:47.847819",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:48.672414",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.577402",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:15:24.585811",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.594198",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.603747",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.611968",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:15:24.620295",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:27.432089",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.697241",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:21:00.710214",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.716036",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.730870",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.739898",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:21:00.747166",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:01.659497",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T12:59:38.865908",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T12:59:38.877807",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:17.109735",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:17.126849",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:36.300317",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:36.315748",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:12:32.479638",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:24.189570",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:41.262886",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:41.274142",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    }
+  ],
+  "unknown_keywords": {
+    "articulos": 3,
+    "ventas": 2,
+    "facturas": 6,
+    "clientes": 2,
+    "proveedores": 2,
+    "pasado": 4,
+    "este": 4,
+    "pedidos": 1,
+    "ultimo": 4,
+    "madrid": 10,
+    "usuarios": 1,
+    "sistema": 4
+  }
+}

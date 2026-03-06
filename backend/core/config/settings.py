@@ -1,13 +1,18 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Dict, Any, Optional
+
+# Ruta absoluta al .env — funciona independientemente del CWD al arrancar uvicorn
+# El .env está en bots/interjddcia/.env (dos niveles arriba de este archivo)
+_ENV_FILE = Path(__file__).parent.parent.parent.parent / ".env"
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables or .env file."""
     
     # App
     APP_ENV: str = "development"
-    DEBUG: bool = True
+    APP_DEBUG: bool = False  # Renombrado de DEBUG para evitar conflicto con DEBUG=WARN del sistema
     PORT: int = 8001
     
     # Database (Default/Fallback)
@@ -43,6 +48,13 @@ class Settings(BaseSettings):
     FIREWORKS_API_KEY: Optional[str] = None
     HUGGINGFACE_API_KEY: Optional[str] = None
 
+    # JDDC IA Gateway (LAN) — Qwen3 VL 30B local
+    # Basic Auth en Base64: admin:aistack2026 → YWRtaW46YWlzdGFjazIwMjY=
+    # El valor real de la "API key" es el token Basic Auth codificado en Base64
+    JDDCIA_API_KEY: Optional[str] = "YWRtaW46YWlzdGFjazIwMjY="
+    JDDCIA_BASE_URL: Optional[str] = "http://jddcia.local/api/vlm/v1"
+    JDDCIA_BASE_URL_FALLBACK: Optional[str] = "http://192.168.0.36/api/vlm/v1"
+
     # Outlook
     OUTLOOK_EMAIL: Optional[str] = None
     OUTLOOK_PASSWORD: Optional[str] = None
@@ -56,7 +68,8 @@ class Settings(BaseSettings):
     REQUIRE_DB_DATA_CONFIRMATION: bool = True
     
     class Config:
-        env_file = ".env"
+        # Ruta absoluta al .env — funciona independientemente del CWD al arrancar uvicorn
+        env_file = str(_ENV_FILE)
         case_sensitive = True
         extra = "ignore"  # Allow extra keys in .env without crashing
 

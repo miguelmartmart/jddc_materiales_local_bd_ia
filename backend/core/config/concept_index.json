@@ -1,0 +1,188 @@
+{
+  "version": "1.0",
+  "generated": "2026-03-06T11:59:23.187553",
+  "index": {
+    "articulo": [
+      {
+        "table": "ARTICULO"
+      }
+    ],
+    "producto": [
+      {
+        "table": "ARTICULO"
+      }
+    ],
+    "referencia": [
+      {
+        "table": "ARTICULO"
+      }
+    ],
+    "stock": [
+      {
+        "table": "ARTICULO"
+      },
+      {
+        "table": "ALMACEN"
+      },
+      {
+        "table": "ESTALMACEN"
+      }
+    ],
+    "precio": [
+      {
+        "table": "ARTICULO"
+      },
+      {
+        "table": "DOCLIN"
+      }
+    ],
+    "familia": [
+      {
+        "table": "ARTICULO"
+      }
+    ],
+    "factura": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=13"
+      }
+    ],
+    "albaran": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=11"
+      }
+    ],
+    "pedido": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=12"
+      }
+    ],
+    "presupuesto": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      }
+    ],
+    "abono": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=3"
+      }
+    ],
+    "contrato": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=10"
+      }
+    ],
+    "sat": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=2"
+      }
+    ],
+    "recibo": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=61"
+      }
+    ],
+    "venta": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO IN (11,13)"
+      }
+    ],
+    "compra": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=12"
+      }
+    ],
+    "documento": [
+      {
+        "table": "DOCCAB"
+      }
+    ],
+    "linea": [
+      {
+        "table": "DOCLIN"
+      }
+    ],
+    "detalle": [
+      {
+        "table": "DOCLIN"
+      }
+    ],
+    "cantidad": [
+      {
+        "table": "DOCLIN"
+      }
+    ],
+    "cliente": [
+      {
+        "table": "CLIENTE"
+      }
+    ],
+    "proveedor": [
+      {
+        "table": "PROVEED"
+      }
+    ],
+    "almacen": [
+      {
+        "table": "ALMACEN"
+      },
+      {
+        "table": "ESTALMACEN"
+      }
+    ],
+    "caja": [
+      {
+        "table": "CAJA"
+      }
+    ],
+    "aviso": [
+      {
+        "table": "AVISOS"
+      }
+    ],
+    "agente": [
+      {
+        "table": "AGENTES"
+      }
+    ],
+    "tarifa": [
+      {
+        "table": "TARIFAS"
+      }
+    ],
+    "iva": [
+      {
+        "table": "TIPOSIVA"
+      }
+    ],
+    "empleado": [
+      {
+        "table": "EMPLEADOS"
+      }
+    ],
+    "banco": [
+      {
+        "table": "BANCOS"
+      }
+    ],
+    "forma pago": [
+      {
+        "table": "FORMASPAGO"
+      }
+    ],
+    "serie": [
+      {
+        "table": "SERIES"
+      }
+    ]
+  }
+}

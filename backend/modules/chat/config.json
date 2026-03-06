@@ -1,5 +1,8 @@
 {
     "max_sql_retries": 4,
     "enable_auto_correction": true,
-    "log_sql_errors": true
+    "log_sql_errors": true,
+    "ai_local_only": false,
+    "_ai_local_only_comment": "Si true: SOLO usa la IA local Qwen3 VL 30B (red LAN JDDC). No sale a internet. Si false: usa sistema de fallback multi-modelo (Groq, Gemini, OpenAI, etc.). La funcionalidad de fallback NO se borra, solo se desactiva.",
+    "_ai_local_only_models": "Modelos locales: jddcia-qwen3-30b (http://jddcia.local) y jddcia-qwen3-30b-ip (http://192.168.0.36)"
 }

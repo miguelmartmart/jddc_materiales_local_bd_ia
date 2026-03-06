@@ -1,0 +1,82 @@
+{
+  "models": [
+    {
+      "id": "jddcia-qwen3-30b-ip",
+      "name": "Qwen3 VL 30B (JDDC LAN — IP directa)",
+      "provider": "jddcia",
+      "family": "qwen",
+      "tier": "elite",
+      "model_id": "unified-main",
+      "description": "Qwen3 VL 30B en el servidor JDDC via IP directa (192.168.0.36). Preferido sobre mDNS porque jddcia.local no siempre resuelve en Windows.",
+      "enabled": true,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "vision",
+        "code"
+      ],
+      "score": 47,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 0,
+        "failure": 14
+      },
+      "base_url": "http://192.168.0.36/api/vlm/v1",
+      "headers": {
+        "Authorization": "Basic YWRtaW46YWlzdGFjazIwMjY="
+      }
+    },
+    {
+      "id": "jddcia-qwen3-30b",
+      "name": "Qwen3 VL 30B (JDDC LAN — mDNS)",
+      "provider": "jddcia",
+      "family": "qwen",
+      "tier": "elite",
+      "model_id": "unified-main",
+      "description": "Qwen3 VL 30B via mDNS (jddcia.local). Fallback si la IP directa falla. En Windows el mDNS puede no resolver — usar jddcia-qwen3-30b-ip como primario.",
+      "enabled": true,
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "vision",
+        "code"
+      ],
+      "score": 47,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+      },
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 60
+      },
+      "stats": {
+        "success": 48,
+        "failure": 14
+      },
+      "base_url": "http://jddcia.local/api/vlm/v1",
+      "headers": {
+        "Authorization": "Basic YWRtaW46YWlzdGFjazIwMjY="
+      }
+    }
+  ]
+}

@@ -149,13 +149,23 @@
             "description": "Fireworks - Inferencia de alta velocidad",
             "headers": {}
         },
-        "huggingface": {
+    "huggingface": {
             "name": "Hugging Face",
             "base_url": "https://router.huggingface.co/v1",
             "api_key_env": "HUGGINGFACE_API_KEY",
             "schema": "openai_compatible",
             "description": "Hugging Face Unified Router",
             "headers": {}
+        },
+        "jddcia": {
+            "name": "JDDC IA Gateway (LAN)",
+            "base_url": "http://jddcia.local/api/vlm/v1",
+            "api_key_env": "JDDCIA_API_KEY",
+            "schema": "openai_compatible",
+            "description": "Gateway IA local JDDC — Qwen3 VL 30B vía vLLM+nginx en la red LAN. Sin coste, sin internet, máxima privacidad.",
+            "headers": {
+                "Authorization": "Basic YWRtaW46YWlzdGFjazIwMjY="
+            }
         }
     }
 }

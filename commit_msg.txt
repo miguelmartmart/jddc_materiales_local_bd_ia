@@ -1,0 +1,23 @@
+feat: db_explorer + SIUO + privacidad + arranque ultra-resiliente
+
+CAMBIOS PRINCIPALES:
+- fix: alias POSITION -> FIELD_POS en firebird_metadata_queries.py (palabra reservada Firebird 2.5)
+- feat: ARRANCAR_DEVIA.bat v3.1.0 ultra-resiliente (deteccion Docker, puertos alternativos, logs)
+- fix: context_retriever.py filtra columnas sensibles en fallback v1 (NIF, EMAIL, IBAN, etc.)
+- fix: Columnas principales en lugar de Columnas clave (evitar colision con CLAVE en SENSITIVE_COLUMNS)
+
+NUEVAS FUNCIONALIDADES:
+- backend/modules/db_explorer/: SIUO (Sistema de Indices Unificado Optimizado)
+  - deep_indexer_service.py: indexacion profunda de la BD Firebird
+  - metadata_builder_service.py + router: constructor de metadatos con IA local
+  - context_retriever.py: recuperacion de contexto optimo para el chat
+  - siuo_router.py: API REST del SIUO
+  - constants.py: PrivacyConfig con 24 columnas sensibles protegidas
+- backend/core/utils/network_audit.py: auditor de red (detecta llamadas a internet)
+- backend/drivers/ai/jddcia_provider.py: proveedor IA local Qwen3 VL 30B
+- frontend: pestanas Constructor BD e Indices SIUO
+
+TESTS:
+- test_cambios_recientes.py: 37/37 OK (5 suites)
+- test_privacidad_datos.py: 28/28 OK, 0 fallidos (6 sistemas)
+- test_fix_position.py: 5/5 OK

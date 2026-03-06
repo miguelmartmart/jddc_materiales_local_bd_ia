@@ -46,7 +46,10 @@ class AILimits:
 
 class ModelFallbackConfig:
     """Configuración de fallback entre modelos IA"""
-    RETRY_DELAY_SECONDS = 5  # Espera entre reintentos del mismo modelo
+    RETRY_DELAY_SECONDS = 1  # Espera entre reintentos del mismo modelo
+    # Reducido de 5s a 1s: no tiene sentido esperar 5s si el servidor está caído.
+    # Con IA local caída: 8s timeout × 2 intentos + 1s espera = ~17s por modelo
+    # vs antes: 20s × 2 + 5s = 45s por modelo
     MAX_RETRIES_PER_MODEL = 1  # 1 reintento = 2 intentos totales por modelo
     
     # Prioridad de modelos (mayor número = mayor prioridad)
