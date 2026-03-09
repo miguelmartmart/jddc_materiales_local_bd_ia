@@ -801,6 +801,50 @@ en `service.py` no se elimino — quedaron dos implementaciones divergentes.
 > Cuando se extrae logica a un modulo nuevo, SIEMPRE eliminar o delegar la version antigua.
 > Nunca dejar dos implementaciones activas de la misma funcion.
 
+### Diagnostico: ARRANCAR_DEVIA.bat — navegador no se abre en opcion 2 (09/03/2026)
+
+**Sintoma:**
+```
+El backend arranca correctamente (dos terminales: DEVIA en 8001, CodeLab en 8002)
+pero el navegador NO se abre automaticamente al final del script.
+```
+
+**Causa:** En opcion 2, el flujo es:
+```
+:ARRANCAR_DEVIA -> DEVIA_PORT_FINAL=8001 (delayed expansion !)
+    -> call :RESOLVE_PORT  <- subrutina con call
+    -> call :WAIT_FOR_DEVIA <- subrutina con call
+    -> goto :ARRANCAR_CODELAB
+        -> call :RESOLVE_PORT  <- sobreescribe variables internas
+        -> goto :ARRANCAR_ELECTRON
+            -> node_modules no existe -> goto :ABRIR_NAVEGADOR
+                -> DEVIA_PORT_FINAL puede estar VACIA aqui
+```
+
+Las variables con `!` (delayed expansion) seteadas dentro de subrutinas `call`
+pueden no propagarse correctamente al contexto padre cuando hay multiples niveles
+de `call` y `goto` encadenados. `DEVIA_PORT_FINAL` se pierde al pasar por
+`:ARRANCAR_CODELAB` que llama a `:RESOLVE_PORT` con sus propias variables.
+
+**Solucion aplicada (09/03/2026) — v3.2.0:**
+- Se añade `DEVIA_PORT_SAVED` justo tras resolver el puerto DEVIA (antes de entrar en subrutinas):
+  ```bat
+  set "DEVIA_PORT_SAVED=!DEVIA_PORT_FINAL!"
+  ```
+- En `:ABRIR_NAVEGADOR` se recupera con fallbacks en cascada:
+  ```bat
+  if defined DEVIA_PORT_SAVED set "DEVIA_PORT_FINAL=!DEVIA_PORT_SAVED!"
+  if not defined DEVIA_PORT_FINAL set "DEVIA_PORT_FINAL=8001"
+  if "!DEVIA_PORT_FINAL!"=="" set "DEVIA_PORT_FINAL=8001"
+  ```
+- Se usa `!_URL_ABRIR!` (variable intermedia) para evitar problemas con `!` en `start`
+
+**Regla para evitar recurrencia:**
+> En scripts .bat con `setlocal enabledelayedexpansion`, cuando una variable se necesita
+> despues de multiples `call` y `goto`, guardarla en una variable de "backup" con nombre
+> distinto ANTES de entrar en las subrutinas. Las variables con `!` pueden perderse
+> al cruzar contextos de subrutinas anidadas.
+
 ### Diagnostico: Paginacion MetaGlass — umbral y formato diferente al web
 
 **Contexto:** Las gafas Meta Ray-Ban tienen TTS con limite de ~3 items por respuesta.
