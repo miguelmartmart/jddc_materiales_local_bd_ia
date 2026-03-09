@@ -1,8 +1,8 @@
 # DEVIA — Documentacion Tecnica del Sistema
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Ultima actualizacion:** 06/03/2026
-> **Version:** 2.3.1
+> **Ultima actualizacion:** 09/03/2026
+> **Version:** 2.4.0
 > **Ruta:** `bots/interjddcia/`
 
 ---
@@ -743,6 +743,81 @@ los aliases: `FIELD_NAME`, `FIELD_TYPE`, `FIELD_POS`, `FK_NAME`, `PK_FIELD`, etc
 **Causa:** vLLM es single-request — encola peticiones silenciosamente.
 
 **Solucion aplicada:** Timeout reducido a 20s en `jddcia_provider.py`.
+
+### Diagnostico: Bug TOTAL monetario interpretado como COUNT (09/03/2026)
+
+**Sintoma:**
+```
+Usuario pregunta: "cuanto hemos facturado este mes"
+Respuesta incorrecta: "hay 45.678,90 facturas en la base de datos"
+Respuesta correcta:   "el total facturado es 45.678,90 euros"
+```
+
+**Causa:** `interpret_results_for_voice` en `service.py` tenia una copia duplicada
+de la logica que no distinguia entre:
+- `COUNT(*)` → resultado entero → "hay N facturas"
+- `SUM(TOTAL)` → resultado float con decimales → "el total es X euros"
+
+Ambos casos llegaban como `{n == 1, len(row) == 1}` y se trataban igual.
+
+**Solucion aplicada (09/03/2026):**
+1. `chat_voice_interpreter.py` es la **UNICA FUENTE DE VERDAD** para `interpret_results_for_voice`
+2. Se añadio `_is_monetary_value(val)` que detecta si el valor es float con decimales
+3. `service.py` ahora **delega** a `chat_voice_interpreter.py` — no tiene logica propia
+4. La funcion LEGACY en `service.py` se renombro a `_interpret_results_for_voice_LEGACY`
+   y nunca se ejecuta (documentada para referencia historica)
+
+**Regla para evitar recurrencia:**
+> NUNCA duplicar la logica de interpretacion de voz. `service.py` SIEMPRE delega a
+> `chat_voice_interpreter.py`. Si hay que cambiar el comportamiento, cambiar SOLO
+> `chat_voice_interpreter.py`.
+
+**Test que lo cubre:**
+```
+tests/unit/test_voice_and_tts.py::TestInterpretResultsForVoice::test_total_facturado
+```
+
+### Diagnostico: Codigo duplicado entre service.py y chat_voice_interpreter.py
+
+**Sintoma:** Un bug corregido en `chat_voice_interpreter.py` no se refleja en produccion
+porque `service.py` tiene su propia copia de la misma funcion.
+
+**Causa:** Al crear `chat_voice_interpreter.py` como modulo separado, la funcion original
+en `service.py` no se elimino — quedaron dos implementaciones divergentes.
+
+**Solucion aplicada (09/03/2026):**
+- `service.py` importa y delega:
+  ```python
+  from backend.modules.chat.chat_voice_interpreter import (
+      interpret_results_for_voice as _interpret_voice_impl,
+      clean_for_tts as _clean_tts_impl,
+  )
+  def interpret_results_for_voice(message, results, sql_query):
+      return _interpret_voice_impl(message, results, sql_query)
+  ```
+- La implementacion LEGACY queda como `_interpret_results_for_voice_LEGACY` (nunca llamada)
+
+**Regla para evitar recurrencia:**
+> Cuando se extrae logica a un modulo nuevo, SIEMPRE eliminar o delegar la version antigua.
+> Nunca dejar dos implementaciones activas de la misma funcion.
+
+### Diagnostico: Paginacion MetaGlass — umbral y formato diferente al web
+
+**Contexto:** Las gafas Meta Ray-Ban tienen TTS con limite de ~3 items por respuesta.
+El sistema web puede mostrar 10-50 resultados en una tabla. Necesitan umbrales distintos.
+
+**Solucion implementada (09/03/2026):**
+- `ResponseSummarizer.summarize_for_metaglass()` — umbral configurable (default 5)
+- `ResponseSummarizer.handle_metaglass_pagination()` — paginacion por voz
+- `_detect_intent_deterministic()` — detecta si/no/todos sin IA
+- Respuestas sin Markdown (nunca `**`, `##`, ` ``` `)
+- `METAGLASS_PAGINATION_THRESHOLD = 5` (vs `SUMMARY_THRESHOLD = 20` para web)
+- `METAGLASS_PAGE_SIZE = 3` (vs `PAGE_SIZE_DEFAULT = 10` para web)
+
+**Regla para evitar recurrencia:**
+> Los clientes de voz (MetaGlass) y web tienen requisitos distintos de paginacion.
+> Usar siempre `summarize_for_metaglass()` para MetaGlass, nunca `summarize()` de web.
+> Verificar con `tests/unit/test_response_summarizer.py::TestMetaGlassPaginacion`.
 
 ---
 
