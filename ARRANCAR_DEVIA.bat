@@ -4,7 +4,7 @@ title DEVIA - Arranque del Sistema IA
 
 REM ============================================================
 REM  DEVIA - Script Maestro de Arranque (Ultra-Resiliente)
-REM  Version: 3.1.0 - 06/03/2026
+REM  Version: 3.2.0 - 09/03/2026
 REM  Servicios:
 REM  [1] Backend DEVIA (FastAPI)   Puerto preferido: 8001
 REM      Chat IA + BD Firebird + Frontend web
@@ -117,6 +117,9 @@ if "!DEVIA_PORT_FINAL!"=="" (
 
 call :LOG "Puerto DEVIA resuelto: !DEVIA_PORT_FINAL!"
 
+REM Guardar el puerto en variable de entorno del proceso actual (sin delayed expansion)
+set "DEVIA_PORT_SAVED=!DEVIA_PORT_FINAL!"
+
 echo.
 echo  URLs disponibles tras el arranque:
 echo    Chat IA web:       http://localhost:!DEVIA_PORT_FINAL!
@@ -224,11 +227,22 @@ REM ============================================================
 REM  ABRIR NAVEGADOR
 REM ============================================================
 :ABRIR_NAVEGADOR
-if "!DEVIA_PORT_FINAL!"=="" set DEVIA_PORT_FINAL=%DEVIA_PORT%
-echo [INFO] Abriendo interfaz web en el navegador...
-call :LOG "Abriendo navegador en http://localhost:!DEVIA_PORT_FINAL!"
+REM Recuperar el puerto guardado antes de entrar en subrutinas
+REM DEVIA_PORT_SAVED se setea justo tras resolver el puerto (antes de call subrutinas)
+if defined DEVIA_PORT_SAVED (
+    set "DEVIA_PORT_FINAL=!DEVIA_PORT_SAVED!"
+)
+REM Fallbacks en cascada
+if not defined DEVIA_PORT_FINAL set "DEVIA_PORT_FINAL=8001"
+if "!DEVIA_PORT_FINAL!"=="" set "DEVIA_PORT_FINAL=8001"
+
+set "_URL_ABRIR=http://localhost:!DEVIA_PORT_FINAL!"
+echo [INFO] Abriendo interfaz web: !_URL_ABRIR!
+call :LOG "Abriendo navegador en !_URL_ABRIR!"
 timeout /t 2 /nobreak >nul
-start "" "http://localhost:!DEVIA_PORT_FINAL!"
+start "" "!_URL_ABRIR!"
+echo [OK] Navegador abierto en !_URL_ABRIR!
+echo [INFO] Si no se abrio, copia esta URL en tu navegador: !_URL_ABRIR!
 goto :FINAL
 
 REM ============================================================
