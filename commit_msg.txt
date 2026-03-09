@@ -1,12 +1,7 @@
-fix: ARRANCAR_DEVIA.bat - corregir error "No se esperaba"
+fix(voice): bug TOTAL/COUNT + paginacion MetaGlass + 115 tests OK
 
-- CHECK_VENV: reemplazar if/else con call :LOG por goto (el call dentro
-  de un bloque if() causa "No se esperaba encontrado en este momento")
-- Proteger OPCION contra valores vacios/invalidos tras set /p
-- Todas las variables post-subrutina usan delayed expansion (!VAR!)
-- Eliminar archivos temporales de debug (test_bat_syntax.bat, commit_msg.txt)
-
-El bat ahora arranca correctamente:
-- Detecta puerto 8001 ocupado por jddc_signing_service (Docker)
-- Selecciona automaticamente puerto alternativo 8010
-- DEVIA arranca en 8010 y health responde OK
+- chat_voice_interpreter: fix _is_monetary_value() TOTAL float != COUNT entero
+- service.py: delega a chat_voice_interpreter (unica fuente de verdad)
+- response_summarizer: summarize_for_metaglass + handle_metaglass_pagination
+- tests: 115 unitarios, 0 fallos
+- DEVIA.md chat: documentado voice_pipeline, pagination web/metaglass

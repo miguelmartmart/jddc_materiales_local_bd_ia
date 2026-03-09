@@ -65,10 +65,34 @@ def _detect_entity(msg_lower: str) -> Optional[str]:
     return None
 
 
+def _is_monetary_value(key: str, val: Any) -> bool:
+    """Detecta si un campo es un importe monetario (no un COUNT entero)."""
+    monetary_keys = {"TOTAL", "IMPORTE", "BASE", "TOTALIVA", "SUMA", "PRECIO",
+                     "DESCUENTO", "MARGEN", "COSTE", "FACTURADO"}
+    if key.upper() in monetary_keys:
+        return True
+    # Si el valor es float con decimales, probablemente es monetario
+    if isinstance(val, float) and val != int(val):
+        return True
+    return False
+
+
 def _interpret_single_value(message: str, key: str, val: Any) -> str:
-    """Interpreta un resultado de una sola fila y una sola columna."""
+    """
+    Interpreta un resultado de una sola fila y una sola columna.
+
+    PRIORIDAD:
+      1. Si el campo es monetario (TOTAL, IMPORTE, etc.) → "El total es X euros"
+      2. Si el mensaje pregunta por cantidad (cuántos) → "Hay N entidades"
+      3. Fallback → "El resultado es X"
+    """
     msg_lower = message.lower()
 
+    # 1. Campos monetarios tienen prioridad — evita confundir TOTAL con COUNT
+    if _is_monetary_value(key, val):
+        return f"El total es {_format_number(val)} euros."
+
+    # 2. Preguntas de conteo (cuántos, número de...)
     if any(w in msg_lower for w in COUNT_KEYWORDS):
         val_str = _format_number(val)
         entity = _detect_entity(msg_lower)
@@ -81,11 +105,9 @@ def _interpret_single_value(message: str, key: str, val: Any) -> str:
             return f"Hay {val_str} {plural} en la base de datos."
         return f"El resultado es {val_str}."
 
-    if any(w in msg_lower for w in SUM_KEYWORDS):
-        if isinstance(val, (int, float)):
-            return f"El total es {_format_number(val)} euros."
-        return f"El resultado es {val}."
-
+    # 3. Fallback
+    if isinstance(val, float):
+        return f"El resultado es {_format_number(val)} euros."
     return f"El resultado es {val}."
 
 

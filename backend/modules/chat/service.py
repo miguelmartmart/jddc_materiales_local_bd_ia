@@ -29,16 +29,28 @@ from backend.modules.images.core.storage import LocalStorageManager
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+# ─── Delegación a chat_voice_interpreter (única fuente de verdad) ─────────────
+from backend.modules.chat.chat_voice_interpreter import (
+    interpret_results_for_voice as _interpret_voice_impl,
+    clean_for_tts as _clean_tts_impl,
+)
+
+
 def interpret_results_for_voice(message: str, results: list, sql_query: str) -> str:
     """
     Interpreta resultados de BD de forma DETERMINISTA para clientes de voz (gafas Meta).
-    
+
+    DELEGACIÓN: Esta función delega a chat_voice_interpreter.py (única fuente de verdad).
+    El fix del bug TOTAL/COUNT está en chat_voice_interpreter._interpret_single_value.
+
     Elimina la segunda llamada a IA para clientes de voz, reduciendo el tiempo total
     de respuesta de ~42s a ~22s y evitando timeouts en Android (60s).
-    
-    Principio: los datos ya están en 'results', solo hay que formatearlos en lenguaje
-    natural. Esto es 100% determinista y no necesita IA.
     """
+    return _interpret_voice_impl(message, results, sql_query)
+
+
+def _interpret_results_for_voice_LEGACY(message: str, results: list, sql_query: str) -> str:
+    """LEGACY — NO usar. Solo referencia histórica. BUG: confunde TOTAL con COUNT."""
     if not results:
         return "No encontré ningún resultado para tu consulta."
     
