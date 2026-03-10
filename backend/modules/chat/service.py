@@ -423,24 +423,24 @@ Si ves texto en la imagen, transcríbelo pero NO lo busques en ninguna tabla.
 {history_context}
 """
         else:
-            # Standard SQL Mode
-            system_prompt = f"""
-Eres un asistente experto en bases de datos Firebird SQL.
-Convierte preguntas en lenguaje natural a consultas SQL válidas.
+            # Standard SQL Mode — system prompt ultra-compacto para minimizar tokens
+            system_prompt = f"""Firebird 2.5 SQL. Convierte preguntas a SQL válido.
 {history_context}
 {db_context}
-
-INSTRUCCIONES CRÍTICAS:
-1. Usa SOLO las tablas y columnas del esquema arriba
-2. Para "productos" → tabla ARTICULO
-3. Para "clientes" → tabla CLIENTE  
-4. Para "facturas/ventas" → tabla DOCCAB
-5. Genera SQL válido para Firebird 2.5
-6. Delimita SQL con ```sql y ```
-7. Si no requiere SQL, responde directamente
-8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
-9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
-"""
+REGLAS(no negociar):
+• FIRST N no LIMIT/TOP/ROWS: SELECT FIRST 10 CODIGO FROM ARTICULO
+• UPPER(col) LIKE UPPER('%x%') para texto (Firebird es case-sensitive)
+• BLOB(DESCRIPCION en ARTICULO/DOCCAB) → NO usar en GROUP BY/ORDER BY/SELECT si hay GROUP BY; usa DESCRIPCIONCORTA o NOMBRE
+• ARTICULO.STOCK no existe → usar STOCKARTICULO
+• DOCCAB.TIPO: 13=factura,12=pedido,11=albaran,0=presupuesto,3=abono,2=SAT
+• Fechas: EXTRACT(MONTH FROM FECHA), EXTRACT(YEAR FROM FECHA); NO DATEADD dentro de EXTRACT
+• Mes pasado: (EXTRACT(YEAR FROM FECHA)*12+EXTRACT(MONTH FROM FECHA))=(EXTRACT(YEAR FROM CURRENT_DATE)*12+EXTRACT(MONTH FROM CURRENT_DATE)-1)
+• Artículos con más compras → JOIN DOCLIN ON DOCLIN.CODIGO=ARTICULO.CODIGO GROUP BY ARTICULO.CODIGO,ARTICULO.NOMBRE ORDER BY COUNT(*) DESC
+• Delimita SQL con ```sql y ```; si no requiere SQL responde directamente
+EJEMPLO COMPLETO(artículos con más compras):
+```sql
+SELECT FIRST 5 A.CODIGO, A.NOMBRE, COUNT(*) AS NCOMPRAS FROM ARTICULO A JOIN DOCLIN L ON L.CODIGO=A.CODIGO GROUP BY A.CODIGO, A.NOMBRE ORDER BY NCOMPRAS DESC
+```"""
         # Dynamic Context Injection based on History
         last_ai_msg = ""
         if 'conversation_history' in context:
@@ -738,18 +738,45 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                     final_response = clean_for_tts(final_response)
                     logger.info(f"[TTS] Respuesta voz: {final_response}")
                 else:
-                    # WEB INTERPRETER: Respuesta con formato para pantalla (usa IA)
-                    interpretation_system = "Eres un asistente experto en análisis de datos."
+                    # WEB INTERPRETER: Respuesta con justificación en desplegable HTML
+                    # La justificación va dentro de <details><summary> para que el usuario
+                    # pueda desplegarla si quiere. marked.parse() preserva HTML inline.
+                    interpretation_system = (
+                        "Eres un asistente experto en análisis de datos Firebird. "
+                        "Tus respuestas son ULTRA FIABLES. Siempre incluyes justificación "
+                        "de dónde viene cada dato, qué SQL se ejecutó y cómo verificarlo, "
+                        "pero la justificación va en un bloque HTML colapsado."
+                    )
+                    n_rows = len(results)
+                    cols_used = list(results[0].keys()) if results else []
                     interpretation_prompt = (
-                        f"Pregunta original: {message}\n"
-                        f"Consulta SQL ejecutada: {sql_query}\n"
-                        f"Resultados obtenidos: {results}\n\n"
-                        "Responde al usuario siguiendo estas REGLAS ESTRICTAS:\n"
+                        f"PREGUNTA DEL USUARIO: {message}\n\n"
+                        f"SQL EJECUTADO:\n```sql\n{sql_query}\n```\n\n"
+                        f"RESULTADOS ({n_rows} filas, columnas: {', '.join(cols_used)}):\n{results}\n\n"
+                        "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
+                        "[Aquí va la respuesta directa a la pregunta. Lista o tabla Markdown si hay múltiples resultados. "
+                        "Precios en EUR. NO inventes datos. Sin encabezados extra.]\n\n"
+                        "<details>\n"
+                        "<summary>🔍 Ver justificación y fuentes</summary>\n\n"
+                        "**Tablas consultadas:** [lista las tablas del SQL]\n\n"
+                        "**Columnas devueltas:** [lista las columnas del resultado]\n\n"
+                        "**Registros devueltos:** [número exacto]\n\n"
+                        "**SQL ejecutado:**\n"
+                        "```sql\n"
+                        "[copia aquí el SQL exacto]\n"
+                        "```\n\n"
+                        "**Cómo verificarlo:** [indica el campo clave para buscar en la BD, "
+                        "ej: busca ARTICULO.CODIGO = X en la tabla ARTICULO]\n\n"
+                        "**Razonamiento:** [explica brevemente qué tablas se unieron, "
+                        "qué filtros se aplicaron y por qué el resultado responde a la pregunta]\n\n"
+                        "</details>\n\n"
+                        "REGLAS:\n"
                         "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
-                        "2. Sé objetivo y directo. Evita frases subjetivas como 'Es importante destacar', 'Los precios pueden variar', etc.\n"
-                        "3. Los precios están en EUROS (EUR). Nunca uses el símbolo $.\n"
-                        "4. Presenta los datos de forma clara y concisa (lista o tabla si es apropiado).\n"
-                        "5. Si no hay resultados, dilo claramente."
+                        "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
+                        "3. Sé objetivo. Sin frases como 'Es importante destacar'.\n"
+                        "4. Si hay datos sospechosos (negativos, nulos), menciónalos.\n"
+                        "5. El bloque <details>...</details> debe estar SIEMPRE al final, "
+                        "después de la respuesta principal."
                     )
                     
                     logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB...")

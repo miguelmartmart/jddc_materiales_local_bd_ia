@@ -83,6 +83,16 @@ class SQLCorrector:
                 'message': 'Error de sintaxis SQL'
             }
         
+        # BLOB conversion error: GROUP BY / ORDER BY sobre campo BLOB
+        if 'BLOB' in error_upper and 'CONVERSION' in error_upper:
+            return {
+                'type': 'blob_in_groupby',
+                'message': (
+                    'Columna BLOB (ej: DESCRIPCION en ARTICULO) no puede usarse en GROUP BY. '
+                    'Usa CODIGO, NOMBRE o DESCRIPCIONCORTA en el GROUP BY.'
+                )
+            }
+
         # Unknown error
         return {
             'type': 'unknown',
@@ -318,22 +328,34 @@ CONSULTA SQL CORREGIDA:"""
             # Detect error type
             error_info = self.detect_error_type(error_str)
             logger.info(f"[SQL AUTO-CORRECTION] 🔍 Tipo de error detectado: {error_info['type']}")
-            
+
             if error_info['type'] == 'unknown':
                 logger.warning(f"[SQL AUTO-CORRECTION] ⚠️ Tipo de error desconocido, no se puede corregir automáticamente")
                 raise
-            
-            # Request correction from AI
+
+            # ── Intento 1: corrección DETERMINISTA (sin IA) ───────────────────
+            # Para errores conocidos (BLOB, column_unknown, token_unknown) el
+            # normalizador puede corregir sin gastar tokens de IA.
+            deterministic_types = {'blob_in_groupby', 'column_unknown', 'invalid_keyword', 'syntax_error'}
+            if error_info['type'] in deterministic_types:
+                det_query, det_changes = _normalizer.fix_after_error(sql_query, error_str)
+                if det_changes and det_query.strip() != sql_query.strip():
+                    logger.info(f"[SQL AUTO-CORRECTION] ✅ Corrección DETERMINISTA aplicada ({len(det_changes)} cambios):")
+                    for ch in det_changes:
+                        logger.info(f"[SQL AUTO-CORRECTION]   • {ch}")
+                    return await self.execute_with_correction(
+                        det_query, original_question, db_context, ai_provider,
+                        execute_func, max_retries, attempt + 1
+                    )
+                else:
+                    logger.info(f"[SQL AUTO-CORRECTION] ℹ️ Corrección determinista no aplicable, escalando a IA...")
+
+            # ── Intento 2: corrección por IA ──────────────────────────────────
             logger.info(f"[SQL AUTO-CORRECTION] 🤖 Solicitando corrección al modelo IA...")
             corrected_query = await self.request_correction(
-                sql_query,
-                original_question,
-                error_str,
-                error_info,
-                db_context,
-                ai_provider
+                sql_query, original_question, error_str, error_info, db_context, ai_provider
             )
-            
+
             if not corrected_query or corrected_query.strip() == sql_query.strip():
                 logger.warning(f"[SQL AUTO-CORRECTION] ⚠️ El modelo no pudo generar una corrección diferente")
                 raise
