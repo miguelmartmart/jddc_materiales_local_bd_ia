@@ -1,26 +1,29 @@
-tests: suite completa paginacion y preguntas multi-tabla (192/192 OK)
+fix(bat): ARRANCAR_DEVIA v3.3.0 - ultra-resiliente con Docker y npm
 
-NUEVOS ARCHIVOS:
-- tests/unit/test_pagination_detection.py (77 tests)
-  * TestIsPaginationRequest: deteccion binaria paginacion vs pregunta negocio
-  * TestDetectRequestedCount: extraccion de numero de registros solicitados
-  * TestDetectIntentDeterministic: intencion MetaGlass sin IA
-  * TestFlujoPaginacionCompleto: flujo end-to-end sin BD
+CORRECCIONES:
+- Error "No se esperaba..." en opcion 2: goto dentro de bloques if()
+  convertidos a etiquetas separadas (:ELECTRON_NO_CARPETA,
+  :ELECTRON_SIN_MODULES, :ELECTRON_COMPILAR, :ELECTRON_LANZAR,
+  :ELECTRON_SKIP_NPM)
+- Todos los goto dentro de if() eliminados (causa del error original)
+- Variables con ! usadas consistentemente (delayed expansion)
 
-- tests/integration/test_pagination_real.py
-  * TestPaginacionWebReal: paginacion con datos reales Firebird
-  * TestPaginacionMetaGlassReal: respuestas sin Markdown para TTS
-  * TestNavegacionPaginasReal: flujo completo siguiente/todos/cancelar
-  * TestConsistenciaWebMetaGlass: mismos datos, diferente formato
+NUEVAS FUNCIONALIDADES:
+- Docker no corriendo -> pregunta si quiere iniciarlo
+  * Detecta si Docker esta instalado pero apagado
+  * Ofrece iniciarlo (Enter = N por defecto, no critico)
+  * Busca Docker Desktop.exe en rutas habituales
+  * Espera hasta 60s con feedback de progreso
+  * Si no arranca, continua sin Docker (no bloquea el arranque)
 
-- tests/e2e/test_preguntas_2tablas.py
-  * TestArticuloDoclin: REG-001/REG-002 articulos mas vendidos/comprados
-  * TestDoccabCliente: facturas por cliente con JOIN
-  * TestDoccabAgente: ventas por agente comercial
-  * TestTresTablas: DOCCAB + DOCLIN + ARTICULO
-  * TestFiltrosFecha: preguntas con rango temporal
-  * TestBusquedasNombre: LIKE/UPPER (REG-004)
+- node_modules ausente -> pregunta si quiere npm install
+  * Detecta ausencia de node_modules en desktop-codelab
+  * Ofrece ejecutar npm install automaticamente (Enter = S)
+  * Guarda log en logs/npm_install.log
+  * Si falla, continua sin Electron (chat web sigue disponible)
 
-RESULTADO: 192/192 tests unitarios OK (2.33s)
-
-DEVIA.MD: actualizado estado SIUO Fase 5 -> 192/192 tests OK (10/03/2026)
+- Diagnostico ampliado: [4] Docker detallado, [8] Node.js/npm
+- Verificacion de desktop-codelab/backend/server.py antes de lanzar
+- :CHECK_AND_START_DOCKER nueva subrutina (no critica)
+- :CHECK_DOCKER_DETAIL para diagnostico completo
+- :CHECK_NODE para verificar Node.js y npm
