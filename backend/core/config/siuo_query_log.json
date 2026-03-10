@@ -563,6 +563,253 @@
         "facturas",
         "mes"
       ]
+    },
+    {
+      "ts": "2026-03-06T15:39:27.931158",
+      "question": "dime los artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T16:14:24.428397",
+      "question": "dime los artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:22:18.367999",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:22:44.254823",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:14.130106",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:31.129853",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:39.101458",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:43.387755",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:56.184797",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:59.138689",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:20.014331",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:28.388841",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:51.059646",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
     }
   ],
   "unknown_keywords": {

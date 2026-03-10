@@ -105,40 +105,86 @@ IMPLICIT_FK_PATTERNS = {
 }
 
 # ─── Concepto base (reglas manuales que siempre se aplican) ───────────────────
+# IMPORTANTE: Cuando se añaden conceptos aquí, regenerar concept_index.json
+# ejecutando: POST /api/siuo/reload  (recarga sin re-indexar)
+# Para regenerar completamente: POST /api/siuo/analyze/start?resume=false
 
 BASE_CONCEPT_INDEX = {
+    # ── Artículos / Productos ──────────────────────────────────────────────────
     "articulo":    [{"table": "ARTICULO"}],
     "producto":    [{"table": "ARTICULO"}],
     "referencia":  [{"table": "ARTICULO"}],
-    "stock":       [{"table": "ARTICULO"}, {"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
+    "split":       [{"table": "ARTICULO"}],
+    "equipo":      [{"table": "ARTICULO"}],
+    "material":    [{"table": "ARTICULO"}],
+    "recambio":    [{"table": "ARTICULO"}],
+    "gas":         [{"table": "ARTICULO"}, {"table": "DOCLIN"}],
+    "refrigerante":[{"table": "ARTICULO"}],
+    "familia":     [{"table": "ARTICULO"}, {"table": "FAMILIAS"}],
+    "categoria":   [{"table": "ARTICULO"}, {"table": "FAMILIAS"}],
     "precio":      [{"table": "ARTICULO"}, {"table": "DOCLIN"}],
-    "familia":     [{"table": "ARTICULO"}],
-    "factura":     [{"table": "DOCCAB", "filter": "TIPO=13"}],
-    "albaran":     [{"table": "DOCCAB", "filter": "TIPO=11"}],
-    "pedido":      [{"table": "DOCCAB", "filter": "TIPO=12"}],
-    "presupuesto": [{"table": "DOCCAB", "filter": "TIPO=0"}],
-    "abono":       [{"table": "DOCCAB", "filter": "TIPO=3"}],
-    "contrato":    [{"table": "DOCCAB", "filter": "TIPO=10"}],
-    "sat":         [{"table": "DOCCAB", "filter": "TIPO=2"}],
+    "coste":       [{"table": "ARTICULO"}, {"table": "DOCLIN"}],
+    "margen":      [{"table": "ARTICULO"}, {"table": "DOCLIN"}],
+    "stock":       [{"table": "ARTICULO"}, {"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
+    "inventario":  [{"table": "ARTICULO"}, {"table": "ESTALMACEN"}],
+    "existencias": [{"table": "ARTICULO"}, {"table": "ESTALMACEN"}],
+
+    # ── Documentos (DOCCAB + DOCLIN) ──────────────────────────────────────────
+    "factura":     [{"table": "DOCCAB", "filter": "TIPO=13"}, {"table": "DOCLIN"}],
+    "albaran":     [{"table": "DOCCAB", "filter": "TIPO=11"}, {"table": "DOCLIN"}],
+    "pedido":      [{"table": "DOCCAB", "filter": "TIPO=12"}, {"table": "DOCLIN"}],
+    "presupuesto": [{"table": "DOCCAB", "filter": "TIPO=0"},  {"table": "DOCLIN"}],
+    "abono":       [{"table": "DOCCAB", "filter": "TIPO=3"},  {"table": "DOCLIN"}],
+    "contrato":    [{"table": "DOCCAB", "filter": "TIPO=10"}, {"table": "DOCLIN"}],
+    "sat":         [{"table": "DOCCAB", "filter": "TIPO=2"},  {"table": "DOCLIN"}],
+    "instalacion": [{"table": "DOCCAB", "filter": "TIPO=2"},  {"table": "DOCLIN"}],
+    "mantenimiento":[{"table": "DOCCAB", "filter": "TIPO=10"},{"table": "DOCLIN"}],
     "recibo":      [{"table": "DOCCAB", "filter": "TIPO=61"}],
-    "venta":       [{"table": "DOCCAB", "filter": "TIPO IN (11,13)"}],
-    "compra":      [{"table": "DOCCAB", "filter": "TIPO=12"}],
-    "documento":   [{"table": "DOCCAB"}],
-    "linea":       [{"table": "DOCLIN"}],
-    "detalle":     [{"table": "DOCLIN"}],
+    "documento":   [{"table": "DOCCAB"}, {"table": "DOCLIN"}],
+    "linea":       [{"table": "DOCLIN"}, {"table": "DOCCAB"}],
+    "detalle":     [{"table": "DOCLIN"}, {"table": "DOCCAB"}],
     "cantidad":    [{"table": "DOCLIN"}],
+    "importe":     [{"table": "DOCLIN"}, {"table": "DOCCAB"}],
+    "total":       [{"table": "DOCCAB"}, {"table": "DOCLIN"}],
+
+    # ── Ventas / Compras — CRÍTICO: incluir DOCLIN para poder calcular ─────────
+    "venta":       [{"table": "DOCCAB", "filter": "TIPO IN (11,13)"}, {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "vendido":     [{"table": "DOCCAB", "filter": "TIPO IN (11,13)"}, {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "compra":      [{"table": "DOCCAB", "filter": "TIPO=12"},          {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "comprado":    [{"table": "DOCCAB", "filter": "TIPO=12"},          {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "facturado":   [{"table": "DOCCAB", "filter": "TIPO=13"},          {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "ranking":     [{"table": "DOCCAB"}, {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "mas vendido": [{"table": "DOCCAB", "filter": "TIPO IN (11,13)"}, {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "mas comprado":[{"table": "DOCCAB", "filter": "TIPO=12"},          {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+    "movimiento":  [{"table": "DOCCAB"}, {"table": "DOCLIN"}, {"table": "ARTICULO"}],
+
+    # ── Entidades ──────────────────────────────────────────────────────────────
     "cliente":     [{"table": "CLIENTE"}],
     "proveedor":   [{"table": "PROVEED"}],
-    "almacen":     [{"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
-    "caja":        [{"table": "CAJA"}],
-    "aviso":       [{"table": "AVISOS"}],
-    "agente":      [{"table": "AGENTES"}],
-    "tarifa":      [{"table": "TARIFAS"}],
-    "iva":         [{"table": "TIPOSIVA"}],
+    "agente":      [{"table": "AGENTE"}],
+    "comercial":   [{"table": "AGENTE"}],
     "empleado":    [{"table": "EMPLEADOS"}],
+    "tecnico":     [{"table": "EMPLEADOS"}],
+
+    # ── Almacén / Logística ────────────────────────────────────────────────────
+    "almacen":     [{"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
+    "deposito":    [{"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
+
+    # ── Financiero ─────────────────────────────────────────────────────────────
+    "caja":        [{"table": "CAJA"}],
+    "cobro":       [{"table": "CAJA"}, {"table": "DOCCAB"}],
+    "pago":        [{"table": "CAJA"}, {"table": "DOCCAB"}],
+    "impago":      [{"table": "DOCCAB"}, {"table": "CAJA"}],
+    "deuda":       [{"table": "DOCCAB"}, {"table": "CAJA"}],
     "banco":       [{"table": "BANCOS"}],
     "forma pago":  [{"table": "FORMASPAGO"}],
+    "iva":         [{"table": "TIPOSIVA"}, {"table": "DOCCAB"}],
+    "tarifa":      [{"table": "TARIFAS"}],
+
+    # ── Otros ──────────────────────────────────────────────────────────────────
+    "aviso":       [{"table": "AVISOS"}],
     "serie":       [{"table": "SERIES"}],
+    "comision":    [{"table": "AGENTE"}, {"table": "DOCCAB"}],
 }
 
 

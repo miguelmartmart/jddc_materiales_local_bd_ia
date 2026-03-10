@@ -1,7 +1,26 @@
-fix(voice): bug TOTAL/COUNT + paginacion MetaGlass + 115 tests OK
+tests: suite completa paginacion y preguntas multi-tabla (192/192 OK)
 
-- chat_voice_interpreter: fix _is_monetary_value() TOTAL float != COUNT entero
-- service.py: delega a chat_voice_interpreter (unica fuente de verdad)
-- response_summarizer: summarize_for_metaglass + handle_metaglass_pagination
-- tests: 115 unitarios, 0 fallos
-- DEVIA.md chat: documentado voice_pipeline, pagination web/metaglass
+NUEVOS ARCHIVOS:
+- tests/unit/test_pagination_detection.py (77 tests)
+  * TestIsPaginationRequest: deteccion binaria paginacion vs pregunta negocio
+  * TestDetectRequestedCount: extraccion de numero de registros solicitados
+  * TestDetectIntentDeterministic: intencion MetaGlass sin IA
+  * TestFlujoPaginacionCompleto: flujo end-to-end sin BD
+
+- tests/integration/test_pagination_real.py
+  * TestPaginacionWebReal: paginacion con datos reales Firebird
+  * TestPaginacionMetaGlassReal: respuestas sin Markdown para TTS
+  * TestNavegacionPaginasReal: flujo completo siguiente/todos/cancelar
+  * TestConsistenciaWebMetaGlass: mismos datos, diferente formato
+
+- tests/e2e/test_preguntas_2tablas.py
+  * TestArticuloDoclin: REG-001/REG-002 articulos mas vendidos/comprados
+  * TestDoccabCliente: facturas por cliente con JOIN
+  * TestDoccabAgente: ventas por agente comercial
+  * TestTresTablas: DOCCAB + DOCLIN + ARTICULO
+  * TestFiltrosFecha: preguntas con rango temporal
+  * TestBusquedasNombre: LIKE/UPPER (REG-004)
+
+RESULTADO: 192/192 tests unitarios OK (2.33s)
+
+DEVIA.MD: actualizado estado SIUO Fase 5 -> 192/192 tests OK (10/03/2026)

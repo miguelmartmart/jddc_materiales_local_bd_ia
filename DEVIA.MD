@@ -1043,7 +1043,7 @@ bots/interjddcia/
 | SIUO Fase 2 (ContextRetriever) | ✅ COMPLETADA | context_retriever.py |
 | SIUO Fase 3 (ChatService integrado) | ✅ COMPLETADA | service.py usa ContextRetriever |
 | SIUO Fase 4 (Frontend UI) | ✅ COMPLETADA | siuo.js + siuo.css + pestana "Indices SIUO" |
-| SIUO Fase 5 (Tests y validacion) | ✅ COMPLETADA | 26/26 tests OK (06/03/2026) |
+| SIUO Fase 5 (Tests y validacion) | ✅ COMPLETADA | 192/192 tests OK (10/03/2026) |
 | SIUO Router | ✅ ACTIVO | /api/siuo/* registrado en main.py |
 | SIUO Indexacion masiva | ⏳ PENDIENTE | 0/437 tablas — ejecutar desde UI "Indices SIUO" |
 | ContextRetriever modo actual | fallback v1 | Activa SIUO completo tras indexacion masiva |

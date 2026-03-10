@@ -1,11 +1,11 @@
 {
   "version": "1.0",
   "started": "2026-03-06T13:40:31.898660",
-  "last_updated": "2026-03-06T13:43:37.385455",
+  "last_updated": "2026-03-06T15:38:33.563361",
   "total_tables": 437,
-  "analyzed": 13,
+  "analyzed": 437,
   "failed": 0,
-  "pending": 424,
+  "pending": 0,
   "failed_tables": [],
-  "status": "running"
+  "status": "completed"
 }
