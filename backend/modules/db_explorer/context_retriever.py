@@ -231,10 +231,20 @@ class ContextRetriever:
 
     def _normalize_word(self, word: str) -> str:
         """
-        Normaliza una palabra para busqueda en concept_index:
-        - Elimina plurales simples en espanol (s, es, ces)
-        - Elimina acentos para comparacion
-        Ejemplo: "articulos" -> "articulo", "facturas" -> "factura"
+        Normaliza una palabra para busqueda en concept_index.
+
+        Estrategia (en orden de prioridad):
+        1. Palabra tal cual (con acento normalizado) -> buscar en concept_index
+        2. Plural -> singular (-s, -es): si la raiz esta en el indice
+        3. Singular -> plural (+s, +es): si el plural esta en el indice
+           (cubre el caso donde Qwen3 genero keywords en plural: 'facturas', 'articulos')
+        4. Devolver la forma sin acento (para busqueda exacta posterior)
+
+        Ejemplos:
+          'artículos' -> 'articulo'  (tilde + plural, raiz en indice)
+          'compras'   -> 'compra'    (plural, raiz en indice)
+          'facturas'  -> 'facturas'  (plural en indice generado por Qwen3)
+          'factura'   -> 'factura'   (singular en BASE_CONCEPT_INDEX)
         """
         import unicodedata
 
@@ -242,11 +252,11 @@ class ContextRetriever:
         nfkd = unicodedata.normalize("NFKD", word)
         word_no_accent = "".join(c for c in nfkd if not unicodedata.combining(c))
 
-        # Intentar primero la palabra tal cual (con acento normalizado)
+        # 1. Palabra tal cual (sin acento)
         if word_no_accent in self._concept_index:
             return word_no_accent
 
-        # Plural -> singular: quitar 's' final si la raiz esta en el indice
+        # 2. Plural -> singular: quitar sufijo si la raiz esta en el indice
         if word_no_accent.endswith("es") and len(word_no_accent) > 4:
             stem = word_no_accent[:-2]
             if stem in self._concept_index:
@@ -257,7 +267,14 @@ class ContextRetriever:
             if stem in self._concept_index:
                 return stem
 
-        # Devolver la palabra sin acento (para busqueda exacta)
+        # 3. Singular -> plural: anadir sufijo si el plural esta en el indice
+        #    (cubre keywords generados por Qwen3 en plural: 'facturas', 'articulos')
+        for suffix in ("s", "es"):
+            plural = word_no_accent + suffix
+            if plural in self._concept_index:
+                return plural
+
+        # 4. Devolver la palabra sin acento
         return word_no_accent
 
     def _extract_keywords(self, question: str) -> Tuple[List[str], List[str]]:

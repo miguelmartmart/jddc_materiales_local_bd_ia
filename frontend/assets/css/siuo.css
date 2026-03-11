@@ -632,3 +632,112 @@
 .siuo-toast-error   { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
 .siuo-toast-warning { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
 .siuo-toast-info    { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+/* ─── Probar ContextRetriever: respuesta de la IA ─────────────────────────── */
+
+.siuo-answer-box {
+  background: var(--siuo-bg-card, #f8fafc);
+  border: 1px solid var(--siuo-border, #e2e8f0);
+  border-left: 4px solid var(--siuo-accent, #3b82f6);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+
+.siuo-answer-box.siuo-answer-error {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.siuo-answer-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--siuo-text-muted, #64748b);
+  margin-bottom: 8px;
+}
+
+.siuo-answer-content {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--siuo-text, #1e293b);
+}
+
+.siuo-answer-content p {
+  margin: 0 0 8px 0;
+}
+
+.siuo-answer-content p:last-child {
+  margin-bottom: 0;
+}
+
+.siuo-answer-content ul {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.siuo-answer-content li {
+  margin-bottom: 4px;
+}
+
+.siuo-answer-content code {
+  background: rgba(0,0,0,0.06);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 0.88em;
+}
+
+.siuo-answer-content strong {
+  font-weight: 600;
+  color: var(--siuo-text, #1e293b);
+}
+
+/* Detalles de trazabilidad (colapsable) */
+.siuo-debug-details {
+  margin-top: 10px;
+  border: 1px solid var(--siuo-border, #e2e8f0);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--siuo-bg-subtle, #f1f5f9);
+}
+
+.siuo-debug-details > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--siuo-text-muted, #64748b);
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.siuo-debug-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.siuo-debug-details[open] > summary {
+  margin-bottom: 8px;
+}
+
+.siuo-debug-details .siuo-test-row {
+  font-size: 0.82rem;
+  padding: 3px 0;
+}
+
+/* Loading con animación */
+.siuo-loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--siuo-text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.siuo-loading small {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}

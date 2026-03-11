@@ -59,6 +59,12 @@ class ContextTestRequest(BaseModel):
     max_tokens: int = Field(default=2000, ge=100, le=8000)
 
 
+class ContextAskRequest(BaseModel):
+    """Pregunta completa: obtiene contexto + llama a Qwen3 + ejecuta SQL + devuelve respuesta."""
+    question:   str  = Field(..., min_length=1, max_length=500)
+    max_tokens: int  = Field(default=2000, ge=100, le=8000)
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/analyze/start", summary="Iniciar analisis completo de BD con Qwen3 (SSE)")
@@ -192,3 +198,78 @@ async def test_context(req: ContextTestRequest):
         "context_length":  len(context),
         "meta":            meta,
     }
+
+
+@router.post("/context/ask", summary="Pregunta completa: contexto + IA + SQL + respuesta")
+async def ask_with_context(req: ContextAskRequest):
+    """
+    Endpoint completo para el panel 'Probar ContextRetriever':
+      1. Obtiene el contexto optimo via ContextRetriever (SIUO)
+      2. Envia la pregunta + contexto a Qwen3 LAN
+      3. Si la IA genera SQL, lo ejecuta contra Firebird
+      4. Interpreta los resultados y devuelve la respuesta final
+
+    Reutiliza ChatService para no duplicar logica de SQL/IA.
+    Los datos NUNCA salen de la red local (solo Qwen3 LAN).
+
+    Response:
+      {
+        "answer":       "Respuesta en lenguaje natural",
+        "sql":          "SELECT ... (si se genero SQL)",
+        "rows":         N,
+        "tables_used":  [...],
+        "keywords":     [...],
+        "tokens":       N,
+        "source":       "siuo"|"fallback",
+        "error":        "mensaje de error (si fallo)"
+      }
+    """
+    from backend.modules.chat.service import ChatService
+    from backend.core.config.settings import settings
+
+    # Contexto de BD para el ChatService (usa config del .env)
+    db_params = {
+        "host":     settings.DB_HOST,
+        "port":     settings.DB_PORT,
+        "database": settings.DB_NAME,
+        "user":     settings.DB_USER,
+        "password": settings.DB_PASSWORD,
+    }
+
+    # Obtener metadatos del ContextRetriever para la respuesta
+    retriever = get_context_retriever()
+    _, ctx_meta = retriever.get_context(req.question, max_tokens=req.max_tokens)
+
+    try:
+        chat = ChatService()
+        # confirm_data_sending=True: modo web, no pide confirmacion
+        context = {
+            "db_params":            db_params,
+            "confirm_data_sending": True,
+            "conversation_history": [],
+        }
+        answer = await chat.process_message(req.question, context)
+
+        # Si process_message devuelve un dict (confirmation_required), extraer mensaje
+        if isinstance(answer, dict):
+            answer = answer.get("message", str(answer))
+
+        return {
+            "answer":      answer,
+            "tables_used": ctx_meta.get("tables_used", []),
+            "keywords":    ctx_meta.get("keywords_found", []),
+            "tokens":      ctx_meta.get("tokens_estimated", 0),
+            "source":      ctx_meta.get("source", "siuo"),
+            "error":       None,
+        }
+
+    except Exception as exc:
+        logger.error(f"[SIUO /context/ask] Error: {exc}")
+        return {
+            "answer":      f"Error al procesar la pregunta: {str(exc)[:300]}",
+            "tables_used": ctx_meta.get("tables_used", []),
+            "keywords":    ctx_meta.get("keywords_found", []),
+            "tokens":      0,
+            "source":      "error",
+            "error":       str(exc)[:300],
+        }

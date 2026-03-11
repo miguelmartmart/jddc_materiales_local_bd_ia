@@ -1082,12 +1082,69 @@ class DeepIndexerService:
 # ─── Helpers de ficheros ──────────────────────────────────────────────────────
 
 def _load_json(path: Path, default: Any) -> Any:
+    """
+    Carga un fichero JSON de forma robusta.
+
+    Estrategia de recuperacion ante corrupcion:
+    1. Intento normal: open + json.load (utf-8)
+    2. Si falla: leer bytes, buscar primer '{' o '[', intentar parsear desde ahi
+    3. Si sigue fallando: intentar utf-8-sig (BOM) y latin-1
+    4. Si todo falla: devolver default y loguear el error
+
+    Esto cubre el caso real detectado el 10/03/2026:
+    concept_index.json tenia un byte extra 0x69 ('i') antes del '{',
+    causando JSONDecodeError: Expecting value: line 1 column 1 (char 0).
+    """
+    if not path.exists():
+        return default
+
+    # Intento 1: lectura normal
     try:
-        if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass
     except Exception as exc:
-        logger.warning(f"[SIUO] No se pudo cargar {path}: {exc}")
+        logger.warning(f"[SIUO] Error inesperado cargando {path.name}: {exc}")
+        return default
+
+    # Intento 2: leer bytes y buscar el inicio del JSON
+    try:
+        raw = path.read_bytes()
+        # Buscar primer '{' o '['
+        start = -1
+        for i, b in enumerate(raw):
+            if b in (ord("{"), ord("[")):
+                start = i
+                break
+        if start > 0:
+            logger.warning(
+                f"[SIUO] {path.name}: {start} byte(s) corrupto(s) al inicio "
+                f"(0x{raw[0]:02X}). Intentando recuperar desde posicion {start}."
+            )
+            clean = raw[start:].decode("utf-8", errors="replace")
+            result = json.loads(clean)
+            # Auto-corregir el fichero para evitar el problema en el futuro
+            try:
+                path.write_bytes(raw[start:])
+                logger.info(f"[SIUO] {path.name}: auto-corregido (bytes corruptos eliminados)")
+            except Exception:
+                pass
+            return result
+    except Exception as exc:
+        logger.warning(f"[SIUO] Intento 2 fallido para {path.name}: {exc}")
+
+    # Intento 3: utf-8-sig (BOM) y latin-1
+    for enc in ("utf-8-sig", "latin-1"):
+        try:
+            with open(path, "r", encoding=enc) as f:
+                result = json.load(f)
+            logger.info(f"[SIUO] {path.name}: cargado con encoding {enc}")
+            return result
+        except Exception:
+            pass
+
+    logger.error(f"[SIUO] No se pudo cargar {path.name} tras todos los intentos. Usando default.")
     return default
 
 

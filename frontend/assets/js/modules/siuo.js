@@ -265,6 +265,16 @@ async function siuoReloadIndices() {
 
 // ─── Probar ContextRetriever ──────────────────────────────────────────────────
 
+/**
+ * siuoTestContext — Envía la pregunta al backend completo:
+ *   1. ContextRetriever obtiene el contexto óptimo (SIUO)
+ *   2. Qwen3 LAN genera el SQL
+ *   3. Se ejecuta contra Firebird
+ *   4. Se muestra la respuesta real al usuario
+ *
+ * Llama a POST /api/siuo/context/ask (respuesta completa)
+ * y también a POST /api/siuo/context/test (metadatos de debug).
+ */
 async function siuoTestContext() {
   const question = document.getElementById("siuo-test-question")?.value?.trim();
   const maxTokens = parseInt(
@@ -279,56 +289,118 @@ async function siuoTestContext() {
   siuoLog(
     "siuoTestContext",
     "UI",
-    "API /context/test",
+    "API /context/ask",
     `question="${question}"`,
   );
 
   const resultEl = document.getElementById("siuo-test-result");
   if (resultEl) {
-    resultEl.innerHTML =
-      '<div class="siuo-loading">⏳ Consultando ContextRetriever...</div>';
+    resultEl.innerHTML = `
+      <div class="siuo-loading">
+        ⏳ Consultando Qwen3 LAN y ejecutando SQL...
+        <br><small style="opacity:0.7">Esto puede tardar unos segundos</small>
+      </div>`;
     resultEl.style.display = "block";
   }
 
+  // Llamadas en paralelo: respuesta completa + metadatos de debug
   try {
-    const data = await siuoFetch(`${SIUO_API}/context/test`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, max_tokens: maxTokens }),
-    });
+    const [askData, testData] = await Promise.all([
+      siuoFetch(`${SIUO_API}/context/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, max_tokens: maxTokens }),
+      }),
+      siuoFetch(`${SIUO_API}/context/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, max_tokens: maxTokens }),
+      }).catch(() => null), // debug es opcional
+    ]);
 
-    if (resultEl) {
-      const meta = data.meta || {};
-      const tables = (meta.tables_used || []).join(", ") || "—";
-      const keywords = (meta.keywords_found || []).join(", ") || "—";
-      const unknown = (meta.keywords_unknown || []).join(", ") || "ninguno";
-      const source = meta.source || "—";
-      const tokens = meta.tokens_estimated || 0;
+    if (!resultEl) return;
 
-      resultEl.innerHTML = `
-        <div class="siuo-test-result-card">
-          <div class="siuo-test-meta">
-            <span class="siuo-badge siuo-badge-${source === "siuo" ? "ok" : "warn"}">
-              Fuente: ${source === "siuo" ? "🧠 SIUO" : "📄 Fallback v1"}
-            </span>
-            <span class="siuo-badge">~${tokens} tokens</span>
-            <span class="siuo-badge">${(meta.tables_used || []).length} tablas</span>
-          </div>
+    const source = askData.source || "siuo";
+    const tables = (askData.tables_used || []).join(", ") || "—";
+    const keywords = (askData.keywords || []).join(", ") || "—";
+    const tokens = askData.tokens || 0;
+    const answer = askData.answer || "(sin respuesta)";
+    const hasError = !!askData.error;
+
+    // Metadatos de debug (del endpoint /context/test)
+    const meta = testData?.meta || {};
+    const unknown = (meta.keywords_unknown || []).join(", ") || "ninguno";
+    const ctxLen = testData?.context_length || 0;
+    const ctxPreview = testData?.context_preview || "";
+
+    // Formatear la respuesta de la IA (Markdown básico → HTML)
+    const answerHtml = _markdownToHtml(answer);
+
+    resultEl.innerHTML = `
+      <div class="siuo-test-result-card">
+
+        <!-- Badges de metadatos -->
+        <div class="siuo-test-meta">
+          <span class="siuo-badge siuo-badge-${source === "siuo" ? "ok" : "warn"}">
+            Fuente: ${source === "siuo" ? "🧠 SIUO" : source === "error" ? "❌ Error" : "📄 Fallback v1"}
+          </span>
+          <span class="siuo-badge">~${tokens} tokens</span>
+          <span class="siuo-badge">${(askData.tables_used || []).length} tablas</span>
+        </div>
+
+        <!-- Respuesta principal de la IA -->
+        <div class="siuo-answer-box ${hasError ? "siuo-answer-error" : ""}">
+          <div class="siuo-answer-label">💬 Respuesta</div>
+          <div class="siuo-answer-content">${answerHtml}</div>
+        </div>
+
+        <!-- Metadatos de trazabilidad (colapsable) -->
+        <details class="siuo-debug-details">
+          <summary>🔍 Detalles de trazabilidad</summary>
           <div class="siuo-test-row"><strong>Tablas usadas:</strong> ${tables}</div>
           <div class="siuo-test-row"><strong>Keywords encontrados:</strong> ${keywords}</div>
           <div class="siuo-test-row siuo-warn"><strong>Keywords desconocidos:</strong> ${unknown}</div>
-          <details>
-            <summary style="cursor:pointer; font-weight:600; margin-top:10px;">📄 Contexto generado (${data.context_length} chars)</summary>
-            <pre class="siuo-context-preview">${_escapeHtml(data.context_preview || "")}</pre>
-          </details>
-        </div>`;
-    }
+          ${
+            ctxLen > 0
+              ? `
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer; font-weight:600;">📄 Contexto enviado a la IA (${ctxLen} chars)</summary>
+            <pre class="siuo-context-preview">${_escapeHtml(ctxPreview)}</pre>
+          </details>`
+              : ""
+          }
+        </details>
+
+      </div>`;
   } catch (e) {
     if (resultEl) {
       resultEl.innerHTML = `<div class="siuo-error">❌ Error: ${_escapeHtml(e.message)}</div>`;
     }
     siuoShowToast("Error en la prueba: " + e.message, "error");
   }
+}
+
+/**
+ * Convierte Markdown básico a HTML seguro para mostrar en el panel.
+ * Solo convierte: negrita, cursiva, listas, saltos de línea.
+ * NO usa innerHTML con contenido sin escapar (XSS safe).
+ */
+function _markdownToHtml(text) {
+  if (!text) return "";
+  let html = _escapeHtml(text);
+  // Negrita: **texto** → <strong>texto</strong>
+  html = html.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+  // Cursiva: *texto* → <em>texto</em>
+  html = html.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+  // Código inline: `texto` → <code>texto</code>
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Listas: líneas que empiezan con "- " o "* "
+  html = html.replace(/^[-\*]\s+(.+)$/gm, "<li>$1</li>");
+  html = html.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
+  // Saltos de línea dobles → párrafos
+  html = html.replace(/\n\n+/g, "</p><p>");
+  html = html.replace(/\n/g, "<br>");
+  return `<p>${html}</p>`;
 }
 
 // ─── Render: Skeleton principal ───────────────────────────────────────────────
