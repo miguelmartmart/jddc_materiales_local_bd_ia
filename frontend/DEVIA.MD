@@ -1,32 +1,37 @@
-# 🖥️ Frontend (SPA) - DEVIA
+# DEVIA FRONTEND CONTEXT
+# Chat web UI — conecta con el backend DEVIA en puerto 8001.
 
-El frontend es una Single Page Application (SPA) ligera, sin frameworks pesados (Vanilla JS), diseñada para ser rápida y fácil de mantener.
+```json
+{
+  "module": "frontend",
+  "description": "Interfaz web del chat IA DEVIA. HTML/JS estático servido por FastAPI.",
+  "last_updated": "03/03/2026",
 
-## Arquitectura
+  "backend_connection": {
+    "url": "http://localhost:8001",
+    "endpoints": {
+      "chat": "POST /api/chat/send",
+      "config": "GET/POST /api/chat/config",
+      "health": "GET /health"
+    }
+  },
 
-*   **Ruta Base**: `frontend/`
-*   **Entry Point**: `index.html` (Estructura HTML única).
-*   **Gestor de Módulos**: `assets/js/core/router.js` (Simulado, cambio de vistas).
-*   **Estilos**: `assets/css/` (CSS puro, variables CSS para temas).
+  "ai_mode_actual": {
+    "mode": "LOCAL_ONLY",
+    "ai_local_only": true,
+    "model": "Qwen3 VL 30B @ 192.168.0.36",
+    "note": "El fallback multi-modelo está DESHABILITADO. Solo usa la IA local LAN."
+  },
 
-## Módulos JS (`assets/js/modules/`)
+  "arranque": {
+    "script": "ARRANCAR_DEVIA.bat (doble clic en bots/interjddcia/)",
+    "url_local": "http://localhost:8001",
+    "url_red": "http://192.168.0.38:8001"
+  },
 
-> [!NOTE]
-> Para detalles técnicos profundos, ver [DEVIA.MD](file:///c:/Users/migue/Documents/activepieces/pendiente-fact/bots/interjddcia/frontend/assets/js/modules/DEVIA.MD) en dicha carpeta.
-
-### 1. `chat.js`
-*   Gestiona la interfaz de chat (Text-to-SQL).
-*   Stateful: Mantiene historial de conversación en memoria.
-*   Conecta con `POST /api/chat/send`.
-
-### 2. `models.js`
-*   Gestión de modelos de IA.
-*   Sistema de filtrado y configuración.
-
-### 3. `outlook.js`
-*   Cliente de correo unificado.
-
-## Estándares UI
-*   **Simplicidad**: No usar librerías externas si no es 100% necesario.
-*   **Feedback**: Mostrar siempre estados de carga (spinners, "thinking...") y notificaciones de error claras.
-*   **Responsive**: Diseño fluido compatible con `flex` y `grid`.
+  "related_devia": [
+    "bots/interjddcia/DEVIA.MD (documentación principal)",
+    "frontend/assets/js/modules/DEVIA.MD (módulos JS)"
+  ]
+}
+```

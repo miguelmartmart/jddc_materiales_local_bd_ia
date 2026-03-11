@@ -1,0 +1,1117 @@
+{
+  "queries": [
+    {
+      "ts": "2026-03-04T15:40:31.890615",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "almacen"
+      ],
+      "tables_used": [
+        "ALMACEN",
+        "ARTICULO",
+        "DOCLIN"
+      ],
+      "unknown_kws": [
+        "articulos",
+        "ventas",
+        "facturas",
+        "clientes",
+        "proveedores"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.900020",
+      "question": "facturas del mes pasado",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.908768",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "articulos",
+        "ventas",
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.920594",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "pedidos",
+        "proveedores",
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.932699",
+      "question": "cuantos articulos hay",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "articulos"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:31.943071",
+      "question": "clientes de Madrid",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "clientes",
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:40:34.518675",
+      "question": "usuarios del sistema",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "usuarios",
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.810000",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-04T15:46:47.818573",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.826197",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.833397",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:47.840157",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-04T15:46:47.847819",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-04T15:46:48.672414",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.577402",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:15:24.585811",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.594198",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.603747",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:24.611968",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:15:24.620295",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:15:27.432089",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.697241",
+      "question": "articulos con mas ventas facturas clientes proveedores almacen",
+      "keywords": [
+        "articulo",
+        "venta",
+        "factura",
+        "cliente",
+        "proveedor",
+        "almacen"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN",
+        "DOCLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:21:00.710214",
+      "question": "facturas del mes pasado",
+      "keywords": [
+        "factura"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "mes",
+        "pasado"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.716036",
+      "question": "articulos con mas ventas este mes",
+      "keywords": [
+        "articulo",
+        "venta"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "ARTICULO",
+        "DOCLIN",
+        "CLIENTE",
+        "PROVEED",
+        "ALMACEN"
+      ],
+      "unknown_kws": [
+        "este",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.730870",
+      "question": "pedidos a proveedores del ultimo mes",
+      "keywords": [
+        "pedido",
+        "proveedor"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "PROVEED",
+        "DOCLIN",
+        "CLIENTE",
+        "ARTICULO"
+      ],
+      "unknown_kws": [
+        "ultimo",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:00.739898",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulo"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "DOCLIN",
+        "ALMACEN",
+        "DOCCAB"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T10:21:00.747166",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE",
+        "DOCCAB",
+        "DOCLIN",
+        "PROVEED"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T10:21:01.659497",
+      "question": "usuarios del sistema",
+      "keywords": [
+        "usuario"
+      ],
+      "tables_used": [
+        "USUARIO"
+      ],
+      "unknown_kws": [
+        "sistema"
+      ]
+    },
+    {
+      "ts": "2026-03-06T12:59:38.865908",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T12:59:38.877807",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:17.109735",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:17.126849",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:36.300317",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:05:36.315748",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:12:32.479638",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:24.189570",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:41.262886",
+      "question": "clientes de Madrid",
+      "keywords": [
+        "cliente"
+      ],
+      "tables_used": [
+        "CLIENTE"
+      ],
+      "unknown_kws": [
+        "madrid"
+      ]
+    },
+    {
+      "ts": "2026-03-06T13:14:41.274142",
+      "question": "facturas del mes",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "facturas",
+        "mes"
+      ]
+    },
+    {
+      "ts": "2026-03-06T15:39:27.931158",
+      "question": "dime los artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-06T16:14:24.428397",
+      "question": "dime los artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:22:18.367999",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:22:44.254823",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:14.130106",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:31.129853",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:39.101458",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:43.387755",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:56.184797",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:24:59.138689",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:20.014331",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:28.388841",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-09T16:25:51.059646",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "ARTICULO",
+        "FABRICA"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T11:23:30.567990",
+      "question": "dime los 3 artículos con mas compras",
+      "keywords": [],
+      "tables_used": [],
+      "unknown_kws": [
+        "artículos",
+        "compras"
+      ]
+    },
+    {
+      "ts": "2026-03-10T11:40:27.464709",
+      "question": "dime los dos artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": [
+        "dos"
+      ]
+    },
+    {
+      "ts": "2026-03-10T11:47:37.309651",
+      "question": "cuantos articulos hay",
+      "keywords": [
+        "articulos"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ARTICULO",
+        "FOTOGRAF",
+        "COMISART",
+        "FABARTFABASOC",
+        "REPLIN"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T11:50:36.599517",
+      "question": "dime los dos artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": [
+        "dos"
+      ]
+    },
+    {
+      "ts": "2026-03-10T11:51:15.085585",
+      "question": "dime los dos artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": [
+        "dos"
+      ]
+    },
+    {
+      "ts": "2026-03-10T11:52:34.796986",
+      "question": "dime los dos artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": [
+        "dos"
+      ]
+    },
+    {
+      "ts": "2026-03-10T12:09:37.026615",
+      "question": "DIME los 4 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:09:37.063565",
+      "question": "DIME los 4 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:09:38.218578",
+      "question": "DIME los 4 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:44:34.806546",
+      "question": "dime los 5 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:44:34.846651",
+      "question": "dime los 5 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:44:35.941570",
+      "question": "dime los 5 artículos con mas compras",
+      "keywords": [
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "DOCLIN",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ARTICULO",
+        "ESTPROVEED",
+        "FOTOGRAF",
+        "COMISART"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:45:17.825960",
+      "question": "dime el nombre de los 5 artículos con mas compras",
+      "keywords": [
+        "nombre",
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "OBRALIN",
+        "DOCLIN",
+        "DOCMED",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:45:17.881102",
+      "question": "dime el nombre de los 5 artículos con mas compras",
+      "keywords": [
+        "nombre",
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "OBRALIN",
+        "DOCLIN",
+        "DOCMED",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-10T12:45:18.226829",
+      "question": "dime el nombre de los 5 artículos con mas compras",
+      "keywords": [
+        "nombre",
+        "articulos",
+        "compras"
+      ],
+      "tables_used": [
+        "ARTICULO",
+        "OBRALIN",
+        "DOCLIN",
+        "DOCMED",
+        "DOCCAB",
+        "HISTORICOPRECIOS",
+        "ESTFAMILIA",
+        "ESTPROVEED"
+      ],
+      "unknown_kws": []
+    }
+  ],
+  "unknown_keywords": {
+    "articulos": 3,
+    "ventas": 2,
+    "facturas": 6,
+    "clientes": 2,
+    "proveedores": 2,
+    "pasado": 4,
+    "este": 4,
+    "pedidos": 1,
+    "ultimo": 4,
+    "madrid": 10,
+    "usuarios": 1,
+    "sistema": 4,
+    "artículos": 1,
+    "compras": 1
+  }
+}

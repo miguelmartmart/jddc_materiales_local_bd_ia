@@ -12,7 +12,9 @@ from backend.core.utils.constants import (
 )
 from backend.drivers.db.firebird_queries import QUERY_TABLES, QUERY_TABLE_COLUMNS
 from backend.core.config.database_metadata import get_semantic_schema, get_table_for_concept
+from backend.modules.db_explorer.context_retriever import get_context_retriever
 from backend.modules.chat.sql_corrector import SQLCorrector
+from backend.modules.chat.firebird_sql_normalizer import FirebirdSQLNormalizer
 from backend.modules.chat.model_fallback_orchestrator import ModelFallbackOrchestrator
 import logging
 import os
@@ -27,11 +29,213 @@ from backend.modules.images.core.storage import LocalStorageManager
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+# ─── Delegación a chat_voice_interpreter (única fuente de verdad) ─────────────
+from backend.modules.chat.chat_voice_interpreter import (
+    interpret_results_for_voice as _interpret_voice_impl,
+    clean_for_tts as _clean_tts_impl,
+)
+
+
+def interpret_results_for_voice(message: str, results: list, sql_query: str) -> str:
+    """
+    Interpreta resultados de BD de forma DETERMINISTA para clientes de voz (gafas Meta).
+
+    DELEGACIÓN: Esta función delega a chat_voice_interpreter.py (única fuente de verdad).
+    El fix del bug TOTAL/COUNT está en chat_voice_interpreter._interpret_single_value.
+
+    Elimina la segunda llamada a IA para clientes de voz, reduciendo el tiempo total
+    de respuesta de ~42s a ~22s y evitando timeouts en Android (60s).
+    """
+    return _interpret_voice_impl(message, results, sql_query)
+
+
+def _interpret_results_for_voice_LEGACY(message: str, results: list, sql_query: str) -> str:
+    """LEGACY — NO usar. Solo referencia histórica. BUG: confunde TOTAL con COUNT."""
+    if not results:
+        return "No encontré ningún resultado para tu consulta."
+    
+    n = len(results)
+    
+    # Caso 1: Resultado de COUNT/SUM/AVG/MAX/MIN (una sola fila, una sola columna numérica)
+    if n == 1 and len(results[0]) == 1:
+        key = list(results[0].keys())[0]
+        val = results[0][key]
+        
+        # Detectar tipo de consulta por palabras clave en el mensaje
+        msg_lower = message.lower()
+        
+        if any(w in msg_lower for w in ['cuántos', 'cuantos', 'total', 'número', 'numero', 'cantidad']):
+            # Formatear número
+            if isinstance(val, float):
+                val_str = f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            else:
+                val_str = str(val)
+            
+            # Detectar qué se está contando
+            if any(w in msg_lower for w in ['artículo', 'articulo', 'producto']):
+                return f"Hay {val_str} artículos en la base de datos."
+            elif any(w in msg_lower for w in ['cliente']):
+                return f"Hay {val_str} clientes en la base de datos."
+            elif any(w in msg_lower for w in ['factura']):
+                return f"Hay {val_str} facturas en la base de datos."
+            elif any(w in msg_lower for w in ['proveedor']):
+                return f"Hay {val_str} proveedores en la base de datos."
+            elif any(w in msg_lower for w in ['pedido']):
+                return f"Hay {val_str} pedidos en la base de datos."
+            elif any(w in msg_lower for w in ['albarán', 'albaran']):
+                return f"Hay {val_str} albaranes en la base de datos."
+            else:
+                return f"El resultado es {val_str}."
+        
+        elif any(w in msg_lower for w in ['suma', 'total', 'importe', 'facturado']):
+            if isinstance(val, (int, float)):
+                val_str = f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                return f"El total es {val_str} euros."
+            return f"El resultado es {val}."
+        
+        else:
+            return f"El resultado es {val}."
+    
+    # Caso 2: Una sola fila con múltiples columnas (detalle de un registro)
+    if n == 1:
+        row = results[0]
+        parts = []
+        for key, val in row.items():
+            if val is None:
+                continue
+            key_clean = key.replace('_', ' ').title()
+            if isinstance(val, float):
+                val_str = f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                parts.append(f"{key_clean}: {val_str}")
+            else:
+                parts.append(f"{key_clean}: {val}")
+        
+        if parts:
+            return "El registro encontrado tiene: " + ", ".join(parts) + "."
+        return "Se encontró un registro pero sin datos relevantes."
+    
+    # Caso 3: Múltiples filas — extraer el campo más relevante (NOMBRE, DESCRIPCION, etc.)
+    # Prioridad de campos para mostrar en voz
+    VOICE_PRIORITY_FIELDS = [
+        'NOMBRE', 'DESCRIPCION', 'DESCRIPCIONCORTA', 'RAZONSOCIAL',
+        'NOMBRE_CLIENTE', 'NOMBRE_ARTICULO', 'TITULO', 'CONCEPTO',
+        'NUMERO', 'CODIGO', 'REFERENCIA', 'REF'
+    ]
+    
+    # Encontrar el campo más relevante disponible en los resultados
+    available_keys = list(results[0].keys()) if results else []
+    display_key = None
+    for priority_key in VOICE_PRIORITY_FIELDS:
+        for avail_key in available_keys:
+            if avail_key.upper() == priority_key:
+                display_key = avail_key
+                break
+        if display_key:
+            break
+    
+    # Si no hay campo prioritario, usar el primero disponible
+    if not display_key and available_keys:
+        display_key = available_keys[0]
+    
+    if not display_key:
+        return f"Se encontraron {n} resultados."
+    
+    # Extraer valores del campo seleccionado
+    values = []
+    for row in results:
+        val = row.get(display_key)
+        if val is not None:
+            val_str = str(val).strip()
+            if val_str:
+                values.append(val_str)
+    
+    if not values:
+        return f"Se encontraron {n} resultados pero sin datos de texto."
+    
+    # Formatear según cantidad
+    msg_lower = message.lower()
+    
+    # Detectar si el usuario pidió un número específico
+    import re as _re
+    num_match = _re.search(r'\b(un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\b', msg_lower)
+    
+    if len(values) == 1:
+        return f"El resultado es: {values[0]}."
+    elif len(values) == 2:
+        return f"Los dos resultados son: {values[0]} y {values[1]}."
+    elif len(values) <= 5:
+        last = values[-1]
+        rest = values[:-1]
+        return f"Los {len(values)} resultados son: {', '.join(rest)} y {last}."
+    else:
+        # Más de 5: mostrar los primeros 3 y decir cuántos hay en total
+        primeros = values[:3]
+        return (
+            f"Encontré {n} resultados. Los primeros son: "
+            f"{', '.join(primeros)}, y así sucesivamente."
+        )
+
+
+def clean_for_tts(text: str) -> str:
+    """
+    Limpia el texto de formato Markdown para que el TTS de las gafas Meta
+    lo lea de forma natural, sin decir 'asterisco', 'almohadilla', etc.
+    
+    Se aplica SIEMPRE a todas las respuestas del backend.
+    """
+    import re
+    
+    # 1. Negrita y cursiva: **texto** → texto, *texto* → texto, __texto__ → texto
+    text = re.sub(r'\*{1,3}([^*\n]+?)\*{1,3}', r'\1', text)
+    text = re.sub(r'_{1,3}([^_\n]+?)_{1,3}', r'\1', text)
+    
+    # 2. Código inline: `texto` → texto
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    
+    # 3. Bloques de código: ```...``` → eliminar completamente (no se leen en voz)
+    text = re.sub(r'```[\s\S]*?```', '', text, flags=re.MULTILINE)
+    
+    # 4. Encabezados: ### Título → Título
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # 5. Listas numeradas: "1. Elemento" → "Elemento" (el TTS ya dice el número si está en el texto)
+    #    Pero mantenemos el número para que suene natural: "1. X" → "Primero, X" no, mejor "uno: X"
+    #    Simplemente quitamos el punto: "1. " → "1, "
+    text = re.sub(r'^(\d+)\.\s+', r'\1, ', text, flags=re.MULTILINE)
+    
+    # 6. Listas con guión o asterisco: "- Elemento" → "Elemento"
+    text = re.sub(r'^[\-\*\•]\s+', '', text, flags=re.MULTILINE)
+    
+    # 7. Links Markdown: [texto](url) → texto
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    
+    # 8. Imágenes Markdown: ![alt](url) → eliminar
+    text = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', text)
+    
+    # 9. Líneas horizontales: --- o *** → eliminar
+    text = re.sub(r'^[\-\*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    
+    # 10. Emojis problemáticos para TTS: mantener solo los que suenan bien
+    #     Los emojis en general el TTS los ignora o los lee raro, los eliminamos
+    text = re.sub(r'[^\w\s\.,;:!¡?¿\-\(\)\/€%ñÑáéíóúÁÉÍÓÚüÜ\n]', ' ', text)
+    
+    # 11. Múltiples espacios → un espacio
+    text = re.sub(r'  +', ' ', text)
+    
+    # 12. Múltiples líneas vacías → una sola línea vacía
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # 13. Trim final
+    text = text.strip()
+    
+    return text
+
+
 class ChatService:
     
     def __init__(self):
         self.sql_corrector = SQLCorrector()
-        self.model_orchestrator = ModelFallbackOrchestrator()
+        self.sql_normalizer = FirebirdSQLNormalizer()
         self.model_orchestrator = ModelFallbackOrchestrator()
         self._load_config()
         self.image_service = ImageService()
@@ -161,10 +365,21 @@ class ChatService:
             except Exception as e:
                 return f"Error debug columns: {str(e)}"
         
-        # 1. Get DB Schema Context - Use semantic schema
-        logger.info(f"[DATABASE] Generando esquema semántico optimizado...")
-        db_context = get_semantic_schema()
-        logger.info(f"[DATABASE] Esquema semántico: {len(db_context)} caracteres (optimizado para tokens)")
+        # 1. Get DB Schema Context — SIUO v2 si disponible, fallback v1
+        try:
+            retriever = get_context_retriever()
+            db_context, ctx_meta = retriever.get_context(message)
+            source = ctx_meta.get("source", "fallback")
+            tables = ctx_meta.get("tables_used", [])
+            tokens = ctx_meta.get("tokens_estimated", 0)
+            logger.info(
+                f"[DATABASE] Contexto SIUO ({source}): "
+                f"{len(tables)} tablas, ~{tokens} tokens, {len(db_context)} chars"
+            )
+        except Exception as _ctx_err:
+            logger.warning(f"[DATABASE] ContextRetriever fallo ({_ctx_err}), usando fallback v1")
+            db_context = get_semantic_schema()
+            logger.info(f"[DATABASE] Esquema v1: {len(db_context)} caracteres")
         
         # 2. Build conversation history context
         from backend.core.utils.constants import UILimits
@@ -208,24 +423,24 @@ Si ves texto en la imagen, transcríbelo pero NO lo busques en ninguna tabla.
 {history_context}
 """
         else:
-            # Standard SQL Mode
-            system_prompt = f"""
-Eres un asistente experto en bases de datos Firebird SQL.
-Convierte preguntas en lenguaje natural a consultas SQL válidas.
+            # Standard SQL Mode — system prompt ultra-compacto para minimizar tokens
+            system_prompt = f"""Firebird 2.5 SQL. Convierte preguntas a SQL válido.
 {history_context}
 {db_context}
-
-INSTRUCCIONES CRÍTICAS:
-1. Usa SOLO las tablas y columnas del esquema arriba
-2. Para "productos" → tabla ARTICULO
-3. Para "clientes" → tabla CLIENTE  
-4. Para "facturas/ventas" → tabla DOCCAB
-5. Genera SQL válido para Firebird 2.5
-6. Delimita SQL con ```sql y ```
-7. Si no requiere SQL, responde directamente
-8. IMPORTANTE: Para limitar resultados usa FIRST N (ej: SELECT FIRST 10...)
-9. NUNCA uses LIMIT, ROWS, o TOP - solo FIRST es válido en Firebird
-"""
+REGLAS(no negociar):
+• FIRST N no LIMIT/TOP/ROWS: SELECT FIRST 10 CODIGO FROM ARTICULO
+• UPPER(col) LIKE UPPER('%x%') para texto (Firebird es case-sensitive)
+• BLOB(DESCRIPCION en ARTICULO/DOCCAB) → NO usar en GROUP BY/ORDER BY/SELECT si hay GROUP BY; usa DESCRIPCIONCORTA o NOMBRE
+• ARTICULO.STOCK no existe → usar STOCKARTICULO
+• DOCCAB.TIPO: 13=factura,12=pedido,11=albaran,0=presupuesto,3=abono,2=SAT
+• Fechas: EXTRACT(MONTH FROM FECHA), EXTRACT(YEAR FROM FECHA); NO DATEADD dentro de EXTRACT
+• Mes pasado: (EXTRACT(YEAR FROM FECHA)*12+EXTRACT(MONTH FROM FECHA))=(EXTRACT(YEAR FROM CURRENT_DATE)*12+EXTRACT(MONTH FROM CURRENT_DATE)-1)
+• Artículos con más compras → JOIN DOCLIN ON DOCLIN.CODIGO=ARTICULO.CODIGO GROUP BY ARTICULO.CODIGO,ARTICULO.NOMBRE ORDER BY COUNT(*) DESC
+• Delimita SQL con ```sql y ```; si no requiere SQL responde directamente
+EJEMPLO COMPLETO(artículos con más compras):
+```sql
+SELECT FIRST 5 A.CODIGO, A.NOMBRE, COUNT(*) AS NCOMPRAS FROM ARTICULO A JOIN DOCLIN L ON L.CODIGO=A.CODIGO GROUP BY A.CODIGO, A.NOMBRE ORDER BY NCOMPRAS DESC
+```"""
         # Dynamic Context Injection based on History
         last_ai_msg = ""
         if 'conversation_history' in context:
@@ -447,19 +662,24 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
             try:
                 sql_query = response_text.split(SQLDelimiters.START)[1].split(SQLDelimiters.END)[0].strip()
                 
-                # Limpiar query: remover punto y coma al final
-                sql_query = sql_query.rstrip(';').strip()
+                # ── NORMALIZACIÓN DETERMINISTA ──────────────────────────────────────────
+                # FirebirdSQLNormalizer aplica en un solo paso todas las correcciones
+                # que se pueden hacer por código (sin IA):
+                #   • Multilínea → una línea
+                #   • LIMIT/TOP/ROWS → FIRST N
+                #   • Añade FIRST N si falta (no en agregaciones)
+                #   • ILIKE / LIKE → UPPER(col) LIKE UPPER(val)
+                #   • != → <>, TRUE/FALSE → 'T'/'F'
+                #   • NOW()/GETDATE()/SYSDATE → CURRENT_TIMESTAMP/CURRENT_DATE
+                #   • CONCAT(a,b) → a || b, SUBSTRING(c,p,l) → SUBSTRING(c FROM p FOR l)
+                #   • OFFSET N → eliminar, backticks → sin comillas
+                #   • Columnas erróneas conocidas (STOCK → STOCKARTICULO)
+                # ────────────────────────────────────────────────────────────────────────
+                sql_query, norm_changes = self.sql_normalizer.normalize(sql_query)
+                if norm_changes:
+                    logger.info(f"[SQL NORMALIZER] {len(norm_changes)} correcciones deterministas aplicadas")
                 
-                # Añadir FIRST si es SELECT y no tiene FIRST, y NO es una consulta de agregación simple
-                sql_upper = sql_query.upper()
-                is_aggregate = any(agg in sql_upper for agg in ['COUNT(', 'SUM(', 'AVG(', 'MAX(', 'MIN('])
-                
-                if sql_upper.startswith(SQLKeywords.SELECT) and SQLKeywords.FIRST not in sql_upper and not is_aggregate:
-                    # Insertar FIRST después de SELECT
-                    sql_query = sql_query[:6] + f' {SQLKeywords.FIRST} {SQLLimits.DEFAULT_FIRST}' + sql_query[6:]
-                    logger.info(f"{LogPrefixes.SQL} {LogEmojis.WARNING} Añadido FIRST {SQLLimits.DEFAULT_FIRST} automáticamente para limitar resultados")
-                
-                logger.info(f"[SQL] Consulta extraída: {sql_query}")
+                logger.info(f"[SQL] Consulta normalizada: {sql_query}")
                 logger.info(f"[DATABASE] 🔄 Ejecutando consulta SQL...")
                 
                 # Execute with auto-correction
@@ -477,11 +697,16 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 logger.info(f"[DATABASE] Datos: {results[:3] if len(results) > 3 else results}")  # First 3 rows
                 
                 # --- DATA PRIVACY CHECK ---
-                # Check if we need user confirmation before sending data to AI
+                # confirm_data_sending values:
+                #   None  → client didn't send the field (Android/voice) → auto-confirm, skip check
+                #   False → web client, pending user confirmation → block and ask
+                #   True  → web client confirmed → proceed
                 require_confirmation = getattr(settings, 'REQUIRE_DB_DATA_CONFIRMATION', True)
-                confirm_sending = context.get('confirm_data_sending', False) if context else False
+                confirm_data_sending = context.get('confirm_data_sending') if context else None
+                # Only block if web client explicitly has it as False (pending confirmation)
+                client_needs_confirmation = (require_confirmation and results and confirm_data_sending is False)
                 
-                if require_confirmation and results and not confirm_sending:
+                if client_needs_confirmation:
                     logger.info(f"[PRIVACY] 🛑 Deteniendo para confirmación de usuario")
                     return {
                         "status": "confirmation_required",
@@ -494,29 +719,78 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 # --------------------------
                 
                 # 6. Interpret Results
-                interpretation_prompt = (
-                    f"Pregunta original: {message}\n"
-                    f"Consulta SQL ejecutada: {sql_query}\n"
-                    f"Resultados obtenidos: {results}\n\n"
-                    "Responde al usuario siguiendo estas REGLAS ESTRICTAS:\n"
-                    "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
-                    "2. Sé objetivo y directo. Evita frases subjetivas como 'Es importante destacar', 'Los precios pueden variar', etc.\n"
-                    "3. Los precios están en EUROS (EUR). Nunca uses el símbolo $.\n"
-                    "4. Presenta los datos de forma clara y concisa (lista o tabla si es apropiado).\n"
-                    "5. Si no hay resultados, dilo claramente."
-                )
+                # Detect if client is voice/Android (confirm_data_sending is None = not sent)
+                is_voice_client = (context.get('confirm_data_sending') is None)
                 
-                logger.info(f"[AI PROVIDER] 📤 Solicitando interpretación de resultados...")
-                
-                # Use ModelFallbackOrchestrator for interpretation to handle rate limits
-                final_response, _ = await self.model_orchestrator.execute_with_fallback(
-                    system_prompt="Eres un asistente experto en análisis de datos.",
-                    user_message=interpretation_prompt,
-                    feedback_callback=None
-                )
-                
-                if not final_response:
-                    final_response = f"He obtenido {len(results)} resultados, pero no he podido generar una explicación detallada en este momento debido a una alta carga en los servidores de IA. Aquí tienes los datos crudos: {results[:5]}"
+                if is_voice_client:
+                    # ── INTERPRETACIÓN DETERMINISTA PARA VOZ ────────────────────────────
+                    # Para clientes de voz (gafas Meta), usamos interpret_results_for_voice()
+                    # en lugar de una segunda llamada a IA.
+                    #
+                    # Beneficio: elimina ~20s de la segunda llamada a IA, reduciendo el
+                    # tiempo total de ~42s a ~22s y evitando el timeout de 60s en Android.
+                    #
+                    # La función es 100% determinista: formatea los datos directamente
+                    # en lenguaje natural sin necesidad de IA.
+                    # ────────────────────────────────────────────────────────────────────
+                    logger.info(f"[TTS] 🔊 Interpretación determinista para voz (sin 2ª llamada IA)")
+                    final_response = interpret_results_for_voice(message, results, sql_query)
+                    final_response = clean_for_tts(final_response)
+                    logger.info(f"[TTS] Respuesta voz: {final_response}")
+                else:
+                    # WEB INTERPRETER: Respuesta con justificación en desplegable HTML
+                    # La justificación va dentro de <details><summary> para que el usuario
+                    # pueda desplegarla si quiere. marked.parse() preserva HTML inline.
+                    interpretation_system = (
+                        "Eres un asistente experto en análisis de datos Firebird. "
+                        "Tus respuestas son ULTRA FIABLES. Siempre incluyes justificación "
+                        "de dónde viene cada dato, qué SQL se ejecutó y cómo verificarlo, "
+                        "pero la justificación va en un bloque HTML colapsado."
+                    )
+                    n_rows = len(results)
+                    cols_used = list(results[0].keys()) if results else []
+                    interpretation_prompt = (
+                        f"PREGUNTA DEL USUARIO: {message}\n\n"
+                        f"SQL EJECUTADO:\n```sql\n{sql_query}\n```\n\n"
+                        f"RESULTADOS ({n_rows} filas, columnas: {', '.join(cols_used)}):\n{results}\n\n"
+                        "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
+                        "[Aquí va la respuesta directa a la pregunta. Lista o tabla Markdown si hay múltiples resultados. "
+                        "Precios en EUR. NO inventes datos. Sin encabezados extra.]\n\n"
+                        "<details>\n"
+                        "<summary>🔍 Ver justificación y fuentes</summary>\n\n"
+                        "**Tablas consultadas:** [lista las tablas del SQL]\n\n"
+                        "**Columnas devueltas:** [lista las columnas del resultado]\n\n"
+                        "**Registros devueltos:** [número exacto]\n\n"
+                        "**SQL ejecutado:**\n"
+                        "```sql\n"
+                        "[copia aquí el SQL exacto]\n"
+                        "```\n\n"
+                        "**Cómo verificarlo:** [indica el campo clave para buscar en la BD, "
+                        "ej: busca ARTICULO.CODIGO = X en la tabla ARTICULO]\n\n"
+                        "**Razonamiento:** [explica brevemente qué tablas se unieron, "
+                        "qué filtros se aplicaron y por qué el resultado responde a la pregunta]\n\n"
+                        "</details>\n\n"
+                        "REGLAS:\n"
+                        "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
+                        "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
+                        "3. Sé objetivo. Sin frases como 'Es importante destacar'.\n"
+                        "4. Si hay datos sospechosos (negativos, nulos), menciónalos.\n"
+                        "5. El bloque <details>...</details> debe estar SIEMPRE al final, "
+                        "después de la respuesta principal."
+                    )
+                    
+                    logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB...")
+                    final_response, _ = await self.model_orchestrator.execute_with_fallback(
+                        system_prompt=interpretation_system,
+                        user_message=interpretation_prompt,
+                        feedback_callback=None
+                    )
+                    
+                    if not final_response:
+                        final_response = (
+                            f"He obtenido {len(results)} resultados, pero no he podido generar "
+                            f"una explicacion detallada. Datos: {results[:5]}"
+                        )
                 
                 logger.info(f"[AI PROVIDER] 📥 Interpretación recibida")
                 logger.info(f"[RESPUESTA FINAL] {final_response}")
@@ -527,6 +801,12 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 logger.error(f"[ERROR SQL] ❌ Error ejecutando consulta: {str(e)}")
                 logger.error(f"[ERROR SQL] Consulta fallida: {sql_query}")
                 return f"Intenté ejecutar una consulta pero falló: {str(e)}\nConsulta: {sql_query}"
+        
+        # Para clientes de voz: limpiar Markdown de respuestas de texto libre también
+        is_voice_client = (context.get('confirm_data_sending') is None)
+        if is_voice_client and isinstance(response_text, str):
+            response_text = clean_for_tts(response_text)
+            logger.info(f"[TTS] 🔊 Respuesta de texto libre limpiada para voz")
         
         logger.info(f"[RESPUESTA FINAL] {response_text}")
         logger.info("="*80)
@@ -602,6 +882,18 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
 
     def _execute_sql(self, query: str, db_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         logger.info(f"[DATABASE] Preparando ejecución de consulta...")
+        
+        # Si no hay db_params (ej: petición desde gafas sin parámetros),
+        # usar los valores del .env como fallback
+        if not db_params:
+            logger.info(f"[DATABASE] Sin db_params en contexto — usando configuración del .env")
+            db_params = {
+                "host": settings.DB_HOST,
+                "port": settings.DB_PORT,
+                "database": settings.DB_NAME,
+                "user": settings.DB_USER,
+                "password": settings.DB_PASSWORD,
+            }
         
         max_retries = 3
         retry_count = 0

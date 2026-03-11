@@ -12,6 +12,8 @@ Sistema genérico de gestión de bases de datos con integración de IA para cons
 - **Constantes Centralizadas**: Single source of truth para toda la configuración
 - **Arquitectura Modular**: Fácilmente extensible a diferentes bases de datos
 - **Seguridad**: API keys en variables de entorno, nunca en el código
+- **API Empleados**: Endpoint `GET /api/employees-real` con jerarquía departamental (CODPADRE/ORDEN)
+- **Tests automatizados**: Suite pytest con 38 tests (100% passing)
 
 ## 📋 Requisitos
 
@@ -150,6 +152,81 @@ Configuración en `backend/core/config/ai_providers_config.json`
 - ✅ `.gitignore` configurado para secretos
 - ✅ Validación de consultas SQL (solo SELECT)
 - ✅ Límites automáticos en consultas (FIRST 100)
+
+## 🧪 Tests
+
+El proyecto incluye una suite de tests automatizados con **pytest**.
+
+### Ejecutar tests
+
+```bash
+# Desde la raíz del proyecto interjddcia
+pushd "C:\...\interjddcia"
+.venv\Scripts\python.exe -m pytest backend/tests --rootdir=. -v
+```
+
+### Resultado actual
+
+```
+38 passed, 1 warning in 1.13s
+```
+
+### Estructura de tests
+
+```
+backend/tests/
+├── __init__.py
+└── modules/
+    └── employees/
+        ├── test_service.py   # 25 tests: _map_row_to_employee + EmployeesService
+        └── test_router.py    # 13 tests: GET /api/employees-real
+```
+
+### Configuración
+
+- **`pytest.ini`**: testpaths, pythonpath, verbosidad
+- **`conftest.py`**: sys.path + env vars mínimas para entornos sin `.env`
+
+---
+
+## 🔌 API Empleados
+
+### `GET /api/employees-real`
+
+Expone la tabla `RECURSO` de Firebird con jerarquía departamental.
+
+**Respuesta:**
+```json
+{
+  "employees": [
+    {
+      "code": 14,
+      "fullName": "GARCIA GIL, ADRIAN",
+      "nif": "48510320P",
+      "nss": "301056457317",
+      "email": null,
+      "phone": "601107251",
+      "position": null,
+      "parentCode": 2,
+      "departmentOrder": 14
+    }
+  ]
+}
+```
+
+| Campo             | Origen Firebird | Descripción                        |
+|-------------------|-----------------|------------------------------------|
+| `code`            | `CODIGO`        | ID único del registro              |
+| `fullName`        | `DESCRIPCION`   | Nombre del empleado/departamento   |
+| `parentCode`      | `CODPADRE`      | Código del departamento padre      |
+| `departmentOrder` | `ORDEN`         | Orden de visualización             |
+
+Integración con el Portal de Empleados (NestJS):
+```bash
+RESOURCES_SERVICE_URL=http://localhost:8001/api
+```
+
+---
 
 ## 📚 Documentación
 

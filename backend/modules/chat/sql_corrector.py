@@ -6,8 +6,12 @@ Detects SQL errors and requests corrected queries from AI models.
 
 from typing import Dict, Any, List
 import logging
+from backend.modules.chat.firebird_sql_normalizer import FirebirdSQLNormalizer
 
 logger = logging.getLogger(__name__)
+
+# Instancia compartida del normalizador determinista
+_normalizer = FirebirdSQLNormalizer()
 
 
 class SQLCorrector:
@@ -79,6 +83,16 @@ class SQLCorrector:
                 'message': 'Error de sintaxis SQL'
             }
         
+        # BLOB conversion error: GROUP BY / ORDER BY sobre campo BLOB
+        if 'BLOB' in error_upper and 'CONVERSION' in error_upper:
+            return {
+                'type': 'blob_in_groupby',
+                'message': (
+                    'Columna BLOB (ej: DESCRIPCION en ARTICULO) no puede usarse en GROUP BY. '
+                    'Usa CODIGO, NOMBRE o DESCRIPCIONCORTA en el GROUP BY.'
+                )
+            }
+
         # Unknown error
         return {
             'type': 'unknown',
@@ -137,6 +151,10 @@ REGLAS CRÍTICAS DE FIREBIRD 2.5:
    - Mes pasado: DATEADD(MONTH, -1, CURRENT_DATE)
    - Hace 2 meses: DATEADD(MONTH, -2, CURRENT_DATE)
    - Año pasado: DATEADD(YEAR, -1, CURRENT_DATE)
+4. COLUMNAS CORRECTAS EN TABLA ARTICULO (errores frecuentes del LLM):
+   - STOCK → NO EXISTE. Usar STOCKARTICULO (cantidad en inventario)
+   - STOCKFACTOR → factor de conversión de unidades (no es el stock)
+   - CONTROLSTOCK → indica si el artículo controla stock ('T'/'F'), NO es la cantidad
 
 INSTRUCCIONES:
 1. Analiza el error específico: "{error_message}"
@@ -200,6 +218,7 @@ CONSULTA SQL CORREGIDA:"""
         Aggressively cleans SQL to match Firebird 2.5 constraints.
         1. Removes 'LIMIT N' -> Converts to 'SELECT FIRST N' if possible or just strips it.
         2. Removes 'OFFSET N' -> Not supported in FB 2.5 easily.
+        3. Fixes known wrong column names in ARTICULO table (e.g. STOCK -> STOCKARTICULO).
         """
         import re
         
@@ -223,7 +242,7 @@ CONSULTA SQL CORREGIDA:"""
                 # Remove the LIMIT clause
                 sql = re.sub(r'\bLIMIT\s+\d+', '', sql, flags=re.IGNORECASE)
                 
-                logger.info(f"[SQL CLEANER] 🧹 Fixed LIMIT clause -> FIRST {limit_val}")
+                logger.info(f"[SQL CLEANER] Corregido LIMIT -> FIRST {limit_val}")
 
         # 2. Handle ROWS (Alternative to LIMIT often used by AI)
         if re.search(r'\bROWS\s+\d+', sql, re.IGNORECASE):
@@ -234,7 +253,25 @@ CONSULTA SQL CORREGIDA:"""
                  if not re.search(r'SELECT\s+FIRST\s+\d+', sql, re.IGNORECASE):
                      sql = re.sub(r'SELECT\s+', f'SELECT FIRST {val} ', sql, count=1, flags=re.IGNORECASE)
                  sql = re.sub(r'\bROWS\s+\d+(\s+TO\s+\d+)?', '', sql, flags=re.IGNORECASE)
-                 logger.info(f"[SQL CLEANER] 🧹 Fixed ROWS clause -> FIRST {val}")
+                 logger.info(f"[SQL CLEANER] Corregido ROWS -> FIRST {val}")
+
+        # 3. Fix known wrong column names in ARTICULO table
+        #    The LLM often generates 'STOCK' but the real column is 'STOCKARTICULO'.
+        #    We use word-boundary matching to avoid replacing 'STOCKARTICULO' itself.
+        #    Pattern: \bSTOCK\b matches 'STOCK' but NOT 'STOCKARTICULO' or 'STOCKFACTOR'.
+        ARTICULO_COLUMN_FIXES = {
+            # wrong_name: correct_name
+            r'\bSTOCK\b': 'STOCKARTICULO',   # LLM generates STOCK, real col is STOCKARTICULO
+        }
+        for wrong_pattern, correct_col in ARTICULO_COLUMN_FIXES.items():
+            if re.search(wrong_pattern, sql, re.IGNORECASE):
+                sql_fixed = re.sub(wrong_pattern, correct_col, sql, flags=re.IGNORECASE)
+                if sql_fixed != sql:
+                    logger.info(
+                        f"[SQL CLEANER] Corregida columna erronea: "
+                        f"'{wrong_pattern}' -> '{correct_col}' en ARTICULO"
+                    )
+                    sql = sql_fixed
 
         return sql
 
@@ -266,10 +303,13 @@ CONSULTA SQL CORREGIDA:"""
         Raises:
             Exception: If all correction attempts fail
         """
-        # Enforce case-insensitive search on first attempt
+        # En el primer intento: aplicar normalización determinista completa
+        # (FirebirdSQLNormalizer cubre todo lo que antes hacían enforce_case_insensitive
+        # y clean_firebird_sql, más 15 correcciones adicionales)
         if attempt == 0:
-            sql_query = self.enforce_case_insensitive(sql_query)
-            sql_query = self.clean_firebird_sql(sql_query) # Apply aggressive cleaning using regex
+            sql_query, norm_changes = _normalizer.normalize(sql_query)
+            if norm_changes:
+                logger.info(f"[SQL AUTO-CORRECTION] 🔧 {len(norm_changes)} normalizaciones deterministas aplicadas antes de ejecutar")
 
         try:
             # Try to execute the query
@@ -288,22 +328,34 @@ CONSULTA SQL CORREGIDA:"""
             # Detect error type
             error_info = self.detect_error_type(error_str)
             logger.info(f"[SQL AUTO-CORRECTION] 🔍 Tipo de error detectado: {error_info['type']}")
-            
+
             if error_info['type'] == 'unknown':
                 logger.warning(f"[SQL AUTO-CORRECTION] ⚠️ Tipo de error desconocido, no se puede corregir automáticamente")
                 raise
-            
-            # Request correction from AI
+
+            # ── Intento 1: corrección DETERMINISTA (sin IA) ───────────────────
+            # Para errores conocidos (BLOB, column_unknown, token_unknown) el
+            # normalizador puede corregir sin gastar tokens de IA.
+            deterministic_types = {'blob_in_groupby', 'column_unknown', 'invalid_keyword', 'syntax_error'}
+            if error_info['type'] in deterministic_types:
+                det_query, det_changes = _normalizer.fix_after_error(sql_query, error_str)
+                if det_changes and det_query.strip() != sql_query.strip():
+                    logger.info(f"[SQL AUTO-CORRECTION] ✅ Corrección DETERMINISTA aplicada ({len(det_changes)} cambios):")
+                    for ch in det_changes:
+                        logger.info(f"[SQL AUTO-CORRECTION]   • {ch}")
+                    return await self.execute_with_correction(
+                        det_query, original_question, db_context, ai_provider,
+                        execute_func, max_retries, attempt + 1
+                    )
+                else:
+                    logger.info(f"[SQL AUTO-CORRECTION] ℹ️ Corrección determinista no aplicable, escalando a IA...")
+
+            # ── Intento 2: corrección por IA ──────────────────────────────────
             logger.info(f"[SQL AUTO-CORRECTION] 🤖 Solicitando corrección al modelo IA...")
             corrected_query = await self.request_correction(
-                sql_query,
-                original_question,
-                error_str,
-                error_info,
-                db_context,
-                ai_provider
+                sql_query, original_question, error_str, error_info, db_context, ai_provider
             )
-            
+
             if not corrected_query or corrected_query.strip() == sql_query.strip():
                 logger.warning(f"[SQL AUTO-CORRECTION] ⚠️ El modelo no pudo generar una corrección diferente")
                 raise

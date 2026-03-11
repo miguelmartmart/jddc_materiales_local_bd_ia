@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DEVIA - Sistema de Gestión IA</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/metadata_builder.css">
+    <link rel="stylesheet" href="assets/css/siuo.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -25,6 +27,8 @@
                     <li data-view="chat">💬 Chat IA</li>
                     <li data-view="outlook">📧 Outlook</li>
                     <li data-view="anonymizer">🛡️ Anonimizar</li>
+                    <li data-view="metadata-builder">🗄️ Constructor BD</li>
+                    <li data-view="siuo">🧠 Índices SIUO</li>
                 </ul>
             </nav>
         </aside>
@@ -951,6 +955,26 @@
                         </div>
                     </div>
                 </div>
+                <!-- Constructor de Metadatos BD -->
+                <div id="view-metadata-builder" class="view-section" style="display: none;">
+                    <div id="mb-root">
+                        <div style="text-align:center; padding:40px; color:#64748b;">
+                            <div style="font-size:2em;">🗄️</div>
+                            <p>Cargando Constructor de Metadatos BD...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SIUO — Sistema de Índices Ultra-Optimizado -->
+                <div id="view-siuo" class="view-section" style="display: none;">
+                    <div id="siuo-root">
+                        <div style="text-align:center; padding:40px; color:#64748b;">
+                            <div style="font-size:2em;">🧠</div>
+                            <p>Cargando Sistema de Índices SIUO...</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -1131,7 +1155,11 @@
 
     <!-- Markdown Support -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script type="module" src="assets/js/core/app.js?v=2"></script>
+    <!-- Constructor BD: cargado como script clásico (no módulo) para exponer window.MetadataBuilder -->
+    <script src="assets/js/modules/metadata_builder.js?v=4"></script>
+    <!-- SIUO: cargado como script clásico para exponer window.SIUOModule -->
+    <script src="assets/js/modules/siuo.js?v=1"></script>
+    <script type="module" src="assets/js/core/app.js?v=4"></script>
 </body>
 
 </html>

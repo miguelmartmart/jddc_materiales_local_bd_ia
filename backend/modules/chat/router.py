@@ -15,12 +15,13 @@ class ChatRequest(BaseModel):
     db_params: Optional[Dict[str, Any]] = None
     model_id: Optional[str] = "groq-llama-70b"
     conversation_history: Optional[List[Dict[str, str]]] = []  # Lista de mensajes anteriores
-    confirm_data_sending: Optional[bool] = False
+    confirm_data_sending: Optional[bool] = None  # None = auto-confirm (Android/voice), False = web pending confirmation, True = web confirmed
     images: Optional[List[str]] = None  # Valid Base64 strings
     session_id: Optional[str] = None # New field for persistence
     
 class ConfigRequest(BaseModel):
     max_sql_retries: int
+    ai_local_only: Optional[bool] = None  # None = no cambiar el valor actual
 
 
 @router.get("/history")
@@ -75,7 +76,12 @@ async def get_config():
 
 @router.post("/config")
 async def update_config(config: ConfigRequest):
-    """Update chat configuration."""
+    """Update chat configuration.
+    
+    Campos:
+    - max_sql_retries: número máximo de reintentos SQL
+    - ai_local_only: true = solo IA local Qwen3 LAN (sin internet), false = fallback multi-modelo
+    """
     try:
         import os
         config_path = os.path.join(os.path.dirname(__file__), "config.json")
@@ -87,11 +93,19 @@ async def update_config(config: ConfigRequest):
         
         current['max_sql_retries'] = config.max_sql_retries
         
+        # Solo actualizar ai_local_only si se envió explícitamente (no None)
+        if config.ai_local_only is not None:
+            current['ai_local_only'] = config.ai_local_only
+        
         with open(config_path, 'w') as f:
             json.dump(current, f, indent=4)
             
         service._load_config() # Refresh service
-        return {"success": True, "config": current}
+        return {
+            "success": True,
+            "config": current,
+            "ai_mode": "LOCAL_ONLY (Qwen3 LAN)" if current.get('ai_local_only') else "FALLBACK_MULTI_MODEL"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

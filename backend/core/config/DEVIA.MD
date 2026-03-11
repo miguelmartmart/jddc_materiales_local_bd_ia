@@ -1,65 +1,61 @@
-# 🧠 Metadata Management System (`backend/core/config`)
-
-> **Role**: AI Context Optimization Engine
-> **Scope**: Semantic Schema, RAG-lite Indexing, Context Filtering
-> **Key File**: `db_metadata_optimized.json`
-
-## 🏗️ Architecture
-
-The system operates as an **independent metadata engine** that decouples the physical database schema from the "semantic" schema presented to the AI.
-
-| Component | File | Functionality |
-| :--- | :--- | :--- |
-| **Manager** | `metadata_manager.py` | Core logic for indexing and retrieval. Singleton pattern. |
-| **Data Source** | `db_metadata_optimized.json` | The "Truth Source". Defines tables, columns, descriptions, and common queries manually optimized for AI understanding. |
-| **Facade** | `database_metadata.py` | Backward compatibility layer. |
-
-## 🔍 Indexing & Retrieval Strategy
-
-The system implements a local **Inverted Index** initialized at startup:
-
-1.  **Keyword Extraction**: Splits table/column names and maps synonyms (e.g., `CLI` -> `CLIENTE`).
-2.  **Inverted Index Construction**:
-    *   `Table Index`: `{ "CLIENTE": {"CLIENTE", "FACTURA"}, "VENTAS": {"DOCCAB", "FACTURA"} }`
-    *   `Column Index`: `{ "DOCCAB": { "PRECIO": {"IMPORTETOTAL"} } }`
-
-### `get_focused_schema(user_query)`
-
-Instead of sending the full DB schema (expensive/limited tokens), the system:
-1.  Analyzes `user_query` for keywords.
-2.  Maps keywords to **Categories** (e.g., "Compresor" -> `Productos`).
-3.  Returns a **Subset Schema** containing only tables from relevant categories + Core tables.
-
-## 🛠️ Configuration (`db_metadata_optimized.json`)
-
-To add knowledge to the AI, **DO NOT modify python code**. Edit the JSON:
+# DEVIA CONFIG CONTEXT: AI Models & Providers
+# Configuración de modelos IA, providers y gestión de fallback.
 
 ```json
-"TABLENAME": {
-    "category": "sales|inventory|crm",
-    "record_count": 1000, // Helps AI prioritize tables
-    "description": "Natural language description for AI",
-    "columns": {
-        "COL_NAME": "TYPE - Human readable description"
+{
+  "module": "backend.core.config",
+  "description": "Gestión de modelos IA, providers y configuración del sistema.",
+  "last_updated": "03/03/2026",
+
+  "ai_mode_actual": {
+    "mode": "LOCAL_ONLY",
+    "ai_local_only": true,
+    "description": "SOLO Qwen3 VL 30B en red LAN JDDC. Fallback multi-modelo DESHABILITADO.",
+    "config_file": "backend/modules/chat/config.json"
+  },
+
+  "local_models": {
+    "primary": {
+      "id": "jddcia-qwen3-30b-ip",
+      "url": "http://192.168.0.36/api/vlm/v1",
+      "model": "unified-main",
+      "score": 95,
+      "auth": "Basic YWRtaW46YWlzdGFjazIwMjY=",
+      "note": "IP directa — USAR ESTA. jddcia.local no resuelve en Windows."
     },
-    "consultas_comunes": [
-        "Natural language query example: SQL EXAMPLE"
+    "fallback_mdns": {
+      "id": "jddcia-qwen3-30b",
+      "url": "http://jddcia.local/api/vlm/v1",
+      "model": "unified-main",
+      "score": 50,
+      "note": "mDNS — solo funciona si Bonjour/Avahi está activo en el PC"
+    }
+  },
+
+  "key_files": {
+    "jddcia_models.json": "IPs, scores y stats de modelos locales Qwen3. Editar aquí si cambia la IP.",
+    "ai_providers_config.json": "Configuración de todos los providers (Groq, Gemini, OpenAI, etc.)",
+    "model_manager.py": "Carga y gestiona modelos. Lee jddcia_models.json en cada petición.",
+    "settings.py": "Settings globales del sistema"
+  },
+
+  "change_ip_server": {
+    "description": "Si el servidor IA cambia de IP (actualmente 192.168.0.36):",
+    "steps": [
+      "1. Editar jddcia_models.json → campo base_url del modelo jddcia-qwen3-30b-ip",
+      "2. El cambio surte efecto en la siguiente petición (sin reiniciar)"
     ]
+  },
+
+  "timeout": {
+    "httpx_timeout": "20s",
+    "file": "backend/drivers/ai/jddcia_provider.py",
+    "note": "Reducido de 60s a 20s para fallback rápido cuando vLLM está ocupado"
+  },
+
+  "related_devia": [
+    "bots/interjddcia/DEVIA.MD (documentación principal)",
+    "backend/modules/chat/DEVIA.MD (módulo chat)"
+  ]
 }
-```
-
-## 🚀 Usage
-
-**Injecting Context into AI Prompts:**
-
-```python
-from backend.core.config.metadata_manager import get_metadata_manager
-
-mgr = get_metadata_manager()
-
-# Option A: Full Schema (Limited by max_tables)
-full_context = mgr.get_schema_for_ai(max_tables=10)
-
-# Option B: Query-Specific Context (Recommended)
-focused_context = mgr.get_focused_schema("cuánto vendimos a clientes de Madrid?")
 ```

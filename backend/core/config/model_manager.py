@@ -54,15 +54,18 @@ class ModelManager:
 
     def _log_key_status(self):
         """Log status of expected API Keys to console on startup."""
-        print("\n--- 🔑 API Key Status Check ---")
-        for prov_name, conf in self.providers.items():
-            env_var = conf.get('api_key_env')
-            if env_var:
-                val = getattr(settings, env_var, None)
-                status = "✅ LOADED" if val else "❌ MISSING/EMPTY"
-                masked = f"({val[:4]}...)" if val and len(val) > 4 else ""
-                print(f"{env_var}: {status} {masked}")
-        print("-------------------------------\n")
+        try:
+            print("\n--- [API Key Status Check] ---")
+            for prov_name, conf in self.providers.items():
+                env_var = conf.get('api_key_env')
+                if env_var:
+                    val = getattr(settings, env_var, None)
+                    status = "LOADED" if val else "MISSING/EMPTY"
+                    masked = f"({val[:4]}...)" if val and len(val) > 4 else ""
+                    print(f"  {env_var}: {status} {masked}")
+            print("------------------------------\n")
+        except Exception as e:
+            print(f"[model_manager] Key status check error: {e}")
 
     def _load_models(self) -> List[Dict[str, Any]]:
         models_dir = Path(__file__).parent / "models"
@@ -280,8 +283,6 @@ class ModelManager:
         """Reload configuration from disk."""
         self.providers = self._load_providers()
         self.models = self._load_models()
-
-        return sorted(candidates, key=sort_key, reverse=True)
 
     def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
         for m in self.models:

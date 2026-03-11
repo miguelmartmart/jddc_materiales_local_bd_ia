@@ -9,13 +9,16 @@ Características:
 - Fallback entre modelos ordenados por prioridad
 - Logging detallado de cada intento
 - Feedback claro al usuario durante el proceso
+- Modo AI_LOCAL_ONLY: usa solo la IA local Qwen3 LAN, sin salir a internet
 
 Autor: DEVIA System
-Versión: 1.0.0
+Versión: 1.1.0
 """
 
 import asyncio
 import logging
+import json
+import os
 # DEVIA: backend/modules/chat/DEVIA_ROBUSTNESS.md
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
@@ -31,6 +34,30 @@ from backend.core.utils.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+# IDs de modelos locales (red LAN JDDC, sin internet)
+LOCAL_MODEL_IDS = {"jddcia-qwen3-30b", "jddcia-qwen3-30b-ip"}
+
+
+def _load_ai_local_only() -> bool:
+    """
+    Lee el flag ai_local_only del config.json del chat.
+    Si es True, solo se usan modelos locales (red LAN JDDC).
+    Si es False, se usa el sistema de fallback multi-modelo completo.
+    
+    Para cambiar el modo: editar backend/modules/chat/config.json
+      "ai_local_only": true   → Solo Qwen3 LAN (sin internet)
+      "ai_local_only": false  → Fallback completo (Groq, Gemini, OpenAI, etc.)
+    """
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                cfg = json.load(f)
+            return bool(cfg.get("ai_local_only", False))
+    except Exception as e:
+        logger.warning(f"[AI_LOCAL_ONLY] No se pudo leer config.json: {e}")
+    return False
 
 
 class ModelFallbackOrchestrator:
@@ -193,6 +220,32 @@ class ModelFallbackOrchestrator:
             if feedback_callback:
                 feedback_callback(UserFeedbackMessages.ALL_MODELS_FAILED)
             return None, None
+
+        # --- MODO AI_LOCAL_ONLY ---
+        # Lee el flag en cada llamada (sin reiniciar el servidor) para que el cambio
+        # en config.json surta efecto inmediatamente.
+        ai_local_only = _load_ai_local_only()
+        if ai_local_only:
+            local_models = [m for m in prioritized_models if m.get('id') in LOCAL_MODEL_IDS]
+            if local_models:
+                logger.info(
+                    f"{LogPrefixes.AI_PROVIDER} 🔒 Modo AI_LOCAL_ONLY activo — "
+                    f"usando solo modelos LAN: {[m['name'] for m in local_models]}"
+                )
+                prioritized_models = local_models
+            else:
+                logger.error(
+                    f"{LogPrefixes.AI_PROVIDER} ❌ Modo AI_LOCAL_ONLY activo pero "
+                    f"ningún modelo local está habilitado (IDs esperados: {LOCAL_MODEL_IDS}). "
+                    f"Verifica que jddcia-qwen3-30b esté enabled=true en jddcia_models.json"
+                )
+                return None, None
+        else:
+            logger.info(
+                f"{LogPrefixes.AI_PROVIDER} 🌐 Modo FALLBACK completo activo — "
+                f"usando {len(prioritized_models)} modelos (incluye internet)"
+            )
+        # --------------------------
             
         # --- GLOBAL ANONYMIZER INTEGRATION ---
         try:
