@@ -74,6 +74,63 @@ class LanHostnames:
     }
 
 
+# ─── IDs de modelos IA locales (red LAN JDDC) ────────────────────────────────
+
+class LocalModelIds:
+    """
+    IDs de los modelos IA que corren en la red LAN de JDDC (sin internet).
+
+    FUENTE ÚNICA DE VERDAD: Este es el único lugar donde se definen estos IDs.
+    Importar desde aquí en:
+      - backend/modules/chat/model_fallback_orchestrator.py
+      - tests/unit/test_lan_only_security.py
+      - tests/privacy/test_privacidad_datos.py
+      - cualquier otro módulo que necesite distinguir LAN vs internet
+
+    MANTENIMIENTO: Si se añade un nuevo modelo LAN, añadirlo aquí.
+    El orchestrator y todos los tests lo recogerán automáticamente.
+    """
+    # Modelo Qwen3 VL 30B accedido por mDNS (jddcia.local)
+    QWEN3_MDNS = "jddcia-qwen3-30b"
+    # Modelo Qwen3 VL 30B accedido por IP directa (192.168.0.36)
+    QWEN3_IP   = "jddcia-qwen3-30b-ip"
+
+    # Set completo para búsquedas O(1)
+    ALL: frozenset = frozenset({QWEN3_MDNS, QWEN3_IP})
+
+
+# ─── IDs de modelos IA externos (internet) ───────────────────────────────────
+
+class KnownInternetModelIds:
+    """
+    IDs de modelos IA externos conocidos (proveedores de internet).
+    Usados en tests para verificar que NINGUNO es llamado cuando
+    ai_local_only=true está activo.
+
+    MANTENIMIENTO: Añadir nuevos IDs cuando se integren nuevos proveedores.
+    """
+    IDS: frozenset = frozenset({
+        # Groq
+        "groq-llama3", "groq-llama-70b",
+        "llama-3.1-8b-instant", "llama-3.3-70b-versatile",
+        "gemma-3-4b", "gemma-3-1b",
+        # Google / Gemini
+        "gemini-flash", "gemini-pro", "gemini-1.5-flash",
+        # OpenAI
+        "gpt-4o", "gpt-4o-mini", "openai-gpt4o",
+        # Anthropic
+        "claude-3-haiku", "claude-3-5-sonnet",
+        # DeepSeek
+        "deepseek-v3",
+        # Mistral
+        "mistral-large",
+        # Cohere
+        "cohere-command-r",
+        # Together / Fireworks
+        "together-llama", "fireworks-llama",
+    })
+
+
 # ─── Hosts de proveedores IA externos (internet) ─────────────────────────────
 
 class KnownInternetAIHosts:

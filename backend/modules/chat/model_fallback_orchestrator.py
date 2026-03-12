@@ -32,11 +32,13 @@ from backend.core.utils.constants import (
     LogPrefixes,
     LogEmojis
 )
+from backend.core.utils.network_audit_constants import LocalModelIds
 
 logger = logging.getLogger(__name__)
 
 # IDs de modelos locales (red LAN JDDC, sin internet)
-LOCAL_MODEL_IDS = {"jddcia-qwen3-30b", "jddcia-qwen3-30b-ip"}
+# FUENTE ÚNICA DE VERDAD: backend/core/utils/network_audit_constants.py → LocalModelIds
+LOCAL_MODEL_IDS: frozenset = LocalModelIds.ALL
 
 
 def _load_ai_local_only() -> bool:
@@ -193,6 +195,94 @@ class ModelFallbackOrchestrator:
             self.model_manager.report_result(model_id, False, error_type=str(err_code) if err_code else None, error_msg=str(e))
             return None
     
+    async def _execute_lan_only(
+        self,
+        local_models: List[Dict[str, Any]],
+        system_prompt: str,
+        user_message: str,
+        images: Optional[List[str]] = None,
+        feedback_callback: Optional[callable] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Modo AI_LOCAL_ONLY: reintenta SOLO los modelos LAN indefinidamente.
+
+        Política de reintentos con backoff:
+          intento 1-3  → espera 2s entre intentos
+          intento 4-6  → espera 5s entre intentos
+          intento 7+   → espera 10s entre intentos (máximo)
+
+        GARANTÍA: NUNCA llama a ningún modelo de internet.
+        Si todos los modelos LAN fallan, espera y vuelve a intentar.
+        Solo devuelve (None, None) si no hay ningún modelo LAN configurado.
+        """
+        # Anonimizar mensaje — SOLO con regex (lan_only=True), NUNCA llama a IA externa
+        # Garantía: ningún dato sale a internet durante la anonimización en modo LAN_ONLY
+        try:
+            from backend.modules.anonymizer.service import AnonymizerService
+            anonymizer = AnonymizerService()
+            user_message = anonymizer.anonymize_if_enabled(user_message, "chat", lan_only=True)
+        except Exception as anon_err:
+            logger.warning(f"[LAN_ONLY] Anonymizer skipped: {anon_err}")
+
+        attempt_global = 0
+        while True:
+            attempt_global += 1
+            # Backoff progresivo
+            if attempt_global <= 3:
+                backoff = 2
+            elif attempt_global <= 6:
+                backoff = 5
+            else:
+                backoff = 10
+
+            logger.info(
+                f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Ronda {attempt_global} — "
+                f"probando {len(local_models)} modelos LAN..."
+            )
+
+            for model_config in local_models:
+                model_name = model_config.get('name', 'Unknown')
+                model_id = model_config.get('id', '')
+
+                logger.info(
+                    f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Intentando {model_name} "
+                    f"(ronda global {attempt_global})"
+                )
+
+                try:
+                    response = await self._try_model(
+                        model_config=model_config,
+                        system_prompt=system_prompt,
+                        user_message=user_message,
+                        images=images,
+                        attempt=attempt_global
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⚠️ Excepción en {model_name}: {e}"
+                    )
+                    response = None
+
+                if response:
+                    logger.info(
+                        f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ✅ Respuesta de {model_name} "
+                        f"en ronda {attempt_global}"
+                    )
+                    return response, model_id
+
+            # Todos los modelos LAN fallaron en esta ronda
+            logger.warning(
+                f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⚠️ Todos los modelos LAN fallaron "
+                f"en ronda {attempt_global}. Reintentando en {backoff}s... "
+                f"(NUNCA se usará internet)"
+            )
+            if feedback_callback:
+                feedback_callback(
+                    f"⏳ IA local no disponible (intento {attempt_global}). "
+                    f"Reintentando en {backoff}s..."
+                )
+            await asyncio.sleep(backoff)
+
     async def execute_with_fallback(
         self,
         system_prompt: str,
@@ -224,15 +314,27 @@ class ModelFallbackOrchestrator:
         # --- MODO AI_LOCAL_ONLY ---
         # Lee el flag en cada llamada (sin reiniciar el servidor) para que el cambio
         # en config.json surta efecto inmediatamente.
+        #
+        # Cuando ai_local_only=true:
+        #   - SOLO se usan los modelos LAN (jddcia-qwen3-30b / jddcia-qwen3-30b-ip)
+        #   - Si fallan, se reintenta indefinidamente con backoff (nunca se rinde)
+        #   - NUNCA se hace fallback a modelos de internet
         ai_local_only = _load_ai_local_only()
         if ai_local_only:
             local_models = [m for m in prioritized_models if m.get('id') in LOCAL_MODEL_IDS]
             if local_models:
                 logger.info(
                     f"{LogPrefixes.AI_PROVIDER} 🔒 Modo AI_LOCAL_ONLY activo — "
-                    f"usando solo modelos LAN: {[m['name'] for m in local_models]}"
+                    f"usando SOLO modelos LAN (sin fallback a internet): {[m['name'] for m in local_models]}"
                 )
-                prioritized_models = local_models
+                # Modo LAN exclusivo: reintentar indefinidamente hasta obtener respuesta
+                return await self._execute_lan_only(
+                    local_models=local_models,
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    images=images,
+                    feedback_callback=feedback_callback
+                )
             else:
                 logger.error(
                     f"{LogPrefixes.AI_PROVIDER} ❌ Modo AI_LOCAL_ONLY activo pero "

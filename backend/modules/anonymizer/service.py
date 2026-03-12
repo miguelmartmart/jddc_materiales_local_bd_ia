@@ -128,14 +128,37 @@ Now, anonymize the following user text (and ONLY return the result):
         key = f"enable_{feature}"
         return self.config.get(key, True) # Default true if unknown feature
 
-    def anonymize_if_enabled(self, text: str, feature: str) -> str:
+    def anonymize_if_enabled(self, text: str, feature: str, lan_only: bool = False) -> str:
         """
         Anonymizes text if the feature is enabled.
         Returns original text on failure (Fail-Open) to ensure app resilience.
+
+        Args:
+            text:     Texto a anonimizar.
+            feature:  Nombre de la feature (e.g. "chat", "outlook").
+            lan_only: Si True, usa SOLO la capa de regex (sin llamada a IA externa).
+                      Obligatorio cuando ai_local_only=true para garantizar que
+                      NINGÚN dato sale a internet durante la anonimización.
         """
         if not self.should_anonymize(feature):
             return text
-            
+
+        # Modo LAN_ONLY: solo regex, sin llamada a IA externa
+        if lan_only:
+            logger.info(
+                f"[Anonymizer] Modo LAN_ONLY activo — usando solo regex para '{feature}' "
+                f"(sin llamada a IA externa)"
+            )
+            try:
+                return self._regex_anonymize_pre(text)
+            except Exception as e:
+                # Fail-Open: si el regex falla, devolver texto original sin crashear
+                logger.error(
+                    f"[Anonymizer] Regex falló en modo LAN_ONLY para '{feature}', "
+                    f"devolviendo texto original. Error: {e}"
+                )
+                return text
+
         try:
             result = self.anonymize_text(text)
             return result["anonymized"]
