@@ -15,6 +15,7 @@ import {
   timeNow,
   markdownToHtml,
   SIUO_TEST_BANK,
+  SIUO_ADVANCED_BANK,
 } from "./siuo_constants.js";
 
 // ─── Skeleton principal ───────────────────────────────────────────────────────
@@ -35,6 +36,27 @@ export function renderSkeleton() {
                  data-question="${escapeHtml(t.q)}"
                  onclick="window.SIUOModule.runQuickTest('${escapeHtml(t.q).replace(/'/g, "&#39;")}')">
                  ${escapeHtml(t.text)}
+               </button>`,
+          )
+          .join("")}
+      </div>
+    </div>`,
+  ).join("");
+
+  // Panel avanzado multi-tabla (desplegable con <details>)
+  const advancedBankHtml = SIUO_ADVANCED_BANK.map(
+    (group) => `
+    <div class="siuo-advanced-group">
+      <div class="siuo-advanced-group-label">${group.label}</div>
+      <div class="siuo-advanced-group-btns">
+        ${group.tests
+          .map(
+            (t) =>
+              `<button class="siuo-advanced-chip"
+                 title="${escapeHtml(t.desc || t.q)}"
+                 onclick="window.SIUOModule.runQuickTest('${escapeHtml(t.q).replace(/'/g, "&#39;")}')">
+                 <span class="siuo-advanced-chip-text">${escapeHtml(t.text)}</span>
+                 <span class="siuo-advanced-chip-desc">${escapeHtml(t.desc || "")}</span>
                </button>`,
           )
           .join("")}
@@ -123,13 +145,37 @@ export function renderSkeleton() {
           </div>
 
           <div class="siuo-section">
-            <h3 class="siuo-section-title">🚦 Banco de Pruebas del Sistema</h3>
+            <div class="siuo-section-title-row">
+              <h3 class="siuo-section-title">🚦 Banco de Pruebas del Sistema</h3>
+            </div>
             <p class="siuo-section-desc">
               Prueba todo el sistema: SIUO → Qwen3 LAN → SQL → Firebird → Respuesta.
             </p>
             <div class="siuo-test-bank" id="siuo-test-bank">${bankHtml}</div>
             <div id="siuo-quicktest-result" class="siuo-test-result"
                  style="display:none; margin-top:12px;"></div>
+          </div>
+
+          <div class="siuo-section siuo-advanced-section">
+            <details class="siuo-advanced-details" id="siuo-advanced-details">
+              <summary class="siuo-advanced-summary">
+                <span class="siuo-advanced-icon">🔬</span>
+                <span class="siuo-advanced-title">Consultas Avanzadas Multi-tabla</span>
+                <span class="siuo-advanced-badge">${SIUO_ADVANCED_BANK.reduce((acc, g) => acc + g.tests.length, 0)} consultas</span>
+                <span class="siuo-advanced-arrow">▶</span>
+              </summary>
+              <div class="siuo-advanced-body">
+                <p class="siuo-section-desc siuo-advanced-desc">
+                  Consultas que cruzan <strong>2+ tablas</strong> con JOINs, agregaciones y filtros complejos.
+                  Ideales para probar la calidad del índice SIUO y la generación SQL de Qwen3.
+                </p>
+                <div class="siuo-advanced-bank" id="siuo-advanced-bank">
+                  ${advancedBankHtml}
+                </div>
+                <div id="siuo-advanced-result" class="siuo-test-result"
+                     style="display:none; margin-top:12px;"></div>
+              </div>
+            </details>
           </div>
 
           <div class="siuo-section">
@@ -324,8 +370,95 @@ export function renderSuggestions(data) {
 // ─── Resultado de prueba (reutilizable) ───────────────────────────────────────
 
 /**
+ * Detecta si la respuesta contiene un error de placeholder (<ID_DEL_...>).
+ * La IA a veces genera SQL con placeholders literales que Firebird no puede ejecutar.
+ */
+function _detectPlaceholderError(answer) {
+  return (
+    typeof answer === "string" &&
+    (answer.includes("<ID_DEL_") ||
+      answer.includes("<NOMBRE_DEL_") ||
+      answer.includes("<CODIGO_DEL_") ||
+      /WHERE\s+\w+\s*=\s*<[^>]+>/i.test(answer))
+  );
+}
+
+/**
+ * Convierte un mensaje de error técnico en un mensaje amigable para el usuario.
+ * El usuario no tiene por qué entender SQL ni Firebird.
+ */
+function _friendlyErrorMessage(answer) {
+  if (!answer) return null;
+
+  // Placeholder sin valor real (ej: WHERE CODTRABAJADOR = <ID_DEL_TRABAJADOR>)
+  if (_detectPlaceholderError(answer)) {
+    return {
+      icon: "🔍",
+      title: "Necesito más información",
+      msg:
+        "Para responder a esta pregunta necesito que me indiques un dato concreto. " +
+        "Por ejemplo: ¿de qué trabajador quieres ver los partes? Dime su nombre o código.",
+      hint: 'Prueba a preguntar: <em>"dime los 2 últimos partes de trabajo de Juan García"</em>',
+      type: "info",
+    };
+  }
+
+  // Error de columna desconocida
+  if (/column unknown/i.test(answer) || /campo.*no existe/i.test(answer)) {
+    return {
+      icon: "⚠️",
+      title: "La IA usó un campo incorrecto",
+      msg:
+        "La inteligencia artificial intentó buscar en un campo que no existe en la base de datos. " +
+        "Esto puede pasar con preguntas muy específicas. Intenta reformular la pregunta.",
+      hint: "Prueba a ser más concreto o usar términos del negocio (ej: 'factura', 'albarán', 'parte de trabajo').",
+      type: "warn",
+    };
+  }
+
+  // Error de sintaxis SQL genérico
+  if (
+    /dynamic sql error/i.test(answer) ||
+    /sql error code/i.test(answer) ||
+    /token unknown/i.test(answer)
+  ) {
+    return {
+      icon: "⚠️",
+      title: "Error al consultar la base de datos",
+      msg:
+        "La inteligencia artificial generó una consulta que la base de datos no pudo ejecutar. " +
+        "Esto suele ocurrir con preguntas muy complejas o poco habituales.",
+      hint: "Intenta reformular la pregunta de forma más sencilla.",
+      type: "warn",
+    };
+  }
+
+  // Error genérico de "intenté ejecutar pero falló"
+  if (
+    /intenté ejecutar.*falló/i.test(answer) ||
+    /error después de/i.test(answer)
+  ) {
+    return {
+      icon: "⚠️",
+      title: "No pude obtener la respuesta",
+      msg:
+        "Intenté consultar la base de datos pero encontré un problema técnico. " +
+        "Puede que la pregunta necesite más contexto o que la información no esté disponible.",
+      hint: "Prueba a reformular la pregunta o añadir más detalles.",
+      type: "warn",
+    };
+  }
+
+  return null; // Sin error detectado
+}
+
+/**
  * Renderiza el resultado de una consulta de prueba en el elemento dado.
  * Reutilizado por siuoTestContext y siuoRunQuickTest.
+ *
+ * FILOSOFÍA: El usuario no tiene conocimientos técnicos.
+ * - La respuesta principal es amigable y clara.
+ * - Toda la info técnica (SQL, tablas, contexto) va en desplegables.
  */
 export function renderTestResult(
   resultEl,
@@ -344,6 +477,9 @@ export function renderTestResult(
   const ctxLen = testData?.context_length || 0;
   const ctxPrev = testData?.context_preview || "";
 
+  // Detectar si hay un error amigable que mostrar
+  const friendlyError = _friendlyErrorMessage(answer);
+
   const badgeClass = source === "siuo" ? "ok" : "warn";
   const badgeLabel =
     source === "siuo"
@@ -351,6 +487,37 @@ export function renderTestResult(
       : source === "error"
         ? "❌ Error"
         : "📄 Fallback";
+
+  // Construir el bloque de respuesta principal
+  let answerHtml;
+  if (friendlyError) {
+    // Respuesta amigable para el usuario
+    answerHtml = `
+      <div class="siuo-friendly-error siuo-friendly-${friendlyError.type}">
+        <div class="siuo-friendly-icon">${friendlyError.icon}</div>
+        <div class="siuo-friendly-content">
+          <div class="siuo-friendly-title">${friendlyError.title}</div>
+          <div class="siuo-friendly-msg">${friendlyError.msg}</div>
+          ${friendlyError.hint ? `<div class="siuo-friendly-hint">💡 ${friendlyError.hint}</div>` : ""}
+        </div>
+      </div>
+      <details class="siuo-debug-details siuo-debug-error-raw" style="margin-top:8px">
+        <summary>🔧 Ver detalle técnico del error</summary>
+        <div class="siuo-answer-content siuo-answer-error">${markdownToHtml(answer)}</div>
+      </details>`;
+  } else if (hasError) {
+    answerHtml = `
+      <div class="siuo-answer-box siuo-answer-error">
+        <div class="siuo-answer-label">⚠️ Resultado</div>
+        <div class="siuo-answer-content">${markdownToHtml(answer)}</div>
+      </div>`;
+  } else {
+    answerHtml = `
+      <div class="siuo-answer-box">
+        <div class="siuo-answer-label">💬 Respuesta</div>
+        <div class="siuo-answer-content">${markdownToHtml(answer)}</div>
+      </div>`;
+  }
 
   resultEl.innerHTML = `
     <div class="siuo-test-result-card">
@@ -360,20 +527,17 @@ export function renderTestResult(
         <span class="siuo-badge">~${tokens} tokens</span>
         <span class="siuo-badge">${(askData.tables_used || []).length} tablas</span>
       </div>
-      <div class="siuo-answer-box ${hasError ? "siuo-answer-error" : ""}">
-        <div class="siuo-answer-label">💬 Respuesta</div>
-        <div class="siuo-answer-content">${markdownToHtml(answer)}</div>
-      </div>
+      ${answerHtml}
       <details class="siuo-debug-details">
-        <summary>🔍 Detalles de trazabilidad</summary>
-        <div class="siuo-test-row"><strong>Tablas:</strong> ${tables}</div>
-        <div class="siuo-test-row"><strong>Keywords:</strong> ${keywords}</div>
-        <div class="siuo-test-row siuo-warn"><strong>Desconocidos:</strong> ${unknown}</div>
+        <summary>🔍 Detalles técnicos (para desarrolladores)</summary>
+        <div class="siuo-test-row"><strong>Tablas usadas:</strong> ${escapeHtml(tables)}</div>
+        <div class="siuo-test-row"><strong>Keywords detectados:</strong> ${escapeHtml(keywords)}</div>
+        ${unknown !== "ninguno" ? `<div class="siuo-test-row siuo-warn"><strong>⚠️ Keywords sin mapear:</strong> ${escapeHtml(unknown)}</div>` : ""}
         ${
           ctxLen > 0
             ? `
         <details style="margin-top:8px">
-          <summary style="cursor:pointer;font-weight:600;">📄 Contexto (${ctxLen} chars)</summary>
+          <summary style="cursor:pointer;font-weight:600;">📄 Contexto enviado a la IA (${ctxLen} chars)</summary>
           <pre class="siuo-context-preview">${escapeHtml(ctxPrev)}</pre>
         </details>`
             : ""

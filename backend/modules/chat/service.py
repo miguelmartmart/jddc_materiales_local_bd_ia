@@ -743,21 +743,44 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                     # pueda desplegarla si quiere. marked.parse() preserva HTML inline.
                     interpretation_system = (
                         "Eres un asistente experto en análisis de datos Firebird. "
-                        "Tus respuestas son ULTRA FIABLES. Siempre incluyes justificación "
-                        "de dónde viene cada dato, qué SQL se ejecutó y cómo verificarlo, "
-                        "pero la justificación va en un bloque HTML colapsado."
+                        "REGLA ABSOLUTA: MUESTRA LOS DATOS TAL CUAL ESTÁN EN LA BASE DE DATOS. "
+                        "Si un campo está vacío o es nulo, muéstralo como '(sin nombre)' o '(vacío)'. "
+                        "NUNCA digas que hay un error de datos. NUNCA sugiereas verificar la tabla. "
+                        "NUNCA inventes diagnósticos. Los datos vacíos son datos válidos. "
+                        "Tu única misión es presentar los resultados de forma clara y añadir la justificación técnica."
                     )
                     n_rows = len(results)
                     cols_used = list(results[0].keys()) if results else []
+                    # Detectar tablas con pocos registros para advertencia en rojo
+                    from backend.modules.chat.firebird_sql_constants import LOW_RECORD_TABLES
+                    from backend.modules.chat.sql_corrector import SQLCorrector as _SC
+                    _sc_tmp = _SC()
+                    tables_in_query = _sc_tmp._extract_tables_from_sql(sql_query)
+                    low_record_html = ""
+                    for _tbl in tables_in_query:
+                        if _tbl.upper() in LOW_RECORD_TABLES:
+                            _info = LOW_RECORD_TABLES[_tbl.upper()]
+                            low_record_html += (
+                                f'<p style="color:#c0392b;font-weight:bold;">⚠️ ADVERTENCIA: '
+                                f'{_info["warning"]}</p>\n'
+                            )
+
                     interpretation_prompt = (
                         f"PREGUNTA DEL USUARIO: {message}\n\n"
                         f"SQL EJECUTADO:\n```sql\n{sql_query}\n```\n\n"
                         f"RESULTADOS ({n_rows} filas, columnas: {', '.join(cols_used)}):\n{results}\n\n"
+                        + (
+                            f"ADVERTENCIA DE DATOS: Las siguientes tablas tienen muy pocos registros "
+                            f"y los datos podrían estar mal ubicados: "
+                            f"{[t for t in tables_in_query if t.upper() in LOW_RECORD_TABLES]}\n\n"
+                            if any(t.upper() in LOW_RECORD_TABLES for t in tables_in_query) else ""
+                        ) +
                         "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
                         "[Aquí va la respuesta directa a la pregunta. Lista o tabla Markdown si hay múltiples resultados. "
                         "Precios en EUR. NO inventes datos. Sin encabezados extra.]\n\n"
                         "<details>\n"
                         "<summary>🔍 Ver justificación y fuentes</summary>\n\n"
+                        + low_record_html +
                         "**Tablas consultadas:** [lista las tablas del SQL]\n\n"
                         "**Columnas devueltas:** [lista las columnas del resultado]\n\n"
                         "**Registros devueltos:** [número exacto]\n\n"
@@ -768,22 +791,25 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "**Cómo verificarlo:** [indica el campo clave para buscar en la BD, "
                         "ej: busca ARTICULO.CODIGO = X en la tabla ARTICULO]\n\n"
                         "**Razonamiento:** [explica brevemente qué tablas se unieron, "
-                        "qué filtros se aplicaron y por qué el resultado responde a la pregunta]\n\n"
+                        "qué filtros se aplicaron y por qué el resultado responde a la pregunta. "
+                        "Si alguna tabla tiene pocos registros, indícalo en ROJO con <span style='color:#c0392b'>texto</span>]\n\n"
                         "</details>\n\n"
                         "REGLAS:\n"
                         "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
                         "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
                         "3. Sé objetivo. Sin frases como 'Es importante destacar'.\n"
-                        "4. Si hay datos sospechosos (negativos, nulos), menciónalos.\n"
+                        "4. Si hay datos sospechosos (negativos, nulos, tablas con pocos registros), "
+                        "menciónalos en ROJO con <span style='color:#c0392b'>texto</span>.\n"
                         "5. El bloque <details>...</details> debe estar SIEMPRE al final, "
                         "después de la respuesta principal."
                     )
                     
-                    logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB...")
+                    logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB (Qwen3 LAN preferido)...")
                     final_response, _ = await self.model_orchestrator.execute_with_fallback(
                         system_prompt=interpretation_system,
                         user_message=interpretation_prompt,
-                        feedback_callback=None
+                        feedback_callback=None,
+                        preferred_model_id="jddcia-qwen3-30b"
                     )
                     
                     if not final_response:
@@ -798,9 +824,46 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 
                 return final_response
             except Exception as e:
-                logger.error(f"[ERROR SQL] ❌ Error ejecutando consulta: {str(e)}")
+                error_str = str(e)
+                logger.error(f"[ERROR SQL] ❌ Error ejecutando consulta: {error_str}")
                 logger.error(f"[ERROR SQL] Consulta fallida: {sql_query}")
-                return f"Intenté ejecutar una consulta pero falló: {str(e)}\nConsulta: {sql_query}"
+
+                # ── Placeholder sin resolver: la IA no pudo determinar el valor ──
+                # El corrector detectó <ID_DEL_TRABAJADOR> etc. y no pudo resolverlo.
+                # Devolvemos un mensaje amigable pidiendo el dato concreto al usuario.
+                if error_str.startswith("PLACEHOLDER_UNRESOLVED:"):
+                    placeholder_names = error_str.replace("PLACEHOLDER_UNRESOLVED:", "").strip()
+                    # Mapear nombres de placeholder a preguntas amigables
+                    friendly_hints = {
+                        "ID_DEL_TRABAJADOR": "el nombre o código del trabajador",
+                        "NOMBRE_DEL_TRABAJADOR": "el nombre del trabajador",
+                        "ID_DEL_CLIENTE": "el nombre o código del cliente",
+                        "NOMBRE_DEL_CLIENTE": "el nombre del cliente",
+                        "ID_DEL_ARTICULO": "el nombre o referencia del artículo",
+                        "CODIGO_DEL_ARTICULO": "la referencia o nombre del artículo",
+                        "ID_DEL_PROVEEDOR": "el nombre del proveedor",
+                        "ID_DEL_AGENTE": "el nombre del agente",
+                    }
+                    # Intentar dar una pista específica
+                    hints = []
+                    for ph in placeholder_names.split(","):
+                        ph = ph.strip().upper()
+                        hint = friendly_hints.get(ph)
+                        if hint:
+                            hints.append(hint)
+                    if hints:
+                        dato_pedido = " y ".join(hints)
+                        return (
+                            f"Para responder a tu pregunta necesito que me indiques {dato_pedido}. "
+                            f"Por ejemplo: dime el nombre completo o el código y te lo busco enseguida. 😊"
+                        )
+                    else:
+                        return (
+                            f"Para responder necesito un dato más concreto. "
+                            f"¿Puedes indicarme el nombre o código exacto que buscas? 😊"
+                        )
+
+                return f"Intenté ejecutar una consulta pero falló: {error_str}\nConsulta: {sql_query}"
         
         # Para clientes de voz: limpiar Markdown de respuestas de texto libre también
         is_voice_client = (context.get('confirm_data_sending') is None)

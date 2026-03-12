@@ -752,3 +752,246 @@
 .siuo-test-chip:hover { background: #e0f2fe; border-color: #38bdf8; color: #0369a1; }
 .siuo-test-chip-active { background: #0ea5e9; border-color: #0284c7; color: #fff; font-weight: 600; }
 .siuo-quicktest-question { font-size: 0.85rem; color: #475569; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+
+/* ─── Panel Avanzado Multi-tabla (🔬) ───────────────────────────────────────── */
+
+/* Sección contenedora — sin padding extra, el <details> lo gestiona */
+.siuo-advanced-section {
+  padding: 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* El <details> ocupa todo el ancho */
+.siuo-advanced-details {
+  width: 100%;
+}
+
+/* Summary: cabecera clickable con icono 🔬 */
+.siuo-advanced-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-bottom: 1px solid #bae6fd;
+  transition: background 0.2s;
+}
+
+.siuo-advanced-summary::-webkit-details-marker { display: none; }
+
+.siuo-advanced-details[open] .siuo-advanced-summary {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+}
+
+.siuo-advanced-summary:hover {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+}
+
+.siuo-advanced-icon {
+  font-size: 1.3em;
+  flex-shrink: 0;
+}
+
+.siuo-advanced-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0c4a6e;
+  flex: 1;
+}
+
+.siuo-advanced-badge {
+  background: #0ea5e9;
+  color: white;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Flecha que rota al abrir */
+.siuo-advanced-arrow {
+  font-size: 0.75rem;
+  color: #0369a1;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.siuo-advanced-details[open] .siuo-advanced-arrow {
+  transform: rotate(90deg);
+}
+
+/* Cuerpo del panel avanzado */
+.siuo-advanced-body {
+  padding: 16px 20px;
+  background: #f8fafc;
+  animation: siuo-slide-down 0.2s ease;
+}
+
+@keyframes siuo-slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.siuo-advanced-desc {
+  margin-bottom: 16px;
+  color: #475569;
+}
+
+/* Banco de consultas avanzadas */
+.siuo-advanced-bank {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.siuo-advanced-group {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.siuo-advanced-group-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e0f2fe;
+}
+
+.siuo-advanced-group-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Chip avanzado: más alto que el básico, con descripción técnica */
+.siuo-advanced-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  color: #0c4a6e;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  text-align: left;
+  max-width: 220px;
+}
+
+.siuo-advanced-chip:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.15);
+}
+
+.siuo-advanced-chip:active {
+  transform: scale(0.97);
+}
+
+.siuo-advanced-chip-text {
+  font-weight: 600;
+  color: #0c4a6e;
+  line-height: 1.3;
+}
+
+.siuo-advanced-chip-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 3px;
+  font-family: monospace;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* ─── Mensajes amigables de error (para usuarios sin conocimientos técnicos) ── */
+
+.siuo-friendly-error {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 10px 0;
+  border: 1px solid;
+}
+
+.siuo-friendly-info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.siuo-friendly-warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.siuo-friendly-icon {
+  font-size: 1.8em;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.siuo-friendly-content {
+  flex: 1;
+}
+
+.siuo-friendly-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.siuo-friendly-msg {
+  font-size: 0.88rem;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.siuo-friendly-hint {
+  font-size: 0.83rem;
+  color: #475569;
+  background: rgba(255,255,255,0.7);
+  border-radius: 6px;
+  padding: 6px 10px;
+  border-left: 3px solid #3b82f6;
+  line-height: 1.4;
+}
+
+/* Desplegable del error técnico (para desarrolladores) */
+.siuo-debug-error-raw {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.siuo-debug-error-raw > summary {
+  color: #b91c1c;
+}
+
+/* Título de sección con fila (para añadir iconos/botones junto al título) */
+.siuo-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.siuo-section-title-row .siuo-section-title {
+  margin-bottom: 0;
+}
