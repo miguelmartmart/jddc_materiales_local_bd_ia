@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DEVIA - Sistema de Gestión IA</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/chat_markdown.css">
     <link rel="stylesheet" href="assets/css/metadata_builder.css">
     <link rel="stylesheet" href="assets/css/siuo.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1157,8 +1158,8 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Constructor BD: cargado como script clásico (no módulo) para exponer window.MetadataBuilder -->
     <script src="assets/js/modules/metadata_builder.js?v=4"></script>
-    <!-- SIUO: cargado como script clásico para exponer window.SIUOModule -->
-    <script src="assets/js/modules/siuo.js?v=1"></script>
+    <!-- SIUO: módulo ES con imports de siuo_constants.js y siuo_render.js -->
+    <script type="module" src="assets/js/modules/siuo.js?v=2"></script>
     <script type="module" src="assets/js/core/app.js?v=4"></script>
 </body>
 

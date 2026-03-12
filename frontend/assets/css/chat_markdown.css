@@ -1,0 +1,155 @@
+/**
+ * chat_markdown.css — Estilos para contenido Markdown renderizado en el chat.
+ *
+ * RESPONSABILIDAD:
+ *   Estilos para tablas GFM, código, listas y otros elementos Markdown
+ *   que genera la IA en las respuestas del chat DEVIA.
+ *
+ * CARGADO EN: index.html (junto a style.css)
+ * CLASES PRINCIPALES: .chat-markdown-body, .chat-table-wrapper, .chat-table
+ */
+
+/* ─── Contenedor Markdown ──────────────────────────────────────────────────── */
+
+.chat-markdown-body {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: #334155;
+  word-break: break-word;
+}
+
+.chat-markdown-body p {
+  margin: 0 0 0.5em;
+}
+
+.chat-markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Tablas GFM ───────────────────────────────────────────────────────────── */
+
+.chat-table-wrapper {
+  overflow-x: auto;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.chat-table thead {
+  background: #f1f5f9;
+}
+
+.chat-table thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.chat-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.chat-table tbody tr:hover {
+  background: #e0f2fe;
+  transition: background 0.15s;
+}
+
+.chat-table tbody td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: top;
+}
+
+.chat-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Números alineados a la derecha */
+.chat-table tbody td:not(:first-child) {
+  text-align: right;
+}
+
+.chat-table thead th:not(:first-child) {
+  text-align: right;
+}
+
+/* ─── Código inline ────────────────────────────────────────────────────────── */
+
+.chat-markdown-body code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 0.82em;
+  color: #0f172a;
+}
+
+/* ─── Listas ───────────────────────────────────────────────────────────────── */
+
+.chat-markdown-body ul,
+.chat-markdown-body ol {
+  margin: 6px 0 6px 20px;
+  padding: 0;
+}
+
+.chat-markdown-body li {
+  margin-bottom: 3px;
+}
+
+/* ─── Negrita y cursiva ────────────────────────────────────────────────────── */
+
+.chat-markdown-body strong {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.chat-markdown-body em {
+  font-style: italic;
+  color: #475569;
+}
+
+/* ─── Bloque <details> de justificación SQL ───────────────────────────────── */
+
+.chat-justification {
+  margin-top: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+
+.chat-justification > summary {
+  padding: 8px 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+  list-style: none;
+}
+
+.chat-justification > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-justification[open] > summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.chat-justification > *:not(summary) {
+  padding: 10px 12px;
+  background: #fff;
+}
