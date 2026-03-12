@@ -12,7 +12,7 @@ Características:
 - Modo AI_LOCAL_ONLY: usa solo la IA local Qwen3 LAN, sin salir a internet
 
 Autor: DEVIA System
-Versión: 1.1.0
+Versión: 1.2.0
 """
 
 import asyncio
@@ -40,56 +40,104 @@ logger = logging.getLogger(__name__)
 # FUENTE ÚNICA DE VERDAD: backend/core/utils/network_audit_constants.py → LocalModelIds
 LOCAL_MODEL_IDS: frozenset = LocalModelIds.ALL
 
+# Path del config.json (fuente única de verdad para flags y timeouts)
+_CONFIG_JSON_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+
+# Valor por defecto para lan_max_retries si config.json no está disponible.
+# 10 rondas × backoff progresivo = ~60s de espera máxima antes de rendirse.
+_LAN_MAX_RETRIES_DEFAULT = 10
+
+
+def _load_chat_config() -> dict:
+    """
+    Lee el config.json del chat y devuelve el dict completo.
+    Devuelve {} si no existe o está corrupto (fail-safe).
+    Se llama en cada petición para que los cambios en config.json
+    surtan efecto sin reiniciar el servidor.
+    """
+    try:
+        if os.path.exists(_CONFIG_JSON_PATH):
+            with open(_CONFIG_JSON_PATH, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.warning(f"[CHAT_CONFIG] No se pudo leer config.json: {e}")
+    return {}
+
 
 def _load_ai_local_only() -> bool:
     """
     Lee el flag ai_local_only del config.json del chat.
     Si es True, solo se usan modelos locales (red LAN JDDC).
     Si es False, se usa el sistema de fallback multi-modelo completo.
-    
+
     Para cambiar el modo: editar backend/modules/chat/config.json
       "ai_local_only": true   → Solo Qwen3 LAN (sin internet)
       "ai_local_only": false  → Fallback completo (Groq, Gemini, OpenAI, etc.)
     """
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    return bool(_load_chat_config().get("ai_local_only", False))
+
+
+def _load_lan_max_retries() -> int:
+    """
+    Lee lan_max_retries del config.json del chat.
+    Controla cuántas rondas de reintento se hacen en modo LAN_ONLY antes de
+    devolver (None, None).
+
+    Rango recomendado: 5-15. Con backoff progresivo:
+      rondas 1-3  → 2s de espera → 6s total
+      rondas 4-6  → 5s de espera → 15s total
+      rondas 7+   → 10s de espera → 10s × (N-6) total
+
+    Si es 0 o negativo, se usa el default (10).
+    Si config.json no existe, se usa el default (10).
+    """
+    cfg = _load_chat_config()
+    value = cfg.get("lan_max_retries", _LAN_MAX_RETRIES_DEFAULT)
     try:
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                cfg = json.load(f)
-            return bool(cfg.get("ai_local_only", False))
-    except Exception as e:
-        logger.warning(f"[AI_LOCAL_ONLY] No se pudo leer config.json: {e}")
-    return False
+        retries = int(value)
+        if retries <= 0:
+            logger.warning(
+                f"[LAN_MAX_RETRIES] Valor inválido en config.json: {value}. "
+                f"Usando default {_LAN_MAX_RETRIES_DEFAULT}."
+            )
+            return _LAN_MAX_RETRIES_DEFAULT
+        return retries
+    except (TypeError, ValueError):
+        logger.warning(
+            f"[LAN_MAX_RETRIES] No se pudo parsear lan_max_retries={value!r}. "
+            f"Usando default {_LAN_MAX_RETRIES_DEFAULT}."
+        )
+        return _LAN_MAX_RETRIES_DEFAULT
 
 
 class ModelFallbackOrchestrator:
     """
     Orquestador de fallback entre modelos IA con reintentos automáticos.
-    
+
     Gestiona la ejecución de consultas a modelos IA con estrategia de fallback:
     1. Intenta con modelo de mayor prioridad
     2. Si falla, espera y reintenta
     3. Si falla de nuevo, cambia al siguiente modelo
     4. Repite hasta agotar modelos o tener éxito
     """
-    
+
     def __init__(self):
         """Inicializa el orchestrator con configuración de modelos."""
         self.model_manager = ModelManager()
         self.retry_delay = ModelFallbackConfig.RETRY_DELAY_SECONDS
         self.max_retries_per_model = ModelFallbackConfig.MAX_RETRIES_PER_MODEL
-        
+
     def _get_prioritized_models(self, preferred_model_id: str = None) -> List[Dict[str, Any]]:
         """
         Obtiene lista de modelos disponibles ordenados por prioridad (Score > Tier).
         Si se especifica preferred_model_id, ese modelo se coloca primero (si existe y está habilitado).
-        
+
         Returns:
             Lista de configuraciones de modelos ordenada.
         """
         # ModelManager.list_models already sorts by Blocked -> Score -> Tier
         sorted_models = self.model_manager.list_models(enabled_only=True) or []
-        
+
         # If preferred model is requested, move it to top
         if preferred_model_id:
             preferred_model = next((m for m in sorted_models if m['id'] == preferred_model_id), None)
@@ -98,17 +146,17 @@ class ModelFallbackOrchestrator:
                 sorted_models = [m for m in sorted_models if m['id'] != preferred_model_id]
                 sorted_models.insert(0, preferred_model)
                 logger.info(f"{LogPrefixes.AI_PROVIDER} ⭐ Modelo PREFERIDO seleccionado: {preferred_model['name']}")
-        
+
         logger.info(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEARCH} Modelos disponibles ordenados por Prioridad:")
         if not sorted_models:
             logger.warning(f"  {LogEmojis.WARNING} No se encontraron modelos habilitados.")
-            
+
         for idx, model in enumerate(sorted_models, 1):
             marker = "⭐ " if model['id'] == preferred_model_id else ""
             logger.info(f"  {idx}. {marker}{model.get('name')} (Score: {model.get('score')})")
-        
+
         return sorted_models
-    
+
     async def _try_model(
         self,
         model_config: Dict[str, Any],
@@ -119,34 +167,34 @@ class ModelFallbackOrchestrator:
     ) -> Optional[str]:
         """
         Intenta generar respuesta con un modelo específico.
-        
+
         Args:
             model_config: Configuración del modelo a usar
             system_prompt: Prompt del sistema
             user_message: Mensaje del usuario
             attempt: Número de intento actual
-            
+
         Returns:
             Respuesta del modelo o None si falla
         """
         model_name = model_config.get('name', 'Unknown')
         model_id = model_config.get('id', '')
-        
+
         try:
             logger.info(
                 f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEND} "
                 f"Intentando con {model_name} (intento {attempt}/{self.max_retries_per_model + 1})"
             )
-            
+
             # Configurar provider
             provider_schema = model_config.get('schema', model_config.get('provider'))
             provider = AIFactory.get_provider(provider_schema)
-            
+
             api_key = model_config.get('api_key')
             if not api_key:
                 logger.error(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} No API key para {model_name}")
                 return None
-            
+
             # Crear configuración
             ai_config_params = {
                 'api_key': api_key,
@@ -156,17 +204,17 @@ class ModelFallbackOrchestrator:
                 ai_config_params['base_url'] = model_config['base_url']
             if model_config.get('headers'):
                 ai_config_params['headers'] = model_config['headers']
-            
+
             ai_config = AIConfig(**ai_config_params)
             provider.configure(ai_config)
-            
+
             # Generar respuesta
             response = await provider.generate_text(
                 prompt=user_message,
                 system_instruction=system_prompt,
                 images=images
             )
-            
+
             if response:
                 logger.info(
                     f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SUCCESS} "
@@ -181,20 +229,21 @@ class ModelFallbackOrchestrator:
                 )
                 self.model_manager.report_result(model_id, False, error_type="empty", error_msg="empty response")
                 return None
-                
+
         except Exception as e:
+            # Loguear tipo de excepción completo para diagnóstico (ej: ReadTimeout, ConnectError)
             logger.error(
                 f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} "
-                f"Error con {model_name}: {str(e)}"
+                f"Error con {model_name}: {type(e).__name__}: {str(e)}"
             )
             # Try to extract status code if available
             err_code = getattr(e, "status_code", None)
             if not err_code and hasattr(e, "response") and hasattr(e.response, "status_code"):
                 err_code = e.response.status_code
-            
+
             self.model_manager.report_result(model_id, False, error_type=str(err_code) if err_code else None, error_msg=str(e))
             return None
-    
+
     async def _execute_lan_only(
         self,
         local_models: List[Dict[str, Any]],
@@ -204,16 +253,17 @@ class ModelFallbackOrchestrator:
         feedback_callback: Optional[callable] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
-        Modo AI_LOCAL_ONLY: reintenta SOLO los modelos LAN indefinidamente.
+        Modo AI_LOCAL_ONLY: reintenta SOLO los modelos LAN hasta lan_max_retries rondas.
 
-        Política de reintentos con backoff:
-          intento 1-3  → espera 2s entre intentos
-          intento 4-6  → espera 5s entre intentos
-          intento 7+   → espera 10s entre intentos (máximo)
+        Política de reintentos con backoff progresivo:
+          rondas 1-3  → espera 2s entre rondas
+          rondas 4-6  → espera 5s entre rondas
+          ronda 7+    → espera 10s entre rondas (máximo)
+
+        El número máximo de rondas se lee de config.json (lan_max_retries=10).
+        Si se agotan las rondas, devuelve (None, None) con log de error.
 
         GARANTÍA: NUNCA llama a ningún modelo de internet.
-        Si todos los modelos LAN fallan, espera y vuelve a intentar.
-        Solo devuelve (None, None) si no hay ningún modelo LAN configurado.
         """
         # Anonimizar mensaje — SOLO con regex (lan_only=True), NUNCA llama a IA externa
         # Garantía: ningún dato sale a internet durante la anonimización en modo LAN_ONLY
@@ -223,6 +273,13 @@ class ModelFallbackOrchestrator:
             user_message = anonymizer.anonymize_if_enabled(user_message, "chat", lan_only=True)
         except Exception as anon_err:
             logger.warning(f"[LAN_ONLY] Anonymizer skipped: {anon_err}")
+
+        # Leer lan_max_retries de config.json en cada llamada (sin reiniciar el servidor)
+        max_retries = _load_lan_max_retries()
+        logger.info(
+            f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Máximo de rondas: {max_retries} "
+            f"(config.json → lan_max_retries)"
+        )
 
         attempt_global = 0
         while True:
@@ -236,7 +293,7 @@ class ModelFallbackOrchestrator:
                 backoff = 10
 
             logger.info(
-                f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Ronda {attempt_global} — "
+                f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Ronda {attempt_global}/{max_retries} — "
                 f"probando {len(local_models)} modelos LAN..."
             )
 
@@ -246,7 +303,7 @@ class ModelFallbackOrchestrator:
 
                 logger.info(
                     f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Intentando {model_name} "
-                    f"(ronda global {attempt_global})"
+                    f"(ronda global {attempt_global}/{max_retries})"
                 )
 
                 try:
@@ -258,8 +315,10 @@ class ModelFallbackOrchestrator:
                         attempt=attempt_global
                     )
                 except Exception as e:
+                    # Loguear tipo de excepción completo para diagnóstico
                     logger.warning(
-                        f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⚠️ Excepción en {model_name}: {e}"
+                        f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⚠️ Excepción en {model_name}: "
+                        f"{type(e).__name__}: {e}"
                     )
                     response = None
 
@@ -271,14 +330,28 @@ class ModelFallbackOrchestrator:
                     return response, model_id
 
             # Todos los modelos LAN fallaron en esta ronda
+            # Comprobar si se han agotado las rondas
+            if attempt_global >= max_retries:
+                logger.error(
+                    f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ❌ Se agotaron las {max_retries} rondas "
+                    f"de reintento. La IA local no está disponible. "
+                    f"(Aumenta lan_max_retries en config.json para más reintentos)"
+                )
+                if feedback_callback:
+                    feedback_callback(
+                        f"❌ IA local no disponible tras {max_retries} intentos. "
+                        f"Verifica que el servidor Qwen3 30B esté levantado."
+                    )
+                return None, None
+
             logger.warning(
                 f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⚠️ Todos los modelos LAN fallaron "
-                f"en ronda {attempt_global}. Reintentando en {backoff}s... "
+                f"en ronda {attempt_global}/{max_retries}. Reintentando en {backoff}s... "
                 f"(NUNCA se usará internet)"
             )
             if feedback_callback:
                 feedback_callback(
-                    f"⏳ IA local no disponible (intento {attempt_global}). "
+                    f"⏳ IA local no disponible (intento {attempt_global}/{max_retries}). "
                     f"Reintentando en {backoff}s..."
                 )
             await asyncio.sleep(backoff)
@@ -293,18 +366,18 @@ class ModelFallbackOrchestrator:
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Ejecuta generación de respuesta con fallback entre modelos.
-        
+
         Args:
             system_prompt: Prompt del sistema
             user_message: Mensaje del usuario
             feedback_callback: Función opcional para enviar feedback al usuario
             preferred_model_id: ID del modelo preferido (intentar primero)
-            
+
         Returns:
             Tupla (respuesta, model_id) o (None, None) si todos fallan
         """
         prioritized_models = self._get_prioritized_models(preferred_model_id)
-        
+
         if not prioritized_models:
             logger.error(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} No hay modelos disponibles")
             if feedback_callback:
@@ -317,7 +390,7 @@ class ModelFallbackOrchestrator:
         #
         # Cuando ai_local_only=true:
         #   - SOLO se usan los modelos LAN (jddcia-qwen3-30b / jddcia-qwen3-30b-ip)
-        #   - Si fallan, se reintenta indefinidamente con backoff (nunca se rinde)
+        #   - Se reintenta hasta lan_max_retries rondas con backoff progresivo
         #   - NUNCA se hace fallback a modelos de internet
         ai_local_only = _load_ai_local_only()
         if ai_local_only:
@@ -327,7 +400,6 @@ class ModelFallbackOrchestrator:
                     f"{LogPrefixes.AI_PROVIDER} 🔒 Modo AI_LOCAL_ONLY activo — "
                     f"usando SOLO modelos LAN (sin fallback a internet): {[m['name'] for m in local_models]}"
                 )
-                # Modo LAN exclusivo: reintentar indefinidamente hasta obtener respuesta
                 return await self._execute_lan_only(
                     local_models=local_models,
                     system_prompt=system_prompt,
@@ -348,7 +420,7 @@ class ModelFallbackOrchestrator:
                 f"usando {len(prioritized_models)} modelos (incluye internet)"
             )
         # --------------------------
-            
+
         # --- GLOBAL ANONYMIZER INTEGRATION ---
         try:
             from backend.modules.anonymizer.service import AnonymizerService
@@ -359,18 +431,18 @@ class ModelFallbackOrchestrator:
         except Exception as anon_err:
             logger.warning(f"Anonymizer skipped due to error: {anon_err}")
         # -------------------------------------
-        
+
         # Iterar por cada modelo
         for model_idx, model_config in enumerate(prioritized_models):
             model_name = model_config.get('name', 'Unknown')
             model_id = model_config.get('id', '')
-            
+
             # Notificar cambio de modelo (excepto el primero)
             if model_idx > 0 and feedback_callback:
                 feedback_callback(
                     UserFeedbackMessages.SWITCHING_MODEL.format(model_name=model_name)
                 )
-            
+
             # Intentar con este modelo (1 intento inicial + reintentos)
             for attempt in range(1, self.max_retries_per_model + 2):
                 # Feedback al usuario
@@ -387,7 +459,7 @@ class ModelFallbackOrchestrator:
                                 max_attempts=self.max_retries_per_model + 1
                             )
                         )
-                
+
                 # Intentar generación
                 response = await self._try_model(
                     model_config=model_config,
@@ -396,7 +468,7 @@ class ModelFallbackOrchestrator:
                     images=images,
                     attempt=attempt
                 )
-                
+
                 if response:
                     # ¡Éxito!
                     if feedback_callback:
@@ -404,7 +476,7 @@ class ModelFallbackOrchestrator:
                             UserFeedbackMessages.SUCCESS.format(model_name=model_name)
                         )
                     return response, model_id
-                
+
                 # Si falló y quedan reintentos, esperar
                 if attempt < self.max_retries_per_model + 1:
                     logger.info(
@@ -416,7 +488,7 @@ class ModelFallbackOrchestrator:
                             UserFeedbackMessages.WAITING.format(seconds=self.retry_delay)
                         )
                     await asyncio.sleep(self.retry_delay)
-        
+
         # Todos los modelos fallaron
         logger.error(
             f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} "
@@ -424,5 +496,5 @@ class ModelFallbackOrchestrator:
         )
         if feedback_callback:
             feedback_callback(UserFeedbackMessages.ALL_MODELS_FAILED)
-        
+
         return None, None
