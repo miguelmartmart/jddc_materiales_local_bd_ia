@@ -313,7 +313,7 @@ export function markdownToHtml(text) {
 
   // ── 1. Extraer bloques <details> antes de procesar ────────────────────────
   const detailsBlocks = [];
-  const PH = "%%DETAILS_BLOCK_%%";
+  const PH = "%%DETAILS_BLOCK_";
   let processed = text.replace(/<details[\s\S]*?<\/details>/gi, (match) => {
     const withClass = match.replace(
       /<details/i,
@@ -328,7 +328,7 @@ export function markdownToHtml(text) {
   // Ej:  | Col1 | Col2 |
   //      |------|------|
   //      | val1 | val2 |
-  const tablePH = "%%TABLE_BLOCK_%%";
+  const tablePH = "%%TABLE_BLOCK_";
   const tableBlocks = [];
   processed = processed.replace(/((?:[ \t]*\|.+\|[ \t]*\n?)+)/gm, (match) => {
     const lines = match
