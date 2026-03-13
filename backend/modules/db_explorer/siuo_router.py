@@ -56,13 +56,13 @@ class FeedbackRequest(BaseModel):
 
 class ContextTestRequest(BaseModel):
     question:   str = Field(..., min_length=1, max_length=500)
-    max_tokens: int = Field(default=2000, ge=100, le=8000)
+    max_tokens: int = Field(default=8000, ge=100, le=16000)
 
 
 class ContextAskRequest(BaseModel):
     """Pregunta completa: obtiene contexto + llama a Qwen3 + ejecuta SQL + devuelve respuesta."""
     question:   str  = Field(..., min_length=1, max_length=500)
-    max_tokens: int  = Field(default=2000, ge=100, le=8000)
+    max_tokens: int  = Field(default=8000, ge=100, le=16000)
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────

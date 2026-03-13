@@ -263,9 +263,11 @@ async function siuoTestContext() {
   try {
     const { askData, testData } = await _callTestAPI(question, maxTokens);
     if (resultEl) renderTestResult(resultEl, askData, testData);
+    _showExpandBtn(true);
   } catch (e) {
     if (resultEl)
       resultEl.innerHTML = `<div class="siuo-error">❌ Error: ${escapeHtml(e.message)}</div>`;
+    _showExpandBtn(false);
     showToast("Error en la prueba: " + e.message, "error");
   }
 }
@@ -297,6 +299,80 @@ async function siuoRunQuickTest(question) {
   }
 }
 
+// ─── Modal de respuesta expandida ────────────────────────────────────────────
+
+/**
+ * Abre un modal con el contenido completo del resultado de prueba.
+ * Reutiliza el HTML ya renderizado en #siuo-test-result para no re-procesar.
+ * Cierra con Escape o clic en el overlay.
+ */
+function siuoExpandResult() {
+  const resultEl = document.getElementById("siuo-test-result");
+  if (!resultEl || resultEl.style.display === "none") {
+    showToast("Primero ejecuta una consulta de prueba.", "warning");
+    return;
+  }
+
+  // Clonar el contenido ya renderizado
+  const clone = resultEl.cloneNode(true);
+  clone.style.display = "block";
+  clone.style.border = "none";
+  clone.style.margin = "0";
+
+  const overlay = document.createElement("div");
+  overlay.className = "siuo-modal-overlay";
+  overlay.id = "siuo-modal-overlay";
+
+  const modal = document.createElement("div");
+  modal.className = "siuo-modal";
+
+  const header = document.createElement("div");
+  header.className = "siuo-modal-header";
+  header.innerHTML = `
+    <span class="siuo-modal-title">🔍 Resultado completo</span>
+    <button class="siuo-modal-close" onclick="window.SIUOModule.closeModal()" title="Cerrar (Esc)">✕</button>`;
+
+  const body = document.createElement("div");
+  body.className = "siuo-modal-body";
+  body.appendChild(clone);
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Cerrar con Escape
+  const _onKey = (e) => {
+    if (e.key === "Escape") siuoCloseModal();
+  };
+  document.addEventListener("keydown", _onKey);
+  overlay._onKey = _onKey;
+
+  // Cerrar al clic en el overlay (fuera del modal)
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) siuoCloseModal();
+  });
+
+  // Bloquear scroll del body
+  document.body.style.overflow = "hidden";
+}
+
+function siuoCloseModal() {
+  const overlay = document.getElementById("siuo-modal-overlay");
+  if (overlay) {
+    if (overlay._onKey) document.removeEventListener("keydown", overlay._onKey);
+    overlay.remove();
+  }
+  document.body.style.overflow = "";
+}
+
+// ─── Mostrar botón expandir tras respuesta ────────────────────────────────────
+
+function _showExpandBtn(visible) {
+  const btn = document.getElementById("siuo-expand-btn");
+  if (btn) btn.style.display = visible ? "inline-flex" : "none";
+}
+
 // ─── API pública (expuesta en window) ────────────────────────────────────────
 
 window.SIUOModule = {
@@ -306,6 +382,8 @@ window.SIUOModule = {
   testContext: siuoTestContext,
   runQuickTest: siuoRunQuickTest,
   loadSuggestions: siuoLoadSuggestions,
+  expandResult: siuoExpandResult,
+  closeModal: siuoCloseModal,
   clearLog: () => clearLog(siuoState.logLines),
   loadStats: _loadStats,
 };

@@ -135,12 +135,20 @@ export function renderSkeleton() {
             <div class="siuo-form-row">
               <label class="siuo-label">Máx. tokens de contexto</label>
               <input type="number" id="siuo-test-tokens" class="siuo-input siuo-input-sm"
-                     value="2000" min="100" max="8000">
+                     value="8000" min="100" max="16000">
             </div>
-            <button class="siuo-btn siuo-btn-secondary"
-                    onclick="window.SIUOModule.testContext()">
-              🔍 Probar
-            </button>
+            <div class="siuo-btn-group">
+              <button class="siuo-btn siuo-btn-secondary"
+                      onclick="window.SIUOModule.testContext()">
+                🔍 Probar
+              </button>
+              <button class="siuo-btn siuo-btn-icon siuo-btn-expand" id="siuo-expand-btn"
+                      title="Ver respuesta en pantalla completa"
+                      onclick="window.SIUOModule.expandResult()"
+                      style="display:none;">
+                ⛶ Expandir
+              </button>
+            </div>
             <div id="siuo-test-result" class="siuo-test-result" style="display:none;"></div>
           </div>
 

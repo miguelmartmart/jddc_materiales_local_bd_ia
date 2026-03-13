@@ -311,17 +311,47 @@ export function siuoLog(step, emisor, receptor, msg) {
 export function markdownToHtml(text) {
   if (!text) return "";
 
-  // ── 1. Extraer bloques <details> antes de procesar ────────────────────────
-  const detailsBlocks = [];
-  const PH = "%%DETAILS_BLOCK_";
+  // ── 0. Si el texto ya es HTML puro (empieza con <), devolverlo tal cual ──
+  // Esto evita doble-procesado cuando el backend ya devuelve HTML renderizado.
+  const trimmed = text.trim();
+  if (
+    trimmed.startsWith("<p>") ||
+    trimmed.startsWith("<div>") ||
+    trimmed.startsWith("<table>")
+  ) {
+    return text;
+  }
+
+  // ── 1. Extraer bloques HTML que NO deben escaparse ────────────────────────
+  // Orden: <details>, <p style=...>, <span style=...>, <strong>, <em> con style
+  const htmlBlocks = [];
+  const HTML_PH = "%%HTML_BLOCK_";
+
+  // Extraer <details>...</details>
   let processed = text.replace(/<details[\s\S]*?<\/details>/gi, (match) => {
     const withClass = match.replace(
       /<details/i,
       '<details class="chat-justification"',
     );
-    detailsBlocks.push(withClass);
-    return PH + (detailsBlocks.length - 1) + "%%";
+    htmlBlocks.push(withClass);
+    return HTML_PH + (htmlBlocks.length - 1) + "%%";
   });
+
+  // Extraer <span style=...>...</span> (colores inline del backend)
+  processed = processed.replace(/<span\s[^>]*>[\s\S]*?<\/span>/gi, (match) => {
+    htmlBlocks.push(match);
+    return HTML_PH + (htmlBlocks.length - 1) + "%%";
+  });
+
+  // Extraer <p style=...>...</p> (advertencias de tablas con pocos registros)
+  processed = processed.replace(/<p\s[^>]*>[\s\S]*?<\/p>/gi, (match) => {
+    htmlBlocks.push(match);
+    return HTML_PH + (htmlBlocks.length - 1) + "%%";
+  });
+
+  // Mantener compatibilidad con alias anteriores
+  const detailsBlocks = htmlBlocks;
+  const PH = HTML_PH;
 
   // ── 2. Extraer bloques de tabla Markdown ANTES de escapar ─────────────────
   // Una tabla Markdown es un bloque de líneas que empiezan con |
@@ -385,10 +415,10 @@ export function markdownToHtml(text) {
     (_, idx) => `</p>${tableBlocks[parseInt(idx)]}<p>`,
   );
 
-  // ── 8. Restaurar bloques <details> ────────────────────────────────────────
+  // ── 8. Restaurar bloques HTML (details, span, p con style) ───────────────
   html = html.replace(
-    /%%DETAILS_BLOCK_(\d+)%%/g,
-    (_, idx) => `</p>${detailsBlocks[parseInt(idx)]}<p>`,
+    /%%HTML_BLOCK_(\d+)%%/g,
+    (_, idx) => `</p>${htmlBlocks[parseInt(idx)]}<p>`,
   );
 
   html = html.replace(/<p>\s*<\/p>/g, "");

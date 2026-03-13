@@ -995,3 +995,185 @@
 .siuo-section-title-row .siuo-section-title {
   margin-bottom: 0;
 }
+
+/* ─── Tablas Markdown (md-table) ────────────────────────────────────────────── */
+
+.md-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.md-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 400px;
+  font-size: 0.88rem;
+  background: white;
+}
+
+.md-table th {
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  color: white;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.md-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: top;
+}
+
+.md-table tr:last-child td {
+  border-bottom: none;
+}
+
+.md-table tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.md-table tr:hover td {
+  background: #eff6ff;
+  transition: background 0.15s;
+}
+
+/* ─── Botón expandir resultado ──────────────────────────────────────────────── */
+
+.siuo-btn-expand {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-weight: 600;
+}
+
+.siuo-btn-expand:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+}
+
+/* ─── Modal de respuesta expandida ─────────────────────────────────────────── */
+
+.siuo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  animation: siuo-modal-in 0.2s ease;
+}
+
+@keyframes siuo-modal-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.siuo-modal {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  width: 100%;
+  max-width: 900px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  animation: siuo-modal-slide 0.2s ease;
+}
+
+@keyframes siuo-modal-slide {
+  from { transform: translateY(-20px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.siuo-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-radius: 14px 14px 0 0;
+}
+
+.siuo-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0c4a6e;
+}
+
+.siuo-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px 8px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.siuo-modal-close:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.siuo-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  max-height: calc(90vh - 80px);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #1e293b;
+}
+
+/* Dentro del modal, las tablas tienen scroll y se ven bien */
+.siuo-modal-body .md-table-wrap {
+  max-width: 100%;
+}
+
+.siuo-modal-body .siuo-answer-box {
+  border-left-width: 5px;
+  padding: 18px 20px;
+}
+
+.siuo-modal-body .siuo-answer-content {
+  font-size: 1rem;
+}
+
+.siuo-modal-body details {
+  margin-top: 14px;
+}
+
+.siuo-modal-body .chat-justification {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+}
+
+.siuo-modal-body .chat-justification summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.9rem;
+}
