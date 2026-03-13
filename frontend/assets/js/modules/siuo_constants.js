@@ -300,11 +300,18 @@ export function siuoLog(step, emisor, receptor, msg) {
 
 /**
  * Convierte Markdown + bloques <details> a HTML renderizable.
- * Extrae los <details> antes de escapar para que se rendericen como HTML.
+ *
+ * Soporta:
+ *  - Tablas Markdown (| col | col |) → <table class="md-table">
+ *  - Negrita **texto**, cursiva *texto*, código `texto`
+ *  - Listas - item, * item
+ *  - Bloques <details>...</details> (preservados como HTML)
+ *  - Párrafos y saltos de línea
  */
 export function markdownToHtml(text) {
   if (!text) return "";
 
+  // ── 1. Extraer bloques <details> antes de procesar ────────────────────────
   const detailsBlocks = [];
   const PH = "%%DETAILS_BLOCK_%%";
   let processed = text.replace(/<details[\s\S]*?<\/details>/gi, (match) => {
@@ -316,20 +323,74 @@ export function markdownToHtml(text) {
     return PH + (detailsBlocks.length - 1) + "%%";
   });
 
+  // ── 2. Extraer bloques de tabla Markdown ANTES de escapar ─────────────────
+  // Una tabla Markdown es un bloque de líneas que empiezan con |
+  // Ej:  | Col1 | Col2 |
+  //      |------|------|
+  //      | val1 | val2 |
+  const tablePH = "%%TABLE_BLOCK_%%";
+  const tableBlocks = [];
+  processed = processed.replace(/((?:[ \t]*\|.+\|[ \t]*\n?)+)/gm, (match) => {
+    const lines = match
+      .trim()
+      .split("\n")
+      .filter((l) => l.trim());
+    if (lines.length < 2) return match; // No es tabla real
+
+    // Detectar línea separadora (|---|---|)
+    const sepIdx = lines.findIndex((l) => /^\s*\|[\s\-:|]+\|\s*$/.test(l));
+    if (sepIdx < 0) return match; // Sin separador → no es tabla
+
+    const headerLine = lines[0];
+    const bodyLines = lines.slice(sepIdx + 1);
+
+    const parseCells = (line) =>
+      line
+        .replace(/^\s*\|/, "")
+        .replace(/\|\s*$/, "")
+        .split("|")
+        .map((c) => c.trim());
+
+    const headers = parseCells(headerLine);
+    const rows = bodyLines.map(parseCells);
+
+    const thead = `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>`;
+    const tbody = `<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    const tableHtml = `<div class="md-table-wrap"><table class="md-table">${thead}${tbody}</table></div>`;
+
+    tableBlocks.push(tableHtml);
+    return tablePH + (tableBlocks.length - 1) + "%%";
+  });
+
+  // ── 3. Escapar HTML del texto restante ────────────────────────────────────
   let html = escapeHtml(processed);
+
+  // ── 4. Inline Markdown ────────────────────────────────────────────────────
   html = html.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // ── 5. Listas ─────────────────────────────────────────────────────────────
   html = html.replace(/^[-*]\s+(.+)$/gm, "<li>$1</li>");
-  html = html.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
+
+  // ── 6. Párrafos ───────────────────────────────────────────────────────────
   html = html.replace(/\n\n+/g, "</p><p>");
   html = html.replace(/\n/g, "<br>");
   html = `<p>${html}</p>`;
 
+  // ── 7. Restaurar tablas ───────────────────────────────────────────────────
+  html = html.replace(
+    /%%TABLE_BLOCK_(\d+)%%/g,
+    (_, idx) => `</p>${tableBlocks[parseInt(idx)]}<p>`,
+  );
+
+  // ── 8. Restaurar bloques <details> ────────────────────────────────────────
   html = html.replace(
     /%%DETAILS_BLOCK_(\d+)%%/g,
     (_, idx) => `</p>${detailsBlocks[parseInt(idx)]}<p>`,
   );
+
   html = html.replace(/<p>\s*<\/p>/g, "");
   return html;
 }

@@ -7,9 +7,14 @@ Flujo de corrección (por orden de prioridad):
   1. Normalización determinista (FirebirdSQLNormalizer) — sin IA
   2. fix_after_error determinista — sin IA (BLOB, column_unknown conocido, LIMIT)
   3. Consulta metadatos reales de la BD (columnas reales de las tablas implicadas)
+     3a. Para table_unknown: busca tablas similares en RDB$RELATIONS (fuzzy match)
+         y envía a la IA la lista de candidatas reales para que elija la correcta.
   4. Extracción de muestra de datos reales (FIRST 3 filas)
   5. Corrección por IA con contexto enriquecido (metadatos + muestra + error)
   6. Actualización del aprendizaje permanente (db_metadata_optimized.json)
+
+Parámetros configurables (config.json):
+  max_sql_retries: número máximo de reintentos SQL (default: 4)
 
 DEVIA: backend/modules/chat/DEVIA_ROBUSTNESS.md
 """
@@ -31,6 +36,31 @@ _normalizer = FirebirdSQLNormalizer()
 _METADATA_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "core", "config", "db_metadata_optimized.json"
 )
+
+# Ruta al config.json del chat (fuente única de verdad para parámetros)
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+
+# Default de reintentos SQL si config.json no está disponible
+_SQL_MAX_RETRIES_DEFAULT = 4
+
+
+def _load_sql_max_retries() -> int:
+    """
+    Lee max_sql_retries del config.json del chat.
+    Permite cambiar el número de reintentos SQL sin reiniciar el servidor.
+    """
+    try:
+        if os.path.exists(_CONFIG_PATH):
+            with open(_CONFIG_PATH, encoding="utf-8") as f:
+                cfg = json.load(f)
+            value = cfg.get("max_sql_retries", _SQL_MAX_RETRIES_DEFAULT)
+            return int(value)
+    except Exception as e:
+        logger.warning(
+            f"[SQL CORRECTOR] ⚠️ No se pudo leer max_sql_retries de config.json: {e}. "
+            f"Usando default {_SQL_MAX_RETRIES_DEFAULT}."
+        )
+    return _SQL_MAX_RETRIES_DEFAULT
 
 
 class SQLCorrector:
@@ -193,6 +223,100 @@ class SQLCorrector:
         """Detecta columnas de fecha por nombre (contienen FECHA, DATE, etc.)."""
         date_keywords = ["FECHA", "DATE", "EMISION", "ENTREGA", "VENCIMIENTO"]
         return [c for c in columns if any(kw in c.upper() for kw in date_keywords)]
+
+    def _find_similar_tables_in_db(
+        self, unknown_table: str, execute_func: callable, max_candidates: int = 15
+    ) -> List[Dict[str, Any]]:
+        """
+        Busca en RDB$RELATIONS tablas reales cuyo nombre contenga alguna subcadena
+        del nombre desconocido, o viceversa. Devuelve lista de candidatas con
+        nombre y número de registros para que la IA elija la correcta.
+
+        Estrategia de búsqueda (por orden de prioridad):
+          1. Nombre exacto (ya sabemos que no existe, pero por si acaso)
+          2. Nombre contiene la raíz del desconocido (ej: PROV → DOCPRO, PROVEED, ESTPROVEED)
+          3. Desconocido contiene el nombre de la tabla real (ej: PROVEEDOR → PROV)
+          4. Primeras 4 letras en común
+
+        Retorna lista de dicts: [{"table": "DOCPRO", "n_records": 1234, "desc": "..."}]
+        """
+        if not unknown_table:
+            return []
+
+        unknown_upper = unknown_table.upper().strip()
+        # Extraer raíces de búsqueda: el nombre completo y subcadenas de 4+ chars
+        roots = set()
+        roots.add(unknown_upper)
+        # Subcadenas de 4+ caracteres del nombre desconocido
+        for length in range(4, len(unknown_upper) + 1):
+            for start in range(len(unknown_upper) - length + 1):
+                roots.add(unknown_upper[start:start + length])
+
+        candidates: Dict[str, Dict] = {}
+
+        for root in sorted(roots, key=len, reverse=True):  # más largas primero
+            if len(candidates) >= max_candidates:
+                break
+            try:
+                # Buscar tablas reales que contengan esta raíz en su nombre
+                query = (
+                    f"SELECT FIRST 20 TRIM(r.RDB$RELATION_NAME) AS TNAME "
+                    f"FROM RDB$RELATIONS r "
+                    f"WHERE r.RDB$SYSTEM_FLAG = 0 "
+                    f"AND r.RDB$VIEW_BLR IS NULL "
+                    f"AND UPPER(TRIM(r.RDB$RELATION_NAME)) CONTAINING '{root}' "
+                    f"ORDER BY TRIM(r.RDB$RELATION_NAME)"
+                )
+                rows = execute_func(query)
+                for row in rows:
+                    tname = (row.get("TNAME") or "").strip()
+                    if tname and tname not in candidates:
+                        candidates[tname] = {"table": tname, "n_records": None, "desc": ""}
+            except Exception as e:
+                logger.debug(f"[SQL CORRECTOR] _find_similar_tables: error buscando '{root}': {e}")
+                continue
+
+        if not candidates:
+            logger.warning(
+                f"[SQL CORRECTOR] ⚠️ No se encontraron tablas similares a '{unknown_table}' en RDB$RELATIONS"
+            )
+            return []
+
+        # Enriquecer con número de registros (COUNT(*)) para las primeras 10 candidatas
+        result = []
+        for tname in list(candidates.keys())[:max_candidates]:
+            entry = {"table": tname, "n_records": None}
+            try:
+                count_rows = execute_func(f"SELECT COUNT(*) AS N FROM {tname}")
+                if count_rows:
+                    entry["n_records"] = count_rows[0].get("N", 0)
+            except Exception:
+                pass
+            result.append(entry)
+
+        # Ordenar: primero las que tienen más registros (más probablemente la correcta)
+        result.sort(key=lambda x: (x["n_records"] or 0), reverse=True)
+
+        logger.info(
+            f"[SQL CORRECTOR] 🔎 Tablas similares a '{unknown_table}': "
+            f"{[r['table'] for r in result]}"
+        )
+        return result
+
+    def _get_all_tables_from_metadata(self) -> List[str]:
+        """
+        Lee la lista de tablas del db_metadata_optimized.json como fallback
+        cuando no hay conexión a la BD.
+        """
+        try:
+            meta_path = os.path.normpath(_METADATA_PATH)
+            if os.path.exists(meta_path):
+                with open(meta_path, encoding="utf-8") as f:
+                    metadata = json.load(f)
+                return [k for k in metadata.keys() if not k.startswith("_")]
+        except Exception as e:
+            logger.warning(f"[SQL CORRECTOR] ⚠️ No se pudo leer metadatos: {e}")
+        return []
 
     # ─── Actualización del aprendizaje permanente ─────────────────────────────
 
@@ -503,11 +627,15 @@ SQL CORREGIDO:"""
         db_context: str,
         ai_provider: Any,
         execute_func: callable,
-        max_retries: int = 3,
+        max_retries: int = None,
         attempt: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         Execute SQL with automatic ultra-resilient correction on errors.
+
+        max_retries: si None, se lee de config.json (max_sql_retries). Permite
+                     sobrescribir desde service.py si se desea, pero el default
+                     siempre viene del fichero de configuración centralizado.
 
         Flujo:
           0. PRE-EJECUCIÓN: detectar placeholders <...> → resolver con IA antes de ejecutar
@@ -515,10 +643,20 @@ SQL CORREGIDO:"""
           2. Ejecución
           3. Si falla → detect_error_type()
           4. fix_after_error() determinista
-          5. Si no resuelve → consultar metadatos reales de BD + muestra de datos
+          5a. Para table_unknown: buscar tablas similares en RDB$RELATIONS (fuzzy match)
+              → enviar candidatas a la IA para que elija la correcta
+          5b. Para otros errores: consultar columnas reales + muestra de datos
           6. Corrección por IA con contexto enriquecido
           7. Actualizar aprendizaje permanente
         """
+        # Leer max_retries del config.json si no se especifica explícitamente
+        if max_retries is None:
+            max_retries = _load_sql_max_retries()
+            if attempt == 0:
+                logger.info(
+                    f"[SQL CORRECTOR] 🔧 max_sql_retries={max_retries} "
+                    f"(leído de config.json)"
+                )
         # ── PASO 0: Detectar placeholders ANTES de ejecutar ───────────────────
         # La IA a veces genera SQL con <ID_DEL_TRABAJADOR> cuando no conoce el valor.
         # Firebird falla con "Token unknown <" — detectamos esto ANTES de ejecutar
@@ -645,7 +783,66 @@ SQL CORREGIDO:"""
                         f"[SQL CORRECTOR] ⚠️ Tabla con pocos registros: {table} — {info['warning']}"
                     )
 
-            # Detectar si la columna desconocida existe en otra tabla relacionada
+            # ── Caso especial: TABLE UNKNOWN → buscar tablas similares en RDB$RELATIONS ──
+            # Cuando la tabla no existe, consultamos RDB$RELATIONS para encontrar
+            # tablas reales con nombre similar y se las enviamos a la IA para que
+            # elija la correcta. Esto resuelve casos como PROVEEDOR → DOCPRO/COMPRA.
+            similar_tables_section = ""
+            if error_info["type"] == "table_unknown" and error_info.get("table"):
+                unknown_tbl = error_info["table"]
+                logger.info(
+                    f"[SQL CORRECTOR] 🔎 Tabla desconocida '{unknown_tbl}' — "
+                    f"buscando alternativas en RDB$RELATIONS..."
+                )
+                similar_tables = self._find_similar_tables_in_db(unknown_tbl, execute_func)
+
+                if similar_tables:
+                    similar_tables_section = (
+                        f"\n\n🔎 TABLAS REALES SIMILARES A '{unknown_tbl}' (consultadas en RDB$RELATIONS):\n"
+                        f"La tabla '{unknown_tbl}' NO EXISTE en la base de datos. "
+                        f"Estas son las tablas reales con nombre similar, ordenadas por número de registros:\n"
+                    )
+                    for entry in similar_tables[:10]:
+                        n = entry.get("n_records")
+                        n_str = f"{n:,}" if n is not None else "desconocido"
+                        similar_tables_section += f"  - {entry['table']} ({n_str} registros)\n"
+                    similar_tables_section += (
+                        f"\n  → Elige la tabla más apropiada de la lista anterior para reemplazar '{unknown_tbl}'.\n"
+                        f"  → Consulta también sus columnas reales con RDB$RELATION_FIELDS si es necesario.\n"
+                    )
+
+                    # Obtener columnas de las 3 candidatas con más registros
+                    for candidate in similar_tables[:3]:
+                        tname = candidate["table"]
+                        if tname not in real_columns_by_table:
+                            cols = self._get_real_table_columns(tname, execute_func)
+                            if cols:
+                                real_columns_by_table[tname] = cols
+                                self._update_metadata_learning(tname, cols)
+                            sample = self._get_real_table_sample(tname, execute_func, limit=2)
+                            if sample:
+                                sample_data_by_table[tname] = sample
+
+                    logger.info(
+                        f"[SQL CORRECTOR] ✅ {len(similar_tables)} tablas candidatas encontradas "
+                        f"para '{unknown_tbl}': {[t['table'] for t in similar_tables[:5]]}"
+                    )
+                else:
+                    # No hay tablas similares en RDB$RELATIONS → fallback a metadatos
+                    logger.warning(
+                        f"[SQL CORRECTOR] ⚠️ No hay tablas similares a '{unknown_tbl}' en RDB$RELATIONS. "
+                        f"Usando metadatos almacenados como fallback."
+                    )
+                    meta_tables = self._get_all_tables_from_metadata()
+                    if meta_tables:
+                        similar_tables_section = (
+                            f"\n\n⚠️ TABLA '{unknown_tbl}' NO EXISTE. "
+                            f"Tablas disponibles en metadatos (primeras 50):\n"
+                            + ", ".join(meta_tables[:50]) + "\n"
+                            + f"  → Elige la tabla más apropiada para reemplazar '{unknown_tbl}'.\n"
+                        )
+
+            # ── Detectar si la columna desconocida existe en otra tabla relacionada ──
             if error_info["type"] == "column_unknown" and error_info.get("column"):
                 bad_col = error_info["column"].upper()
                 found_in = []
@@ -673,7 +870,7 @@ SQL CORREGIDO:"""
                 original_question=original_question,
                 error_message=error_str,
                 error_info=error_info,
-                db_context=db_context,
+                db_context=db_context + similar_tables_section,
                 ai_provider=ai_provider,
                 real_columns_by_table=real_columns_by_table,
                 sample_data_by_table=sample_data_by_table,
