@@ -6,6 +6,7 @@ from backend.core.config.settings import settings
 from backend.core.utils.constants import AppConstants
 from backend.core.utils.network_audit import NetworkAuditLogger
 from backend.core.utils.network_audit_constants import NetworkAuditConfig
+from backend.core.utils.unsolvable_error_registry import check_and_alert_unsolvable_errors
 import datetime
 import logging
 
@@ -28,6 +29,14 @@ async def lifespan(app: FastAPI):
         strict=NetworkAuditConfig.DEFAULT_STRICT_MODE
     )
     logger.info("[MAIN][STARTUP] Auditor de red instalado — log: logs/network_audit.log")
+
+    # ── Alerta de errores irresolubles pendientes de revisión humana ──────────
+    # Si hay errores SQL que ni el normalizador ni la IA pudieron resolver,
+    # se muestran en consola y log al arrancar para que el equipo los revise.
+    try:
+        check_and_alert_unsolvable_errors()
+    except Exception as _e:
+        logger.warning(f"[MAIN][STARTUP] ⚠️ No se pudo comprobar errores irresolubles: {_e}")
 
     yield  # ── La aplicación está corriendo ──────────────────────────────────
 

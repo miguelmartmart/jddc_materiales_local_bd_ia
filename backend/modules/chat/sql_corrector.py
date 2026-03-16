@@ -26,6 +26,7 @@ import json
 import os
 from backend.modules.chat.firebird_sql_normalizer import FirebirdSQLNormalizer
 from backend.modules.chat.firebird_sql_constants import LOW_RECORD_TABLES
+from backend.core.utils.unsolvable_error_registry import register_unsolvable_error
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,35 @@ class SQLCorrector:
                 "message": (
                     "Columna BLOB no puede usarse en GROUP BY. "
                     "Usa CODIGO, NOMBRE o DESCRIPCIONCORTA en el GROUP BY."
+                ),
+            }
+
+        if "FUNCTION UNKNOWN" in error_upper:
+            # Extraer nombre de la función desconocida
+            # Firebird reporta: "Function unknown\nROUND" o "Function unknown ROUND"
+            func_name = None
+            parts = error_message.split("Function unknown")
+            if len(parts) > 1:
+                rest = parts[1].strip()
+                # Puede estar en la misma línea o en la siguiente
+                lines = rest.split("\n")
+                for line in lines:
+                    candidate = line.strip()
+                    if candidate and re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', candidate):
+                        func_name = candidate.upper()
+                        break
+                if not func_name and lines:
+                    # Tomar la primera palabra de la primera línea
+                    first_word = lines[0].strip().split()[0] if lines[0].strip() else None
+                    if first_word and re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', first_word):
+                        func_name = first_word.upper()
+            return {
+                "type": "function_unknown",
+                "function": func_name,
+                "message": (
+                    f"La función '{func_name}' no existe en Firebird 2.5. "
+                    f"Funciones no soportadas: ROUND→CAST(x AS NUMERIC), "
+                    f"NVL/IFNULL/ISNULL→COALESCE, TRUNC→CAST(x AS INTEGER)."
                 ),
             }
 
@@ -720,11 +750,25 @@ SQL CORREGIDO:"""
 
             if error_info["type"] == "unknown":
                 logger.warning(f"[SQL CORRECTOR] ⚠️ Error desconocido, no se puede corregir")
+                # Registrar como error irresoluble — requiere revisión humana
+                try:
+                    register_unsolvable_error(
+                        question=original_question,
+                        sql=sql_query,
+                        error_message=error_str,
+                        error_type="unknown_error",
+                        attempts=attempt + 1,
+                        context=f"Tipo detectado: unknown. Error completo: {error_str[:300]}",
+                    )
+                except Exception as _reg_err:
+                    logger.warning(f"[SQL CORRECTOR] ⚠️ No se pudo registrar error irresoluble: {_reg_err}")
                 raise
 
             # ── Intento 1: corrección DETERMINISTA (sin IA) ───────────────────
+            # function_unknown: ROUND/NVL/TRUNC → CAST/COALESCE (paso 21 del normalizador)
             deterministic_types = {
-                "blob_in_groupby", "column_unknown", "invalid_keyword", "syntax_error"
+                "blob_in_groupby", "column_unknown", "invalid_keyword",
+                "syntax_error", "function_unknown",
             }
             if error_info["type"] in deterministic_types:
                 det_query, det_changes = _normalizer.fix_after_error(sql_query, error_str)

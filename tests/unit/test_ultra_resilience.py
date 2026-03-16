@@ -199,11 +199,21 @@ class TestSQLCorrectorMetadata(unittest.TestCase):
         self.assertEqual(join_info["join_table"], "DOCCAB")
         self.assertEqual(join_info["date_col"], "DOCCAB.FECHA")
 
-    def test_low_record_tables_contiene_doccab(self):
-        """LOW_RECORD_TABLES contiene DOCCAB con advertencia."""
-        self.assertIn("DOCCAB", LOW_RECORD_TABLES)
-        self.assertIn("warning", LOW_RECORD_TABLES["DOCCAB"])
-        self.assertIn("3", LOW_RECORD_TABLES["DOCCAB"]["warning"])
+    def test_low_record_tables_no_contiene_doccab(self):
+        """DOCCAB NO debe estar en LOW_RECORD_TABLES.
+        
+        FIX sesión 16/03/2026: DOCCAB fue eliminado de LOW_RECORD_TABLES porque
+        su record_count=3 era de los metadatos SIUO (muestras), NO de la BD real.
+        DOCCAB tiene miles de registros reales → no debe generar advertencia falsa.
+        """
+        self.assertNotIn(
+            "DOCCAB", LOW_RECORD_TABLES,
+            "DOCCAB no debe estar en LOW_RECORD_TABLES: tiene miles de registros reales. "
+            "El record_count=3 era de muestras SIUO, no de la BD."
+        )
+        # Verificar que tablas realmente vacías SÍ están en LOW_RECORD_TABLES
+        self.assertIn("CONDICIO", LOW_RECORD_TABLES, "CONDICIO debe estar en LOW_RECORD_TABLES")
+        self.assertIn("CLIENTEDOCUM", LOW_RECORD_TABLES, "CLIENTEDOCUM debe estar en LOW_RECORD_TABLES")
 
 
 # ─── Tests: SQLCorrector — consulta metadatos reales (mock BD) ────────────────

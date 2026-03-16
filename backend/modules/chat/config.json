@@ -4,5 +4,9 @@
     "log_sql_errors": true,
     "ai_local_only": true,
     "_ai_local_only_comment": "Si true: SOLO usa la IA local Qwen3 VL 30B (red LAN JDDC). No sale a internet. Si false: usa sistema de fallback multi-modelo (Groq, Gemini, OpenAI, etc.). La funcionalidad de fallback NO se borra, solo se desactiva.",
-    "_ai_local_only_models": "Modelos locales: jddcia-qwen3-30b (http://jddcia.local) y jddcia-qwen3-30b-ip (http://192.168.0.36)"
+    "_ai_local_only_models": "Modelos locales: jddcia-qwen3-30b (http://jddcia.local) y jddcia-qwen3-30b-ip (http://192.168.0.36)",
+    "lan_max_retries": 10,
+    "_lan_max_retries_comment": "Número máximo de rondas de reintento en modo LAN_ONLY antes de devolver error. Cada ronda prueba todos los modelos LAN. Rango recomendado: 5-15.",
+    "lan_read_timeout_s": 60,
+    "_lan_read_timeout_s_comment": "Timeout de lectura en segundos para inferencia LAN (Qwen3 30B puede tardar 30-60s en la primera petición). El connect timeout se mantiene en 3s."
 }

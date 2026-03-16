@@ -297,6 +297,10 @@ class ChatService:
             "con todo el detalle", "profundamente", "a fondo",
             "analiza los datos", "investiga los datos", "estudio completo",
             "análisis exhaustivo", "analiza exhaustivamente",
+            # Variantes cortas que el usuario usa en producción
+            "en profundidad", "dime en profundidad", "profundidad",
+            "tasa de éxito", "tasa exito", "tasa de aceptacion",
+            "analiza", "análisis", "detallado", "completo",
         ]
         return any(k in msg for k in deep_keywords)
 
@@ -326,8 +330,8 @@ class ChatService:
 
                 agent = DeepAnalysisAgent(
                     orchestrator=self.model_orchestrator,
-                    execute_sql=lambda q: self._execute_sql(q, context.get('db_params')),
                     db_context=db_context,
+                    sql_executor=lambda q: self._execute_sql(q, context.get('db_params')),
                     sql_normalizer=self.sql_normalizer,
                 )
                 # Limpiar prefijo /deep del mensaje
@@ -713,7 +717,20 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
         if "```sql" in response_text:
             logger.info(f"[SQL] 🔍 Detectada consulta SQL en la respuesta")
             try:
-                sql_query = response_text.split(SQLDelimiters.START)[1].split(SQLDelimiters.END)[0].strip()
+                # ── SELECCIÓN DEL SQL MÁS COMPLETO ──────────────────────────────────
+                # La IA a veces genera varios bloques SQL (paso 1, paso 2, consulta final).
+                # El primer bloque suele ser el más simple (ej: COUNT(*) básico).
+                # El ÚLTIMO bloque suele ser el más completo (con JOINs, CASE WHEN, etc.).
+                # Usamos el bloque con más caracteres como heurística de "más completo".
+                # ────────────────────────────────────────────────────────────────────
+                import re as _re_sql
+                sql_blocks = _re_sql.findall(r'```sql\s*(.*?)```', response_text, _re_sql.DOTALL)
+                if sql_blocks:
+                    # Elegir el bloque más largo (más completo)
+                    sql_query = max(sql_blocks, key=len).strip()
+                    logger.info(f"[SQL] {len(sql_blocks)} bloques SQL encontrados — usando el más completo ({len(sql_query)} chars)")
+                else:
+                    sql_query = response_text.split(SQLDelimiters.START)[1].split(SQLDelimiters.END)[0].strip()
                 
                 # ── NORMALIZACIÓN DETERMINISTA ──────────────────────────────────────────
                 # FirebirdSQLNormalizer aplica en un solo paso todas las correcciones

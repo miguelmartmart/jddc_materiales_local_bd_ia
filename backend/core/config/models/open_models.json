@@ -3809,7 +3809,7 @@
       "provider": "groq",
       "model_id": "llama-3.1-8b-instant",
       "enabled": true,
-      "score": 84,
+      "score": 86,
       "tier": "medium",
       "capabilities": [
         "text"
@@ -3820,7 +3820,7 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 7,
+        "success": 8,
         "failure": 5
       },
       "family": "other",

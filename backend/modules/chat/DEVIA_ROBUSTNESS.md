@@ -1,272 +1,312 @@
-# DEVIA TECHNICAL CONTEXT: AI ROBUSTNESS & ORCHESTRATION
-# Detailed logic for Model Fallback, Self-Healing, and Error Recovery.
+# DEVIA — Robustez y Arquitectura del Sistema de Chat IA
 
-```json
-{
-  "component": "ModelFallbackOrchestrator",
-  "file": "backend/modules/chat/model_fallback_orchestrator.py",
-  "mission": "Ensure valid AI response regardless of provider failures or hallucinations.",
-  "strategies": {
-    "fallback_chain": {
-      "concept": "If preferred model fails, try next available model in 'smart_sort' order.",
-      "smart_sort": "Prioritize models by: 1. Health (proven success), 2. Speed (for simple tasks), 3. Power (for complex reasoning).",
-      "fast_fail": "If a provider returns 401/QuotaExceeded, mark provider as OFF and skip all its models."
-    },
-    "retry_policies": {
-      "technical_error": {
-        "triggers": ["Timeout", "ConnectionRefused", "5xx"],
-        "action": "Retry immediately with same model (up to 2 times), then switch model."
-      },
-      "semantic_error": {
-        "triggers": ["Invalid JSON", "Hallucinated Format", "Empty Response"],
-        "action": "Trigger Self-Correction Loop."
-      }
-    },
-    "self_correction_loop": {
-      "mechanism": "Reflection Prompt",
-      "steps": [
-        "1. Detect malformed output (e.g. JSON expected but got Markdown).",
-        "2. Feed error back to AI: 'You sent invalid JSON. Error: X. Fix it.'",
-        "3. Retry generation with 'repair mode' instructions.",
-        "4. If fails 3 times, switch to 'Dumb/Robust' fallback logic (e.g. Mock)."
-      ]
-    }
-  },
-  "prompt_injection_for_robustness": {
-    "system_instructions": "Always injected: 'Return STRICT JSON. No markdown backticks.'",
-    "error_context": "When retrying, previous error is appended to prompt."
-  }
-}
+## Módulo: `backend/modules/chat/`
+
+---
+
+## 1. Visión General
+
+El módulo de chat implementa un sistema de análisis de datos en lenguaje natural sobre Firebird 2.5, con dos modos de operación:
+
+| Modo | Activación | Descripción |
+|------|-----------|-------------|
+| **Normal** | Por defecto | SQL único + interpretación WEB |
+| **Análisis Profundo** | Checkbox frontend / palabras clave / `/deep` | DeepAnalysisAgent 5 fases |
+
+---
+
+## 2. DeepAnalysisAgent — Arquitectura Multi-Fase
+
+### 2.1 Estructura de ficheros
+
+```
+backend/modules/chat/
+├── deep_analysis_agent.py          ← Shim de compatibilidad (re-exporta)
+└── deep_analysis/                  ← Paquete real (<500 líneas cada fichero)
+    ├── __init__.py                 ← Exportaciones públicas
+    ├── models.py                   ← Dataclasses, Enums, TokenBudget, detect_depth
+    ├── phases_1_2.py               ← Fases 0, 1, 2 (comprensión + exploración)
+    ├── phases_3_4_5.py             ← Fases 3, 4, 5 (investigación + análisis + síntesis)
+    └── agent.py                    ← DeepAnalysisAgent (orquestador + helpers)
+```
+
+### 2.2 Niveles de profundidad (auto-detectados)
+
+| Nivel | SQLs | Tablas | Cuándo |
+|-------|------|--------|--------|
+| BASIC | 2 | 2 | Preguntas simples directas |
+| MEDIUM | 4 | 4 | Listados, consultas moderadas |
+| DEEP | 8 | 6 | Totales, rankings, comparativas |
+| **EPIC** | **12** | **8** | **Por defecto — análisis, tasas, tendencias** |
+
+La detección es determinista (palabras clave) y siempre cae en EPIC si no hay match claro.
+
+### 2.3 Arquitectura de 5 fases
+
+```
+FASE 0: Presupuesto de tokens
+  └─ Ajusta max_sqls y explore_tables según tokens disponibles
+
+FASE 1: Comprensión Épica
+  ├─ 1.1 Detección de intención (JSON estructurado)
+  ├─ 1.2 Descomposición en sub-preguntas
+  ├─ 1.3 Identificación de tablas candidatas (determinista + IA)
+  ├─ 1.4 Evaluación de profundidad requerida
+  └─ 1.5 Identificación de posibles problemas de datos
+
+FASE 2: Exploración Total
+  ├─ Conteo REAL de registros en cada tabla
+  ├─ Columnas disponibles (RDB$RELATION_FIELDS)
+  ├─ Detección de columnas clave (FECHA, IMPORTE, CODCLIENTE, TIPO)
+  ├─ Muestreo de datos reales (primeras 3 filas)
+  ├─ Distribución por TIPO en DOCCAB
+  ├─ Conteo de nulos en CODCLIENTE
+  └─ Expansión dinámica: IA puede solicitar tablas adicionales
+
+FASE 3: Investigación Multi-Angular
+  ├─ SQLs dinámicos generados por IA (hasta 12+)
+  ├─ SQLs fijos SIEMPRE incluidos:
+  │   ├─ Distribución temporal (año/serie)
+  │   └─ Instalaciones únicas vs presupuestos
+  ├─ Expansión dinámica (<!-- NECESITO_MAS_SQLS: N -->)
+  ├─ Auto-corrección de SQLs fallidos (hasta 2 reintentos + IA)
+  └─ Resumen progresivo si se supera el presupuesto de tokens
+
+FASE 4: Análisis Crítico Profundo
+  ├─ 4.1 Anomalías estadísticas
+  ├─ 4.2 Calidad de datos
+  ├─ 4.3 Contexto de negocio
+  ├─ 4.4 Limitaciones del SQL
+  ├─ 4.5 Patrones ocultos
+  ├─ 4.6 Hipótesis explicativas
+  ├─ 4.7 Score de fiabilidad (alto/medio/bajo)
+  └─ Registro de feedback en SIUO (autoaprendizaje)
+
+FASE 5: Síntesis Épica
+  ├─ Respuesta principal con datos reales en tabla Markdown
+  ├─ Análisis crítico
+  ├─ Advertencias y anomalías (HTML coloreado)
+  ├─ Contexto de negocio
+  ├─ Sugerencias y próximos pasos
+  └─ Detalles técnicos en <details> desplegable
 ```
 
 ---
 
-## SQL Normalizer — Correcciones Deterministas (v1.3.0)
+## 3. Integración con SIUO (Sistema de Índices Ultra-Optimizados)
 
-**Ficheros:**
-- `firebird_sql_normalizer.py` — Pipeline de normalización (20 pasos)
-- `firebird_sql_constants.py` — Única fuente de verdad para constantes
+### 3.1 Flujo de integración
 
-### Pipeline de normalización (`FirebirdSQLNormalizer.normalize`)
-
-| # | Corrección | Ejemplo |
-|---|-----------|---------|
-| 1 | Comentarios SQL `--` y `/* */` | eliminados |
-| 2 | Whitespace multilínea → una línea | `\n` → ` ` |
-| 3 | Punto y coma final | `SELECT ... ;` → `SELECT ...` |
-| 4 | Backticks MySQL | `` `TABLA` `` → `TABLA` |
-| 5 | Comillas dobles en identificadores | `"NOMBRE"` → `NOMBRE` |
-| 6 | `LIMIT/TOP/ROWS N` → `SELECT FIRST N` | `LIMIT 10` → `FIRST 10` |
-| 7 | Añadir `FIRST N` si falta (no en agregaciones) | `SELECT CODIGO` → `SELECT FIRST 100 CODIGO` |
-| 8 | `ILIKE` → `UPPER(col) LIKE UPPER(val)` | case-insensitive |
-| 9 | `LIKE` → `UPPER(col) LIKE UPPER(val)` | case-insensitive |
-| 10 | `!=` → `<>` | operador estándar Firebird |
-| 11 | `TRUE/FALSE` → `'T'/'F'` | booleanos Firebird |
-| 12 | `NOW()/GETDATE()/SYSDATE` → `CURRENT_TIMESTAMP/CURRENT_DATE` | funciones de fecha |
-| 13 | `CONCAT(a,b)` → `a \|\| b` | concatenación Firebird |
-| 14 | `SUBSTRING(c,p,l)` → `SUBSTRING(c FROM p FOR l)` | sintaxis Firebird |
-| 15 | `OFFSET N` → eliminar | no soportado en FB 2.5 |
-| 16 | Columnas erróneas conocidas | `STOCK` → `STOCKARTICULO` |
-| 17 | Alias con comillas dobles | `AS "alias"` → `AS alias` |
-| 18 | **BLOB en GROUP BY/SELECT** → eliminar/sustituir | `DESCRIPCION` → `NOMBRE` |
-| 19 | **Artículos más comprados sin JOIN** → reescribir con JOIN DOCLIN | COUNT(*) real |
-| 20 | **DOCLIN.FECHA / L.FECHA** → JOIN DOCCAB + C.FECHA | DOCLIN no tiene FECHA propia |
-
-### Corrección post-error sin IA (`fix_after_error`)
-
-Cuando Firebird devuelve un error conocido, `SQLCorrector.execute_with_correction`
-llama primero a `fix_after_error` **antes de gastar tokens de IA**:
-
-| Error Firebird | Corrección determinista |
-|---------------|------------------------|
-| `conversion error from string BLOB` | Elimina BLOB de GROUP BY, sustituye en SELECT por NOMBRE |
-| `Column unknown FECHA` (en query con DOCLIN) | Añade JOIN DOCCAB C, sustituye L.FECHA → C.FECHA |
-| `Column unknown X` | Mapea X a columna correcta via `COLUMN_UNKNOWN_MAP` |
-| `Token unknown LIMIT/TOP/ROWS` | Convierte a `SELECT FIRST N` (detecta token en línea siguiente) |
-
-**Flujo de corrección ultra-resiliente (v2.0):**
 ```
-SQL generado por IA
-  │
-  ▼
-[1] FirebirdSQLNormalizer.normalize() — 20 pasos deterministas (sin IA)
-  │   • Incluye paso 20: DOCLIN.FECHA → JOIN DOCCAB + C.FECHA
-  │
-  ▼
-[2] execute_func(sql) — ejecutar en Firebird
-  │
-  ├─ ✅ Éxito → devolver resultados
-  │
-  └─ ❌ Error → detect_error_type()
-        │
-        ├─ [3] fix_after_error() determinista (sin IA)
-        │       ├─ ✅ Cambio aplicado → reintenta (vuelve a [2])
-        │       └─ ❌ No aplicable → escala
-        │
-        ├─ [4] Consultar metadatos REALES de la BD (RDB$RELATION_FIELDS)
-        │       • Columnas reales de cada tabla en el SQL
-        │       • Muestra de datos reales (FIRST 3 filas)
-        │       • Detectar si columna desconocida existe en otra tabla
-        │       • Advertir si tabla tiene pocos registros (LOW_RECORD_TABLES)
-        │
-        ├─ [5] Corrección por IA con contexto enriquecido
-        │       • Prompt incluye: columnas reales + muestra + advertencias
-        │       • La IA sabe exactamente qué columnas existen en la BD real
-        │
-        ├─ [6] Actualizar aprendizaje permanente (db_metadata_optimized.json)
-        │       • Columnas reales descubiertas → guardadas para futuras consultas
-        │       • Notas críticas (ej: "FECHA no existe en DOCLIN")
-        │
-        └─ [7] Normalizar query corregida → reintenta (vuelve a [2])
+DeepAnalysisAgent
+    │
+    ├─ FASE 3 → get_context_retriever().get_context(question, max_tokens)
+    │           └─ Contexto jerárquico optimizado (tablas relevantes + relaciones)
+    │           └─ Fallback a db_context si SIUO no disponible
+    │
+    └─ FASE 4 → retriever.register_feedback(question, sql, was_correct, tables)
+                └─ Registra en siuo_query_log.json para autoaprendizaje
+                └─ was_correct = reliability_score in ("alto", "medio")
+```
+
+### 3.2 Tokens de contexto adaptativos
+
+```python
+# Más SQLs → más tokens de contexto SIUO (mejor calidad de SQLs generados)
+max_tokens = min(2000 + n_sqls * 500, 8000)
+```
+
+| max_sqls | max_tokens SIUO |
+|----------|----------------|
+| 2 (BASIC) | 3000 |
+| 4 (MEDIUM) | 4000 |
+| 8 (DEEP) | 6000 |
+| 12 (EPIC) | 8000 |
+
+### 3.3 Autoaprendizaje
+
+El SIUO aprende de cada análisis:
+- **Keywords desconocidos** → acumulados en `siuo_query_log.json["unknown_keywords"]`
+- **Tablas más usadas** → estadísticas para priorizar indexación
+- **Feedback de fiabilidad** → mejora el `concept_index` con el tiempo
+- **Sugerencias** → `retriever.get_learning_suggestions()` devuelve candidatos para enriquecer el índice
+
+---
+
+## 4. TokenBudget — Gestión de Contexto
+
+### 4.1 Principio
+
+Ninguna llamada a la IA supera el límite de contexto del modelo. El `TokenBudget` garantiza esto:
+
+```python
+budget = TokenBudget(context_limit_tokens)  # auto-detectado del orchestrator
+budget.truncate_to_fit(data, system, question)  # trunca si es necesario
+budget.usage_pct(data)  # % de uso → activa resumen progresivo si > 75%
+```
+
+### 4.2 Resumen progresivo
+
+Si los datos de investigación superan el 75% del presupuesto:
+1. Se resume con IA (≤30% del tamaño original)
+2. Si el resumen sigue siendo grande → se vuelca a fichero temporal
+3. Los ficheros temporales se limpian al finalizar el análisis
+
+---
+
+## 5. Principios de Resiliencia
+
+Cada subfase tiene `try/except` independiente:
+
+```python
+# Patrón estándar en todas las fases
+try:
+    result = await self._sub_detect_intent(question, history)
+except Exception as e:
+    result = {"intent": question, "category": "otro", "error": str(e)}
+    # Continúa con valores por defecto
+```
+
+Jerarquía de fallbacks:
+1. **Subfase falla** → usa valores por defecto, continúa
+2. **Fase falla** → continúa con lo que tiene
+3. **IA falla** → ejecuta SQLs fijos deterministas
+4. **Todo falla** → `_emergency_fallback()` devuelve datos crudos
+
+---
+
+## 6. Reglas de Negocio Conocidas
+
+### 6.1 DOCCAB — Tipos de documento
+
+| TIPO | Descripción |
+|------|-------------|
+| 0 | Presupuesto |
+| 2 | SAT / Orden de trabajo |
+| 11 | Albarán |
+| 12 | Pedido |
+| 13 | Factura |
+
+### 6.2 Instalaciones vs Presupuestos
+
+**CRÍTICO**: 1 instalación puede tener N presupuestos.
+- `COUNT(*)` en DOCCAB WHERE TIPO=0 = total presupuestos (NO instalaciones)
+- `COUNT(DISTINCT CODIGOOBRA)` = instalaciones únicas (si existe la columna)
+- `COUNT(DISTINCT CODCLIENTE)` = clientes únicos (aproximación)
+
+### 6.3 DOCDESTINO — Trazabilidad de documentos
+
+Vincula documentos origen → destino:
+- Presupuesto → Pedido → Albarán → Factura
+- Para calcular tasa de éxito: JOIN DOCCAB con DOCDESTINO
+
+### 6.4 Columnas BLOB
+
+`DESCRIPCION` es BLOB en muchas tablas → **NO usar en GROUP BY**.
+Usar `CAST(DESCRIPCION AS VARCHAR(200))` si es necesario.
+
+---
+
+## 7. Cómo Extender con Nuevas Subfases
+
+### 7.1 Añadir una subfase a Fase 1
+
+```python
+# En phases_1_2.py → _phase1_understand()
+new_data = await self._sub_new_analysis(question, history_text)
+phase.sub_phases.append(SubPhaseResult("1.6 Nueva subfase", bool(new_data), new_data))
+phase.data["new_analysis"] = new_data
+```
+
+### 7.2 Añadir un SQL fijo a Fase 3
+
+```python
+# En phases_3_4_5.py → _build_fixed_sqls()
+if "nueva_condicion" in msg:
+    fixed.append({
+        "objetivo": "Descripción del SQL",
+        "sql": "SELECT ... FROM TABLA WHERE ..."
+    })
+```
+
+### 7.3 Añadir una dimensión de análisis a Fase 4
+
+```python
+# En phases_3_4_5.py → _phase4_analyze() → system prompt
+"7. NUEVA DIMENSIÓN: descripción\n"
+# Y en el JSON de respuesta:
+'"nueva_dimension":[],'
+# Y en el procesamiento:
+result.nueva_lista.extend(analysis.get("nueva_dimension", []))
 ```
 
 ---
 
-## Advertencias en Justificación Web
+## 8. Activación del Modo Análisis Profundo
 
-**Fichero:** `service.py` (sección WEB INTERPRETER)
-
-Cuando una consulta usa tablas con pocos registros (`LOW_RECORD_TABLES`),
-la justificación incluye un bloque HTML en **rojo** advirtiendo al usuario:
-
-```html
-<p style="color:#c0392b;font-weight:bold;">⚠️ ADVERTENCIA: DOCCAB solo tiene 3 registros...</p>
-```
-
-**Tablas monitorizadas:** `LOW_RECORD_TABLES` en `firebird_sql_constants.py`
-
----
-
-## Constantes Nuevas (v1.3.0)
-
-**Fichero:** `firebird_sql_constants.py`
-
-| Constante | Descripción |
-|-----------|-------------|
-| `TABLE_DATE_COLUMNS` | Qué columna de fecha tiene cada tabla. DOCLIN → no tiene, usar JOIN DOCCAB |
-| `LOW_RECORD_TABLES` | Tablas con pocos registros → advertencia en justificación web |
-| `COLUMN_UNKNOWN_MAP["FECHA"]` | Señal `__NEEDS_JOIN_DOCCAB__` → activa paso 20 en fix_after_error |
-
----
-
-## Respuesta Web — Justificación en Desplegable
-
-**Fichero:** `service.py` (sección WEB INTERPRETER)
-
-Las respuestas web incluyen un bloque `<details><summary>` colapsado con:
-- Tablas consultadas
-- Columnas devueltas
-- Número exacto de registros
-- SQL ejecutado (copiable)
-- Cómo verificarlo en la BD
-- Razonamiento del SQL
-- ⚠️ Advertencias en rojo si hay tablas con pocos registros
-
-**Renderizado:** `marked.parse()` en el frontend preserva HTML inline → el `<details>` funciona nativamente sin cambios en el JS.
-
-**CSS:** `.message details.chat-justification` en `frontend/assets/css/style.css`
-- Triángulo animado ▶ → ▼ al abrir
-- Fondo gris claro, borde sutil
-- Código SQL con fondo oscuro
-
-**Clientes de voz (gafas Meta):** No reciben el bloque `<details>` — usan `interpret_results_for_voice()` determinista.
-
----
-
-## SIUO — Sistema de Índices Ultra-Optimizado (v1.0.0)
-
-**Ficheros:**
-- `backend/modules/db_explorer/siuo_router.py` — Endpoints FastAPI
-- `frontend/assets/js/modules/siuo_constants.js` — Constantes, estado, `markdownToHtml`
-- `frontend/assets/js/modules/siuo_render.js` — Renderizado DOM
-- `frontend/assets/js/modules/siuo.js` — Orquestador (lógica de negocio)
-- `frontend/assets/css/siuo.css` — Estilos
-
-### Tokens de contexto
-
-| Parámetro | Valor | Dónde |
-|-----------|-------|-------|
-| `max_tokens` default | **8000** | `ContextAskRequest`, `ContextTestRequest` |
-| `max_tokens` máximo | **16000** | Validación Pydantic `le=16000` |
-| Input HTML default | **8000** | `siuo_render.js` skeleton |
-| Input HTML máximo | **16000** | `max="16000"` en el input |
-
-### markdownToHtml — Algoritmo de renderizado (v2.0)
-
-El backend devuelve **Markdown + HTML mixto** (tablas GFM, `<details>`, `<span style=...>`, `<p style=...>`).
-El algoritmo extrae los bloques HTML **antes** de escapar para evitar doble-procesado:
-
-```
-Texto Markdown + HTML mixto
-  │
-  ▼
-[0] Detección HTML puro → devolver tal cual (evita doble-procesado)
-  │
-  ▼
-[1] Extraer bloques HTML (placeholder %%HTML_BLOCK_N%%):
-    • <details>...</details>  → añade class="chat-justification"
-    • <span style=...>        → colores inline del backend
-    • <p style=...>           → advertencias de tablas con pocos registros
-  │
-  ▼
-[2] Extraer tablas GFM (placeholder %%TABLE_BLOCK_N%%):
-    • | Col | → <table class="md-table"> envuelta en <div class="md-table-wrap">
-    • Scroll horizontal automático en móvil/panel estrecho
-  │
-  ▼
-[3] Escapar HTML restante (XSS-safe)
-  │
-  ▼
-[4] Inline Markdown: **negrita**, *cursiva*, `código`
-  │
-  ▼
-[5] Listas: - item → <ul><li>
-  │
-  ▼
-[6] Párrafos: \n\n → </p><p>
-  │
-  ▼
-[7] Restaurar tablas (%%TABLE_BLOCK_N%% → HTML)
-  │
-  ▼
-[8] Restaurar HTML blocks (%%HTML_BLOCK_N%% → HTML)
-  │
-  ▼
-[9] Limpiar párrafos vacíos <p></p>
-```
-
-**Anti-regresión crítica:** Los placeholders deben ser `%%TABLE_BLOCK_N%%` y `%%HTML_BLOCK_N%%`
-(sin `%%` extra al final del prefijo). Los tests verifican esto automáticamente.
-
-### Tablas con scroll horizontal
-
-Las tablas Markdown se envuelven en `<div class="md-table-wrap">` con `overflow-x: auto`.
-Esto permite scroll horizontal en paneles estrechos sin romper el layout.
-
-### Modal de respuesta expandida
-
-El botón **⛶ Expandir** aparece tras una respuesta exitosa en el panel "Probar ContextRetriever".
-Abre un modal con el contenido completo, cierra con `Escape` o clic en el overlay.
+### 8.1 Frontend (chat.js)
 
 ```javascript
-// API pública
-window.SIUOModule.expandResult()  // Abre modal
-window.SIUOModule.closeModal()    // Cierra modal
+// Checkbox en el formulario de chat
+const deepAnalysis = document.getElementById('deep-analysis-toggle')?.checked ?? true;
+body.deep_analysis = deepAnalysis;
+```
+
+### 8.2 Backend (service.py)
+
+```python
+# Activar si: checkbox marcado O palabras clave detectadas
+if context.get('deep_analysis', False) or self._is_deep_analysis_request(message):
+    agent = DeepAnalysisAgent(orchestrator, db_context, sql_executor, sql_normalizer)
+    return await agent.analyze(message, conversation_history)
+```
+
+### 8.3 Comandos explícitos
+
+- `/deep <pregunta>` — activa modo épico
+- `/analisis <pregunta>` — activa modo épico
+- Palabras clave: "analiza en profundidad", "análisis completo", "investiga", "a fondo"
+
+---
+
+## 9. Tests
+
+```
+tests/unit/test_deep_analysis_agent.py
+```
+
+Clases de test:
+- `TestDetectDepth` — auto-detección de profundidad
+- `TestTokenBudget` — conteo, fits, truncate, usage_pct
+- `TestPhase1Fallback` — fallback si IA falla, tablas candidatas, issues
+- `TestPhase2Exploration` — exploración de tablas con mock SQL
+- `TestPhase3FixedSQLs` — SQLs fijos (temporal + instalaciones)
+- `TestPhase4SIUOFeedback` — registro de feedback en SIUO
+- `TestEmergencyFallback` — fallback de emergencia
+- `TestFullAnalysisMock` — análisis completo con mocks
+- `TestHelpers` — _parse_json, _fmt_*, _build_warnings_html
+
+Ejecutar:
+```bash
+cd bots/interjddcia
+pytest tests/unit/test_deep_analysis_agent.py -v
 ```
 
 ---
 
-## Tests
+## 10. Ficheros del Módulo
 
-| Fichero | Qué cubre |
-|---------|-----------|
-| `tests/unit/test_normalizer_blob_and_compras.py` | BLOB en GROUP BY, artículos más comprados, fix_after_error |
-| `tests/unit/test_ultra_resilience.py` | Paso 20 DOCLIN.FECHA, tablas no indexadas, flujo completo ultra-resiliente, tablas con pocos registros, corrección encadenada |
-| `tests/unit/test_sql_normalizer.py` | Pipeline completo de normalización |
-| `tests/unit/test_siuo_render_and_tokens.py` | markdownToHtml (tablas, details, span, placeholders), tokens Pydantic, ficheros fuente JS/CSS |
+| Fichero | Líneas | Descripción |
+|---------|--------|-------------|
+| `deep_analysis/__init__.py` | ~20 | Exportaciones públicas |
+| `deep_analysis/models.py` | ~170 | Dataclasses, Enums, TokenBudget |
+| `deep_analysis/phases_1_2.py` | ~280 | Fases 0, 1, 2 |
+| `deep_analysis/phases_3_4_5.py` | ~380 | Fases 3, 4, 5 + SIUO |
+| `deep_analysis/agent.py` | ~250 | Orquestador + helpers |
+| `deep_analysis_agent.py` | ~30 | Shim de compatibilidad |
+| `service.py` | ~400 | ChatService (integra agente) |
+| `firebird_sql_constants.py` | ~200 | Constantes SQL centralizadas |
 
-```bash
-# Ejecutar desde la raíz del proyecto
-python -m pytest bots/interjddcia/tests/unit/ -v
-# Resultado esperado: 49+ passed (test_siuo_render_and_tokens: 49/49)
-```
+---
+
+*Última actualización: 16/03/2026 — DeepAnalysisAgent v2.0 con integración SIUO*

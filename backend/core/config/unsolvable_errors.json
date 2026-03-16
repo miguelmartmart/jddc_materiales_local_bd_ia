@@ -1,0 +1,25 @@
+{
+  "errors": [
+    {
+      "hash": "6bcb3caa93cae854",
+      "status": "pending",
+      "category": "unknown_error",
+      "category_desc": "❓ Error desconocido — no clasificado por el sistema",
+      "first_seen": "2026-03-16T11:46:12.569870+00:00",
+      "last_seen": "2026-03-16T11:46:12.569870+00:00",
+      "occurrences": 1,
+      "attempts": 1,
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos de clientes",
+      "sql_failed": "",
+      "error_message": "Error después de 3 intentos: Dynamic SQL Error\nSQL error code = -104\nUnexpected end of command - line 1, column 1\n",
+      "context": "Tipo detectado: unknown. Error completo: Error después de 3 intentos: Dynamic SQL Error\nSQL error code = -104\nUnexpected end of command - line 1, column 1\n",
+      "extra": {},
+      "resolution": null
+    }
+  ],
+  "_meta": {
+    "version": "1.0",
+    "total_registered": 1,
+    "last_updated": "2026-03-16T11:46:12.569870+00:00"
+  }
+}

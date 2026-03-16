@@ -526,6 +526,27 @@ class ContextRetriever:
         if queries:
             lines.append(f"  Ejemplo: {queries[0]}")
 
+        # Valores de ejemplo de registros reales (sample_rows del indexer)
+        # Permite a la IA entender qué datos reales contiene la tabla
+        sample_rows = entry.get("sample_rows", [])
+        if sample_rows:
+            lines.append(f"  Datos de ejemplo ({len(sample_rows)} filas):")
+            for row in sample_rows[:3]:  # Máximo 3 filas para no exceder tokens
+                # Filtrar columnas sensibles antes de mostrar
+                try:
+                    from backend.modules.db_explorer.constants import PrivacyConfig
+                    sensitive = PrivacyConfig.SENSITIVE_COLUMNS
+                except Exception:
+                    sensitive = set()
+                row_filtered = {
+                    k: v for k, v in row.items()
+                    if k.upper() not in sensitive and v not in (None, "", "NULL")
+                }
+                if row_filtered:
+                    # Mostrar solo las primeras 5 columnas para no exceder tokens
+                    row_short = dict(list(row_filtered.items())[:5])
+                    lines.append(f"    {row_short}")
+
         return "\n".join(lines) + "\n\n"
 
     def _build_table_block_compact(

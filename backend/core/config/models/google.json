@@ -540,7 +540,7 @@
       "description": "",
       "context_window": 32768,
       "enabled": true,
-      "score": 88,
+      "score": 68,
       "tier": "medium",
       "capabilities": [
         "text"
@@ -552,7 +552,7 @@
       },
       "stats": {
         "success": 121,
-        "failure": 24
+        "failure": 26
       },
       "family": "other",
       "usage": [
@@ -568,7 +568,7 @@
       "description": "",
       "context_window": 32768,
       "enabled": true,
-      "score": 100,
+      "score": 80,
       "tier": "medium",
       "capabilities": [
         "text"
@@ -579,8 +579,8 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 175,
-        "failure": 7
+        "success": 178,
+        "failure": 9
       },
       "family": "other",
       "usage": [
@@ -997,7 +997,7 @@
       "description": "Gemini Robotics-ER 1.5 Preview",
       "context_window": 1048576,
       "enabled": true,
-      "score": 84,
+      "score": 64,
       "tier": "medium",
       "capabilities": [
         "vision",
@@ -1010,7 +1010,7 @@
       },
       "stats": {
         "success": 8,
-        "failure": 6
+        "failure": 8
       },
       "family": "other",
       "usage": [

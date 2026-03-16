@@ -742,14 +742,18 @@
                             <div id="chat-preview-container"
                                 style="display: flex; gap: 10px; padding: 5px; overflow-x: auto; min-height: 0px;">
                             </div>
-                            <div class="chat-input-area" style="display: flex; gap: 10px;">
+                            <div class="chat-input-area" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                                 <input type="file" id="chat-file-input" accept="image/*" multiple
                                     style="display: none;">
                                 <button id="btn-attach-file" class="btn secondary"
-                                    style="padding: 0 15px; font-size: 1.2em;" title="Adjuntar imagen">📎</button>
+                                    style="padding: 0 12px; font-size: 1.2em; flex-shrink: 0;" title="Adjuntar imagen">📎</button>
                                 <input type="text" id="chat-input" placeholder="Escribe tu mensaje..."
-                                    style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                                <button id="btn-send-chat" class="btn primary">Enviar</button>
+                                    style="flex: 1; min-width: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                                <label id="deep-analysis-label" style="display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; font-size: 0.82em; color: #1e40af; font-weight: 600; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 20px; padding: 4px 10px; transition: background 0.2s; flex-shrink: 0; white-space: nowrap;" title="Activa el análisis multi-fase épico (5 fases, hasta 12 SQLs, análisis crítico profundo)">
+                                    <input type="checkbox" id="deep-analysis-toggle" checked style="width: 13px; height: 13px; cursor: pointer; accent-color: #1e40af;">
+                                    🔬 Análisis
+                                </label>
+                                <button id="btn-send-chat" class="btn primary" style="flex-shrink: 0;">Enviar</button>
                             </div>
                         </div>
                     </div>
