@@ -56,6 +56,34 @@ COLUMN_UNKNOWN_MAP: Dict[str, str] = {
     "FECHA":           "__NEEDS_JOIN_DOCCAB__",  # señal especial → paso 20
 }
 
+# ─── Semántica de tablas de relación (JOIN info crítico) ─────────────────────
+# Para tablas que vinculan documentos entre sí, la IA necesita saber exactamente
+# qué columna es el origen y cuál el destino, y cómo calcular tasas correctamente.
+# CRÍTICO: sin esta info, la IA genera LEFT JOIN + WHERE en tabla derecha = 0 resultados.
+RELATION_TABLE_JOIN_INFO: dict = {
+    "DOCDESTINO": {
+        "origin_col":  "CODDOCUMENTO",        # FK al documento ORIGEN (presupuesto TIPO=0)
+        "dest_col":    "CODDOCUMENTODESTINO",  # FK al documento DESTINO (factura/pedido)
+        "join_origin": "DOCCAB c ON c.CODIGO = dd.CODDOCUMENTO",
+        "join_dest":   "DOCCAB d ON d.CODIGO = dd.CODDOCUMENTODESTINO",
+        "tasa_sql": (
+            "SELECT COUNT(DISTINCT c.CODIGO) AS PRESUPUESTOS_CREADOS, "
+            "COUNT(DISTINCT dd.CODDOCUMENTO) AS PRESUPUESTOS_ACEPTADOS, "
+            "CAST(COUNT(DISTINCT dd.CODDOCUMENTO) * 100.0 / "
+            "NULLIF(COUNT(DISTINCT c.CODIGO), 0) AS NUMERIC(5,2)) AS TASA_EXITO "
+            "FROM DOCCAB c "
+            "LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO "
+            "WHERE c.TIPO = 0"
+        ),
+        "note": (
+            "DOCDESTINO: CODDOCUMENTO=origen(presupuesto), CODDOCUMENTODESTINO=destino(factura/pedido). "
+            "Para tasa de éxito: COUNT(DISTINCT dd.CODDOCUMENTO) / COUNT(DISTINCT c.CODIGO). "
+            "NUNCA usar LEFT JOIN DOCDESTINO + WHERE d.TIPO IN (...) — convierte LEFT en INNER JOIN. "
+            "Correcto: LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO (sin WHERE en dd/d)."
+        ),
+    },
+}
+
 # ─── Columnas de fecha por tabla ──────────────────────────────────────────────
 # Qué columna de fecha tiene cada tabla (para corrección determinista).
 # Si la tabla NO tiene fecha propia, indica la tabla relacionada y cómo hacer JOIN.

@@ -9931,7 +9931,7 @@
         "ORDENENVIO",
         "ORDENRECEPCION"
       ],
-      "note": "La tabla contiene relaciones entre documentos, pero no todos los documentos tienen un destino válido. Verificar que CODDOCUMENTODESTINO exista en DOCCAB.CODIGO para evitar errores de integridad referencial.",
+      "note": "CRITICO: CODDOCUMENTO=origen(presupuesto TIPO=0), CODDOCUMENTODESTINO=destino(factura/pedido). NUNCA usar LEFT JOIN DOCDESTINO + WHERE d.TIPO IN (...): convierte LEFT en INNER JOIN implicito, devuelve 0 presupuestos sin destino. SQL correcto: SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL, COUNT(DISTINCT dd.CODDOCUMENTO) AS ACEPTADOS FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO WHERE c.TIPO = 0",
       "queries": [
         "SELECT FIRST 5 CODDOCUMENTO, CODDOCUMENTODESTINO, ORDENENVIO, ORDENRECEPCION FROM DOCDESTINO ORDER BY CODDOCUMENTO",
         "SELECT FIRST 5 CODDOCUMENTO, CODDOCUMENTODESTINO FROM DOCDESTINO WHERE ORDENENVIO > 0 AND ORDENRECEPCION IS NOT NULL",

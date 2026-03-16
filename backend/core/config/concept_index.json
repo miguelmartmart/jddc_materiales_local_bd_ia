@@ -4609,6 +4609,12 @@
     ],
     "pendiente": [
       {
+        "table": "DOCCAB"
+      },
+      {
+        "table": "DOCDESTINO"
+      },
+      {
         "table": "AGEGAST"
       },
       {
@@ -4619,6 +4625,69 @@
       },
       {
         "table": "EXISTENC"
+      }
+    ],
+    "tasa": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "exito": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "aceptado": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "conversion": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "convertido": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "aprobado": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
+      }
+    ],
+    "rechazado": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
       }
     ],
     "agegastcalendarioweblog": [
@@ -12899,6 +12968,9 @@
       },
       {
         "table": "OBRAPORCENTUAL"
+      },
+      {
+        "table": "DOCDESTINO"
       }
     ],
     "comparación": [
@@ -24080,6 +24152,15 @@
     "webtiendapaisconfig": [
       {
         "table": "WEBTIENDAPAISCONFIG"
+      }
+    ],
+    "convierten": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
+      {
+        "table": "DOCDESTINO"
       }
     ]
   }
