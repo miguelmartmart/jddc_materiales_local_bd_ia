@@ -137,6 +137,13 @@ export function renderSkeleton() {
               <input type="number" id="siuo-test-tokens" class="siuo-input siuo-input-sm"
                      value="8000" min="100" max="16000">
             </div>
+            <div class="siuo-form-row">
+              <label class="siuo-label siuo-label-check" title="Activa el DeepAnalysisAgent (5 fases, multi-SQL, análisis crítico)">
+                <input type="checkbox" id="siuo-deep-analysis-toggle" checked
+                       style="width:13px;height:13px;cursor:pointer;accent-color:#1e40af;">
+                🔬 Análisis profundo (DeepAgent)
+              </label>
+            </div>
             <div class="siuo-btn-group">
               <button class="siuo-btn siuo-btn-secondary"
                       onclick="window.SIUOModule.testContext()">

@@ -1,70 +1,6 @@
 {
   "queries": [
     {
-      "ts": "2026-03-16T16:02:16.438431",
-      "question": "¿Cuál es el importe total de las facturas?",
-      "keywords": [
-        "importe",
-        "total",
-        "facturas"
-      ],
-      "tables_used": [
-        "AGEGAST",
-        "RECIBO3",
-        "ESTPROVEED",
-        "COMPROMISOVENCRECIBO1",
-        "COMPROMISOVENCIMIENTO",
-        "COMPROMISOVENCCOBRO",
-        "CORREOCARPETA",
-        "CUENTABANCOMOVDET"
-      ],
-      "unknown_kws": [
-        "cuál"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:16.475405",
-      "question": "¿Cuántos pedidos hay en el sistema?",
-      "keywords": [
-        "pedidos",
-        "sistema"
-      ],
-      "tables_used": [
-        "CONFIGURACION",
-        "SERVMENSAJE",
-        "CORREORECIENTE",
-        "DK$LOCK",
-        "SERVMENSAJEUSUARIO",
-        "PREPEDCAB",
-        "PREPEDCABDIAS",
-        "PREPEDLIN"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:16.507931",
-      "question": "¿Cuántos documentos hay de tipo 0?",
-      "keywords": [
-        "documentos",
-        "tipo"
-      ],
-      "tables_used": [
-        "CARACT",
-        "GESDOC",
-        "DOCLINDOCASOC",
-        "OBRADOC",
-        "REPESTDOC",
-        "AGEGASTPRGAVDCVAR",
-        "AGEGASTPRGAVDCVARPER",
-        "AGENTEDOCUM"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
       "ts": "2026-03-16T16:02:16.547096",
       "question": "¿Cuántos documentos hay de tipo 1?",
       "keywords": [
@@ -10814,6 +10750,59 @@
       "unknown_kws": [
         "pregunta"
       ]
+    },
+    {
+      "ts": "2026-03-16T16:51:08.568805",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-16T16:51:08.603444",
+      "question": "¿y cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-16T16:51:08.624381",
+      "question": "test pregunta",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": [
+        "pregunta"
+      ]
     }
   ],
   "unknown_keywords": {
@@ -10850,7 +10839,7 @@
     "piden": 9,
     "cuántas": 966,
     "cuál": 1008,
-    "cuántos": 1160,
+    "cuántos": 1162,
     "hecho": 56,
     "emitido": 14,
     "medio": 140,
@@ -10957,7 +10946,7 @@
     "2025": 14,
     "2023": 14,
     "cuanto": 25,
-    "pregunta": 13,
+    "pregunta": 14,
     "creados": 3,
     "xyzabc123": 5,
     "sentido": 5,

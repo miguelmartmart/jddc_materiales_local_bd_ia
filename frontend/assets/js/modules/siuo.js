@@ -229,6 +229,68 @@ async function _callTestAPI(question, maxTokens) {
   return { askData, testData };
 }
 
+/**
+ * Llama a /api/chat con deep_analysis:true para usar el DeepAnalysisAgent.
+ * Devuelve un objeto compatible con el formato de askData para renderTestResult.
+ * Ultra-resiliente: si falla, devuelve error amigable.
+ */
+async function _callDeepAnalysisAPI(question) {
+  try {
+    const resp = await fetch("/api/chat/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: question,
+        deep_analysis: true,
+        session_id: `siuo-test-${Date.now()}`,
+        conversation_history: [],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp
+        .json()
+        .catch(() => ({ detail: `HTTP ${resp.status}` }));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    // Normalizar respuesta al formato esperado por renderTestResult
+    return {
+      askData: {
+        answer:
+          data.response || data.answer || data.message || "(sin respuesta)",
+        source: "deep_agent",
+        tables_used: data.tables_used || [],
+        keywords: data.keywords || [],
+        tokens: data.tokens_used || 0,
+        error: data.error || null,
+      },
+      testData: {
+        meta: { keywords_unknown: [] },
+        context_length: 0,
+        context_preview: "",
+      },
+    };
+  } catch (e) {
+    siuoLog("_callDeepAnalysisAPI", "siuo", "/api/chat", `Error: ${e.message}`);
+    return {
+      askData: {
+        answer: `❌ Error en análisis profundo: ${e.message}`,
+        source: "error",
+        tables_used: [],
+        keywords: [],
+        tokens: 0,
+        error: e.message,
+      },
+      testData: null,
+    };
+  }
+}
+
+/** Lee el estado del checkbox de análisis profundo del SIUO. */
+function _isSiuoDeepEnabled() {
+  return document.getElementById("siuo-deep-analysis-toggle")?.checked ?? true;
+}
+
 // ─── Probar ContextRetriever ──────────────────────────────────────────────────
 
 async function siuoTestContext() {
@@ -243,25 +305,38 @@ async function siuoTestContext() {
     return;
   }
 
+  const deepEnabled = _isSiuoDeepEnabled();
+  const apiLabel = deepEnabled
+    ? "API /api/chat (DeepAgent)"
+    : "API /context/ask";
   siuoLog(
     "siuoTestContext",
     "UI",
-    "API /context/ask",
-    `question="${question}"`,
+    apiLabel,
+    `question="${question}" deep=${deepEnabled}`,
   );
 
   const resultEl = document.getElementById("siuo-test-result");
   if (resultEl) {
     resultEl.style.display = "block";
-    resultEl.innerHTML = `
-      <div class="siuo-loading">
-        ⏳ Consultando Qwen3 LAN y ejecutando SQL...
-        <br><small style="opacity:0.7">Esto puede tardar unos segundos</small>
-      </div>`;
+    resultEl.innerHTML = deepEnabled
+      ? `<div class="siuo-loading">
+           🔬 <strong>Análisis profundo activado</strong> — ejecutando 5 fases...
+           <br><small style="opacity:0.7">Puede tardar 15-60 segundos según la complejidad</small>
+         </div>`
+      : `<div class="siuo-loading">
+           ⏳ Consultando Qwen3 LAN y ejecutando SQL...
+           <br><small style="opacity:0.7">Esto puede tardar unos segundos</small>
+         </div>`;
   }
 
   try {
-    const { askData, testData } = await _callTestAPI(question, maxTokens);
+    let askData, testData;
+    if (deepEnabled) {
+      ({ askData, testData } = await _callDeepAnalysisAPI(question));
+    } else {
+      ({ askData, testData } = await _callTestAPI(question, maxTokens));
+    }
     if (resultEl) renderTestResult(resultEl, askData, testData);
     _showExpandBtn(true);
   } catch (e) {
@@ -275,22 +350,32 @@ async function siuoTestContext() {
 // ─── Banco de Pruebas Rápidas ─────────────────────────────────────────────────
 
 async function siuoRunQuickTest(question) {
+  const deepEnabled = _isSiuoDeepEnabled();
   const resultEl = document.getElementById("siuo-quicktest-result");
   if (resultEl) {
     resultEl.style.display = "block";
-    resultEl.innerHTML = `
-      <div class="siuo-loading">
-        ⏳ <strong>${escapeHtml(question)}</strong>
-        <br><small style="opacity:0.7">Consultando Qwen3 LAN → SQL → Firebird...</small>
-      </div>`;
+    resultEl.innerHTML = deepEnabled
+      ? `<div class="siuo-loading">
+           🔬 <strong>${escapeHtml(question)}</strong>
+           <br><small style="opacity:0.7">Análisis profundo: 5 fases, multi-SQL...</small>
+         </div>`
+      : `<div class="siuo-loading">
+           ⏳ <strong>${escapeHtml(question)}</strong>
+           <br><small style="opacity:0.7">Consultando Qwen3 LAN → SQL → Firebird...</small>
+         </div>`;
     resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   try {
-    const { askData, testData } = await _callTestAPI(
-      question,
-      SIUO_MAX_TOKENS_DEFAULT,
-    );
+    let askData, testData;
+    if (deepEnabled) {
+      ({ askData, testData } = await _callDeepAnalysisAPI(question));
+    } else {
+      ({ askData, testData } = await _callTestAPI(
+        question,
+        SIUO_MAX_TOKENS_DEFAULT,
+      ));
+    }
     if (resultEl) renderTestResult(resultEl, askData, testData, question);
   } catch (e) {
     if (resultEl)
