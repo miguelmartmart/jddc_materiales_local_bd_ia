@@ -309,8 +309,11 @@ class ChatService:
         logger.info("="*80)
 
         # ── ANÁLISIS PROFUNDO MULTI-FASE ──────────────────────────────────────
-        # Se activa con /deep, /analisis, o palabras clave de análisis profundo
-        if self._is_deep_analysis_request(message):
+        # Se activa con:
+        #   1. Checkbox frontend: context.get('deep_analysis', False) == True
+        #   2. Comando explícito: /deep, /analisis
+        #   3. Palabras clave: "analiza en profundidad", "investiga", etc.
+        if context.get('deep_analysis', False) or self._is_deep_analysis_request(message):
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
@@ -334,7 +337,8 @@ class ChatService:
                         clean_msg = clean_msg[len(prefix):].strip()
                         break
 
-                result = await agent.analyze(clean_msg, context)
+                conv_history = context.get('conversation_history', [])
+                result = await agent.analyze(clean_msg, conv_history)
                 logger.info("[CHAT] ✅ DeepAnalysisAgent completado")
                 return result
             except Exception as e:

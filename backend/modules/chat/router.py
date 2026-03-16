@@ -17,7 +17,8 @@ class ChatRequest(BaseModel):
     conversation_history: Optional[List[Dict[str, str]]] = []  # Lista de mensajes anteriores
     confirm_data_sending: Optional[bool] = None  # None = auto-confirm (Android/voice), False = web pending confirmation, True = web confirmed
     images: Optional[List[str]] = None  # Valid Base64 strings
-    session_id: Optional[str] = None # New field for persistence
+    session_id: Optional[str] = None  # New field for persistence
+    deep_analysis: Optional[bool] = False  # 🔬 Checkbox "Análisis Profundo" del frontend
     
 class ConfigRequest(BaseModel):
     max_sql_retries: int
