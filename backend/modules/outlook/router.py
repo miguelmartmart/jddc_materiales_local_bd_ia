@@ -196,19 +196,30 @@ async def analyze_deep(request: DeepAnalysisRequest):
 
 # --- ATTENTION: AUTHENTICATION CACHE ---
 # To avoid repetitive login failures and delays, we cache the last working configuration.
+# Also caches failed methods with TTL to skip them on next poll cycle.
+import time as _time
+
 class AuthCache:
+    # TTL en segundos para recordar que un método falló (10 minutos)
+    FAILURE_TTL = 600
+
     def __init__(self):
         self.source = None
         self.email = None
         self.password = None
         self.server = None
-        self.last_success = 0 # Timestamp could be added for expiry
+        self.last_success = 0
+        # Dict: method_key -> timestamp_of_failure
+        self._failures: dict = {}
 
     def set(self, source, email, password, server=None):
         self.source = source
         self.email = email
         self.password = password
         self.server = server
+        self.last_success = _time.time()
+        # Si este método funcionó, limpiar su registro de fallo
+        self._failures.pop(source, None)
         logger.info(f"[AUTH CACHE] Updated: {source} ({email})")
 
     def get(self):
@@ -221,11 +232,28 @@ class AuthCache:
             }
         return None
 
+    def mark_failed(self, method_key: str):
+        """Registra que un método de auth falló. Se ignorará durante FAILURE_TTL segundos."""
+        self._failures[method_key] = _time.time()
+        logger.debug(f"[AUTH CACHE] Método '{method_key}' marcado como fallido por {self.FAILURE_TTL}s")
+
+    def is_known_failure(self, method_key: str) -> bool:
+        """Devuelve True si el método falló recientemente y debe saltarse."""
+        ts = self._failures.get(method_key)
+        if ts is None:
+            return False
+        if _time.time() - ts < self.FAILURE_TTL:
+            return True
+        # TTL expirado — limpiar y reintentar
+        del self._failures[method_key]
+        return False
+
     def clear(self):
         self.source = None
         self.email = None
         self.password = None
         self.server = None
+        # NO limpiar _failures al hacer clear — queremos recordar qué falló
 
 auth_cache = AuthCache()
 # ---------------------------------------
@@ -264,102 +292,73 @@ async def get_messages(request: FetchRequest):
 
     # Try primary password first (or app_password if primary is missing)
     password_to_try = primary_password or app_password
-    
-    print(f"DEBUG: Attempting login for {email}")
-    
-    try:
-        try:
-            emails = service.fetch_recent_emails(email, password_to_try, request.limit)
-            print("DEBUG: Login successful!")
-            auth_cache.set("outlook", email, password_to_try) # Update Cache
-            return {"success": True, "messages": emails, "source": "outlook"}
-        except Exception as e:
-            # Check if it is an auth error and we have a fallback password
-            err_msg = str(e)
-            print(f"DEBUG: First attempt failed. Error: {err_msg}")
-            
-            is_auth_error = "Error de autenticación" in err_msg or "LOGIN failed" in err_msg
-            
-            # If we used primary, and failed, and have a different app password available
-            if is_auth_error and password_to_try == primary_password and app_password and app_password != primary_password:
-                print(f"DEBUG: Primary password failed. Retrying with App Password...") # Log to console
-                try:
-                    emails = service.fetch_recent_emails(email, app_password, request.limit)
-                    print("DEBUG: Retry successful!")
-                    auth_cache.set("outlook_app", email, app_password) # Update Cache
-                    return {"success": True, "messages": emails, "source": "outlook_app"}
-                except Exception as retry_e:
-                    print(f"DEBUG: Retry also failed: {retry_e}")
-                    
-                    
-                    # ---------------------
-                    # HYBRID AUTH: Outlook Server + Gmail Creds
-                    # ---------------------
-                    gmail_email = settings.GMAIL_EMAIL
-                    gmail_password = settings.GMAIL_PASSWORD
-                    
-                    if gmail_email and gmail_password:
-                        print(f"DEBUG: Attempting HYBRID Auth (Outlook Server + Gmail Creds)...")
-                        try:
-                            emails = service.fetch_recent_emails(
-                                gmail_email, 
-                                gmail_password, 
-                                request.limit
-                                # imap_server defaults to outlook
-                            )
-                            print("DEBUG: Hybrid Auth successful!")
-                            auth_cache.set("outlook_hybrid", gmail_email, gmail_password) # Update Cache
-                            return {"success": True, "messages": emails, "source": "outlook_hybrid"}
-                        except Exception as hybrid_e:
-                            print(f"DEBUG: Hybrid Auth failed: {hybrid_e}")
-                            # Continue to Gmail Fallback
-                    
-                    # ---------------------
-                    # GMAIL FALLBACK
-                    # ---------------------
-                    
-                    if gmail_email and gmail_password:
-                        print(f"DEBUG: Attempting GMAIL Fallback for {gmail_email}...")
-                        try:
-                            # Using imap.gmail.com
-                            emails = service.fetch_recent_emails(
-                                gmail_email, 
-                                gmail_password, 
-                                request.limit,
-                                imap_server="imap.gmail.com"
-                            )
-                            print("DEBUG: Gmail Fallback successful!")
-                            auth_cache.set("gmail", gmail_email, gmail_password, "imap.gmail.com") # Update Cache
-                            return {"success": True, "messages": emails, "source": "gmail"}
-                        except Exception as gmail_e:
-                            print(f"DEBUG: Gmail Fallback failed: {gmail_e}")
-                            raise gmail_e
-                    else:
-                        print("DEBUG: No Gmail credentials configured.")
-                        raise retry_e
-            else:
-                # If primary failed and no app password, OR if it wasn't an auth error
-                # Check Gmail fallback directly here too? 
-                # Simplification: Only fallback to Gmail if Outlook failed AUTH.
-                if is_auth_error and settings.GMAIL_EMAIL and settings.GMAIL_PASSWORD:
-                     print(f"DEBUG: Outlook Auth failed. Fallback to GMAIL {settings.GMAIL_EMAIL}...")
-                     try:
-                        emails = service.fetch_recent_emails(
-                            settings.GMAIL_EMAIL, 
-                            settings.GMAIL_PASSWORD, 
-                            request.limit,
-                            imap_server="imap.gmail.com"
-                        )
-                        print("DEBUG: Gmail Fallback successful!")
-                        auth_cache.set("gmail", settings.GMAIL_EMAIL, settings.GMAIL_PASSWORD, "imap.gmail.com") # Update Cache
-                        return {"success": True, "messages": emails, "source": "gmail"}
-                     except Exception as gmail_e:
-                        print(f"DEBUG: Gmail Fallback failed: {gmail_e}")
-                        raise gmail_e
+    gmail_email = settings.GMAIL_EMAIL
+    gmail_password = settings.GMAIL_PASSWORD
 
-                print("DEBUG: No retry conditions met.")
-                raise e # Re-raise if no fallback or different error
-                
+    try:
+        # ── PASO 1: Outlook con contraseña principal ──────────────────────────
+        if not auth_cache.is_known_failure("outlook"):
+            print(f"DEBUG: Attempting login for {email}")
+            try:
+                emails = service.fetch_recent_emails(email, password_to_try, request.limit)
+                print("DEBUG: Login successful!")
+                auth_cache.set("outlook", email, password_to_try)
+                return {"success": True, "messages": emails, "source": "outlook"}
+            except Exception as e:
+                err_msg = str(e)
+                print(f"DEBUG: First attempt failed. Error: {err_msg}")
+                is_auth_error = "Error de autenticación" in err_msg or "LOGIN failed" in err_msg
+                if is_auth_error:
+                    auth_cache.mark_failed("outlook")
+                else:
+                    raise  # Error no-auth → propagar
+
+        # ── PASO 2: Outlook con App Password ─────────────────────────────────
+        if (not auth_cache.is_known_failure("outlook_app")
+                and app_password and app_password != primary_password):
+            print("DEBUG: Primary password failed. Retrying with App Password...")
+            try:
+                emails = service.fetch_recent_emails(email, app_password, request.limit)
+                print("DEBUG: Retry successful!")
+                auth_cache.set("outlook_app", email, app_password)
+                return {"success": True, "messages": emails, "source": "outlook_app"}
+            except Exception as retry_e:
+                print(f"DEBUG: Retry also failed: {retry_e}")
+                auth_cache.mark_failed("outlook_app")
+
+        # ── PASO 3: Hybrid Auth (Outlook server + Gmail creds) ────────────────
+        if (not auth_cache.is_known_failure("outlook_hybrid")
+                and gmail_email and gmail_password):
+            print(f"DEBUG: Attempting HYBRID Auth (Outlook Server + Gmail Creds)...")
+            try:
+                emails = service.fetch_recent_emails(
+                    gmail_email, gmail_password, request.limit
+                    # imap_server defaults to outlook
+                )
+                print("DEBUG: Hybrid Auth successful!")
+                auth_cache.set("outlook_hybrid", gmail_email, gmail_password)
+                return {"success": True, "messages": emails, "source": "outlook_hybrid"}
+            except Exception as hybrid_e:
+                print(f"DEBUG: Hybrid Auth failed: {hybrid_e}")
+                auth_cache.mark_failed("outlook_hybrid")
+
+        # ── PASO 4: Gmail Fallback ────────────────────────────────────────────
+        if gmail_email and gmail_password:
+            print(f"DEBUG: Attempting GMAIL Fallback for {gmail_email}...")
+            try:
+                emails = service.fetch_recent_emails(
+                    gmail_email, gmail_password, request.limit,
+                    imap_server="imap.gmail.com"
+                )
+                print("DEBUG: Gmail Fallback successful!")
+                auth_cache.set("gmail", gmail_email, gmail_password, "imap.gmail.com")
+                return {"success": True, "messages": emails, "source": "gmail"}
+            except Exception as gmail_e:
+                print(f"DEBUG: Gmail Fallback failed: {gmail_e}")
+                raise gmail_e
+
+        raise Exception("No hay credenciales válidas disponibles para obtener correos.")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

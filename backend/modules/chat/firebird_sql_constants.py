@@ -51,6 +51,68 @@ COLUMN_UNKNOWN_MAP: Dict[str, str] = {
     "NOMBRE_PROVEEDOR": "RAZONSOCIAL",
     "IMPORTE":         "IMPORTETOTAL",
     "TOTAL":           "IMPORTETOTAL",
+    # DOCLIN no tiene FECHA — la fecha del documento está en DOCCAB.FECHA
+    # El fix determinista se hace en el normalizer (paso 20)
+    "FECHA":           "__NEEDS_JOIN_DOCCAB__",  # señal especial → paso 20
+}
+
+# ─── Columnas de fecha por tabla ──────────────────────────────────────────────
+# Qué columna de fecha tiene cada tabla (para corrección determinista).
+# Si la tabla NO tiene fecha propia, indica la tabla relacionada y cómo hacer JOIN.
+TABLE_DATE_COLUMNS: Dict[str, Dict] = {
+    "DOCLIN": {
+        "has_date": False,
+        "date_col": None,
+        "date_via_join": {
+            "join_table": "DOCCAB",
+            "join_on": "DOCCAB.CODIGO = L.CODDOCUMENTO",
+            "date_col": "DOCCAB.FECHA",
+            "alias": "C",
+            "note": "DOCLIN no tiene FECHA. La fecha del documento está en DOCCAB.FECHA (JOIN por CODDOCUMENTO)"
+        }
+    },
+    "DOCCAB": {
+        "has_date": True,
+        "date_col": "FECHA",
+        "date_via_join": None,
+    },
+    "ARTICULO": {
+        "has_date": False,
+        "date_col": None,
+        "date_via_join": {
+            "join_table": "DOCCAB",
+            "join_on": "DOCCAB.CODIGO = L.CODDOCUMENTO",
+            "date_col": "DOCCAB.FECHA",
+            "note": "ARTICULO no tiene fecha. Para filtrar por fecha de compra: JOIN DOCLIN + JOIN DOCCAB"
+        }
+    },
+}
+
+# ─── Tablas con pocos registros (posible dato mal ubicado) ───────────────────
+# Si una consulta usa estas tablas como fuente principal de datos,
+# se debe advertir al usuario en la justificación (en rojo).
+#
+# NOTA IMPORTANTE: El record_count aquí es el número de registros de MUESTRA
+# guardados en los metadatos SIUO, NO el número real de registros en la BD.
+# DOCCAB tiene miles de registros reales — NO incluirla aquí.
+# Solo incluir tablas que realmente tienen pocos datos en producción.
+LOW_RECORD_TABLES: Dict[str, Dict] = {
+    "DOCLINDOCASOC": {
+        "record_count": 4,
+        "warning": "DOCLINDOCASOC solo tiene 4 registros. Posiblemente no se use activamente."
+    },
+    "CONDICIO": {
+        "record_count": 1,
+        "warning": "CONDICIO solo tiene 1 registro. Verificar si la tabla está en uso."
+    },
+    "EQUIVAL": {
+        "record_count": 4,
+        "warning": "EQUIVAL solo tiene 4 registros de equivalencias de artículos."
+    },
+    "CLIENTEDOCUM": {
+        "record_count": 0,
+        "warning": "CLIENTEDOCUM está vacía (0 registros). No hay documentos de clientes cargados."
+    },
 }
 
 # ─── Tipos de documento DOCCAB ────────────────────────────────────────────────
@@ -78,5 +140,28 @@ DATETIME_FIXES: List[Tuple[str, str, str]] = [
     (r'\bCURRENT_TIMESTAMP\s*\(\s*\)', 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP() → CURRENT_TIMESTAMP'),
 ]
 
+# ─── Funciones NO soportadas en Firebird 2.5 → reemplazar determinísticamente ─
+# Formato: (patron_regex, funcion_reemplazo_callable_o_str, descripcion)
+# ROUND(x, n) → CAST(x * 10^n AS BIGINT) / CAST(10^n AS DOUBLE PRECISION)
+# Firebird 2.5 no tiene ROUND(). Firebird 3.0+ sí la tiene.
+# Usamos CAST(x AS NUMERIC(15,2)) para 2 decimales (caso más común).
+# Para n decimales arbitrarios usamos la fórmula con potencias de 10.
+UNSUPPORTED_FUNCTIONS: List[Tuple[str, str, str]] = [
+    # ROUND(expr, n) → CAST(CAST(expr * POWER(10, n) + 0.5 AS BIGINT) AS DOUBLE PRECISION) / POWER(10, n)
+    # Simplificado para los casos más comunes (0, 1, 2 decimales):
+    # Se maneja en el normalizador con regex de captura de grupos.
+    # Aquí solo documentamos la regla; la implementación está en _fix_unsupported_functions.
+    ("ROUND", "CAST_NUMERIC", "ROUND(x,n) → CAST(x AS NUMERIC(15,n)) [Firebird 2.5 no tiene ROUND]"),
+    # TRUNC/TRUNCATE → CAST(x AS INTEGER)
+    ("TRUNC",    "CAST_INTEGER", "TRUNC(x) → CAST(x AS INTEGER)"),
+    ("TRUNCATE", "CAST_INTEGER", "TRUNCATE(x,n) → CAST(x AS INTEGER)"),
+    # NVL → COALESCE (Firebird 2.5 tiene COALESCE pero no NVL)
+    ("NVL", "COALESCE", "NVL(a,b) → COALESCE(a,b)"),
+    # IFNULL → COALESCE
+    ("IFNULL", "COALESCE", "IFNULL(a,b) → COALESCE(a,b)"),
+    # ISNULL → COALESCE
+    ("ISNULL", "COALESCE", "ISNULL(a,b) → COALESCE(a,b)"),
+]
+
 # ─── Funciones de agregación (no añadir FIRST N) ─────────────────────────────
-AGGREGATE_FUNCTIONS: List[str] = ['COUNT', 'SUM', 'AVG', 'MAX', 'MIN']
+AGGREGATE_FUNCTIONS: List[str] = ['COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'ROUND', 'CAST']

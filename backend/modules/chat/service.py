@@ -284,6 +284,22 @@ class ChatService:
                 logger.warning(f"Error loading chat config: {e}")
 
 
+    def _is_deep_analysis_request(self, message: str) -> bool:
+        """Detecta si el usuario quiere un análisis profundo multi-fase."""
+        msg = message.lower().strip()
+        # Comando explícito
+        if msg.startswith("/deep") or msg.startswith("/analisis"):
+            return True
+        # Palabras clave de análisis profundo
+        deep_keywords = [
+            "analiza en profundidad", "análisis profundo", "análisis completo",
+            "investiga", "analiza todo", "análisis detallado", "en detalle",
+            "con todo el detalle", "profundamente", "a fondo",
+            "analiza los datos", "investiga los datos", "estudio completo",
+            "análisis exhaustivo", "analiza exhaustivamente",
+        ]
+        return any(k in msg for k in deep_keywords)
+
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
         logger.info(f"{LogPrefixes.CHAT_SERVICE} {LogEmojis.NEW_MESSAGE} NUEVO MENSAJE RECIBIDO")
@@ -291,7 +307,40 @@ class ChatService:
         logger.info(f"{LogPrefixes.MENSAJE} {message}")
         logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
-        
+
+        # ── ANÁLISIS PROFUNDO MULTI-FASE ──────────────────────────────────────
+        # Se activa con /deep, /analisis, o palabras clave de análisis profundo
+        if self._is_deep_analysis_request(message):
+            logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
+            try:
+                from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
+                # Obtener contexto SIUO
+                try:
+                    retriever = get_context_retriever()
+                    db_context, _ = retriever.get_context(message)
+                except Exception:
+                    db_context = get_semantic_schema()
+
+                agent = DeepAnalysisAgent(
+                    orchestrator=self.model_orchestrator,
+                    execute_sql=lambda q: self._execute_sql(q, context.get('db_params')),
+                    db_context=db_context,
+                    sql_normalizer=self.sql_normalizer,
+                )
+                # Limpiar prefijo /deep del mensaje
+                clean_msg = message.strip()
+                for prefix in ["/deep ", "/deep", "/analisis ", "/analisis"]:
+                    if clean_msg.lower().startswith(prefix):
+                        clean_msg = clean_msg[len(prefix):].strip()
+                        break
+
+                result = await agent.analyze(clean_msg, context)
+                logger.info("[CHAT] ✅ DeepAnalysisAgent completado")
+                return result
+            except Exception as e:
+                logger.error(f"[CHAT] ❌ DeepAnalysisAgent falló: {e} — continuando con flujo normal")
+                # Fall-through al flujo normal si el agente falla
+
         # DEBUG: List tables command
         if message.strip() == "DEBUG_TABLES":
             try:
@@ -742,12 +791,26 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                     # La justificación va dentro de <details><summary> para que el usuario
                     # pueda desplegarla si quiere. marked.parse() preserva HTML inline.
                     interpretation_system = (
-                        "Eres un asistente experto en análisis de datos Firebird. "
-                        "REGLA ABSOLUTA: MUESTRA LOS DATOS TAL CUAL ESTÁN EN LA BASE DE DATOS. "
-                        "Si un campo está vacío o es nulo, muéstralo como '(sin nombre)' o '(vacío)'. "
-                        "NUNCA digas que hay un error de datos. NUNCA sugiereas verificar la tabla. "
-                        "NUNCA inventes diagnósticos. Los datos vacíos son datos válidos. "
-                        "Tu única misión es presentar los resultados de forma clara y añadir la justificación técnica."
+                        "Eres un analista de datos experto en Firebird 2.5 para una empresa de climatización. "
+                        "Tu misión es interpretar resultados SQL con VISIÓN CRÍTICA y PROFUNDIDAD ANALÍTICA. "
+                        "\n\n"
+                        "REGLAS DE PRESENTACIÓN:\n"
+                        "• Muestra los datos tal cual están en la BD. Nulos → '(vacío)'.\n"
+                        "• NUNCA inventes datos ni diagnósticos sin base en los resultados.\n"
+                        "\n"
+                        "ANÁLISIS PROFUNDO OBLIGATORIO — busca y menciona SIEMPRE:\n"
+                        "1. DUPLICADOS: ¿Hay clientes/documentos/artículos repetidos? ¿Mismo cliente con varios presupuestos para la misma instalación?\n"
+                        "2. CALIDAD DE DATOS: ¿Campos vacíos, fechas incoherentes (fecha fin < fecha inicio), importes negativos, registros sin cliente asignado?\n"
+                        "3. ANOMALÍAS ESTADÍSTICAS: ¿Valores extremos (muy altos o muy bajos)? ¿Tasa de éxito inusualmente baja/alta?\n"
+                        "4. CONTEXTO DE NEGOCIO: Para presupuestos, considera que una instalación puede tener VARIOS presupuestos (versiones, revisiones). "
+                        "El total de presupuestos ≠ total de instalaciones. Indica esto cuando sea relevante.\n"
+                        "5. LIMITACIONES DEL SQL: ¿El SQL podría estar contando mal? ¿Hay LEFT JOINs que podrían inflar/deflactar resultados? "
+                        "¿Se están contando documentos relacionados correctamente?\n"
+                        "6. ADVERTENCIAS PROACTIVAS: Si los datos sugieren un problema (ej: 90% de presupuestos sin aceptar), "
+                        "menciona posibles causas (datos no migrados, presupuestos cancelados sin registrar, etc.).\n"
+                        "7. SUGERENCIAS DE MEJORA: Si la pregunta podría responderse mejor con una consulta diferente, indícalo.\n"
+                        "\n"
+                        "FORMATO: Respuesta directa primero, luego análisis crítico, luego justificación técnica en <details>."
                     )
                     n_rows = len(results)
                     cols_used = list(results[0].keys()) if results else []
