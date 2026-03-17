@@ -18,6 +18,12 @@ from backend.modules.chat.deep_analysis.models import (
 
 logger = logging.getLogger(__name__)
 
+# KnowledgeStore — importación resiliente
+try:
+    from backend.modules.chat.deep_analysis.knowledge_store import get_knowledge_store
+except ImportError:
+    get_knowledge_store = None  # type: ignore
+
 
 class Phases12Mixin:
     """
@@ -114,9 +120,14 @@ class Phases12Mixin:
 
     async def _sub_detect_intent(self, question: str, history_text: str) -> Dict:
         try:
+            from datetime import datetime
+            fecha_actual = datetime.now().strftime("%d/%m/%Y")
+            anio_actual = datetime.now().year
             history_section = f"\nHISTORIAL PREVIO:\n{history_text}\n" if history_text else ""
             system = (
-                "Analiza la intención de esta pregunta sobre una BD Firebird de empresa de climatización. "
+                f"Analiza la intención de esta pregunta sobre una BD Firebird de empresa de climatización. "
+                f"HOY ES {fecha_actual} (año {anio_actual}). "
+                f"Los datos con año {anio_actual} son REALES y ACTUALES, NO futuristas. "
                 "Considera el historial de conversación para entender el contexto acumulado. "
                 "Responde SOLO JSON:\n"
                 '{"intent":"descripción","category":"ventas|clientes|stock|sat|financiero|otro",'
@@ -156,7 +167,14 @@ class Phases12Mixin:
             return [question]
 
     async def _sub_identify_tables(self, question: str, intent: Dict) -> List[str]:
-        """Identifica tablas candidatas de forma determinista por palabras clave."""
+        """
+        Identifica tablas candidatas de forma determinista por palabras clave.
+
+        PRIORIDAD 2 — KnowledgeStore:
+        Enriquece la lista con tablas conocidas del KnowledgeStore que tengan
+        registros reales (record_count_real > 0). Esto permite que el agente
+        aprenda qué tablas son relevantes para cada tipo de pregunta.
+        """
         tables = []
         msg = question.lower()
 
@@ -179,6 +197,25 @@ class Phases12Mixin:
 
         if not tables:
             tables = ["DOCCAB", "DOCLIN", "CLIENTE", "ARTICULO"]
+
+        # ── PRIORIDAD 2: Enriquecer con KnowledgeStore ────────────────────────
+        # Añadir tablas conocidas que tengan registros reales y sean relevantes
+        try:
+            if get_knowledge_store is not None:
+                store = get_knowledge_store()
+                index = store.get_index()
+                known_tables = index.get("tables", {})
+                # Añadir tablas conocidas con >100 registros que no estén ya en la lista
+                for tname, tinfo in known_tables.items():
+                    rc = tinfo.get("record_count", 0)
+                    if isinstance(rc, int) and rc > 100 and tname not in tables:
+                        # Solo añadir si la tabla es relevante para la pregunta
+                        # (heurística: si tiene TIPO o FECHA, es candidata para análisis)
+                        if tinfo.get("has_tipo") or tinfo.get("has_fecha"):
+                            tables.append(tname)
+                            logger.info(f"[DEEP AGENT] Tabla {tname} añadida desde KnowledgeStore ({rc} registros)")
+        except Exception as e:
+            logger.debug(f"[DEEP AGENT] KnowledgeStore no disponible en Fase 1: {e}")
 
         seen: set = set()
         return [t for t in tables if not (t in seen or seen.add(t))]

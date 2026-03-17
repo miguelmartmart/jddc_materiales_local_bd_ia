@@ -546,6 +546,605 @@ class TestHelpers:
         assert "<div" in html
 
 
+# ─── Tests: _phase0_lan_optimize ─────────────────────────────────────────────
+
+class TestPhase0LanOptimize:
+    def test_detects_lan_model_by_preferred_id(self):
+        """Detecta modelo LAN si preferred_model_id contiene 'jddcia'."""
+        orch = make_orchestrator()
+        orch.preferred_model_id = "jddcia-qwen3-30b"
+        agent = make_agent(orchestrator=orch)
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+        result = agent._phase0_lan_optimize(cfg)
+        assert result["lan_mode"] is True
+
+    def test_detects_lan_model_by_ai_mode(self):
+        """Detecta modelo LAN si ai_mode contiene 'local'."""
+        orch = make_orchestrator()
+        orch.ai_mode = "AI_LOCAL_ONLY"
+        agent = make_agent(orchestrator=orch)
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+        result = agent._phase0_lan_optimize(cfg)
+        assert result["lan_mode"] is True
+
+    def test_internet_model_not_lan(self):
+        """Modelo sin 'jddcia' ni 'local' → lan_mode=False."""
+        orch = make_orchestrator()
+        # Sin preferred_model_id ni ai_mode
+        agent = make_agent(orchestrator=orch)
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+        result = agent._phase0_lan_optimize(cfg)
+        assert result["lan_mode"] is False
+
+    def test_sets_known_sqls_count(self):
+        """Establece known_sqls_count con los patrones del KnowledgeStore."""
+        agent = make_agent()
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+
+        mock_store = MagicMock()
+        mock_store.get_patterns_for_intent.return_value = [{"intent": "test"}] * 5
+
+        with patch(
+            "backend.modules.chat.deep_analysis.agent.get_knowledge_store",
+            return_value=mock_store
+        ):
+            result = agent._phase0_lan_optimize(cfg)
+
+        assert result["known_sqls_count"] == 5
+
+    def test_no_crash_on_knowledge_store_error(self):
+        """No lanza excepción si el KnowledgeStore falla."""
+        agent = make_agent()
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+
+        with patch(
+            "backend.modules.chat.deep_analysis.agent.get_knowledge_store",
+            side_effect=Exception("KnowledgeStore no disponible")
+        ):
+            result = agent._phase0_lan_optimize(cfg)
+
+        assert "lan_mode" in result
+        assert "known_sqls_count" in result
+
+    def test_does_not_reduce_max_sqls(self):
+        """La optimización LAN NO reduce max_sqls (principio de calidad)."""
+        orch = make_orchestrator()
+        orch.preferred_model_id = "jddcia-qwen3-30b"
+        agent = make_agent(orchestrator=orch)
+        cfg = {"max_sqls": 12, "explore_tables": 6}
+        result = agent._phase0_lan_optimize(cfg)
+        assert result["max_sqls"] == 12  # Sin cambio
+
+    def test_returns_cfg_dict(self):
+        """Siempre devuelve un dict con las claves esperadas."""
+        agent = make_agent()
+        cfg = {"max_sqls": 8, "explore_tables": 4}
+        result = agent._phase0_lan_optimize(cfg)
+        assert isinstance(result, dict)
+        assert "lan_mode" in result
+        assert "known_sqls_count" in result
+
+
+# ─── Tests: _build_phase3_system ─────────────────────────────────────────────
+
+class TestBuildPhase3System:
+    def test_lan_mode_prompt_shorter(self):
+        """El prompt LAN es más corto que el prompt completo."""
+        agent = make_agent()
+        schema = "DOCCAB: TIPO, FECHA"
+        exploration = "DOCCAB: 1000 registros"
+        prompt_lan = agent._build_phase3_system(schema, exploration, 8, lan_mode=True)
+        prompt_full = agent._build_phase3_system(schema, exploration, 8, lan_mode=False)
+        assert len(prompt_lan) < len(prompt_full)
+
+    def test_lan_mode_includes_n_sqls(self):
+        """El prompt LAN incluye el número de SQLs requeridos."""
+        agent = make_agent()
+        prompt = agent._build_phase3_system("schema", "exploration", 6, lan_mode=True)
+        assert "6" in prompt
+
+    def test_full_mode_includes_angulos(self):
+        """El prompt completo incluye los ángulos obligatorios."""
+        agent = make_agent()
+        prompt = agent._build_phase3_system("schema", "exploration", 12, lan_mode=False)
+        assert "ÁNGULOS OBLIGATORIOS" in prompt
+
+    def test_both_modes_include_firebird_rules(self):
+        """Ambos modos incluyen las reglas de Firebird 2.5."""
+        agent = make_agent()
+        for lan_mode in [True, False]:
+            prompt = agent._build_phase3_system("schema", "exploration", 8, lan_mode=lan_mode)
+            assert "FIRST N" in prompt or "FIRST" in prompt
+            assert "TIPO" in prompt
+
+    def test_lan_mode_with_known_patterns(self):
+        """El prompt LAN incluye los patrones conocidos si se proporcionan."""
+        agent = make_agent()
+        known = "• [presupuestos por año] → SELECT EXTRACT(YEAR FROM FECHA)... (10 filas)"
+        prompt = agent._build_phase3_system("schema", "exploration", 8, lan_mode=True, known_patterns_text=known)
+        assert "presupuestos por año" in prompt
+        assert "no repetir" in prompt.lower() or "YA CUBIERTOS" in prompt
+
+    def test_full_mode_with_known_patterns(self):
+        """El prompt completo incluye los patrones conocidos si se proporcionan."""
+        agent = make_agent()
+        known = "• [presupuestos por año] → SELECT EXTRACT(YEAR FROM FECHA)... (10 filas)"
+        prompt = agent._build_phase3_system("schema", "exploration", 12, lan_mode=False, known_patterns_text=known)
+        assert "presupuestos por año" in prompt
+
+    def test_no_known_patterns_no_section(self):
+        """Sin patrones conocidos, no aparece la sección de patrones."""
+        agent = make_agent()
+        prompt = agent._build_phase3_system("schema", "exploration", 8, lan_mode=True, known_patterns_text="")
+        assert "YA CUBIERTOS" not in prompt
+
+    def test_includes_expansion_marker(self):
+        """Ambos modos incluyen el marcador de expansión dinámica."""
+        agent = make_agent()
+        for lan_mode in [True, False]:
+            prompt = agent._build_phase3_system("schema", "exploration", 8, lan_mode=lan_mode)
+            assert "NECESITO_MAS_SQLS" in prompt
+
+
+# ─── Tests: _get_known_patterns_text ─────────────────────────────────────────
+
+class TestGetKnownPatternsText:
+    def test_returns_string(self):
+        """Siempre devuelve un string."""
+        agent = make_agent()
+        result = agent._get_known_patterns_text("¿cuántos presupuestos hay?", {})
+        assert isinstance(result, str)
+
+    def test_returns_patterns_from_store(self):
+        """Devuelve patrones del KnowledgeStore formateados."""
+        agent = make_agent()
+        mock_store = MagicMock()
+        mock_store.get_patterns_for_intent.return_value = [
+            {
+                "intent": "presupuestos por año",
+                "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO FROM DOCCAB WHERE TIPO=0 GROUP BY 1",
+                "rows_returned": 10,
+            }
+        ]
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            result = agent._get_known_patterns_text("¿cuántos presupuestos hay?", {})
+
+        assert "presupuestos por año" in result
+        assert "10 filas" in result
+
+    def test_empty_store_returns_empty_string(self):
+        """Con store vacío, devuelve string vacío."""
+        agent = make_agent()
+        mock_store = MagicMock()
+        mock_store.get_patterns_for_intent.return_value = []
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            result = agent._get_known_patterns_text("test", {})
+
+        assert result == ""
+
+    def test_no_crash_on_store_error(self):
+        """No lanza excepción si el KnowledgeStore falla."""
+        agent = make_agent()
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            side_effect=Exception("KnowledgeStore no disponible")
+        ):
+            result = agent._get_known_patterns_text("test", {})
+
+        assert result == ""
+
+    def test_max_4_patterns(self):
+        """Devuelve máximo 4 patrones para no inflar el prompt."""
+        agent = make_agent()
+        mock_store = MagicMock()
+        mock_store.get_patterns_for_intent.return_value = [
+            {"intent": f"intent {i}", "sql": f"SELECT {i} FROM DOCCAB WHERE TIPO=0", "rows_returned": i}
+            for i in range(10)
+        ]
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            result = agent._get_known_patterns_text("test", {})
+
+        # Máximo 4 líneas de patrones
+        lines = [l for l in result.split("\n") if l.strip().startswith("•")]
+        assert len(lines) <= 4
+
+    def test_extracts_keywords_from_question(self):
+        """Extrae palabras clave de la pregunta (>4 chars)."""
+        agent = make_agent()
+        mock_store = MagicMock()
+        mock_store.get_patterns_for_intent.return_value = []
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            agent._get_known_patterns_text("¿cuántos presupuestos hay este año?", {})
+
+        # Verificar que se llamó con keywords de >4 chars
+        call_args = mock_store.get_patterns_for_intent.call_args[0][0]
+        assert all(len(k) > 4 for k in call_args)
+
+
+# ─── Tests: Fase 3 response=None (fix bug) ───────────────────────────────────
+
+class TestPhase3ResponseNone:
+    def test_none_response_uses_fixed_sqls(self):
+        """Si la IA devuelve None, se usan los SQLs fijos sin TypeError."""
+        orch = MagicMock()
+        orch.execute_with_fallback = AsyncMock(return_value=(None, None))
+        orch.context_limit_tokens = 32000
+        agent = make_agent(orchestrator=orch)
+
+        async def run():
+            result = EpicAnalysisResult(question="¿cuántos presupuestos?", depth=AnalysisDepth.EPIC)
+            cfg = {"max_sqls": 8, "explore_tables": 4, "lan_mode": False, "known_sqls_count": 0}
+            phase1_data = {
+                "sub_questions": ["¿cuántos presupuestos?"],
+                "potential_issues": [],
+            }
+            phase2_data = {
+                "DOCCAB": {
+                    "has_serie": True, "has_codigoobra": False,
+                    "columns": ["TIPO", "FECHA"], "total": 1000,
+                }
+            }
+            with patch("backend.modules.chat.deep_analysis.phases_3_4_5.get_context_retriever") as mock_cr:
+                mock_cr.return_value.get_context.return_value = ("ESQUEMA", {"tables_used": [], "source": "fallback"})
+                phase = await agent._phase3_investigate(
+                    "¿cuántos presupuestos?", phase1_data, phase2_data, result, cfg
+                )
+            return phase
+
+        phase = asyncio.get_event_loop().run_until_complete(run())
+        # No debe lanzar TypeError — debe completarse
+        assert phase is not None
+
+    def test_empty_string_response_uses_fixed_sqls(self):
+        """Si la IA devuelve string vacío, se usan los SQLs fijos."""
+        orch = MagicMock()
+        orch.execute_with_fallback = AsyncMock(return_value=("", None))
+        orch.context_limit_tokens = 32000
+        agent = make_agent(orchestrator=orch)
+
+        async def run():
+            result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+            cfg = {"max_sqls": 4, "explore_tables": 2, "lan_mode": False, "known_sqls_count": 0}
+            phase1_data = {"sub_questions": ["test"], "potential_issues": []}
+            phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False, "columns": [], "total": 0}}
+            with patch("backend.modules.chat.deep_analysis.phases_3_4_5.get_context_retriever") as mock_cr:
+                mock_cr.return_value.get_context.return_value = ("", {"tables_used": [], "source": "fallback"})
+                phase = await agent._phase3_investigate(
+                    "test", phase1_data, phase2_data, result, cfg
+                )
+            return phase
+
+        phase = asyncio.get_event_loop().run_until_complete(run())
+        assert phase is not None
+
+
+# ─── Tests: Fase 4b aprendizaje permanente ───────────────────────────────────
+
+class TestPhase4bLearnAndPersist:
+    def test_persists_estadopend(self):
+        """Fase 4b persiste la distribución de ESTADOPEND en el KnowledgeStore."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="¿cuántos presupuestos?", depth=AnalysisDepth.EPIC)
+        result.sql_queries = [
+            {
+                "objetivo": "Distribución de ESTADOPEND en presupuestos (estado real)",
+                "sql": "SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY ESTADOPEND",
+                "rows": 3,
+                "data": [
+                    {"ESTADOPEND": 0, "N": 8000},
+                    {"ESTADOPEND": 1, "N": 3000},
+                    {"ESTADOPEND": 2, "N": 500},
+                ],
+                "error": None,
+            }
+        ]
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {"reliability_score": "alto"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = True
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            phase = asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist(
+                    "¿cuántos presupuestos?", phase2_data, result, analysis
+                )
+            )
+
+        # Verificar que se llamó update_table con estadopend_distribution
+        calls = mock_store.update_table.call_args_list
+        estadopend_call = next(
+            (c for c in calls if "estadopend_distribution" in str(c)),
+            None
+        )
+        assert estadopend_call is not None
+
+    def test_persists_docdestino(self):
+        """Fase 4b persiste la relación DOCDESTINO en el KnowledgeStore."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="tasa de éxito", depth=AnalysisDepth.EPIC)
+        result.sql_queries = [
+            {
+                "objetivo": "Total presupuestos con cualquier documento destino vinculado",
+                "sql": "SELECT COUNT(*) FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON ...",
+                "rows": 1,
+                "data": [{"TOTAL_PRESUPUESTOS": 1000, "CON_DESTINO": 150, "SIN_DESTINO": 850}],
+                "error": None,
+            }
+        ]
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {"reliability_score": "medio"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = True
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            phase = asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist(
+                    "tasa de éxito", phase2_data, result, analysis
+                )
+            )
+
+        # Verificar que se llamó update_table con _nota_docdestino
+        calls = mock_store.update_table.call_args_list
+        docdestino_call = next(
+            (c for c in calls if "_nota_docdestino" in str(c)),
+            None
+        )
+        assert docdestino_call is not None
+
+    def test_persists_columns_real(self):
+        """Fase 4b persiste las columnas reales de las tablas exploradas."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+        result.sql_queries = []
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {
+            "DOCCAB": {
+                "columns": ["TIPO", "FECHA", "IMPORTETOTAL"],
+                "columns_source": "firebird_rdb",
+                "total": 74034,
+            }
+        }
+        analysis = {"reliability_score": "alto"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = True
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("test", phase2_data, result, analysis)
+            )
+
+        # Verificar que se llamó update_table con columns_real
+        calls = mock_store.update_table.call_args_list
+        cols_call = next(
+            (c for c in calls if "columns_real" in str(c)),
+            None
+        )
+        assert cols_call is not None
+
+    def test_persists_business_insights(self):
+        """Fase 4b persiste los insights de negocio como reglas."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+        result.sql_queries = []
+        result.business_insights = [
+            "1 instalación puede tener N presupuestos",
+            "Los presupuestos sin CODCLIENTE son instalaciones directas",
+        ]
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {"reliability_score": "alto"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = False
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("test", phase2_data, result, analysis)
+            )
+
+        # Verificar que se llamó add_business_rule
+        assert mock_store.add_business_rule.called
+
+    def test_persists_sql_patterns(self):
+        """Fase 4b persiste los patrones SQL exitosos."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+        result.sql_queries = [
+            {
+                "objetivo": "Distribución por año",
+                "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY 1",
+                "rows": 8,
+                "data": [{"ANO": 2024, "N": 1500}],
+                "error": None,
+            }
+        ]
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {"reliability_score": "alto"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = False
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("test", phase2_data, result, analysis)
+            )
+
+        # Verificar que se llamó add_query_pattern
+        assert mock_store.add_query_pattern.called
+
+    def test_adds_business_rule_when_docdestino_low(self):
+        """Fase 4b añade regla de negocio si % DOCDESTINO < 30%."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="tasa", depth=AnalysisDepth.EPIC)
+        result.sql_queries = [
+            {
+                "objetivo": "Total presupuestos con cualquier documento destino vinculado",
+                "sql": "SELECT ...",
+                "rows": 1,
+                "data": [{"TOTAL_PRESUPUESTOS": 1000, "CON_DESTINO": 100, "SIN_DESTINO": 900}],
+                "error": None,
+            }
+        ]
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {"reliability_score": "medio"}
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = True
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("tasa", phase2_data, result, analysis)
+            )
+
+        # Verificar que se añadió regla de negocio (10% < 30%)
+        assert mock_store.add_business_rule.called
+        rule_text = str(mock_store.add_business_rule.call_args_list)
+        assert "10.0%" in rule_text or "DOCDESTINO" in rule_text
+
+    def test_no_crash_when_knowledge_store_unavailable(self):
+        """Fase 4b no lanza excepción si el KnowledgeStore no está disponible."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+        result.sql_queries = []
+        result.business_insights = []
+        result.anomalies = []
+        phase2_data = {}
+        analysis = {}
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            side_effect=Exception("KnowledgeStore no disponible")
+        ):
+            phase = asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("test", phase2_data, result, analysis)
+            )
+
+        # No debe lanzar excepción
+        assert phase is not None
+        assert phase.success is False  # Falla graciosamente
+
+    def test_phase4b_returns_phase_result(self):
+        """Fase 4b siempre devuelve un PhaseResult."""
+        agent = make_agent()
+        result = EpicAnalysisResult(question="test", depth=AnalysisDepth.EPIC)
+        result.sql_queries = []
+        result.business_insights = []
+        result.anomalies = []
+
+        mock_store = MagicMock()
+        mock_store.update_table.return_value = False
+
+        with patch(
+            "backend.modules.chat.deep_analysis.phases_3_4_5.get_knowledge_store",
+            return_value=mock_store
+        ):
+            phase = asyncio.get_event_loop().run_until_complete(
+                agent._phase4b_learn_and_persist("test", {}, result, {})
+            )
+
+        assert isinstance(phase, PhaseResult)
+        assert phase.phase_id == "4b"
+
+
+# ─── Tests: SQLs fijos ESTADOPEND/DOCDESTINO/RDB$ ────────────────────────────
+
+class TestFixedSQLsEstadoPend:
+    def test_estadopend_sql_included_for_presupuesto(self):
+        """SQL de ESTADOPEND se incluye para preguntas sobre presupuestos."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("¿cuántos presupuestos hay?", phase2_data)
+        objetivos = [f["objetivo"] for f in fixed]
+        assert any("ESTADOPEND" in o for o in objetivos)
+
+    def test_docdestino_sql_included_for_tasa(self):
+        """SQL de DOCDESTINO se incluye para preguntas sobre tasa de éxito."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("¿cuál es la tasa de éxito?", phase2_data)
+        sqls = [f["sql"] for f in fixed]
+        assert any("DOCDESTINO" in s for s in sqls)
+
+    def test_rdb_columns_sql_included_for_aceptado(self):
+        """SQL de RDB$RELATION_FIELDS se incluye para preguntas sobre aceptados."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("¿cuántos presupuestos aceptados hay?", phase2_data)
+        sqls = [f["sql"] for f in fixed]
+        assert any("RDB$RELATION_FIELDS" in s for s in sqls)
+
+    def test_no_estado_sqls_for_unrelated_question(self):
+        """SQLs de estado NO se incluyen para preguntas no relacionadas."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("¿cuántos artículos hay en stock?", phase2_data)
+        objetivos = [f["objetivo"] for f in fixed]
+        assert not any("ESTADOPEND" in o for o in objetivos)
+
+    def test_docdestino_tipo_sql_included(self):
+        """SQL de distribución por tipo de DOCDESTINO se incluye."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("tasa de éxito presupuestos", phase2_data)
+        sqls = [f["sql"] for f in fixed]
+        # Debe haber SQL que une DOCDESTINO con DOCCAB por tipo
+        assert any("TIPO_DESTINO" in s or "TIPO AS TIPO_DESTINO" in s for s in sqls)
+
+    def test_total_with_without_destino_sql(self):
+        """SQL de total con/sin documento destino se incluye."""
+        agent = make_agent()
+        phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
+        fixed = agent._build_fixed_sqls("presupuestos aceptados", phase2_data)
+        sqls = [f["sql"] for f in fixed]
+        assert any("CON_DESTINO" in s and "SIN_DESTINO" in s for s in sqls)
+
+
 # ─── Tests: Helpers SIUO (resiliencia multi-fuente) ──────────────────────────
 
 class TestSIUOMetadataHelpers:

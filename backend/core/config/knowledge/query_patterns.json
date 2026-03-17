@@ -1,0 +1,82 @@
+{
+  "patterns": [
+    {
+      "intent": "Distribución por año y serie",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE TIPO = 0 AND FECHA IS NOT NULL GROUP BY EXTRACT(YEAR FROM FECHA), SERIE ORDER BY ANO DESC, N DESC",
+      "tables": [
+        "DOCCAB",
+        "FECHA),",
+        "FECHA)"
+      ],
+      "rows_returned": 37,
+      "reliability": "medio",
+      "uses": 3,
+      "discovered_at": "2026-03-17T12:19:57.318056",
+      "last_used": "2026-03-17T13:27:11.575787"
+    },
+    {
+      "intent": "Presupuestos vs clientes únicos",
+      "sql": "SELECT COUNT(*) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, CAST(COUNT(*) AS NUMERIC(15,2)) / NULLIF(COUNT(DISTINCT CODCLIENTE), 0) AS PRESUPUESTOS_POR_CLIENTE FROM DOCCAB WHERE TIPO = 0",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-17T12:19:57.323093",
+      "last_used": "2026-03-17T12:46:28.636326"
+    },
+    {
+      "intent": "Distribución de ESTADOPEND en presupuestos (estado real)",
+      "sql": "SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPEND ORDER BY N DESC",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-17T12:19:57.347923",
+      "last_used": "2026-03-17T12:46:28.670471"
+    },
+    {
+      "intent": "Presupuestos aceptados por tipo de documento destino (factura/pedido)",
+      "sql": "SELECT d.TIPO AS TIPO_DESTINO, COUNT(DISTINCT dd.CODDOCUMENTO) AS N_PRESUPUESTOS FROM DOCDESTINO dd JOIN DOCCAB c ON c.CODIGO = dd.CODDOCUMENTO AND c.TIPO = 0 JOIN DOCCAB d ON d.CODIGO = dd.CODDOCUMENTODESTINO GROUP BY d.TIPO ORDER BY N_PRESUPUESTOS DESC",
+      "tables": [
+        "DOCCAB",
+        "DOCDESTINO"
+      ],
+      "rows_returned": 4,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-17T12:19:57.374037",
+      "last_used": "2026-03-17T12:46:28.695783"
+    },
+    {
+      "intent": "Total presupuestos con cualquier documento destino vinculado",
+      "sql": "SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT dd.CODDOCUMENTO) AS CON_DESTINO, COUNT(DISTINCT c.CODIGO) - COUNT(DISTINCT dd.CODDOCUMENTO) AS SIN_DESTINO FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO WHERE c.TIPO = 0",
+      "tables": [
+        "DOCDESTINO",
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-17T12:19:57.398695",
+      "last_used": "2026-03-17T12:46:28.738439"
+    },
+    {
+      "intent": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
+      "sql": "SELECT FIRST 20 RDB$FIELD_NAME FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = 'DOCCAB' AND (UPPER(RDB$FIELD_NAME) LIKE '%ESTADO%' OR UPPER(RDB$FIELD_NAME) LIKE '%ACEPTA%' OR UPPER(RDB$FIELD_NAME) LIKE '%SEGUIM%' OR UPPER(RDB$FIELD_NAME) LIKE '%RESULT%') ORDER BY RDB$FIELD_POSITION",
+      "tables": [
+        "RDB$RELATION_FIELDS"
+      ],
+      "rows_returned": 3,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-17T12:19:57.417971",
+      "last_used": "2026-03-17T12:46:28.770295"
+    }
+  ],
+  "_count": 6,
+  "_updated_at": "2026-03-17T12:19:57.417971"
+}

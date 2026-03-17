@@ -123,9 +123,9 @@ export function renderSkeleton() {
           </div>
 
           <div class="siuo-section">
-            <h3 class="siuo-section-title">🧪 Probar ContextRetriever</h3>
+            <h3 class="siuo-section-title">🔍 Probar el Asistente</h3>
             <p class="siuo-section-desc">
-              Simula qué contexto recibiría la IA para una pregunta concreta.
+              Escribe cualquier pregunta sobre tu negocio y comprueba qué responde el sistema.
             </p>
             <div class="siuo-form-row">
               <input type="text" id="siuo-test-question" class="siuo-input"

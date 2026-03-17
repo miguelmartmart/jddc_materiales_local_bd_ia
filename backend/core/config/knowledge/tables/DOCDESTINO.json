@@ -1,0 +1,14 @@
+{
+  "columns_real": [
+    "CODDOCUMENTO",
+    "CODDOCUMENTODESTINO",
+    "ORDENENVIO",
+    "ORDENRECEPCION"
+  ],
+  "columns_count": 4,
+  "columns_source": "firebird_rdb",
+  "record_count_real": 36565,
+  "record_count_source": "firebird_count",
+  "_table": "DOCDESTINO",
+  "_updated_at": "2026-03-17T12:46:28.600550"
+}

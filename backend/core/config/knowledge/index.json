@@ -1,0 +1,46 @@
+{
+  "tables": {
+    "DOCCAB": {
+      "record_count": 74530,
+      "columns_count": 87,
+      "has_tipo": true,
+      "has_fecha": true,
+      "has_importe": true,
+      "updated_at": "2026-03-17T13:27:11.471726"
+    },
+    "DOCLIN": {
+      "record_count": 701698,
+      "columns_count": 48,
+      "has_tipo": false,
+      "has_fecha": false,
+      "has_importe": false,
+      "updated_at": "2026-03-17T13:27:11.499489"
+    },
+    "DOCDESTINO": {
+      "record_count": 36565,
+      "columns_count": 4,
+      "has_tipo": false,
+      "has_fecha": false,
+      "has_importe": false,
+      "updated_at": "2026-03-17T12:46:28.600550"
+    },
+    "CLIENTE": {
+      "record_count": 9275,
+      "columns_count": 64,
+      "has_tipo": false,
+      "has_fecha": false,
+      "has_importe": false,
+      "updated_at": "2026-03-17T13:27:11.527405"
+    },
+    "ARTICULO": {
+      "record_count": 12037,
+      "columns_count": 83,
+      "has_tipo": false,
+      "has_fecha": false,
+      "has_importe": false,
+      "updated_at": "2026-03-17T13:27:11.548451"
+    }
+  },
+  "_updated_at": "2026-03-17T13:27:11.562536",
+  "_total_tables": 5
+}

@@ -266,12 +266,37 @@ class Phases345Mixin:
             return ""
 
     def _build_fixed_sqls(self, question: str, phase2_data: Dict) -> List[Dict]:
-        """SQLs fijos que SIEMPRE se incluyen según el contexto de la pregunta."""
+        """
+        SQLs fijos que SIEMPRE se incluyen según el contexto de la pregunta.
+
+        PRIORIDAD 3 — KnowledgeStore en Fase 2:
+        Si el KnowledgeStore ya conoce las columnas de DOCCAB (de sesiones anteriores),
+        usa esa información para generar SQLs más precisos sin necesidad de consultar RDB$.
+        """
         fixed = []
         msg = question.lower()
         doccab_info = phase2_data.get("DOCCAB", {})
         has_serie = doccab_info.get("has_serie", False)
         has_codigoobra = doccab_info.get("has_codigoobra", False)
+
+        # ── PRIORIDAD 3: Enriquecer con columnas conocidas del KnowledgeStore ─
+        # Si la BD no estaba disponible en Fase 2, el KnowledgeStore puede tener
+        # las columnas reales de sesiones anteriores
+        if not has_serie or not has_codigoobra:
+            try:
+                if get_knowledge_store is not None:
+                    store = get_knowledge_store()
+                    known = store.get_table("DOCCAB")
+                    known_cols = [c.upper() for c in known.get("columns_real", [])]
+                    if known_cols:
+                        if not has_serie and "SERIE" in known_cols:
+                            has_serie = True
+                            logger.info("[DEEP AGENT] SERIE detectada desde KnowledgeStore")
+                        if not has_codigoobra and "CODIGOOBRA" in known_cols:
+                            has_codigoobra = True
+                            logger.info("[DEEP AGENT] CODIGOOBRA detectada desde KnowledgeStore")
+            except Exception as e:
+                logger.debug(f"[DEEP AGENT] KnowledgeStore no disponible en _build_fixed_sqls: {e}")
 
         # SQL FIJO 1: Distribución temporal (SIEMPRE para DOCCAB)
         if "DOCCAB" in phase2_data:
@@ -489,12 +514,18 @@ class Phases345Mixin:
             phase.error = "Sin datos de investigación"
             return phase
 
+        from datetime import datetime
+        anio_actual = datetime.now().year
+        fecha_actual = datetime.now().strftime("%d/%m/%Y")
+
         exploration_data = result.phases[1].data if len(result.phases) > 1 else {}
         exploration_summary = self._fmt_exploration(exploration_data)
         data_summary_full = self._fmt_investigation(result.sql_queries)
 
         system = (
-            "Eres un analista de datos crítico, experto en climatización y Firebird 2.5. "
+            f"Eres un analista de datos crítico, experto en climatización y Firebird 2.5. "
+            f"HOY ES {fecha_actual} (año {anio_actual}). "
+            f"Los datos con año {anio_actual} son REALES y ACTUALES, NO futuristas. "
             "Analiza con MÁXIMA PROFUNDIDAD.\n\n"
             "DIMENSIONES OBLIGATORIAS:\n"
             "1. ANOMALÍAS ESTADÍSTICAS: outliers, distribuciones inusuales\n"
@@ -586,24 +617,63 @@ class Phases345Mixin:
         phase = PhaseResult(phase_id="5", phase_name="Síntesis Épica", success=True)
         logger.info("[DEEP AGENT] ═══ FASE 5: SÍNTESIS ÉPICA ═══")
 
+        from datetime import datetime
+        now = datetime.now()
+        fecha_actual = now.strftime("%d/%m/%Y")
+        hora_actual = now.strftime("%H:%M")
+        anio_actual = now.year
+
         analysis_data = result.phases[3].data if len(result.phases) > 3 else {}
         data_summary_full = self._fmt_investigation(result.sql_queries)
         warnings_html = self._build_warnings_html(result)
 
+        # ── Construir bloque <details> con contenido real ─────────────────────
+        # Se construye AQUÍ (en Python) para garantizar que siempre tenga contenido.
+        # La IA NO genera el bloque <details> — solo genera el texto Markdown.
+        sqls_details = "\n\n".join(
+            f"**{q['objetivo']}** ({q.get('rows', 0)} filas)\n"
+            f"```sql\n{q['sql']}\n```"
+            + (f"\n⚠️ Error: {q['error']}" if q.get('error') else "")
+            for q in result.sql_queries[:8] if q.get("sql")
+        )
+        reliability_score = analysis_data.get("reliability_score", "?")
+        reliability_reason = analysis_data.get("reliability_reason", "")
+        limitations = "\n".join(f"• {l}" for l in analysis_data.get("sql_limitations", [])[:5])
+        tables_used = list({
+            part.strip().split()[0].upper()
+            for q in result.sql_queries if q.get("sql") and "FROM" in q.get("sql", "").upper()
+            for part in re.split(r'\bFROM\b|\bJOIN\b', q["sql"], flags=re.IGNORECASE)[1:]
+            if part.strip()
+        })
+        details_block = (
+            "\n\n<details>\n"
+            "<summary>🔬 Ver detalles técnicos</summary>\n\n"
+            f"**Fecha del análisis:** {fecha_actual} {hora_actual}\n\n"
+            f"**Tablas consultadas:** {', '.join(sorted(tables_used)) if tables_used else 'N/A'}\n\n"
+            f"**Fiabilidad:** {reliability_score} — {reliability_reason}\n\n"
+            + (f"**Limitaciones SQL:**\n{limitations}\n\n" if limitations else "")
+            + f"**Consultas ejecutadas ({len(result.sql_queries)}):**\n\n{sqls_details}\n\n"
+            "</details>"
+        )
+
+        # ── System prompt SIN bloque <details> — lo añadimos nosotros ────────
         system = (
-            "Eres un analista de datos experto y consultor de negocio. "
+            f"Eres un analista de datos experto y consultor de negocio. "
+            f"HOY ES {fecha_actual} (año {anio_actual}). "
+            f"Los datos de la BD son REALES y ACTUALES — si aparece el año {anio_actual}, "
+            f"es correcto, NO es futurista.\n\n"
             "Genera una respuesta ÉPICA, COMPLETA y ULTRA-FIABLE.\n\n"
-            "ESTRUCTURA OBLIGATORIA:\n"
+            "ESTRUCTURA OBLIGATORIA (solo Markdown, SIN HTML, SIN <details>):\n"
             "## 📊 Respuesta Principal\n[Datos reales en tabla Markdown.]\n\n"
             "## 🔍 Análisis Crítico\n[Interpretación profunda.]\n\n"
-            "## ⚠️ Advertencias y Objeciones\n[Advertencias importantes.]\n\n"
+            "## ⚠️ Advertencias y Objeciones\n[Lista Markdown con •]\n\n"
             "## 💡 Contexto de Negocio\n[Perspectiva del sector.]\n\n"
-            "## 🚀 Sugerencias y Próximos Pasos\n[Acciones recomendadas.]\n\n"
-            "<details>\n<summary>🔬 Ver detalles técnicos</summary>\n"
-            "[SQLs, tablas, fiabilidad, limitaciones]\n</details>\n\n"
-            "REGLAS:\n"
+            "## 🚀 Sugerencias y Próximos Pasos\n[Lista numerada.]\n\n"
+            "REGLAS CRÍTICAS:\n"
             "• NO inventar datos.\n"
+            "• NO generar HTML ni etiquetas <div>, <span>, <details>.\n"
             "• Para presupuestos: 1 instalación = N presupuestos.\n"
+            f"• El año {anio_actual} es el año ACTUAL, no futurista.\n"
             "• Incluir tabla por año/serie si hay datos temporales.\n"
         )
 
@@ -615,21 +685,17 @@ class Phases345Mixin:
         h_text = "\n".join(f"• {h}" for h in analysis_data.get("hypotheses", [])[:4])
         l_text = "\n".join(f"• {l}" for l in analysis_data.get("sql_limitations", [])[:4])
         s_text = "\n".join(f"• {s}" for s in result.suggestions[:5])
-        sqls_text = "\n".join(
-            f"```sql\n-- {q['objetivo']}\n{q['sql']}\n```"
-            for q in result.sql_queries[:6] if q.get("sql")
-        )
 
         user_msg = (
-            f"PREGUNTA: {question}\n\nPROFUNDIDAD: {result.depth.value.upper()}\n\n"
+            f"PREGUNTA: {question}\n\n"
+            f"FECHA ACTUAL: {fecha_actual} (año {anio_actual})\n\n"
+            f"PROFUNDIDAD: {result.depth.value.upper()}\n\n"
             f"DATOS ({len(result.sql_queries)} consultas):\n{data_summary}\n\n"
             f"ADVERTENCIAS:\n{w_text}\nANOMALÍAS:\n{a_text}\n"
             f"INSIGHTS:\n{i_text}\nCALIDAD:\n{q_text}\n"
             f"HIPÓTESIS:\n{h_text}\nLIMITACIONES:\n{l_text}\n"
             f"SUGERENCIAS:\n{s_text}\n"
-            f"FIABILIDAD: {analysis_data.get('reliability_score','?')} — "
-            f"{analysis_data.get('reliability_reason','')}\n\n"
-            f"SQLs:\n{sqls_text}"
+            f"FIABILIDAD: {reliability_score} — {reliability_reason}"
         )
 
         try:
@@ -637,7 +703,14 @@ class Phases345Mixin:
                 system_prompt=system, user_message=user_msg, preferred_model_id="jddcia-qwen3-30b"
             )
             if resp:
-                result.final_answer = (warnings_html + "\n\n" + resp) if warnings_html else resp
+                # Limpiar cualquier HTML que la IA haya generado en el texto Markdown
+                resp_clean = self._strip_html_from_markdown(resp)
+                # Combinar: advertencias HTML (si las hay) + respuesta Markdown + detalles técnicos
+                final = ""
+                if warnings_html:
+                    final += warnings_html + "\n\n"
+                final += resp_clean + details_block
+                result.final_answer = final
                 phase.data = result.final_answer
                 phase.sub_phases.extend([
                     SubPhaseResult("5.1 Respuesta principal", True, "OK"),
@@ -645,6 +718,7 @@ class Phases345Mixin:
                     SubPhaseResult("5.3 Advertencias", True, f"{len(result.warnings)}"),
                     SubPhaseResult("5.4 Contexto negocio", True, "OK"),
                     SubPhaseResult("5.5 Sugerencias", True, f"{len(result.suggestions)}"),
+                    SubPhaseResult("5.6 Detalles técnicos", True, f"{len(result.sql_queries)} SQLs"),
                 ])
                 logger.info("[DEEP AGENT] Fase 5 OK")
             else:
@@ -656,6 +730,35 @@ class Phases345Mixin:
             phase.error = str(e)
             result.final_answer = self._emergency_fallback(result)
         return phase
+
+    def _strip_html_from_markdown(self, text: str) -> str:
+        """
+        Elimina etiquetas HTML del texto Markdown generado por la IA.
+        Preserva el bloque <details> si la IA lo generó (lo reemplazamos nosotros).
+        Solo elimina <div>, <span>, <p> y similares que no deberían estar en Markdown.
+        """
+        try:
+            # Eliminar bloques <details>...</details> que la IA pueda haber generado
+            # (los reemplazamos con nuestro bloque construido en Python)
+            text = re.sub(r'<details>.*?</details>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            # Eliminar <div ...>...</div> y <span ...>...</span> con su contenido
+            # pero PRESERVAR el texto dentro de ellos
+            text = re.sub(r'<div[^>]*>(.*?)</div>', r'\1', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n', text, flags=re.DOTALL | re.IGNORECASE)
+            # Eliminar etiquetas sueltas que no tienen contenido útil
+            text = re.sub(r'<(strong|b)>(.*?)</(strong|b)>', r'**\2**', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<(em|i)>(.*?)</(em|i)>', r'*\2*', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<ul[^>]*>', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'</ul>', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'<li[^>]*>(.*?)</li>', r'• \1\n', text, flags=re.DOTALL | re.IGNORECASE)
+            # Limpiar etiquetas HTML residuales
+            text = re.sub(r'<[^>]+>', '', text)
+            # Limpiar líneas vacías múltiples
+            text = re.sub(r'\n{3,}', '\n\n', text)
+            return text.strip()
+        except Exception:
+            return text
 
     # ─────────────────────────────────────────────────────────────────────────
     # FASE 4b: APRENDIZAJE PERMANENTE (actualiza metadatos SIUO en disco)
