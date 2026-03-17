@@ -1,27 +1,6 @@
 {
   "queries": [
     {
-      "ts": "2026-03-16T16:02:16.547096",
-      "question": "¿Cuántos documentos hay de tipo 1?",
-      "keywords": [
-        "documentos",
-        "tipo"
-      ],
-      "tables_used": [
-        "CARACT",
-        "GESDOC",
-        "DOCLINDOCASOC",
-        "OBRADOC",
-        "REPESTDOC",
-        "AGEGASTPRGAVDCVAR",
-        "AGEGASTPRGAVDCVARPER",
-        "AGENTEDOCUM"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
       "ts": "2026-03-16T16:02:16.581712",
       "question": "¿Cuántos documentos hay de tipo 12?",
       "keywords": [
@@ -10803,6 +10782,30 @@
       "unknown_kws": [
         "pregunta"
       ]
+    },
+    {
+      "ts": "2026-03-16T16:54:57.567492",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
     }
   ],
   "unknown_keywords": {
@@ -10945,7 +10948,7 @@
     "correspondiente": 14,
     "2025": 14,
     "2023": 14,
-    "cuanto": 25,
+    "cuanto": 26,
     "pregunta": 14,
     "creados": 3,
     "xyzabc123": 5,

@@ -58,7 +58,7 @@
         "vision",
         "code"
       ],
-      "score": 54,
+      "score": 56,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 4096
@@ -70,7 +70,7 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 99,
+        "success": 100,
         "failure": 112
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
