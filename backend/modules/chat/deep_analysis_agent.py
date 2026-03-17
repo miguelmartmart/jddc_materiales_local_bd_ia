@@ -1,4 +1,4 @@
- """
+"""
 deep_analysis_agent.py — Shim de compatibilidad hacia el paquete deep_analysis/.
 
 DEPRECADO: Este fichero existe solo para compatibilidad con imports anteriores.

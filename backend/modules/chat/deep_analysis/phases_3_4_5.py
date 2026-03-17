@@ -11,6 +11,7 @@ Integración con SIUO:
   - Actualiza db_metadata_optimized.json con columnas descubiertas en Fase 2
 """
 
+import json
 import logging
 import os
 import re
@@ -22,6 +23,11 @@ try:
     from backend.modules.db_explorer.context_retriever import get_context_retriever
 except ImportError:
     get_context_retriever = None  # type: ignore
+
+try:
+    from backend.modules.chat.deep_analysis.knowledge_store import get_knowledge_store
+except ImportError:
+    get_knowledge_store = None  # type: ignore
 
 from backend.modules.chat.deep_analysis.models import (
     EpicAnalysisResult, PhaseResult, SubPhaseResult,
@@ -68,12 +74,23 @@ class Phases345Mixin:
             siuo_context, exploration_summary, question
         )
 
-        system = self._build_phase3_system(schema_for_prompt, exploration_summary, n_sqls)
+        # Limitar sub_questions y potential_issues para no inflar el prompt
+        sub_q_str = "; ".join(str(q) for q in sub_questions[:3])
+        issues_str = "; ".join(str(p) for p in potential_issues[:2])
+
+        # Obtener patrones conocidos del KnowledgeStore para enriquecer el prompt
+        # (la IA sabe qué SQLs ya están cubiertos y genera solo los nuevos)
+        known_patterns_text = self._get_known_patterns_text(question, cfg)
+
+        lan_mode = cfg.get("lan_mode", False)
+        system = self._build_phase3_system(
+            schema_for_prompt, exploration_summary, n_sqls,
+            lan_mode=lan_mode, known_patterns_text=known_patterns_text
+        )
         user_msg = (
             f"PREGUNTA: {question}\n\n"
-            f"SUB-PREGUNTAS: {sub_questions}\n\n"
-            f"POSIBLES PROBLEMAS: {potential_issues}\n\n"
-            f"CONTEXTO: {phase1_data.get('business_context', '')}"
+            f"SUB-PREGUNTAS: {sub_q_str}\n\n"
+            f"POSIBLES PROBLEMAS: {issues_str}"
         )
 
         try:
@@ -83,6 +100,13 @@ class Phases345Mixin:
         except Exception as e:
             logger.error(f"[DEEP AGENT] Fase 3 IA falló: {e}")
             phase.error = str(e)
+            await self._execute_fixed_sqls(fixed_sqls, result, phase)
+            phase.success = len(result.sql_queries) > 0
+            return phase
+
+        # Guardia: si la IA devolvió None o vacío, usar solo SQLs fijos
+        if not response or not isinstance(response, str):
+            logger.warning("[DEEP AGENT] Fase 3: respuesta IA vacía — usando solo SQLs fijos")
             await self._execute_fixed_sqls(fixed_sqls, result, phase)
             phase.success = len(result.sql_queries) > 0
             return phase
@@ -152,31 +176,94 @@ class Phases345Mixin:
         logger.info(f"[DEEP AGENT] Fase 3 OK: {executed_ok}/{len(all_blocks)} SQLs exitosos")
         return phase
 
-    def _build_phase3_system(self, schema: str, exploration: str, n_sqls: int) -> str:
-        return (
-            "Eres un experto en SQL Firebird 2.5. Genera múltiples consultas SQL para investigar "
-            "una pregunta desde TODOS los ángulos posibles.\n\n"
-            f"ESQUEMA OPTIMIZADO (SIUO):\n{schema}\n\n"
-            f"EXPLORACIÓN REAL DE TABLAS:\n{exploration}\n\n"
-            "REGLAS CRÍTICAS FIREBIRD 2.5:\n"
-            "• FIRST N en lugar de LIMIT/TOP\n"
-            "• UPPER(col) LIKE UPPER('%x%') para texto\n"
-            "• DOCCAB.TIPO: 0=presupuesto, 13=factura, 11=albaran, 12=pedido, 2=SAT\n"
-            "• NO usar ROUND() → CAST(x AS NUMERIC(15,2))\n"
-            "• BLOB (DESCRIPCION) → NO en GROUP BY\n"
-            "• DOCDESTINO vincula documentos origen→destino\n"
-            "• DOCLIN no tiene FECHA propia → JOIN DOCCAB para obtener FECHA\n\n"
-            f"Genera EXACTAMENTE {n_sqls} consultas SQL. Cada una precedida por:\n"
-            "-- [OBJETIVO: descripción clara]\n\n"
-            "ÁNGULOS OBLIGATORIOS:\n"
-            "1. Consulta principal\n2. Calidad (nulos, vacíos)\n3. Duplicados\n"
-            "4. Distribución temporal (año/mes/serie) — SIEMPRE\n"
-            "5. Por cliente/agente/categoría\n6. Outliers\n7. Totales/promedios\n"
-            "8. Cruce con tabla relacionada\n9. Instalaciones únicas vs presupuestos\n"
-            "10-12+. Análisis adicionales\n\n"
-            "Si necesitas más SQLs: <!-- NECESITO_MAS_SQLS: N -->\n\n"
-            "Formato: ```sql\n-- [OBJETIVO: ...]\nSELECT ...\n```\n"
+    def _build_phase3_system(
+        self, schema: str, exploration: str, n_sqls: int,
+        lan_mode: bool = False, known_patterns_text: str = ""
+    ) -> str:
+        """
+        Construye el system prompt para Fase 3.
+
+        lan_mode=True → prompt más conciso (menos tokens = menos tiempo de generación LAN).
+        known_patterns_text → SQLs ya cubiertos por KnowledgeStore (la IA genera solo los nuevos).
+
+        CALIDAD: No se reduce el número de SQLs. Se reduce el TEXTO del prompt
+        para que el modelo LAN genere más rápido sin timeout.
+        """
+        rules = (
+            "REGLAS FIREBIRD 2.5:\n"
+            "• FIRST N (no LIMIT/TOP) • UPPER(col) LIKE UPPER('%x%')\n"
+            "• DOCCAB.TIPO: 0=presupuesto,13=factura,11=albaran,12=pedido,2=SAT\n"
+            "• NO ROUND() → CAST(x AS NUMERIC(15,2)) • BLOB→NO GROUP BY\n"
+            "• DOCDESTINO vincula origen→destino • DOCLIN sin FECHA→JOIN DOCCAB\n"
         )
+
+        if lan_mode:
+            # Prompt conciso para modelo LAN — mismos SQLs, menos texto de instrucciones
+            known_section = (
+                f"\nSQLs YA CUBIERTOS (no repetir):\n{known_patterns_text}\n"
+                if known_patterns_text else ""
+            )
+            return (
+                f"Experto SQL Firebird 2.5. Genera {n_sqls} consultas para investigar la pregunta.\n\n"
+                f"ESQUEMA:\n{schema}\n\nEXPLORACIÓN:\n{exploration}\n\n"
+                f"{rules}"
+                f"{known_section}"
+                f"Genera EXACTAMENTE {n_sqls} SQLs. Cada uno: -- [OBJETIVO: ...] + SELECT.\n"
+                "Ángulos: principal, calidad, duplicados, temporal(año/serie), "
+                "por cliente/agente, outliers, totales, cruce tablas, instalaciones únicas.\n"
+                "Si necesitas más: <!-- NECESITO_MAS_SQLS: N -->\n"
+                "Formato: ```sql\n-- [OBJETIVO: ...]\nSELECT ...\n```\n"
+            )
+        else:
+            # Prompt completo para modelo internet (GPT-4, Claude, etc.)
+            known_section = (
+                f"\nPATRONES YA CONOCIDOS (no repetir, generar solo los nuevos):\n{known_patterns_text}\n"
+                if known_patterns_text else ""
+            )
+            return (
+                "Eres un experto en SQL Firebird 2.5. Genera múltiples consultas SQL para investigar "
+                "una pregunta desde TODOS los ángulos posibles.\n\n"
+                f"ESQUEMA OPTIMIZADO (SIUO):\n{schema}\n\n"
+                f"EXPLORACIÓN REAL DE TABLAS:\n{exploration}\n\n"
+                f"{rules}\n"
+                f"{known_section}"
+                f"Genera EXACTAMENTE {n_sqls} consultas SQL. Cada una precedida por:\n"
+                "-- [OBJETIVO: descripción clara]\n\n"
+                "ÁNGULOS OBLIGATORIOS:\n"
+                "1. Consulta principal\n2. Calidad (nulos, vacíos)\n3. Duplicados\n"
+                "4. Distribución temporal (año/mes/serie) — SIEMPRE\n"
+                "5. Por cliente/agente/categoría\n6. Outliers\n7. Totales/promedios\n"
+                "8. Cruce con tabla relacionada\n9. Instalaciones únicas vs presupuestos\n"
+                "10-12+. Análisis adicionales específicos de la pregunta\n\n"
+                "Si necesitas más SQLs: <!-- NECESITO_MAS_SQLS: N -->\n\n"
+                "Formato: ```sql\n-- [OBJETIVO: ...]\nSELECT ...\n```\n"
+            )
+
+    def _get_known_patterns_text(self, question: str, cfg: Dict) -> str:
+        """
+        Obtiene los patrones SQL conocidos del KnowledgeStore relevantes para la pregunta.
+        Devuelve texto formateado para incluir en el prompt de Fase 3.
+        La IA puede así evitar regenerar SQLs ya conocidos y centrarse en los nuevos.
+        """
+        try:
+            if get_knowledge_store is None:
+                return ""
+            store = get_knowledge_store()
+            # Extraer palabras clave de la pregunta para buscar patrones relevantes
+            keywords = [w.lower() for w in question.split() if len(w) > 4]
+            patterns = store.get_patterns_for_intent(keywords)
+            if not patterns:
+                return ""
+            lines = []
+            for p in patterns[:4]:  # máx 4 patrones para no inflar el prompt
+                intent = p.get("intent", "?")[:60]
+                sql_preview = p.get("sql", "")[:120].replace("\n", " ")
+                rows = p.get("rows_returned", "?")
+                lines.append(f"• [{intent}] → {sql_preview}... ({rows} filas)")
+            return "\n".join(lines)
+        except Exception as e:
+            logger.debug(f"[DEEP AGENT] _get_known_patterns_text: {e}")
+            return ""
 
     def _build_fixed_sqls(self, question: str, phase2_data: Dict) -> List[Dict]:
         """SQLs fijos que SIEMPRE se incluyen según el contexto de la pregunta."""
@@ -233,6 +320,56 @@ class Phases345Mixin:
                         "AS PRESUPUESTOS_POR_CLIENTE FROM DOCCAB WHERE TIPO = 0"
                     )
                 })
+
+        # SQL FIJO 3: Investigación de estado de presupuestos (SIEMPRE para tasa/éxito/aceptado)
+        if any(k in msg for k in ["presupuesto", "tasa", "éxito", "exito", "aceptado", "aceptados"]):
+            # 3a: Distribución de ESTADOPEND en presupuestos (columna real de DOCCAB)
+            fixed.append({
+                "objetivo": "Distribución de ESTADOPEND en presupuestos (estado real)",
+                "sql": (
+                    "SELECT ESTADOPEND, COUNT(*) AS N "
+                    "FROM DOCCAB WHERE TIPO = 0 "
+                    "GROUP BY ESTADOPEND ORDER BY N DESC"
+                )
+            })
+            # 3b: Presupuestos con documento destino por TIPO del destino
+            fixed.append({
+                "objetivo": "Presupuestos aceptados por tipo de documento destino (factura/pedido)",
+                "sql": (
+                    "SELECT d.TIPO AS TIPO_DESTINO, COUNT(DISTINCT dd.CODDOCUMENTO) AS N_PRESUPUESTOS "
+                    "FROM DOCDESTINO dd "
+                    "JOIN DOCCAB c ON c.CODIGO = dd.CODDOCUMENTO AND c.TIPO = 0 "
+                    "JOIN DOCCAB d ON d.CODIGO = dd.CODDOCUMENTODESTINO "
+                    "GROUP BY d.TIPO ORDER BY N_PRESUPUESTOS DESC"
+                )
+            })
+            # 3c: Total presupuestos con AL MENOS UN documento destino (cualquier tipo)
+            fixed.append({
+                "objetivo": "Total presupuestos con cualquier documento destino vinculado",
+                "sql": (
+                    "SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS, "
+                    "COUNT(DISTINCT dd.CODDOCUMENTO) AS CON_DESTINO, "
+                    "COUNT(DISTINCT c.CODIGO) - COUNT(DISTINCT dd.CODDOCUMENTO) AS SIN_DESTINO "
+                    "FROM DOCCAB c "
+                    "LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO "
+                    "WHERE c.TIPO = 0"
+                )
+            })
+            # 3d: Explorar si hay columna ACEPTADO o similar en DOCCAB via RDB$RELATION_FIELDS
+            fixed.append({
+                "objetivo": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
+                "sql": (
+                    "SELECT FIRST 20 RDB$FIELD_NAME "
+                    "FROM RDB$RELATION_FIELDS "
+                    "WHERE RDB$RELATION_NAME = 'DOCCAB' "
+                    "AND (UPPER(RDB$FIELD_NAME) LIKE '%ESTADO%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%ACEPTA%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%SEGUIM%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%RESULT%') "
+                    "ORDER BY RDB$FIELD_POSITION"
+                )
+            })
+
         return fixed
 
     async def _execute_fixed_sqls(
@@ -521,25 +658,222 @@ class Phases345Mixin:
         return phase
 
     # ─────────────────────────────────────────────────────────────────────────
+    # FASE 4b: APRENDIZAJE PERMANENTE (actualiza metadatos SIUO en disco)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    async def _phase4b_learn_and_persist(
+        self, question: str, phase2_data: Dict,
+        result: EpicAnalysisResult, analysis: Dict
+    ) -> PhaseResult:
+        """
+        Fase 4b: Aprendizaje permanente épico.
+
+        Delega en KnowledgeStore (knowledge_store.py) para persistir:
+          - Columnas reales (RDB$RELATION_FIELDS) por tabla
+          - Conteos reales de registros
+          - Distribuciones de TIPO, ESTADOPEND, DOCDESTINO
+          - Reglas de negocio descubiertas
+          - Patrones SQL exitosos
+          - Log append-only de descubrimientos (JSONL)
+
+        Estructura en disco (core/config/knowledge/):
+          tables/DOCCAB.json, tables/CLIENTE.json, ...
+          index.json, business_rules.json, query_patterns.json
+          discoveries_log.jsonl
+
+        GARANTÍA LAN: No se envía ningún dato a internet.
+        """
+        phase = PhaseResult(phase_id="4b", phase_name="Aprendizaje Permanente", success=True)
+        logger.info("[DEEP AGENT] ═══ FASE 4b: APRENDIZAJE PERMANENTE ═══")
+
+        if get_knowledge_store is None:
+            logger.warning("[DEEP AGENT] KnowledgeStore no disponible — saltando Fase 4b")
+            phase.success = False
+            phase.error = "KnowledgeStore no importado"
+            return phase
+
+        discoveries: List[str] = []
+        store = get_knowledge_store()
+
+        try:
+            # ── 1. Persistir metadatos de tablas exploradas en Fase 2 ─────────
+            for table, info in phase2_data.items():
+                if not isinstance(info, dict):
+                    continue
+
+                updates: Dict = {}
+                cols = info.get("columns", [])
+                cols_source = info.get("columns_source", "unknown")
+                total = info.get("total")
+
+                if cols and cols_source == "firebird_rdb":
+                    updates["columns_real"] = cols
+                    updates["columns_source"] = "firebird_rdb"
+
+                if isinstance(total, int) and total > 0:
+                    updates["record_count_real"] = total
+
+                tipo_dist = info.get("tipo_distribution", [])
+                if tipo_dist and table == "DOCCAB":
+                    tipo_map = {str(r.get("TIPO", "?")): r.get("N", 0) for r in tipo_dist}
+                    updates["tipo_distribution"] = tipo_map
+
+                if updates:
+                    changed = store.update_table(table, updates)
+                    if changed:
+                        discoveries.append(f"{table}: metadatos actualizados ({list(updates.keys())})")
+                        store.log_discovery("record_count", table, updates, question)
+
+            # ── 2. Extraer conocimiento de los resultados SQL ─────────────────
+            for q in result.sql_queries:
+                objetivo = q.get("objetivo", "")
+                data = q.get("data", [])
+                sql = q.get("sql", "")
+                rows = q.get("rows", 0)
+                if not data or q.get("error"):
+                    continue
+
+                # ESTADOPEND en presupuestos
+                if "ESTADOPEND" in objetivo and "presupuesto" in objetivo.lower():
+                    estadopend_map = {str(r.get("ESTADOPEND", "?")): r.get("N", 0) for r in data}
+                    total_pend = sum(estadopend_map.values())
+                    nota = (
+                        f"ESTADOPEND en presupuestos (TIPO=0): {estadopend_map}. "
+                        f"Total={total_pend}. "
+                        "Verificar qué valor indica 'aceptado' en el contexto de negocio."
+                    )
+                    store.update_table("DOCCAB", {
+                        "estadopend_distribution": estadopend_map,
+                        "_nota_estadopend": nota,
+                    })
+                    store.log_discovery("estadopend", "DOCCAB", estadopend_map, question)
+                    discoveries.append(f"DOCCAB.ESTADOPEND: {estadopend_map}")
+
+                # Columnas de estado en DOCCAB (desde RDB$)
+                if "Columnas de DOCCAB" in objetivo and "ESTADO" in objetivo:
+                    cols_estado = [
+                        r.get("RDB$FIELD_NAME", "").strip()
+                        for r in data if r.get("RDB$FIELD_NAME")
+                    ]
+                    if cols_estado:
+                        store.update_table("DOCCAB", {"columns_estado": cols_estado})
+                        store.log_discovery("columns_estado", "DOCCAB", cols_estado, question)
+                        discoveries.append(f"DOCCAB columnas estado: {cols_estado}")
+
+                # Presupuestos con/sin documento destino
+                if "documento destino vinculado" in objetivo.lower() and data:
+                    row = data[0]
+                    total_p = row.get("TOTAL_PRESUPUESTOS", 0)
+                    con_dest = row.get("CON_DESTINO", 0)
+                    sin_dest = row.get("SIN_DESTINO", 0)
+                    if total_p:
+                        pct = round(con_dest / total_p * 100, 1)
+                        nota_dest = (
+                            f"De {total_p} presupuestos: {con_dest} tienen documento destino "
+                            f"({pct}%), {sin_dest} no tienen destino. "
+                            "DOCDESTINO puede NO ser el indicador correcto de 'aceptado'."
+                        )
+                        store.update_table("DOCCAB", {"_nota_docdestino": nota_dest})
+                        store.log_discovery("docdestino", "DOCCAB",
+                                            {"total": total_p, "con": con_dest, "sin": sin_dest, "pct": pct},
+                                            question)
+                        discoveries.append(f"DOCCAB→DOCDESTINO: {con_dest}/{total_p} ({pct}%)")
+                        # Regla de negocio si la tasa es baja
+                        if pct < 30:
+                            store.add_business_rule(
+                                f"Solo el {pct}% de presupuestos tienen documento destino — "
+                                "DOCDESTINO no es indicador fiable de 'aceptado'",
+                                table="DOCCAB", confidence="alto"
+                            )
+
+                # Distribución por tipo de documento destino
+                if "tipo de documento destino" in objetivo.lower():
+                    tipo_dest_map = {
+                        str(r.get("TIPO_DESTINO", "?")): r.get("N_PRESUPUESTOS", 0)
+                        for r in data
+                    }
+                    if tipo_dest_map:
+                        store.update_table("DOCCAB", {"docdestino_tipo_distribution": tipo_dest_map})
+                        store.log_discovery("docdestino", "DOCCAB", tipo_dest_map, question)
+                        discoveries.append(f"DOCDESTINO tipos: {tipo_dest_map}")
+
+                # Registrar patrón SQL exitoso (solo SQLs con datos reales)
+                if sql and rows > 0 and len(sql) > 30:
+                    tables_in_sql = list({
+                        part.strip().split()[0].upper()
+                        for part in re.split(r'\bFROM\b|\bJOIN\b', sql, flags=re.IGNORECASE)[1:]
+                        if part.strip()
+                    })
+                    store.add_query_pattern(
+                        intent=objetivo[:100],
+                        sql=sql,
+                        tables=tables_in_sql,
+                        rows_returned=rows,
+                        reliability=analysis.get("reliability_score", "medio") if analysis else "medio",
+                    )
+
+            # ── 3. Persistir reglas de negocio del análisis ───────────────────
+            for insight in result.business_insights[:5]:
+                if insight and len(insight) > 15:
+                    store.add_business_rule(insight, confidence="medio", source="deep_analysis_ia")
+
+            for anomaly in result.anomalies[:3]:
+                if anomaly and len(anomaly) > 15:
+                    store.log_discovery("anomaly", None, anomaly, question)
+
+            # ── 4. Log final de la sesión ─────────────────────────────────────
+            store.log_discovery("sql_pattern", None, {
+                "question": question[:80],
+                "sqls_ok": sum(1 for q in result.sql_queries if not q.get("error")),
+                "sqls_total": len(result.sql_queries),
+                "reliability": analysis.get("reliability_score", "?") if analysis else "?",
+                "discoveries": len(discoveries),
+            }, question)
+
+            logger.info(f"[DEEP AGENT] ✅ Fase 4b: {len(discoveries)} descubrimientos persistidos")
+            for d in discoveries:
+                logger.info(f"[DEEP AGENT]   📚 {d}")
+
+            phase.data = {
+                "discoveries": discoveries,
+                "tables_updated": list(phase2_data.keys()),
+                "knowledge_base": store._base,
+            }
+            phase.sub_phases.extend([
+                SubPhaseResult("4b.1 Tablas actualizadas", True, list(phase2_data.keys())),
+                SubPhaseResult("4b.2 Descubrimientos", True, discoveries),
+                SubPhaseResult("4b.3 Reglas negocio", True, f"{len(result.business_insights)} insights"),
+            ])
+
+        except Exception as e:
+            logger.error(f"[DEEP AGENT] Fase 4b error: {e}", exc_info=True)
+            phase.success = False
+            phase.error = str(e)
+
+        return phase
+
+    # ─────────────────────────────────────────────────────────────────────────
     # HELPER: Contexto SIUO optimizado
     # ─────────────────────────────────────────────────────────────────────────
 
     def _get_siuo_context(self, question: str, n_sqls: int) -> str:
         """
         Obtiene el contexto optimizado del SIUO para la pregunta.
-        Usa más tokens si hay más SQLs disponibles (más contexto = mejores SQLs).
+        LÍMITE ESTRICTO: máx 3000 tokens para no saturar el modelo LAN.
         Fallback al db_context si el SIUO no está disponible.
         """
         try:
             from backend.modules.db_explorer.context_retriever import get_context_retriever
             retriever = get_context_retriever()
-            # Más SQLs → más tokens de contexto (hasta 8000)
-            max_tokens = min(2000 + n_sqls * 500, 8000)
+            # LÍMITE ESTRICTO: máx 3000 tokens para no saturar el modelo LAN (Qwen3 30B)
+            # El modelo LAN tiene 32K de contexto pero genera timeout con prompts >4K tokens
+            max_tokens = min(1500 + n_sqls * 100, 3000)
             context, meta = retriever.get_context(question, max_tokens=max_tokens)
             tables = meta.get("tables_used", [])
             source = meta.get("source", "?")
-            logger.info(f"[SIUO] Contexto obtenido: {len(tables)} tablas, fuente={source}")
+            logger.info(f"[SIUO] Contexto obtenido: {len(tables)} tablas, fuente={source}, max_tokens={max_tokens}")
             return context
         except Exception as e:
             logger.warning(f"[SIUO] Fallback a db_context: {e}")
-            return self.db_context
+            # Truncar db_context a 2000 chars para no saturar el modelo
+            return self.db_context[:2000] if self.db_context else ""

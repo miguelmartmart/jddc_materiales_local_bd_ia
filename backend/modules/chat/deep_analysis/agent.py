@@ -105,6 +105,13 @@ class DeepAnalysisAgent(Phases12Mixin, Phases345Mixin):
             # FASE 0: Ajuste de presupuesto de tokens
             cfg = self._phase0_budget(cfg, question, conversation_history)
 
+            # FASE 0b: Optimización para modelo LAN
+            # Si el modelo LAN da timeout generando el prompt de Fase 3 (muy largo),
+            # los SQLs FIJOS se ejecutan SIEMPRE (son deterministas, no dependen de la IA).
+            # La IA solo genera SQLs ADICIONALES — si falla, los fijos ya cubren lo esencial.
+            # El KnowledgeStore aprende de TODOS los SQLs (fijos + IA) para mejorar futuras consultas.
+            cfg = self._phase0_lan_optimize(cfg)
+
             # FASE 1: Comprensión épica
             phase1 = await self._phase1_understand(question, result, cfg, conversation_history)
             result.phases.append(phase1)
@@ -122,6 +129,13 @@ class DeepAnalysisAgent(Phases12Mixin, Phases345Mixin):
             # FASE 4: Análisis crítico profundo
             phase4 = await self._phase4_analyze(question, result, cfg)
             result.phases.append(phase4)
+
+            # FASE 4b: Aprendizaje permanente (persiste en KnowledgeStore)
+            analysis_data = phase4.data if phase4.data else {}
+            phase4b = await self._phase4b_learn_and_persist(
+                question, phase2_data, result, analysis_data
+            )
+            result.phases.append(phase4b)
 
             # FASE 5: Síntesis épica
             phase5 = await self._phase5_synthesize(question, result, cfg)
@@ -398,6 +412,73 @@ class DeepAnalysisAgent(Phases12Mixin, Phases345Mixin):
         except Exception as e:
             logger.debug(f"[DEEP AGENT] _get_siuo_record_count({table}): {e}")
         return None
+
+    def _phase0_lan_optimize(self, cfg: Dict) -> Dict:
+        """
+        Optimización para modelo LAN sin pérdida de calidad.
+
+        ESTRATEGIA: No reducir SQLs, sino hacer que la IA genere MENOS TEXTO
+        en Fase 3 aprovechando el KnowledgeStore:
+
+        1. Si el KnowledgeStore tiene patrones SQL para esta intención →
+           la IA solo necesita generar los SQLs NUEVOS (no los ya conocidos)
+           → prompt más corto → menos tiempo de generación → sin timeout
+
+        2. Los SQLs FIJOS (_build_fixed_sqls) se ejecutan SIEMPRE
+           independientemente de si la IA da timeout o no.
+
+        3. cfg["lan_mode"] = True → _build_phase3_system usa prompt más conciso
+           (sin los 10 ángulos detallados, solo los esenciales)
+
+        4. cfg["known_sqls_count"] = N → la IA sabe cuántos SQLs ya están
+           cubiertos por los fijos y el KnowledgeStore, y solo genera los restantes.
+
+        RESULTADO: Misma calidad (o mejor por KnowledgeStore), menos tiempo.
+        """
+        try:
+            # Detectar si el modelo preferido es LAN
+            is_lan = False
+            try:
+                preferred = getattr(self.orchestrator, "preferred_model_id", None)
+                if preferred and "jddcia" in str(preferred).lower():
+                    is_lan = True
+                # También detectar por modo AI_LOCAL_ONLY
+                ai_mode = getattr(self.orchestrator, "ai_mode", None)
+                if ai_mode and "local" in str(ai_mode).lower():
+                    is_lan = True
+            except Exception:
+                pass
+
+            # Contar SQLs fijos disponibles en KnowledgeStore
+            known_sqls_count = 0
+            try:
+                from backend.modules.chat.deep_analysis.knowledge_store import get_knowledge_store
+                store = get_knowledge_store()
+                patterns = store.get_patterns_for_intent([])  # todos los patrones
+                known_sqls_count = len(patterns) if patterns else 0
+            except Exception:
+                pass
+
+            cfg["lan_mode"] = is_lan
+            cfg["known_sqls_count"] = known_sqls_count
+
+            if is_lan:
+                logger.info(
+                    f"[DEEP AGENT] 🏠 Modo LAN detectado — "
+                    f"prompt conciso activado | {known_sqls_count} patrones en KnowledgeStore"
+                )
+            else:
+                logger.info(
+                    f"[DEEP AGENT] 🌐 Modo internet — "
+                    f"prompt completo | {known_sqls_count} patrones en KnowledgeStore"
+                )
+
+        except Exception as e:
+            logger.debug(f"[DEEP AGENT] _phase0_lan_optimize: {e}")
+            cfg.setdefault("lan_mode", False)
+            cfg.setdefault("known_sqls_count", 0)
+
+        return cfg
 
     def _extract_columns_from_context(self, table: str) -> List[str]:
         """
