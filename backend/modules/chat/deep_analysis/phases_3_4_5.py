@@ -530,12 +530,20 @@ class Phases345Mixin:
             "DIMENSIONES OBLIGATORIAS:\n"
             "1. ANOMALÍAS ESTADÍSTICAS: outliers, distribuciones inusuales\n"
             "2. CALIDAD DE DATOS: nulos, duplicados, fechas incoherentes\n"
-            "3. CONTEXTO NEGOCIO: 1 instalación = N presupuestos, SAT≠ventas\n"
-            "4. LIMITACIONES SQL: LEFT JOINs, COUNT(DISTINCT) vs COUNT(*)\n"
-            "5. PATRONES OCULTOS: estacionalidad, concentración\n"
-            "6. HIPÓTESIS: causas de tasas bajas, nulos, anomalías\n\n"
+            "3. INCONSISTENCIAS ESTRUCTURALES (MUY IMPORTANTE):\n"
+            "   - Datos en columnas incorrectas (ej: código en campo descripción)\n"
+            "   - Columnas con contenido MIXTO (ej: 'COD001 - Nombre - Descripción' en un campo)\n"
+            "   - Registros con estructura HETEROGÉNEA (algunos con código+nombre, otros sin)\n"
+            "   - Formatos de datos distintos en la misma columna (fechas, importes, textos)\n"
+            "   - Campos que deberían ser numéricos pero contienen texto\n"
+            "4. CONTEXTO NEGOCIO: 1 instalación = N presupuestos, SAT≠ventas\n"
+            "5. LIMITACIONES SQL: LEFT JOINs, COUNT(DISTINCT) vs COUNT(*)\n"
+            "6. PATRONES OCULTOS: estacionalidad, concentración\n"
+            "7. HIPÓTESIS: causas de tasas bajas, nulos, anomalías, datos mixtos\n\n"
             "Responde SOLO JSON:\n"
-            '{"warnings":[],"anomalies":[],"data_quality_issues":[],"business_insights":[],'
+            '{"warnings":[],"anomalies":[],"data_quality_issues":[],'
+            '"structural_issues":[],'
+            '"business_insights":[],'
             '"sql_limitations":[],"hidden_patterns":[],"hypotheses":[],"suggestions":[],'
             '"reliability_score":"alto|medio|bajo","reliability_reason":""}'
         )
@@ -761,6 +769,310 @@ class Phases345Mixin:
             return text
 
     # ─────────────────────────────────────────────────────────────────────────
+    # FASE 3b: RESOLUCIÓN DE INCONSISTENCIAS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    async def _phase3b_resolve_inconsistencies(
+        self, question: str, result: EpicAnalysisResult, cfg: Dict
+    ) -> PhaseResult:
+        """
+        Fase 3b: Resolución activa de inconsistencias detectadas en Fase 4.
+
+        PROBLEMA DETECTADO: El agente detecta anomalías (año futurista, importes
+        anómalos, tipo de documento incorrecto) pero NO las resuelve — solo las
+        reporta. Esta fase genera SQLs adicionales para INVESTIGAR y RESOLVER
+        cada inconsistencia detectada.
+
+        EJEMPLOS DE RESOLUCIÓN:
+        - "año 2026 futurista" → SQL que filtra por años reales y muestra datos válidos
+        - "TIPO=0 no es SAT" → SQL que identifica el TIPO correcto para SAT/garantía
+        - "importe anómalo" → SQL que separa documentos por rango de importe
+        - "mezcla de tipos" → SQL que desglosa por TIPO para identificar la mezcla
+
+        PRINCIPIO: No basta con advertir — hay que RESOLVER o al menos ACOTAR.
+        """
+        phase = PhaseResult(phase_id="3b", phase_name="Resolución de Inconsistencias", success=True)
+        logger.info("[DEEP AGENT] ═══ FASE 3b: RESOLUCIÓN DE INCONSISTENCIAS ═══")
+
+        from datetime import datetime
+        anio_actual = datetime.now().year
+
+        # Recopilar anomalías y advertencias de Fase 4
+        anomalies = result.anomalies[:6]
+        warnings = result.warnings[:6]
+        all_issues = anomalies + warnings
+
+        if not all_issues:
+            logger.info("[DEEP AGENT] Fase 3b: sin inconsistencias que resolver")
+            phase.data = {"resolution_sqls": 0, "reason": "sin inconsistencias"}
+            return phase
+
+        logger.info(f"[DEEP AGENT] Fase 3b: {len(all_issues)} inconsistencias a resolver")
+
+        # Generar SQLs de resolución para cada tipo de inconsistencia
+        resolution_sqls = self._build_resolution_sqls(all_issues, question, anio_actual)
+
+        if not resolution_sqls:
+            # Fallback: pedir a la IA que genere SQLs de resolución
+            resolution_sqls = await self._ai_generate_resolution_sqls(
+                question, all_issues, result, anio_actual, cfg
+            )
+
+        executed_ok = 0
+        for i, sql_dict in enumerate(resolution_sqls[:6]):
+            sql = sql_dict.get("sql", "")
+            objetivo = sql_dict.get("objetivo", f"Resolución {i+1}")
+            if not sql:
+                continue
+
+            if self.sql_normalizer:
+                try:
+                    sql, _ = self.sql_normalizer.normalize(sql)
+                except Exception:
+                    pass
+
+            logger.info(f"[DEEP AGENT] Resolución {i+1}: {objetivo[:60]}")
+            sql_result, sql_error = await self._execute_with_retry(sql, objetivo)
+
+            entry = {"objetivo": objetivo, "sql": sql, "rows": 0, "data": [], "error": None,
+                     "is_resolution": True}
+            if sql_result is not None:
+                entry["rows"] = len(sql_result)
+                entry["data"] = sql_result[:MAX_ROWS_IN_SUMMARY]
+                result.sql_queries.append(entry)
+                executed_ok += 1
+                logger.info(f"[DEEP AGENT] ✓ Resolución {i+1}: {len(sql_result)} filas")
+                # Añadir insight de resolución
+                if sql_result:
+                    result.business_insights.append(
+                        f"[RESOLUCIÓN] {objetivo}: {len(sql_result)} filas encontradas"
+                    )
+            else:
+                entry["error"] = sql_error
+                result.sql_queries.append(entry)
+                logger.warning(f"[DEEP AGENT] ✗ Resolución {i+1} falló: {sql_error}")
+
+            phase.sub_phases.append(SubPhaseResult(
+                f"3b.{i+1} {objetivo[:40]}", sql_result is not None, entry
+            ))
+
+        phase.success = executed_ok > 0
+        phase.data = {
+            "resolution_sqls": len(resolution_sqls),
+            "executed_ok": executed_ok,
+            "issues_addressed": len(all_issues),
+        }
+        logger.info(f"[DEEP AGENT] Fase 3b OK: {executed_ok}/{len(resolution_sqls)} resoluciones exitosas")
+        return phase
+
+    def _build_resolution_sqls(
+        self, issues: List, question: str, anio_actual: int
+    ) -> List[Dict]:
+        """
+        Genera SQLs de resolución deterministas para las inconsistencias más comunes.
+        Cada SQL intenta RESOLVER o ACOTAR la inconsistencia, no solo reportarla.
+        """
+        sqls = []
+        issues_text = " ".join(str(i).lower() for i in issues)
+        msg = question.lower()
+
+        # ── RESOLUCIÓN 1: Año futurista / datos de año actual ─────────────────
+        if any(k in issues_text for k in ["futurista", "futuro", "año", "fecha", str(anio_actual)]):
+            # Mostrar datos de años REALES (excluyendo años futuros imposibles)
+            sqls.append({
+                "objetivo": f"Datos REALES (años <= {anio_actual}, excluyendo futuros)",
+                "sql": (
+                    f"SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, "
+                    f"CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                    f"FROM DOCCAB "
+                    f"WHERE FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) <= {anio_actual} "
+                    f"AND EXTRACT(YEAR FROM FECHA) >= {anio_actual - 10} "
+                    f"GROUP BY EXTRACT(YEAR FROM FECHA), SERIE "
+                    f"ORDER BY ANO DESC, N DESC"
+                )
+            })
+            # Cuántos registros tienen fecha futura (para cuantificar el problema)
+            sqls.append({
+                "objetivo": f"Cuántos registros tienen fecha futura (> {anio_actual})",
+                "sql": (
+                    f"SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N_REGISTROS "
+                    f"FROM DOCCAB "
+                    f"WHERE FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) > {anio_actual} "
+                    f"GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO"
+                )
+            })
+
+        # ── RESOLUCIÓN 2: Tipo de documento incorrecto para SAT/garantía ──────
+        if any(k in issues_text for k in ["tipo", "sat", "garantía", "garantia", "servicio técnico"]):
+            # Identificar qué TIPO corresponde a SAT/garantía en esta BD
+            sqls.append({
+                "objetivo": "Identificar TIPO correcto para SAT/garantía (distribución real)",
+                "sql": (
+                    "SELECT TIPO, SERIE, COUNT(*) AS N, "
+                    "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                    "FROM DOCCAB "
+                    "WHERE UPPER(SERIE) LIKE UPPER('%SAT%') "
+                    "OR UPPER(SERIE) LIKE UPPER('%GAR%') "
+                    "OR UPPER(SERIE) LIKE UPPER('%TEC%') "
+                    "GROUP BY TIPO, SERIE ORDER BY N DESC"
+                )
+            })
+            # Mostrar datos SAT con el TIPO correcto (TIPO=2 es SAT según el sistema)
+            sqls.append({
+                "objetivo": "Datos SAT reales (TIPO=2, serie SAT)",
+                "sql": (
+                    f"SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, "
+                    f"CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                    f"FROM DOCCAB "
+                    f"WHERE TIPO = 2 AND FECHA IS NOT NULL "
+                    f"AND EXTRACT(YEAR FROM FECHA) <= {anio_actual} "
+                    f"GROUP BY EXTRACT(YEAR FROM FECHA), SERIE "
+                    f"ORDER BY ANO DESC, N DESC"
+                )
+            })
+
+        # ── RESOLUCIÓN 3: Importe anómalo / mezcla de tipos ───────────────────
+        if any(k in issues_text for k in ["importe", "millones", "alto", "anómalo", "mezcla"]):
+            # Desglosar por TIPO para identificar qué tipo infla el importe
+            sqls.append({
+                "objetivo": "Desglose por TIPO para identificar mezcla de documentos",
+                "sql": (
+                    "SELECT TIPO, COUNT(*) AS N, "
+                    "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
+                    "FROM DOCCAB "
+                    "WHERE FECHA IS NOT NULL "
+                    "GROUP BY TIPO ORDER BY TOTAL_EUR DESC"
+                )
+            })
+            # Rango de importes para detectar outliers
+            sqls.append({
+                "objetivo": "Rango de importes (min/max/media) para detectar outliers",
+                "sql": (
+                    "SELECT TIPO, "
+                    "CAST(MIN(IMPORTETOTAL) AS NUMERIC(15,2)) AS MIN_EUR, "
+                    "CAST(MAX(IMPORTETOTAL) AS NUMERIC(15,2)) AS MAX_EUR, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR, "
+                    "COUNT(*) AS N "
+                    "FROM DOCCAB WHERE IMPORTETOTAL > 0 "
+                    "GROUP BY TIPO ORDER BY MAX_EUR DESC"
+                )
+            })
+
+        # ── RESOLUCIÓN 4: Contenido mixto / datos en columnas incorrectas ─────
+        # Detecta columnas de texto que contienen patrones mixtos:
+        # "COD001 - Nombre - Descripción" en un solo campo, o
+        # campos numéricos con texto, o fechas en campos de texto
+        if any(k in issues_text for k in ["mixto", "columna", "estructura", "heterogéneo", "heterogeneo",
+                                           "descripción", "descripcion", "código", "codigo"]):
+            # Muestra de valores de columnas de texto para detectar contenido mixto
+            sqls.append({
+                "objetivo": "Muestra de DESCRIPCION/NOMBRE en ARTICULO para detectar contenido mixto",
+                "sql": (
+                    "SELECT FIRST 20 CODIGO, DESCRIPCION, NOMBRE "
+                    "FROM ARTICULO "
+                    "WHERE DESCRIPCION IS NOT NULL "
+                    "ORDER BY CODIGO"
+                )
+            })
+            # Detectar registros donde DESCRIPCION contiene separadores típicos de datos mixtos
+            sqls.append({
+                "objetivo": "Registros con contenido mixto en DESCRIPCION (patron COD - NOMBRE)",
+                "sql": (
+                    "SELECT FIRST 20 CODIGO, DESCRIPCION "
+                    "FROM ARTICULO "
+                    "WHERE DESCRIPCION LIKE '% - %' "
+                    "OR DESCRIPCION LIKE '%|%' "
+                    "OR DESCRIPCION LIKE '%;%' "
+                    "ORDER BY CODIGO"
+                )
+            })
+            # Detectar heterogeneidad: registros con y sin código en descripción
+            sqls.append({
+                "objetivo": "Proporción de registros con vs sin código en DESCRIPCION",
+                "sql": (
+                    "SELECT "
+                    "SUM(CASE WHEN DESCRIPCION LIKE '% - %' THEN 1 ELSE 0 END) AS CON_SEPARADOR, "
+                    "SUM(CASE WHEN DESCRIPCION NOT LIKE '% - %' OR DESCRIPCION IS NULL THEN 1 ELSE 0 END) "
+                    "AS SIN_SEPARADOR, "
+                    "COUNT(*) AS TOTAL "
+                    "FROM ARTICULO"
+                )
+            })
+
+        # ── RESOLUCIÓN 5: Pregunta sobre tiempo/horas en SAT ─────────────────
+        if any(k in msg for k in ["tiempo", "horas", "dedicar", "dedica", "garantía", "garantia"]):
+            # Buscar columna de tiempo/horas en DOCCAB o tabla SAT
+            sqls.append({
+                "objetivo": "Columnas de tiempo/horas en DOCCAB (metadatos BD)",
+                "sql": (
+                    "SELECT FIRST 20 TRIM(RDB$FIELD_NAME) AS CAMPO "
+                    "FROM RDB$RELATION_FIELDS "
+                    "WHERE RDB$RELATION_NAME = 'DOCCAB' "
+                    "AND (UPPER(RDB$FIELD_NAME) LIKE '%HORA%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%TIEMPO%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%DURACION%' "
+                    "OR UPPER(RDB$FIELD_NAME) LIKE '%MINUTO%') "
+                    "ORDER BY RDB$FIELD_POSITION"
+                )
+            })
+            # Buscar en tablas SAT específicas
+            sqls.append({
+                "objetivo": "Tablas con 'SAT' o 'TECNICO' en el nombre (BD real)",
+                "sql": (
+                    "SELECT FIRST 20 TRIM(RDB$RELATION_NAME) AS TABLA "
+                    "FROM RDB$RELATIONS "
+                    "WHERE RDB$SYSTEM_FLAG = 0 "
+                    "AND (UPPER(RDB$RELATION_NAME) LIKE '%SAT%' "
+                    "OR UPPER(RDB$RELATION_NAME) LIKE '%TECNIC%' "
+                    "OR UPPER(RDB$RELATION_NAME) LIKE '%GARANTIA%' "
+                    "OR UPPER(RDB$RELATION_NAME) LIKE '%AVERIA%') "
+                    "ORDER BY RDB$RELATION_NAME"
+                )
+            })
+
+        return sqls
+
+    async def _ai_generate_resolution_sqls(
+        self, question: str, issues: List, result: EpicAnalysisResult,
+        anio_actual: int, cfg: Dict
+    ) -> List[Dict]:
+        """
+        Fallback: pide a la IA que genere SQLs de resolución para las inconsistencias.
+        Se usa cuando los SQLs deterministas no cubren el caso.
+        """
+        try:
+            issues_text = "\n".join(f"• {i}" for i in issues[:5])
+            data_preview = self._fmt_investigation(result.sql_queries[:3])
+            system = (
+                f"Eres un experto en Firebird 2.5. HOY ES {anio_actual}. "
+                "Genera SQLs para RESOLVER (no solo reportar) las inconsistencias detectadas. "
+                "Cada SQL debe ACOTAR o RESOLVER una inconsistencia específica. "
+                "Responde con máximo 4 bloques ```sql ... ``` con -- [OBJETIVO: ...] antes de cada uno."
+            )
+            user_msg = (
+                f"PREGUNTA: {question}\n\n"
+                f"INCONSISTENCIAS A RESOLVER:\n{issues_text}\n\n"
+                f"DATOS ACTUALES:\n{data_preview[:1000]}"
+            )
+            resp, _ = await self.orchestrator.execute_with_fallback(
+                system_prompt=system, user_message=user_msg, preferred_model_id="jddcia-qwen3-30b"
+            )
+            if not resp:
+                return []
+            sql_blocks = re.findall(r'```sql\s*(.*?)```', resp, re.DOTALL | re.IGNORECASE)
+            sqls = []
+            for i, block in enumerate(sql_blocks[:4]):
+                objetivo = self._extract_objetivo(block, i)
+                sql = re.sub(r'--\s*\[OBJETIVO:[^\]]*\]', '', block).strip()
+                if sql:
+                    sqls.append({"objetivo": objetivo, "sql": sql})
+            return sqls
+        except Exception as e:
+            logger.warning(f"[DEEP AGENT] _ai_generate_resolution_sqls: {e}")
+            return []
+
+    # ─────────────────────────────────────────────────────────────────────────
     # FASE 4b: APRENDIZAJE PERMANENTE (actualiza metadatos SIUO en disco)
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -796,7 +1108,13 @@ class Phases345Mixin:
             return phase
 
         discoveries: List[str] = []
-        store = get_knowledge_store()
+        try:
+            store = get_knowledge_store()
+        except Exception as e:
+            logger.warning(f"[DEEP AGENT] KnowledgeStore no disponible: {e} — saltando Fase 4b")
+            phase.success = False
+            phase.error = f"KnowledgeStore error: {e}"
+            return phase
 
         try:
             # ── 1. Persistir metadatos de tablas exploradas en Fase 2 ─────────

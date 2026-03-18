@@ -37,6 +37,24 @@ SUMMARY_THRESHOLD: float = 0.75
 # Máximo de filas por SQL en el resumen de investigación
 MAX_ROWS_IN_SUMMARY: int = 5
 
+# ─── PARÁMETROS DEL BUCLE DE INVESTIGACIÓN ITERATIVA ─────────────────────────
+# Número máximo de ciclos del bucle de investigación.
+# Cada ciclo ejecuta: Fase 3 (SQLs nuevos) → Fase 4 (análisis) → Fase 3b (resolución).
+# La IA puede salir antes si considera que ya no hay más que investigar.
+# Centralizado aquí para cumplir el principio de parámetros centralizados.
+MAX_INVESTIGATION_CYCLES: int = 4
+
+# Número mínimo de anomalías/inconsistencias para continuar el bucle.
+# Si tras un ciclo hay menos de este número de issues sin resolver, el bucle termina.
+MIN_ISSUES_TO_CONTINUE: int = 1
+
+# Umbral de fiabilidad para salir del bucle antes del máximo de ciclos.
+# Si la IA reporta fiabilidad "alto" y hay pocas anomalías, el bucle termina.
+RELIABILITY_EXIT_THRESHOLD: str = "alto"
+
+# Número máximo de SQLs adicionales por ciclo del bucle (para no saturar el contexto)
+MAX_SQLS_PER_CYCLE: int = 6
+
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +112,8 @@ class EpicAnalysisResult:
     data_quality_issues: List[str] = field(default_factory=list)
     # Rutas de ficheros temporales de resúmenes parciales volcados a disco
     partial_summary_files: List[str] = field(default_factory=list)
+    # Ciclos del bucle de investigación ejecutados
+    investigation_cycles: int = 0
 
 
 # ─── TokenBudget ──────────────────────────────────────────────────────────────
