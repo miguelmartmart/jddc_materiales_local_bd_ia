@@ -450,15 +450,17 @@ class ChatService:
         #   1. Checkbox frontend: context.get('deep_analysis', False) == True
         #   2. Comando explícito: /deep, /analisis
         #   3. Palabras clave: "analiza en profundidad", "investiga", etc.
-        _wants_deep = context.get('deep_analysis', False) or self._is_deep_analysis_request(message)
+        # Detección de intención: ¿requiere BD o es conversacional/general?
+        # _is_conversational_message: detección rápida determinista (saludos, mensajes cortos)
+        # _ai_requires_database: clasificación IA para el resto (una llamada ligera a Qwen3)
         _is_conv = self._is_conversational_message(message)
-        if _wants_deep and not _is_conv:
-            # Verificar con la IA si realmente requiere BD (evita activar el agente para preguntas generales)
+        if not _is_conv:
             _needs_db = await self._ai_requires_database(message)
             if not _needs_db:
-                logger.info("[CHAT] 💬 IA clasificó como NO requiere BD — flujo normal (sin DeepAgent)")
-                _wants_deep = False
+                logger.info("[CHAT] 💬 IA clasificó como NO requiere BD — chat conversacional directo")
+                return await self._chat_no_db(message, context)
 
+        _wants_deep = context.get('deep_analysis', False) or self._is_deep_analysis_request(message)
         if _wants_deep and not _is_conv:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
