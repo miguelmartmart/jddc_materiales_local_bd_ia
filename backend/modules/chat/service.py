@@ -284,15 +284,64 @@ class ChatService:
                 logger.warning(f"Error loading chat config: {e}")
 
 
+    async def _ai_requires_database(self, message: str) -> bool:
+        """
+        Usa la IA local (Qwen3) para detectar si el mensaje requiere consultar la BD.
+        Llamada ultraligera: system prompt mínimo, respuesta de 1 token (SI/NO).
+
+        Devuelve True  → el mensaje necesita SQL/datos de la BD
+        Devuelve False → es conversacional, filosófico, general, etc.
+
+        Fallback determinista si la IA falla: busca palabras clave de datos.
+        """
+        try:
+            system_prompt = (
+                "Eres un clasificador de intenciones. "
+                "Responde SOLO con 'SI' o 'NO', sin explicaciones.\n"
+                "Pregunta: ¿Este mensaje requiere consultar una base de datos "
+                "de empresa (facturas, clientes, presupuestos, stock, ventas, etc.)?\n"
+                "SI = necesita datos de BD. NO = es conversacional, filosófico o general."
+            )
+            response, _ = await self.model_orchestrator.execute_with_fallback(
+                system_prompt=system_prompt,
+                user_message=message,
+                preferred_model_id="jddcia-qwen3-30b",
+            )
+            if response:
+                answer = response.strip().upper()[:10]
+                needs_db = answer.startswith("SI") or answer.startswith("SÍ") or answer.startswith("YES")
+                logger.info(f"[INTENT] IA clasificacion BD: '{answer}' → needs_db={needs_db}")
+                return needs_db
+        except Exception as e:
+            logger.warning(f"[INTENT] IA clasificacion fallo ({e}), usando fallback determinista")
+
+        # Fallback determinista si la IA no responde
+        return self._requires_database_fallback(message)
+
+    def _requires_database_fallback(self, message: str) -> bool:
+        """Fallback determinista: detecta palabras clave de datos."""
+        msg = message.lower().strip()
+        db_keywords = [
+            "factura", "presupuesto", "albaran", "pedido", "abono", "contrato",
+            "cliente", "proveedor", "agente", "articulo", "producto", "familia",
+            "importe", "precio", "total", "cobro", "pago", "facturado", "ventas",
+            "compras", "stock", "inventario", "cuantos", "cuantas", "cuanto",
+            "dame", "muestra", "lista", "listado", "busca", "encuentra",
+            "suma", "promedio", "media", "tasa", "porcentaje", "distribucion",
+            "evolucion", "tendencia", "comparativa", "historico", "estadistica",
+            "split", "instalacion", "mantenimiento", "sat",
+        ]
+        return any(k in msg for k in db_keywords)
+
     def _is_conversational_message(self, message: str) -> bool:
         """
-        Detecta si el mensaje es conversacional (saludo, agradecimiento, pregunta general).
-        En ese caso NO se activa el DeepAnalysisAgent ni el flujo SQL.
+        Detección RÁPIDA y DETERMINISTA de mensajes conversacionales obvios.
+        Solo para saludos/despedidas explícitas — el resto lo decide la IA.
         """
         msg = message.lower().strip()
         words = msg.split()
 
-        # Patrones conversacionales explícitos
+        # Patrones conversacionales explícitos (siempre conversacional sin llamar a IA)
         conversational_starts = [
             "hola", "buenos dias", "buenas tardes", "buenas noches", "buenas",
             "gracias", "de nada", "ok", "vale", "perfecto", "entendido",
@@ -305,16 +354,8 @@ class ChatService:
             if msg == pat or msg.startswith(pat + " ") or msg.startswith(pat + ","):
                 return True
 
-        # Mensajes muy cortos (<=3 palabras) sin palabras clave de datos
-        data_keywords = [
-            "cuantos", "cuantas", "total", "suma", "lista", "dame", "muestra",
-            "factura", "presupuesto", "cliente", "articulo", "stock", "precio",
-            "pedido", "albaran", "agente", "proveedor", "importe", "fecha",
-            "analiza", "analisis", "investiga", "consulta", "busca", "encuentra",
-            "cuanto", "cuanta", "ventas", "compras", "cobros", "pagos",
-        ]
-        has_data_keyword = any(k in msg for k in data_keywords)
-        if len(words) <= 3 and not has_data_keyword:
+        # Mensajes muy cortos sin palabras de datos → conversacional
+        if len(words) <= 3 and not self._requires_database_fallback(message):
             return True
 
         return False
@@ -409,8 +450,16 @@ class ChatService:
         #   1. Checkbox frontend: context.get('deep_analysis', False) == True
         #   2. Comando explícito: /deep, /analisis
         #   3. Palabras clave: "analiza en profundidad", "investiga", etc.
-        if (context.get('deep_analysis', False) or self._is_deep_analysis_request(message)) \
-                and not self._is_conversational_message(message):
+        _wants_deep = context.get('deep_analysis', False) or self._is_deep_analysis_request(message)
+        _is_conv = self._is_conversational_message(message)
+        if _wants_deep and not _is_conv:
+            # Verificar con la IA si realmente requiere BD (evita activar el agente para preguntas generales)
+            _needs_db = await self._ai_requires_database(message)
+            if not _needs_db:
+                logger.info("[CHAT] 💬 IA clasificó como NO requiere BD — flujo normal (sin DeepAgent)")
+                _wants_deep = False
+
+        if _wants_deep and not _is_conv:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
