@@ -1,172 +1,139 @@
 # 📋 RESUMEN DE SESIÓN — 18/03/2026
 ## Proyecto: DEVIA / bots/interjddcia
-## Commit: `5814863` → `d013827` (main)
+## Commit: `c5e75b7` → `pruebas`
 
 ---
 
 ## ✅ LO IMPLEMENTADO EN ESTA SESIÓN
 
-### 1. PARÁMETROS CENTRALIZADOS DEL BUCLE
-**Archivo:** `backend/modules/chat/deep_analysis/models.py`
+### 1. KnowledgeStore: Cache-First en Fase 2 + Persistencia Automática
+**Archivo:** `backend/modules/chat/deep_analysis/phases_1_2.py`
 
-Añadidas constantes centralizadas para el bucle de investigación iterativa:
-```python
-MAX_INVESTIGATION_CYCLES: int = 4      # Máx ciclos del bucle
-MIN_ISSUES_TO_CONTINUE: int = 1        # Mín anomalías para continuar
-RELIABILITY_EXIT_THRESHOLD: str = "alto"  # Fiabilidad para salir
-MAX_SQLS_PER_CYCLE: int = 6            # Máx SQLs adicionales por ciclo
-```
-También añadido `investigation_cycles: int = 0` en `EpicAnalysisResult` para tracking.
+**Problema:** Cada consulta re-exploraba las tablas desde la BD (COUNT, RDB$RELATION_FIELDS, muestreo), aunque ya se habían explorado antes. Costoso en tiempo y recursos.
+
+**Solución — Cache-First (TTL 7 días):**
+- Antes de explorar una tabla, se consulta el KnowledgeStore
+- Si hay datos frescos (< 7 días): se usan directamente, **sin queries a la BD**
+- Si los datos son obsoletos (> 7 días): se re-explora y se actualiza el cache
+- `cfg["force_refresh"] = True` fuerza re-exploración aunque el cache sea fresco
+
+**Solución — Persistencia automática:**
+- Tras explorar una tabla desde la BD, los resultados se guardan en el KnowledgeStore
+- Se persisten: columnas reales, conteo real, distribución TIPO, nulos CODCLIENTE, muestra
+- Solo se persisten datos de fuente `firebird_rdb` (no de SIUO/contexto)
+- Log de descubrimiento automático en `discoveries_log.jsonl`
+
+**Resiliencia de metadatos (multi-fuente):**
+1. RDB$RELATION_FIELDS (BD real) → fuente preferida
+2. db_metadata_optimized.json (SIUO) → fallback si BD no disponible
+3. db_context (texto libre del esquema) → fallback final
+4. Columnas vacías → el agente continúa con lo que tiene
 
 ---
 
-### 2. BUCLE DE INVESTIGACIÓN ITERATIVA — DeepAnalysisAgent v3.0
+### 2. Fix CRÍTICO: HTML crudo visible en el chat
 **Archivo:** `backend/modules/chat/deep_analysis/agent.py`
 
-**Arquitectura del bucle:**
+**Problema:** `_build_warnings_html()` generaba `<div style="...">` con anomalías que eran **objetos Python** serializados como texto:
 ```
-Fase 0 → Fase 1 → Fase 2 → BUCLE(hasta MAX_INVESTIGATION_CYCLES):
-    Fase 3 (SQLs) → Fase 4 (análisis) → Fase 3b (resolución)
-    → _should_continue_investigation() → continuar/salir
-→ Fase 4b (aprendizaje) → Fase 5 (síntesis)
+{'type': 'anomalia_estadistica', 'description': 'El 99.1% de los presupuestos...', 'value': 0.0995, ...}
 ```
+El frontend no renderizaba el HTML → aparecía como texto crudo con etiquetas visibles.
 
-**Criterios de SALIDA del bucle (deterministas + IA):**
-1. Último ciclo alcanzado (`cycle >= MAX_INVESTIGATION_CYCLES - 1`)
-2. Presupuesto de tokens casi agotado (>85%)
-3. Fiabilidad "alto" + pocas anomalías → análisis completo
-4. Sin anomalías ni warnings → convergió
-5. IA decide explícitamente (`_ai_continue_decision`)
+**Solución:**
+- `_build_warnings_html()` renombrado conceptualmente a "build_warnings_markdown"
+- Genera **Markdown puro** (sin HTML) con `### 🔴 Anomalías detectadas` y listas `-`
+- Nueva función `_to_text(item)` que convierte dicts a texto legible:
+  - Extrae campo `description`, `details`, `message`, `text`, `rule` o `reason`
+  - Fallback: concatena los valores más relevantes del dict
+- Resultado: las anomalías aparecen como texto legible en el chat
 
-**`_ai_continue_decision`:** La IA evalúa si hay más que investigar:
-- ¿Columnas con contenido mixto sin resolver?
-- ¿Registros con estructura heterogénea?
-- ¿Hipótesis sin verificar?
-- Devuelve JSON: `{"continue": bool, "reason": str, "new_angles": [...]}`
-
-**Optimización de ciclos > 0:** En ciclos adicionales, `max_sqls` se limita a `MAX_SQLS_PER_CYCLE` para no saturar el contexto.
-
-**Import a nivel de módulo:** `get_knowledge_store` importado al nivel del módulo (no dentro de funciones) para permitir mocking correcto en tests.
+**Además:** `_strip_html_from_markdown()` en Fase 5 limpia cualquier HTML residual que la IA genere en el texto Markdown (convierte `<div>` → texto, `<strong>` → `**bold**`, etc.)
 
 ---
 
-### 3. DETECCIÓN DE INCONSISTENCIAS ESTRUCTURALES — Fase 4
+### 3. Fix CRÍTICO: Tasa de éxito de presupuestos incorrecta (~10%)
 **Archivo:** `backend/modules/chat/deep_analysis/phases_3_4_5.py`
 
-**Problema del usuario:** Los datos pueden tener:
-- Datos en columnas incorrectas (ej: código en campo descripción)
-- Columnas con contenido MIXTO (ej: `"COD001 - Nombre - Descripción"` en un campo)
-- Registros con estructura HETEROGÉNEA (algunos con código+nombre, otros sin)
-- Formatos de datos distintos en la misma columna
+**Problema:** El sistema calculaba la tasa de éxito solo via DOCDESTINO (presupuestos con documento destino vinculado), obteniendo ~10%. Pero DOCDESTINO puede no ser el indicador correcto de "aceptado" — la columna real puede ser ESTADOPEND o ESTADOPENDVENCOM.
 
-**Solución:** Añadida dimensión 3 obligatoria en el prompt de Fase 4:
-```
-3. INCONSISTENCIAS ESTRUCTURALES (MUY IMPORTANTE):
-   - Datos en columnas incorrectas
-   - Columnas con contenido MIXTO
-   - Registros con estructura HETEROGÉNEA
-   - Formatos de datos distintos en la misma columna
-   - Campos numéricos con texto
-```
+**Solución — Nuevos SQLs fijos en `_build_fixed_sqls()`:**
 
-El JSON de respuesta ahora incluye `"structural_issues": []` además de los campos anteriores.
+| SQL | Objetivo |
+|-----|----------|
+| **3e** | `ESTADOPENDVENCOM` distribución — estado desde el punto de vista del vendedor/comercial |
+| **3f** | Cruce `ESTADOPEND × ESTADOPENDVENCOM` — combinación que define "aceptado" en este negocio |
+| **3g** | Presupuestos convertidos a factura (TIPO=13), pedido (TIPO=12) o albarán (TIPO=11) via DOCDESTINO |
+| **3h** | Muestra de 10 presupuestos con valores reales de ESTADOPEND y ESTADOPENDVENCOM |
 
----
+**Lógica:** El sistema ahora investiga **3 definiciones posibles de "aceptado"**:
+1. `ESTADOPEND` con valor específico (ej: 1, 2, "A")
+2. `ESTADOPENDVENCOM` con valor específico (estado comercial)
+3. Conversión a factura/pedido via DOCDESTINO (más fiable)
 
-### 4. SQLs DE RESOLUCIÓN DE CONTENIDO MIXTO — Fase 3b
-**Archivo:** `backend/modules/chat/deep_analysis/phases_3_4_5.py` → `_build_resolution_sqls`
-
-**RESOLUCIÓN 4 (nueva):** Cuando se detectan inconsistencias estructurales:
-```sql
--- Muestra de DESCRIPCION/NOMBRE en ARTICULO para detectar contenido mixto
-SELECT FIRST 20 CODIGO, DESCRIPCION, NOMBRE FROM ARTICULO
-WHERE DESCRIPCION IS NOT NULL ORDER BY CODIGO
-
--- Registros con contenido mixto (patrón COD - NOMBRE)
-SELECT FIRST 20 CODIGO, DESCRIPCION FROM ARTICULO
-WHERE DESCRIPCION LIKE '% - %' OR DESCRIPCION LIKE '%|%' OR DESCRIPCION LIKE '%;%'
-
--- Proporción de registros con vs sin código en DESCRIPCION
-SELECT
-  SUM(CASE WHEN DESCRIPCION LIKE '% - %' THEN 1 ELSE 0 END) AS CON_SEPARADOR,
-  SUM(CASE WHEN DESCRIPCION NOT LIKE '% - %' OR DESCRIPCION IS NULL THEN 1 ELSE 0 END) AS SIN_SEPARADOR,
-  COUNT(*) AS TOTAL
-FROM ARTICULO
-```
-
-**Resiliencia:** `_phase4b_learn_and_persist` ahora captura excepciones de `get_knowledge_store()` con `try/except` explícito.
+La IA en Fase 4 y Fase 5 recibe todos estos datos y puede determinar cuál es la definición correcta para este negocio específico.
 
 ---
 
-### 5. TESTS — 215/215 ✅
-**Archivos:** `tests/unit/test_deep_analysis_agent.py`, `tests/unit/test_knowledge_store.py`
+### 4. Persistencia de ESTADOPENDVENCOM en KnowledgeStore (Fase 4b)
+**Archivo:** `backend/modules/chat/deep_analysis/phases_3_4_5.py`
 
-Todos los tests pasan. Correcciones aplicadas:
-- `get_knowledge_store` importado a nivel de módulo en `agent.py` (permite mocking con `patch`)
-- `_phase4b_learn_and_persist` captura excepción de `get_knowledge_store()` (test de resiliencia)
+Nuevos bloques de persistencia en `_phase4b_learn_and_persist()`:
+
+- **ESTADOPENDVENCOM**: distribución + nota explicativa → `DOCCAB.estadopendvencom_distribution`
+- **Cruce ESTADOPEND × ESTADOPENDVENCOM**: mapa de combinaciones → `DOCCAB.estadopend_cruce`
+- **Conversión factura/pedido**: conteos por tipo → `DOCCAB.conversion_distribution`
+- **Regla de negocio automática**: si hay conversiones, se registra la definición de "aceptado"
+
+Esto significa que en la **segunda consulta** sobre tasa de éxito, el sistema ya sabe:
+- Qué valores de ESTADOPEND/ESTADOPENDVENCOM indican "aceptado"
+- Cuántos presupuestos se convierten a factura vs pedido
+- La definición correcta de "aceptado" para este negocio
 
 ---
 
-## 🔴 PRÓXIMOS PASOS EXACTOS
+## 🔴 PROBLEMAS PENDIENTES / PRÓXIMOS PASOS
 
-### PRIORIDAD 1 — Frontend: Checkbox "Análisis Profundo"
-**Archivo:** `frontend/assets/js/modules/chat.js`
+### PRIORIDAD 1 — Investigar por qué la tasa real puede ser mayor del 10%
+El sistema ahora tiene los SQLs correctos. Pero necesita que la **Fase 5 (síntesis)** interprete correctamente los valores de ESTADOPEND/ESTADOPENDVENCOM.
 
-Añadir checkbox marcado por defecto:
-```html
-<label>
-  <input type="checkbox" id="deep-analysis-toggle" checked>
-  🔬 Análisis profundo
-</label>
+**Acción necesaria:** Tras la próxima ejecución, revisar en los logs:
+- ¿Qué valores tiene ESTADOPENDVENCOM? (ej: 0=pendiente, 1=aceptado, 2=rechazado)
+- ¿Cuántos presupuestos tienen ESTADOPENDVENCOM=1 (o el valor de "aceptado")?
+- ¿Coincide con la tasa via DOCDESTINO o es diferente?
+
+Si los valores son numéricos (0, 1, 2), añadir en `_sub_identify_issues()`:
+```python
+issues.append("ESTADOPEND/ESTADOPENDVENCOM: verificar qué valor numérico significa 'aceptado'")
 ```
-- Si marcado → enviar `deep_analysis: true` en el body del POST `/api/chat`
-- `service.py`: `if context.get('deep_analysis', False) or self._is_deep_analysis_request(message):`
 
----
+### PRIORIDAD 2 — Prompt de Fase 5 con contexto de ESTADOPEND conocido
+**Archivo:** `backend/modules/chat/deep_analysis/phases_3_4_5.py` → `_phase5_synthesize()`
 
-### PRIORIDAD 2 — Tests del bucle de investigación
+Si el KnowledgeStore ya tiene `estadopendvencom_distribution`, incluirlo en el prompt de Fase 5:
+```python
+# Añadir al user_msg de Fase 5:
+vencom_dist = store.get_table("DOCCAB").get("estadopendvencom_distribution", {})
+if vencom_dist:
+    user_msg += f"\nESTADOPENDVENCOM conocido: {vencom_dist}"
+```
+
+### PRIORIDAD 3 — Análisis de columnas con datos en posición incorrecta
+El feedback menciona que hay registros donde la información está en columnas que no deberían tenerla. El sistema ya detecta esto en Fase 4 (`structural_issues`), pero necesita:
+- SQLs específicos para detectar patrones de datos mixtos en DOCCAB (no solo ARTICULO)
+- Análisis de columnas de texto que contienen códigos, fechas o importes
+
+### PRIORIDAD 4 — Optimización de tokens para preguntas simples
+El sistema usa EPIC (12 SQLs) por defecto. Para preguntas simples como "¿cuántos clientes hay?", debería usar BASIC (2 SQLs). Revisar `detect_depth()` en `models.py` para que sea más preciso.
+
+### PRIORIDAD 5 — Tests actualizados
 **Archivo:** `tests/unit/test_deep_analysis_agent.py`
 
-Tests a añadir:
-- `test_investigation_loop_exits_on_max_cycles()` — bucle sale al llegar al máximo
-- `test_investigation_loop_exits_on_high_reliability()` — sale si fiabilidad=alto + pocas anomalías
-- `test_investigation_loop_exits_on_convergence()` — sale si sin anomalías
-- `test_should_continue_returns_false_last_cycle()` — criterio determinista
-- `test_ai_continue_decision_returns_dict()` — IA devuelve JSON válido
-- `test_structural_issues_in_phase4_prompt()` — prompt incluye dimensión 3
-
----
-
-### PRIORIDAD 3 — Detección de contenido mixto en más tablas
-**Archivo:** `backend/modules/chat/deep_analysis/phases_3_4_5.py` → `_build_resolution_sqls`
-
-Actualmente solo detecta en `ARTICULO.DESCRIPCION`. Ampliar a:
-- `CLIENTE.NOMBRE` — puede tener código+nombre
-- `DOCCAB.OBSERVACIONES` — puede tener datos estructurados en texto libre
-- Cualquier tabla con columnas de tipo texto largo
-
-SQL genérico de detección:
-```sql
--- Detectar columnas de texto con contenido mixto en cualquier tabla
-SELECT FIRST 20 RDB$RELATION_NAME, RDB$FIELD_NAME
-FROM RDB$RELATION_FIELDS rf
-JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = rf.RDB$FIELD_SOURCE
-WHERE f.RDB$FIELD_TYPE IN (37, 40)  -- VARCHAR, BLOB TEXT
-AND rf.RDB$SYSTEM_FLAG = 0
-ORDER BY rf.RDB$RELATION_NAME, rf.RDB$FIELD_POSITION
-```
-
----
-
-### PRIORIDAD 4 — Documentación DEVIA_ROBUSTNESS.md
-**Archivo:** `backend/modules/chat/DEVIA_ROBUSTNESS.md`
-
-Añadir sección sobre el bucle de investigación:
-- Arquitectura del bucle (diagrama ASCII)
-- Criterios de salida (deterministas + IA)
-- Cómo extender con nuevos criterios
-- Principio: "No basta con advertir — hay que RESOLVER"
-- Reglas de negocio conocidas sobre calidad de datos
+Añadir tests para:
+- `test_build_warnings_markdown()` — verifica que no hay HTML en la salida
+- `test_to_text_dict()` — verifica extracción de texto de dicts
+- `test_fixed_sqls_estadopendvencom()` — verifica que se generan los SQLs 3e-3h
+- `test_phase4b_vencom_persistence()` — verifica persistencia de ESTADOPENDVENCOM
 
 ---
 
@@ -174,29 +141,46 @@ Añadir sección sobre el bucle de investigación:
 
 | Archivo | Tipo | Descripción |
 |---------|------|-------------|
-| `backend/modules/chat/deep_analysis/models.py` | Modificado | Parámetros del bucle centralizados |
-| `backend/modules/chat/deep_analysis/agent.py` | Modificado | v3.0 con bucle iterativo |
-| `backend/modules/chat/deep_analysis/phases_3_4_5.py` | Modificado | Detección datos mixtos + resiliencia |
+| `backend/modules/chat/deep_analysis/phases_1_2.py` | Modificado | Cache-first KnowledgeStore + persistencia automática |
+| `backend/modules/chat/deep_analysis/phases_3_4_5.py` | Modificado | SQLs 3e-3h para tasa éxito + persistencia ESTADOPENDVENCOM |
+| `backend/modules/chat/deep_analysis/agent.py` | Modificado | Fix HTML→Markdown en warnings + _to_text() |
 
 ---
 
-## 🏗️ PRINCIPIOS DE DISEÑO DEL PROYECTO (recordatorio)
+## 🏗️ ARQUITECTURA DEL SISTEMA (estado actual)
 
-1. **Ficheros < 500 líneas** — si crece, dividir en módulos
-2. **Parámetros centralizados** — usar `models.py`, `firebird_sql_constants.py`, `config.json`
-3. **Reutilización de código** — no duplicar lógica entre módulos
-4. **Ultra-organizado en carpetas** — cada módulo en su directorio
-5. **DEVIA por módulo** — cada módulo importante tiene su `.md` de documentación
-6. **Ultra-resiliente** — try/except en cada operación, fallbacks siempre
-7. **Autoconfigurable** — detectar IPs, puertos, tablas, columnas automáticamente
-8. **Sin romper funcionalidades existentes** — fall-through si algo falla
-9. **Tests primero** — 215/215 siempre verde antes de commit
+```
+DeepAnalysisAgent v3.0
+├── Fase 0: Presupuesto tokens + optimización LAN
+├── Fase 1: Comprensión épica (intención, sub-preguntas, tablas)
+│   └── KnowledgeStore: enriquece tablas candidatas con datos conocidos
+├── Fase 2: Exploración total
+│   ├── CACHE-FIRST: usa KnowledgeStore si datos < 7 días
+│   ├── EXPLORACIÓN REAL: BD → RDB$RELATION_FIELDS → SIUO → db_context
+│   └── PERSISTENCIA: guarda resultados en KnowledgeStore
+├── BUCLE (hasta MAX_INVESTIGATION_CYCLES):
+│   ├── Fase 3: Investigación multi-angular
+│   │   ├── SQLs dinámicos (IA)
+│   │   └── SQLs fijos: temporal, instalaciones, ESTADOPEND, ESTADOPENDVENCOM,
+│   │       cruce estados, conversión factura/pedido, muestra valores reales
+│   ├── Fase 4: Análisis crítico (anomalías, calidad, estructural, hipótesis)
+│   ├── Fase 3b: Resolución de inconsistencias detectadas
+│   └── Decisión IA: ¿continuar o parar?
+├── Fase 4b: Aprendizaje permanente (KnowledgeStore)
+│   ├── Columnas reales, conteos, distribuciones
+│   ├── ESTADOPEND, ESTADOPENDVENCOM, cruce, conversión
+│   └── Reglas de negocio + patrones SQL exitosos
+└── Fase 5: Síntesis épica
+    ├── Markdown puro (SIN HTML)
+    ├── Advertencias como Markdown (no divs)
+    └── _strip_html_from_markdown() limpia residuos
+```
 
 ---
 
 ## 🔗 REFERENCIAS
 
 - **Repo:** https://github.com/miguelmartmart/jddc_materiales_local_bd_ia.git
-- **Commit actual:** `d013827`
-- **Commit anterior:** `5814863`
-- **Branch:** `main`
+- **Commit actual:** `c5e75b7`
+- **Branch:** `pruebas`
+- **Sesión anterior:** `SESION_RESUMEN_2026_03_17.md`

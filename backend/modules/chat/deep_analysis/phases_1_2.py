@@ -5,33 +5,35 @@ phases_1_2.py — Fases 0, 1 y 2 del DeepAnalysisAgent.
   Fase 1: Comprensión épica (intención, sub-preguntas, tablas, profundidad, problemas)
   Fase 2: Exploración total (conteo, columnas, muestreo, distribución TIPO, nulos)
            + expansión dinámica de tablas si la IA lo solicita
+
+La exploración real de tablas (_explore_table, _ask_for_extra_tables) está en:
+  → phase2_explore.py (Phase2ExploreMixin)
 """
 
 import logging
-import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from backend.modules.chat.deep_analysis.models import (
     AnalysisDepth, EpicAnalysisResult, PhaseResult, SubPhaseResult,
-    TokenBudget, MAX_SQLS_ABSOLUTE, SUMMARY_THRESHOLD,
+    MAX_SQLS_ABSOLUTE,
 )
+from backend.modules.chat.deep_analysis.phase2_explore import Phase2ExploreMixin
 
 logger = logging.getLogger(__name__)
 
-# KnowledgeStore — importación resiliente
 try:
     from backend.modules.chat.deep_analysis.knowledge_store import get_knowledge_store
 except ImportError:
     get_knowledge_store = None  # type: ignore
 
 
-class Phases12Mixin:
+class Phases12Mixin(Phase2ExploreMixin):
     """
     Mixin con las fases 0, 1 y 2 del agente.
-    Requiere que la clase base tenga:
-      self.orchestrator, self.db_context, self.budget (TokenBudget),
-      self._safe_sql(), self._parse_json(), self._fmt_exploration(),
-      self._fmt_conversation_history()
+    Hereda Phase2ExploreMixin para _explore_table y _ask_for_extra_tables.
+    Requiere: self.orchestrator, self.db_context, self.budget (TokenBudget),
+              self._safe_sql(), self._parse_json(), self._fmt_exploration(),
+              self._fmt_conversation_history()
     """
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -41,10 +43,7 @@ class Phases12Mixin:
     def _phase0_budget(
         self, cfg: Dict, question: str, conversation_history: List[Dict]
     ) -> Dict:
-        """
-        Ajusta max_sqls y explore_tables según el presupuesto de tokens disponible.
-        Tokens fijos = db_context + historial + pregunta + overhead de prompts.
-        """
+        """Ajusta max_sqls y explore_tables según el presupuesto de tokens disponible."""
         history_text = self._fmt_conversation_history(conversation_history)
         fixed_tokens = (
             self.budget.count(self.db_context) +
@@ -55,12 +54,12 @@ class Phases12Mixin:
         available_for_data = self.budget.available - fixed_tokens
 
         logger.info(
-            f"[TOKEN BUDGET] Tokens fijos (esquema+historial+pregunta): {fixed_tokens} | "
+            f"[TOKEN BUDGET] Tokens fijos: {fixed_tokens} | "
             f"Disponible para datos: {available_for_data}"
         )
 
-        tokens_per_sql   = 800   # estimación conservadora por SQL
-        tokens_per_table = 400   # estimación por tabla explorada
+        tokens_per_sql   = 800
+        tokens_per_table = 400
 
         max_sqls_by_budget = max(2, int(available_for_data * 0.6 / tokens_per_sql))
         max_sqls_by_budget = min(max_sqls_by_budget, MAX_SQLS_ABSOLUTE)
@@ -127,7 +126,6 @@ class Phases12Mixin:
             system = (
                 f"Analiza la intención de esta pregunta sobre una BD Firebird de empresa de climatización. "
                 f"HOY ES {fecha_actual} (año {anio_actual}). "
-                f"Los datos con año {anio_actual} son REALES y ACTUALES, NO futuristas. "
                 "Considera el historial de conversación para entender el contexto acumulado. "
                 "Responde SOLO JSON:\n"
                 '{"intent":"descripción","category":"ventas|clientes|stock|sat|financiero|otro",'
@@ -167,14 +165,7 @@ class Phases12Mixin:
             return [question]
 
     async def _sub_identify_tables(self, question: str, intent: Dict) -> List[str]:
-        """
-        Identifica tablas candidatas de forma determinista por palabras clave.
-
-        PRIORIDAD 2 — KnowledgeStore:
-        Enriquece la lista con tablas conocidas del KnowledgeStore que tengan
-        registros reales (record_count_real > 0). Esto permite que el agente
-        aprenda qué tablas son relevantes para cada tipo de pregunta.
-        """
+        """Identifica tablas candidatas (determinista + KnowledgeStore)."""
         tables = []
         msg = question.lower()
 
@@ -198,22 +189,17 @@ class Phases12Mixin:
         if not tables:
             tables = ["DOCCAB", "DOCLIN", "CLIENTE", "ARTICULO"]
 
-        # ── PRIORIDAD 2: Enriquecer con KnowledgeStore ────────────────────────
-        # Añadir tablas conocidas que tengan registros reales y sean relevantes
+        # Enriquecer con KnowledgeStore (tablas con >100 registros y TIPO/FECHA)
         try:
             if get_knowledge_store is not None:
                 store = get_knowledge_store()
                 index = store.get_index()
                 known_tables = index.get("tables", {})
-                # Añadir tablas conocidas con >100 registros que no estén ya en la lista
                 for tname, tinfo in known_tables.items():
                     rc = tinfo.get("record_count", 0)
                     if isinstance(rc, int) and rc > 100 and tname not in tables:
-                        # Solo añadir si la tabla es relevante para la pregunta
-                        # (heurística: si tiene TIPO o FECHA, es candidata para análisis)
                         if tinfo.get("has_tipo") or tinfo.get("has_fecha"):
                             tables.append(tname)
-                            logger.info(f"[DEEP AGENT] Tabla {tname} añadida desde KnowledgeStore ({rc} registros)")
         except Exception as e:
             logger.debug(f"[DEEP AGENT] KnowledgeStore no disponible en Fase 1: {e}")
 
@@ -221,7 +207,7 @@ class Phases12Mixin:
         return [t for t in tables if not (t in seen or seen.add(t))]
 
     def _sub_identify_issues(self, question: str) -> List[str]:
-        """Identifica posibles problemas de datos a investigar (determinista)."""
+        """Identifica posibles problemas de datos (determinista)."""
         issues = []
         msg = question.lower()
 
@@ -265,7 +251,7 @@ class Phases12Mixin:
         for table in tables:
             exploration[table] = self._explore_table(table, cfg)
 
-        # Expansión dinámica: preguntar a la IA si necesita más tablas
+        # Expansión dinámica (solo DEEP/EPIC)
         if cfg["max_sqls"] >= 8:
             extra_tables = await self._ask_for_extra_tables(question, exploration, cfg)
             for extra_table in extra_tables:
@@ -278,139 +264,3 @@ class Phases12Mixin:
         phase.sub_phases.append(SubPhaseResult("2.x Exploración tablas", True, exploration))
         logger.info(f"[DEEP AGENT] Fase 2 OK: {len(exploration)} tablas exploradas")
         return phase
-
-    def _explore_table(self, table: str, cfg: Dict) -> Dict:
-        """
-        Explora una tabla: conteo, columnas, muestreo, distribución TIPO, nulos.
-
-        RESILIENCIA DE METADATOS (multi-fuente):
-          1. Intenta obtener columnas de RDB$RELATION_FIELDS (BD real)
-          2. Si falla o devuelve vacío → fallback a ficheros SIUO:
-             - db_metadata_optimized.json (columnas + descripciones)
-             - db_context (db_context del agente, ya cargado en self.db_context)
-          3. Si todo falla → columnas vacías (el agente continúa con lo que tiene)
-        """
-        info: Dict = {}
-
-        # Conteo de registros
-        try:
-            r = self._safe_sql(f"SELECT COUNT(*) AS TOTAL FROM {table}")
-            info["total"] = r[0].get("TOTAL", 0) if r else 0
-            logger.info(f"[DEEP AGENT] {table}: {info['total']} registros")
-        except Exception as e:
-            info["total"] = f"ERROR: {e}"
-            # Intentar obtener conteo desde metadatos SIUO (record_count)
-            try:
-                siuo_count = self._get_siuo_record_count(table)
-                if siuo_count is not None:
-                    info["total_siuo"] = siuo_count
-                    info["total_source"] = "siuo_metadata"
-                    logger.info(f"[DEEP AGENT] {table}: conteo SIUO={siuo_count} (BD no disponible)")
-            except Exception:
-                pass
-
-        # Columnas disponibles — Fuente 1: RDB$RELATION_FIELDS (BD real)
-        columns_from_db = []
-        try:
-            r = self._safe_sql(
-                f"SELECT TRIM(RDB$FIELD_NAME) AS COL FROM RDB$RELATION_FIELDS "
-                f"WHERE TRIM(RDB$RELATION_NAME)='{table}' ORDER BY RDB$FIELD_POSITION"
-            )
-            columns_from_db = [row.get("COL", "") for row in r] if r else []
-        except Exception as e:
-            logger.warning(f"[DEEP AGENT] RDB$RELATION_FIELDS falló para {table}: {e}")
-
-        if columns_from_db:
-            info["columns"] = columns_from_db
-            info["columns_source"] = "firebird_rdb"
-        else:
-            # Fuente 2: ficheros SIUO (db_metadata_optimized.json o db_context)
-            siuo_cols = self._get_siuo_columns(table)
-            if siuo_cols:
-                info["columns"] = siuo_cols
-                info["columns_source"] = "siuo_metadata"
-                logger.info(
-                    f"[DEEP AGENT] {table}: columnas obtenidas de SIUO ({len(siuo_cols)} cols) "
-                    f"— BD no disponible"
-                )
-            else:
-                # Fuente 3: extraer del db_context (texto libre del esquema)
-                ctx_cols = self._extract_columns_from_context(table)
-                if ctx_cols:
-                    info["columns"] = ctx_cols
-                    info["columns_source"] = "db_context_text"
-                    logger.info(
-                        f"[DEEP AGENT] {table}: columnas extraídas del db_context ({len(ctx_cols)} cols)"
-                    )
-                else:
-                    info["columns"] = []
-                    info["columns_source"] = "unknown"
-                    logger.warning(f"[DEEP AGENT] {table}: no se pudieron obtener columnas de ninguna fuente")
-
-        # Detección de columnas clave
-        cols_upper = [c.upper() for c in info.get("columns", [])]
-        info["has_fecha"]      = "FECHA" in cols_upper
-        info["has_importe"]    = any(c in cols_upper for c in ["IMPORTETOTAL", "IMPORTE", "TOTAL"])
-        info["has_codcliente"] = "CODCLIENTE" in cols_upper
-        info["has_tipo"]       = "TIPO" in cols_upper
-        info["has_codigoobra"] = "CODIGOOBRA" in cols_upper
-        info["has_serie"]      = "SERIE" in cols_upper
-
-        # Muestreo de datos (solo DEEP/EPIC)
-        if cfg["max_sqls"] >= 8:
-            try:
-                cols_sample = ", ".join(info["columns"][:6]) if info["columns"] else "*"
-                r = self._safe_sql(f"SELECT FIRST 3 {cols_sample} FROM {table}")
-                info["sample"] = r[:3] if r else []
-            except Exception:
-                info["sample"] = []
-
-        # Distribución por TIPO (solo DOCCAB)
-        if info.get("has_tipo") and table == "DOCCAB":
-            try:
-                r = self._safe_sql("SELECT TIPO, COUNT(*) AS N FROM DOCCAB GROUP BY TIPO ORDER BY N DESC")
-                info["tipo_distribution"] = r[:10] if r else []
-            except Exception:
-                info["tipo_distribution"] = []
-
-        # Nulos en CODCLIENTE
-        if info.get("has_codcliente") and cfg["max_sqls"] >= 6:
-            try:
-                r = self._safe_sql(f"SELECT COUNT(*) AS NULOS FROM {table} WHERE CODCLIENTE IS NULL")
-                info["null_codcliente"] = r[0].get("NULOS", 0) if r else 0
-            except Exception:
-                info["null_codcliente"] = "?"
-
-        return info
-
-    async def _ask_for_extra_tables(
-        self, question: str, exploration: Dict, cfg: Dict
-    ) -> List[str]:
-        """Pregunta a la IA si necesita explorar tablas adicionales (expansión dinámica)."""
-        try:
-            explored = list(exploration.keys())
-            exploration_summary = self._fmt_exploration(exploration)
-            schema_snippet = self.budget.truncate_to_fit(
-                self.db_context[:3000], exploration_summary, question
-            )
-            system = (
-                "Eres un experto en Firebird 2.5. Indica qué tablas adicionales se necesitan "
-                "para responder la pregunta. Responde SOLO JSON array (máximo 4): "
-                '[\"TABLA1\"] o [] si no se necesitan más.'
-            )
-            user_msg = (
-                f"PREGUNTA: {question}\n\nTABLAS YA EXPLORADAS: {explored}\n\n"
-                f"RESUMEN:\n{exploration_summary}\n\nESQUEMA:\n{schema_snippet}"
-            )
-            resp, _ = await self.orchestrator.execute_with_fallback(
-                system_prompt=system, user_message=user_msg, preferred_model_id="jddcia-qwen3-30b"
-            )
-            extra = self._parse_json(resp)
-            if isinstance(extra, list):
-                new_tables = [t for t in extra if t not in exploration][:4]
-                if new_tables:
-                    logger.info(f"[DEEP AGENT] IA solicita tablas adicionales: {new_tables}")
-                return new_tables
-        except Exception as e:
-            logger.warning(f"[DEEP AGENT] No se pudieron obtener tablas adicionales: {e}")
-        return []

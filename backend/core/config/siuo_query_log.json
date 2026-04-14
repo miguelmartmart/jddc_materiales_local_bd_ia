@@ -1,783 +1,6 @@
 {
   "queries": [
     {
-      "ts": "2026-03-16T16:02:17.075535",
-      "question": "¿Cuántos artículos tienen stock?",
-      "keywords": [
-        "articulos",
-        "stock"
-      ],
-      "tables_used": [
-        "ARTICULO",
-        "DOCLIN",
-        "DOCCAB",
-        "EXISTENC",
-        "HISTORICOPRECIOS",
-        "ESTALMACEN",
-        "ALMACEN",
-        "FOTOGRAF"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.109452",
-      "question": "¿Cuántos artículos están sin stock?",
-      "keywords": [
-        "articulos",
-        "stock"
-      ],
-      "tables_used": [
-        "ARTICULO",
-        "DOCLIN",
-        "DOCCAB",
-        "EXISTENC",
-        "HISTORICOPRECIOS",
-        "ESTALMACEN",
-        "ALMACEN",
-        "FOTOGRAF"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "están",
-        "sin"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.144676",
-      "question": "¿Cuáles son los artículos con más stock?",
-      "keywords": [
-        "articulos",
-        "stock"
-      ],
-      "tables_used": [
-        "ARTICULO",
-        "DOCLIN",
-        "DOCCAB",
-        "EXISTENC",
-        "HISTORICOPRECIOS",
-        "ESTALMACEN",
-        "ALMACEN",
-        "FOTOGRAF"
-      ],
-      "unknown_kws": [
-        "cuáles",
-        "más"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.175078",
-      "question": "¿Cuáles son los artículos con menos stock?",
-      "keywords": [
-        "articulos",
-        "stock"
-      ],
-      "tables_used": [
-        "ARTICULO",
-        "DOCLIN",
-        "DOCCAB",
-        "EXISTENC",
-        "HISTORICOPRECIOS",
-        "ESTALMACEN",
-        "ALMACEN",
-        "FOTOGRAF"
-      ],
-      "unknown_kws": [
-        "cuáles"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.215690",
-      "question": "¿Cuántos artículos hay por familia?",
-      "keywords": [
-        "articulos",
-        "familia"
-      ],
-      "tables_used": [
-        "ARTICULO",
-        "COMISART",
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ESTFAMILIA",
-        "FOTOGRAF",
-        "FABARTFABASOC"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.253417",
-      "question": "¿Cuántos artículos hay por proveedor?",
-      "keywords": [
-        "articulos",
-        "proveedor"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "PROVEED",
-        "FOTOGRAF",
-        "PROYSUBCONTRATA",
-        "GESDOC"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.288902",
-      "question": "¿Cuál es el artículo más caro?",
-      "keywords": [
-        "articulo"
-      ],
-      "tables_used": [
-        "DOCDES",
-        "REPLIN",
-        "EXISTENC",
-        "ARTICULO",
-        "EQUIVAL",
-        "REPESTLIN",
-        "CAREXIST",
-        "CATEGORIAARTICULO"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "más",
-        "caro"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.325355",
-      "question": "¿Cuál es el artículo más barato?",
-      "keywords": [
-        "articulo"
-      ],
-      "tables_used": [
-        "DOCDES",
-        "REPLIN",
-        "EXISTENC",
-        "ARTICULO",
-        "EQUIVAL",
-        "REPESTLIN",
-        "CAREXIST",
-        "CATEGORIAARTICULO"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "más",
-        "barato"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.366803",
-      "question": "¿Cuántos artículos hay activos?",
-      "keywords": [
-        "articulos",
-        "activos"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "FOTOGRAF",
-        "VISTA",
-        "ADMINPROG",
-        "COMISART"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.399799",
-      "question": "¿Cuántos artículos hay inactivos?",
-      "keywords": [
-        "articulos",
-        "inactivos"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "FOTOGRAF",
-        "VISTA",
-        "COMISART",
-        "FABARTFABASOC"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.427083",
-      "question": "¿Cuántos artículos se han vendido este mes?",
-      "keywords": [
-        "articulos",
-        "mes"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "ESTPROVEED",
-        "FOTOGRAF",
-        "HORARIODIAMESTIPOHORA",
-        "COMISART"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "vendido",
-        "este"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.458980",
-      "question": "¿Cuántos artículos se han vendido este año?",
-      "keywords": [
-        "articulos",
-        "año"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "FOTOGRAF",
-        "COMISART",
-        "FABARTFABASOC",
-        "PREPEDCABDIAS"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "vendido",
-        "este"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.486454",
-      "question": "¿Cuál es el artículo con más ventas?",
-      "keywords": [
-        "articulo",
-        "ventas"
-      ],
-      "tables_used": [
-        "DOCDES",
-        "REPLIN",
-        "EXISTENC",
-        "ARTICULO",
-        "EQUIVAL",
-        "REPESTLIN",
-        "CAREXIST",
-        "CATEGORIAARTICULO"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "más"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.521199",
-      "question": "¿Cuál es el artículo con menos ventas?",
-      "keywords": [
-        "articulo",
-        "ventas"
-      ],
-      "tables_used": [
-        "DOCDES",
-        "REPLIN",
-        "EXISTENC",
-        "ARTICULO",
-        "EQUIVAL",
-        "REPESTLIN",
-        "CAREXIST",
-        "CATEGORIAARTICULO"
-      ],
-      "unknown_kws": [
-        "cuál"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.550785",
-      "question": "¿Cuántos artículos no se han vendido nunca?",
-      "keywords": [
-        "articulos"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "FOTOGRAF",
-        "COMISART",
-        "FABARTFABASOC",
-        "REPLIN"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "vendido",
-        "nunca"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.586185",
-      "question": "¿Cuántos artículos se han vendido más de 10 veces?",
-      "keywords": [
-        "articulos"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCCAB",
-        "HISTORICOPRECIOS",
-        "ARTICULO",
-        "FOTOGRAF",
-        "COMISART",
-        "FABARTFABASOC",
-        "REPLIN"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "vendido",
-        "más",
-        "veces"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.631288",
-      "question": "¿Cuántos clientes hay?",
-      "keywords": [
-        "clientes"
-      ],
-      "tables_used": [
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS",
-        "TABLET"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.675373",
-      "question": "¿Cuáles son los clientes con más compras?",
-      "keywords": [
-        "clientes",
-        "compras"
-      ],
-      "tables_used": [
-        "ESTFAMILIA",
-        "ESTPROVEED",
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB"
-      ],
-      "unknown_kws": [
-        "cuáles",
-        "más"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.708175",
-      "question": "¿Cuáles son los clientes con más gasto?",
-      "keywords": [
-        "clientes",
-        "gasto"
-      ],
-      "tables_used": [
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS",
-        "TABLET"
-      ],
-      "unknown_kws": [
-        "cuáles",
-        "más"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.750185",
-      "question": "¿Cuántos clientes han comprado este mes?",
-      "keywords": [
-        "clientes",
-        "mes"
-      ],
-      "tables_used": [
-        "ESTPROVEED",
-        "DOCVAR",
-        "AGEGAST",
-        "HORARIODIAMESTIPOHORA",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "comprado",
-        "este"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.783951",
-      "question": "¿Cuántos clientes han comprado este año?",
-      "keywords": [
-        "clientes",
-        "año"
-      ],
-      "tables_used": [
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS",
-        "TABLET"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "comprado",
-        "este"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.841133",
-      "question": "¿Cuál es el cliente con mayor importe?",
-      "keywords": [
-        "cliente",
-        "importe"
-      ],
-      "tables_used": [
-        "DOCCAB",
-        "ESTCLIENTE",
-        "RECIBO3",
-        "DOMICILI",
-        "CLIENTE",
-        "REPARA",
-        "COMPROMISOVENCRECIBO1",
-        "COMPROMISOVENCIMIENTO"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "mayor"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.881137",
-      "question": "¿Cuántos clientes no han comprado en 6 meses?",
-      "keywords": [
-        "clientes",
-        "meses"
-      ],
-      "tables_used": [
-        "DOCVAR",
-        "AGEGAST",
-        "HORARIOTEMPORADA",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "han",
-        "comprado"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.920071",
-      "question": "¿Cuántos clientes nuevos hay este mes?",
-      "keywords": [
-        "clientes",
-        "mes"
-      ],
-      "tables_used": [
-        "ESTPROVEED",
-        "DOCVAR",
-        "AGEGAST",
-        "HORARIODIAMESTIPOHORA",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB"
-      ],
-      "unknown_kws": [
-        "cuántos",
-        "nuevos",
-        "este"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:17.973641",
-      "question": "¿Cuántos clientes hay por provincia?",
-      "keywords": [
-        "clientes",
-        "provincia"
-      ],
-      "tables_used": [
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS",
-        "TABLET"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.021630",
-      "question": "¿Cuántos clientes hay por código postal?",
-      "keywords": [
-        "codigo postal",
-        "clientes"
-      ],
-      "tables_used": [
-        "DOMICILI",
-        "DOCVAR",
-        "AGEGAST",
-        "CONDICIO",
-        "CLIENTEDOCUM",
-        "COMISART",
-        "PREPEDCAB",
-        "RUTACLIENTEDIAS"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.056001",
-      "question": "¿Cuántas líneas de venta hay?",
-      "keywords": [
-        "lineas",
-        "venta"
-      ],
-      "tables_used": [
-        "DOCCAR",
-        "DOCDES",
-        "DOCCAB",
-        "DOCREFVENCOM",
-        "VENCCONTRATOCARVALOR",
-        "DOCLINDOCASOC",
-        "DOCBULTOLIN",
-        "DOCBULTOLINCAR"
-      ],
-      "unknown_kws": [
-        "cuántas"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.092767",
-      "question": "¿Cuál es la cantidad media por línea?",
-      "keywords": [
-        "cantidad",
-        "linea"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCMED",
-        "OBRALINCAR",
-        "REPLINCAR",
-        "DOCREFVENCOM",
-        "REPESTLIN",
-        "DOCUBICCARORIG",
-        "FABARTFABASOC"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "media"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.127944",
-      "question": "¿Cuál es el importe total de las líneas?",
-      "keywords": [
-        "importe",
-        "total",
-        "lineas"
-      ],
-      "tables_used": [
-        "DOCCAR",
-        "RECIBO3",
-        "COMPROMISOVENCRECIBO1",
-        "COMPROMISOVENCIMIENTO",
-        "AGEGAST",
-        "COMPROMISOVENCCOBRO",
-        "CORREOCARPETA",
-        "DOCLINDOCASOC"
-      ],
-      "unknown_kws": [
-        "cuál"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.162107",
-      "question": "¿Cuántas líneas hay por documento?",
-      "keywords": [
-        "lineas",
-        "documento"
-      ],
-      "tables_used": [
-        "DOCCAR",
-        "DOCDES",
-        "DOCREF",
-        "DOCCAB",
-        "REPCABFOTO",
-        "SERIE",
-        "CAJA",
-        "OBRACABFOTO"
-      ],
-      "unknown_kws": [
-        "cuántas"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.198239",
-      "question": "¿Cuántas líneas hay de cada artículo?",
-      "keywords": [
-        "lineas",
-        "articulo"
-      ],
-      "tables_used": [
-        "DOCCAR",
-        "DOCDES",
-        "REPLIN",
-        "EXISTENC",
-        "ARTICULO",
-        "DOCLINDOCASOC",
-        "EQUIVAL",
-        "REPESTLIN"
-      ],
-      "unknown_kws": [
-        "cuántas"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.230463",
-      "question": "¿Cuál es la línea con mayor importe?",
-      "keywords": [
-        "linea",
-        "importe"
-      ],
-      "tables_used": [
-        "DOCLIN",
-        "DOCDES",
-        "DOCMED",
-        "DOCREF",
-        "OBRALINCAR",
-        "REPLINCAR",
-        "OBRALINREF",
-        "RECIBO3"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "mayor"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.258602",
-      "question": "¿Cuántas líneas hay con descuento?",
-      "keywords": [
-        "lineas",
-        "descuento"
-      ],
-      "tables_used": [
-        "DOCCAR",
-        "REPLIN",
-        "COMPRA",
-        "VENCCONTRATO",
-        "DOCLINDOCASOC",
-        "REPESTLIN",
-        "DOCBULTOLIN",
-        "DOCBULTOLINCAR"
-      ],
-      "unknown_kws": [
-        "cuántas"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.286461",
-      "question": "¿Cuál es el descuento medio?",
-      "keywords": [
-        "descuento"
-      ],
-      "tables_used": [
-        "REPLIN",
-        "COMPRA",
-        "VENCCONTRATO",
-        "REPESTLIN",
-        "CAMPANHA",
-        "DOCLIN",
-        "REPLINCAR",
-        "DOCCAB"
-      ],
-      "unknown_kws": [
-        "cuál",
-        "medio"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.313189",
-      "question": "¿Cuántos trabajadores hay?",
-      "keywords": [],
-      "tables_used": [],
-      "unknown_kws": [
-        "cuántos",
-        "trabajadores"
-      ]
-    },
-    {
-      "ts": "2026-03-16T16:02:18.353516",
-      "question": "¿Cuántos empleados hay activos?",
-      "keywords": [
-        "empleados",
-        "activos"
-      ],
-      "tables_used": [
-        "VISTA",
-        "RECURSO",
-        "ADMINPROG",
-        "EMPRESAEAC",
-        "GRUPOVACACIONES",
-        "GRUPOVACACIONESRECURSO",
-        "RECURSOPRESENCIA",
-        "AGEGAST"
-      ],
-      "unknown_kws": [
-        "cuántos"
-      ]
-    },
-    {
       "ts": "2026-03-16T16:02:18.383109",
       "question": "¿Cuántas ventas ha hecho cada trabajador?",
       "keywords": [
@@ -10830,6 +10053,635 @@
         "técnico",
         "averías"
       ]
+    },
+    {
+      "ts": "2026-03-17T15:05:57.193928",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:05:57.458107",
+      "question": "¿y cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:05:57.711721",
+      "question": "test pregunta",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": [
+        "pregunta"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:05:58.142872",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:05:58.163114",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-17T15:27:55.016739",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:27:55.212212",
+      "question": "¿y cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:27:55.422991",
+      "question": "test pregunta",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": [
+        "pregunta"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:27:55.639617",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-17T15:27:55.665510",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-18T10:27:37.934748",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:27:38.132895",
+      "question": "¿y cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:27:38.366371",
+      "question": "test pregunta",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": [
+        "pregunta"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:27:38.660988",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:27:38.689041",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-18T10:28:58.548387",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:29:06.618853",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:48:01.343662",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
+    },
+    {
+      "ts": "2026-03-18T11:02:02.141940",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
+    },
+    {
+      "ts": "2026-03-18T11:04:37.416600",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "keywords": [
+        "tasa",
+        "exito",
+        "presupuestos",
+        "aceptado",
+        "presupuestos"
+      ],
+      "tables_used": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "PRESUPROYE",
+        "DOCLIN",
+        "RECIBO1",
+        "REPARA",
+        "AGEGAST",
+        "PROYECTOS"
+      ],
+      "unknown_kws": [
+        "cuanto"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:35:33.121638",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:35:33.143360",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-18T15:54:48.455713",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:54:48.850464",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:54:48.882135",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-18T16:31:02.313529",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T16:31:02.331387",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-03-18T16:51:23.630629",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-03-18T16:51:23.648674",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-04-14T11:53:07.489000",
+      "question": "¿cuántos presupuestos hay?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-04-14T11:53:07.890127",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-04-14T11:53:07.916166",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-04-14T12:02:10.904120",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-04-14T12:02:10.927739",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
+    },
+    {
+      "ts": "2026-04-14T12:19:34.614940",
+      "question": "¿cuántos presupuestos?",
+      "keywords": [
+        "presupuestos"
+      ],
+      "tables_used": [
+        "PRESUPROYE",
+        "DOCCAB",
+        "PROYECTOS",
+        "DOCLIN",
+        "OBRACAB",
+        "DOCDESTINO",
+        "RECIBO1",
+        "REPARA"
+      ],
+      "unknown_kws": [
+        "cuántos"
+      ]
+    },
+    {
+      "ts": "2026-04-14T12:19:34.640886",
+      "question": "test",
+      "keywords": [
+        "test"
+      ],
+      "tables_used": [
+        "CONTACONFIGENLACE"
+      ],
+      "unknown_kws": []
     }
   ],
   "unknown_keywords": {
@@ -10866,7 +10718,7 @@
     "piden": 9,
     "cuántas": 966,
     "cuál": 1008,
-    "cuántos": 1164,
+    "cuántos": 1182,
     "hecho": 56,
     "emitido": 14,
     "medio": 140,
@@ -10972,8 +10824,8 @@
     "correspondiente": 14,
     "2025": 14,
     "2023": 14,
-    "cuanto": 34,
-    "pregunta": 15,
+    "cuanto": 39,
+    "pregunta": 18,
     "creados": 3,
     "xyzabc123": 5,
     "sentido": 5,
@@ -11061,6 +10913,103 @@
       "correct": false,
       "tables_used": [
         "FECHA),"
+      ]
+    },
+    {
+      "ts": "2026-03-18T10:47:54.418961",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2 | SELECT COUNT(*) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, CAST(COUNT( | SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPEND ORDER BY N DESC",
+      "correct": true,
+      "tables_used": [
+        "FECHA),",
+        "DOCCAB",
+        "DOCDESTINO",
+        "RDB$RELATION_FIELDS"
+      ]
+    },
+    {
+      "ts": "2026-03-18T11:01:44.693277",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2 | SELECT COUNT(*) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, CAST(COUNT( | SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPEND ORDER BY N DESC",
+      "correct": false,
+      "tables_used": [
+        "PRESUPROYE",
+        "c.FECHA)",
+        "DOCDESTINO",
+        "FECHA),",
+        "DOCCAB",
+        "RDB$RELATION_FIELDS"
+      ]
+    },
+    {
+      "ts": "2026-03-18T11:04:30.129023",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2 | SELECT COUNT(*) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, CAST(COUNT( | SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPEND ORDER BY N DESC",
+      "correct": false,
+      "tables_used": [
+        "FECHA)",
+        "PRESUPROYE",
+        "c.FECHA)",
+        "DOCDESTINO",
+        "FECHA),",
+        "DOCCAB",
+        "RDB$RELATION_FIELDS"
+      ]
+    },
+    {
+      "ts": "2026-03-18T11:06:27.873651",
+      "question": "dime la tasa de éxito, en cuanto a presupuestos aceptados de todos los presupuestos",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2 | SELECT COUNT(*) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, CAST(COUNT( | SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPEND ORDER BY N DESC",
+      "correct": false,
+      "tables_used": [
+        "FECHA)",
+        "PRESUPROYE",
+        "c.FECHA)",
+        "DOCDESTINO",
+        "FECHA),",
+        "DOCCAB",
+        "RDB$RELATION_FIELDS"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:35:32.887008",
+      "question": "test",
+      "sql": "SELECT COUNT(*) FROM DOCCAB",
+      "correct": true,
+      "tables_used": [
+        "DOCCAB"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:35:32.950305",
+      "question": "test",
+      "sql": "",
+      "correct": false,
+      "tables_used": []
+    },
+    {
+      "ts": "2026-03-18T15:35:32.978080",
+      "question": "test",
+      "sql": "",
+      "correct": true,
+      "tables_used": []
+    },
+    {
+      "ts": "2026-03-18T15:36:00.902296",
+      "question": "test",
+      "sql": "SELECT COUNT(*) FROM DOCCAB",
+      "correct": true,
+      "tables_used": [
+        "DOCCAB"
+      ]
+    },
+    {
+      "ts": "2026-03-18T15:36:39.573614",
+      "question": "test",
+      "sql": "SELECT COUNT(*) FROM DOCCAB",
+      "correct": true,
+      "tables_used": [
+        "DOCCAB"
       ]
     }
   ]

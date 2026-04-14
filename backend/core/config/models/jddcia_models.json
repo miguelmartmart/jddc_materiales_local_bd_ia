@@ -32,7 +32,7 @@
       },
       "stats": {
         "success": 0,
-        "failure": 180
+        "failure": 205
       },
       "base_url": "http://192.168.0.36/api/vlm/v1",
       "headers": {
@@ -58,7 +58,7 @@
         "vision",
         "code"
       ],
-      "score": 4,
+      "score": 16,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 4096
@@ -70,8 +70,8 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 118,
-        "failure": 179
+        "success": 132,
+        "failure": 204
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
       "headers": {

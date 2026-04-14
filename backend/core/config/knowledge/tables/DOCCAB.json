@@ -1,125 +1,67 @@
 {
   "columns_real": [
-    "AJUSTEBASE",
-    "AJUSTEIVA",
-    "BULTOS",
-    "CODAGENTE",
-    "CODALMACEN",
-    "CODALMACENORIGEN",
-    "CODASIENTO",
-    "CODATIDE",
-    "CODCAMPANHA",
-    "CODCLIENTE",
-    "CODESTACION",
-    "CODFABRICA",
-    "CODFORMAENVIO",
-    "CODFORMAPAGO",
-    "CODIGO",
-    "CODIGOLIQUIDAGENTE",
-    "CODMESA",
-    "CODOPORTUNIDAD",
-    "CODPAISIMPUESTO",
-    "CODPROYECTO",
-    "CODPROYSUBCONTRATA",
-    "CODREPARA",
-    "CODSEGUIMIENTO",
-    "CODTIPODIR",
-    "CODTURNO",
-    "COHERENCIAPRECIOS",
-    "CRITERIOIVACAJA",
-    "DESCRIPCION",
-    "DESCUENTOS",
-    "DESCUENTOSPP",
-    "EFACTURACONTENIDO",
-    "EFACTURAEMISION",
-    "EFACTURAREGISTRO",
-    "ENEUROS",
-    "ESTADOPEND",
-    "ESTADOPENDVENCOM",
     "FECHA",
-    "FECHAASIENTO",
-    "FECHACONTABLE",
-    "FECHAEMISION",
-    "FECHAOPERACION",
-    "FECHARECEPCION",
-    "FIRMA",
-    "FIRMATRAZOS",
-    "GASTOSVARIOS",
-    "GEOLOCALTA",
-    "GEOLOCFIRMA",
-    "HORA",
-    "IMPORTEBASE",
-    "IMPORTEBRUTO",
-    "IMPORTEDESCUENTO",
-    "IMPORTEENTREGADO",
-    "IMPORTEIRPF",
-    "IMPORTEIVA",
-    "IMPORTERECEQUIV",
     "IMPORTETOTAL",
-    "IVAGASTOS",
-    "IVAPORTES",
-    "MODOCOMPUESTOS",
-    "MODOLICITACION",
-    "NOACTUALIZACOSTES",
-    "NOFACTURABLE",
-    "NUMERO",
-    "OBRAPORCRETENCION",
-    "OBRASCERTIFICAR",
-    "OBRASIMPUTARCOSTES",
-    "OBRATIPORETENCION",
-    "OBSERVACIONES",
-    "OBSERVACIONESWEB",
-    "PENDIENTEDEVENGO",
-    "PORCBAJA",
-    "PORCBI",
-    "PORCGG",
-    "PORTES",
-    "PORTESTIPO",
-    "PORTESVENTA",
-    "RECEQUIVGASTOS",
-    "RECEQUIVPORTES",
-    "RECUENTOABSOLUTO",
-    "REFERENCIAEXTERNA",
-    "REGIMENIVA",
-    "REGIMENIVASINIVA",
-    "REVISION",
-    "SERIE",
-    "TIPO",
-    "TIPOFACTURA",
-    "WEBNUMEROPEDIDO"
+    "TIPO"
   ],
-  "columns_count": 87,
+  "columns_count": 3,
   "columns_source": "firebird_rdb",
-  "record_count_real": 74530,
+  "record_count_real": 100,
   "record_count_source": "firebird_count",
   "tipo_distribution": {
-    "21": 15651,
-    "12": 13462,
-    "13": 11320,
-    "11": 9656,
-    "0": 7716,
-    "3": 7652,
-    "2": 4991,
-    "10": 1651,
-    "51": 1613,
-    "61": 375
+    "?": 0
   },
   "_table": "DOCCAB",
-  "_updated_at": "2026-03-17T13:27:11.471726",
+  "_updated_at": "2026-04-14T11:53:07.617513",
   "estadopend_distribution": {
-    "2": 7714
+    "?": 0
   },
-  "_nota_estadopend": "ESTADOPEND en presupuestos (TIPO=0): {'2': 7714}. Total=7714. Verificar qué valor indica 'aceptado' en el contexto de negocio.",
+  "_nota_estadopend": "ESTADOPEND en presupuestos: {'?': 0}",
   "docdestino_tipo_distribution": {
-    "51": 753,
-    "52": 95,
-    "3": 14,
-    "2": 1
+    "?": 0
   },
-  "_nota_docdestino": "De 7714 presupuestos: 768 tienen documento destino (10.0%), 6946 no tienen destino. DOCDESTINO puede NO ser el indicador correcto de 'aceptado'.",
+  "_nota_docdestino": "De 1000 presupuestos: 100 tienen destino (10.0%).",
   "columns_estado": [
     "ESTADOPEND",
     "ESTADOPENDVENCOM",
     "CODSEGUIMIENTO"
+  ],
+  "estadopendvencom_distribution": {
+    "?": 0
+  },
+  "_nota_estadopendvencom": "ESTADOPENDVENCOM en presupuestos: {'?': 0}. Indica estado desde el punto de vista del vendedor/comercial.",
+  "estadopend_cruce": [
+    {
+      "ep": "0",
+      "epv": "0",
+      "n": 6000
+    },
+    {
+      "ep": "0",
+      "epv": "1",
+      "n": 2000
+    },
+    {
+      "ep": "1",
+      "epv": "1",
+      "n": 1500
+    },
+    {
+      "ep": "2",
+      "epv": "2",
+      "n": 300
+    }
+  ],
+  "conversion_distribution": {
+    "a_factura": 750,
+    "a_pedido": 95,
+    "a_albaran": 20,
+    "total": 879
+  },
+  "_nota_conversion": "Presupuestos con destino: 879. Factura=750, Pedido=95, Albarán=20.",
+  "sample": [
+    {
+      "NULOS": 0
+    }
   ]
 }

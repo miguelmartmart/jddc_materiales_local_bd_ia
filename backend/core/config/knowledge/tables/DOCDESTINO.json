@@ -1,14 +1,20 @@
 {
   "columns_real": [
-    "CODDOCUMENTO",
-    "CODDOCUMENTODESTINO",
-    "ORDENENVIO",
-    "ORDENRECEPCION"
+    "CODCLIENTE",
+    "FECHA",
+    "IMPORTETOTAL",
+    "TIPO"
   ],
   "columns_count": 4,
   "columns_source": "firebird_rdb",
-  "record_count_real": 36565,
+  "record_count_real": 1234,
   "record_count_source": "firebird_count",
   "_table": "DOCDESTINO",
-  "_updated_at": "2026-03-17T12:46:28.600550"
+  "_updated_at": "2026-04-14T11:53:07.445499",
+  "null_codcliente": 0,
+  "sample": [
+    {
+      "TOTAL": 1234
+    }
+  ]
 }

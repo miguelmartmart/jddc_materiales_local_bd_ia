@@ -6,7 +6,7 @@ Auth: Basic Auth (nginx) — header: Authorization: Basic <base64(user:pass)>
 El OpenAI SDK envía Bearer, pero el gateway nginx requiere Basic.
 Este provider usa httpx directamente para controlar el header de autenticación.
 
-RESILIENCIA (v1.3):
+RESILIENCIA (v2.0):
 - Timeout separado: connect=3s, read=60s (leído de config.json → lan_read_timeout_s)
   Qwen3 30B puede tardar 30-60s en la primera petición; 8s era insuficiente.
 - _probe_url: SOLO acepta 200/401 como "servidor válido". 404 = ruta incorrecta
@@ -15,8 +15,13 @@ RESILIENCIA (v1.3):
 - Logging de excepciones: siempre incluye type(e).__name__ para diagnóstico.
 - Autodescubrimiento de IP: si las URLs configuradas fallan, escanea la subred.
 - Soporte multi-puerto: prueba puertos comunes del gateway (80, 8080, 443, etc.)
+- MULTI-RED (v2.0): detecta TODAS las interfaces de red del PC (WiFi + Ethernet).
+  Si el PC cambia de red (ej: oficina → casa → otra oficina), escanea todas las
+  subredes disponibles automáticamente. Compatible con Windows (sin fcntl).
+- DETECCIÓN DE CAMBIO DE RED: si la subred cacheada difiere de la actual,
+  invalida la cache y re-escanea. Evita intentar IPs de redes anteriores.
 """
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 import json
 import os
 import asyncio
@@ -120,25 +125,133 @@ def _clear_ip_cache():
         pass
 
 
-def _get_local_subnet() -> str:
+def _get_all_local_subnets() -> List[str]:
     """
-    Detecta la subred local del PC automáticamente.
-    Ejemplo: si el PC tiene 192.168.1.50, devuelve "192.168.1"
+    Detecta TODAS las subredes locales del PC (WiFi + Ethernet + VPN).
+    Compatible con Windows, Linux y macOS (sin fcntl).
+
+    Estrategia:
+    1. Obtiene el hostname del PC
+    2. Resuelve todas las IPs asociadas al hostname
+    3. Añade la IP de la ruta por defecto (para VPNs y redes adicionales)
+    4. Filtra IPs privadas (10.x, 172.16-31.x, 192.168.x)
+    5. Deduplica subredes
+
+    Ejemplo: PC con WiFi (192.168.1.50) + VPN (10.155.135.28)
+    → devuelve ["192.168.1", "10.155.135"]
+
+    Returns:
+        Lista de subredes en formato "A.B.C" (sin el último octeto).
+        Nunca lanza excepción — devuelve [_DEFAULT_SUBNET] como fallback.
     """
+    subnets: List[str] = []
+
+    def _is_private_ip(ip: str) -> bool:
+        """Filtra IPs privadas (RFC 1918) y excluye loopback."""
+        try:
+            parts = [int(x) for x in ip.split(".")]
+            if len(parts) != 4:
+                return False
+            if parts[0] == 127:  # loopback
+                return False
+            if parts[0] == 10:  # 10.0.0.0/8
+                return True
+            if parts[0] == 172 and 16 <= parts[1] <= 31:  # 172.16.0.0/12
+                return True
+            if parts[0] == 192 and parts[1] == 168:  # 192.168.0.0/16
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _ip_to_subnet(ip: str) -> Optional[str]:
+        """Extrae los primeros 3 octetos de una IP."""
+        try:
+            parts = ip.split(".")
+            if len(parts) == 4:
+                return ".".join(parts[:3])
+        except Exception:
+            pass
+        return None
+
+    # Método 1: IP de la ruta por defecto (la más fiable para la red activa)
     try:
-        # Conectar a un host externo para obtener la IP local (sin enviar datos)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
             local_ip = s.getsockname()[0]
-        # Extraer los primeros 3 octetos
-        parts = local_ip.split(".")
+        if _is_private_ip(local_ip):
+            subnet = _ip_to_subnet(local_ip)
+            if subnet and subnet not in subnets:
+                subnets.append(subnet)
+                logger.info(f"[JDDCIA] 🌐 Red activa detectada: {subnet}.x (IP: {local_ip})")
+    except Exception as e:
+        logger.debug(f"[JDDCIA] _get_all_local_subnets método 1: {e}")
+
+    # Método 2: Todas las IPs del hostname (detecta interfaces adicionales)
+    try:
+        hostname = socket.gethostname()
+        all_ips = socket.getaddrinfo(hostname, None, socket.AF_INET)
+        for info in all_ips:
+            ip = info[4][0]
+            if _is_private_ip(ip):
+                subnet = _ip_to_subnet(ip)
+                if subnet and subnet not in subnets:
+                    subnets.append(subnet)
+                    logger.info(f"[JDDCIA] 🌐 Interfaz adicional detectada: {subnet}.x (IP: {ip})")
+    except Exception as e:
+        logger.debug(f"[JDDCIA] _get_all_local_subnets método 2: {e}")
+
+    # Método 3 (Windows): usar ipconfig para detectar todas las interfaces
+    if not subnets or len(subnets) < 2:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["ipconfig"],
+                capture_output=True, text=True, timeout=3,
+                encoding="cp850"  # Windows usa cp850 en la consola
+            )
+            import re
+            # Buscar líneas "Dirección IPv4" o "IPv4 Address"
+            for line in result.stdout.splitlines():
+                match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                if match and ('IPv4' in line or 'Direcci' in line):
+                    ip = match.group(1)
+                    if _is_private_ip(ip):
+                        subnet = _ip_to_subnet(ip)
+                        if subnet and subnet not in subnets:
+                            subnets.append(subnet)
+                            logger.info(f"[JDDCIA] 🌐 Interfaz (ipconfig): {subnet}.x (IP: {ip})")
+        except Exception as e:
+            logger.debug(f"[JDDCIA] _get_all_local_subnets método 3 (ipconfig): {e}")
+
+    if not subnets:
+        logger.warning(f"[JDDCIA] ⚠️ No se detectaron subredes locales. Usando fallback: {_DEFAULT_SUBNET}.x")
+        return [_DEFAULT_SUBNET]
+
+    logger.info(f"[JDDCIA] 🌐 Subredes detectadas: {[s + '.x' for s in subnets]}")
+    return subnets
+
+
+def _get_local_subnet() -> str:
+    """
+    Detecta la subred local principal del PC.
+    Wrapper de _get_all_local_subnets() para compatibilidad.
+    """
+    subnets = _get_all_local_subnets()
+    return subnets[0] if subnets else _DEFAULT_SUBNET
+
+
+def _get_cached_subnet() -> Optional[str]:
+    """
+    Devuelve la subred de la IP cacheada (si existe).
+    Útil para detectar si el PC cambió de red.
+    """
+    cached = _load_ip_cache()
+    if cached and cached.get("ip"):
+        parts = cached["ip"].split(".")
         if len(parts) == 4:
-            subnet = ".".join(parts[:3])
-            logger.info(f"[JDDCIA] 🌐 Subred local detectada: {subnet}.x")
-            return subnet
-    except Exception:
-        pass
-    return _DEFAULT_SUBNET
+            return ".".join(parts[:3])
+    return None
 
 
 async def _probe_url(client: httpx.AsyncClient, url: str, auth_header: str) -> bool:
@@ -178,12 +291,14 @@ async def _probe_url(client: httpx.AsyncClient, url: str, auth_header: str) -> b
 
 async def _discover_gateway_ip(auth_header: str) -> Optional[str]:
     """
-    Escanea la subred local buscando el gateway JDDC.
+    Escanea TODAS las subredes locales buscando el gateway JDDC.
     Prueba IPs .1 a .254 en los puertos configurados.
 
-    Estrategia:
-    1. Primero prueba IPs "probables" (.1, .38, .100, .200, .254)
-    2. Luego escanea el resto en paralelo (lotes de 20)
+    Estrategia (v2.0 — multi-red):
+    1. Detecta TODAS las subredes del PC (WiFi + Ethernet + VPN)
+    2. Detecta si el PC cambió de red (subred cacheada ≠ subred actual)
+    3. Para cada subred, prueba IPs "probables" primero (.1, .38, .100, etc.)
+    4. Luego escanea el resto en paralelo (lotes de 20)
 
     NOTA: _probe_url ya rechaza 404, así que el router (.1) no se cacheará
     aunque responda con 404 HTML.
@@ -191,8 +306,23 @@ async def _discover_gateway_ip(auth_header: str) -> Optional[str]:
     Returns:
         base_url del gateway si se encuentra, None si no.
     """
-    subnet = _get_local_subnet()
-    logger.info(f"[JDDCIA] 🔍 Iniciando autodescubrimiento en {subnet}.x ...")
+    subnets = _get_all_local_subnets()
+    cached_subnet = _get_cached_subnet()
+
+    # Detectar cambio de red
+    if cached_subnet and cached_subnet not in subnets:
+        logger.warning(
+            f"[JDDCIA] 🔄 CAMBIO DE RED DETECTADO: "
+            f"subred cacheada={cached_subnet}.x, "
+            f"subredes actuales={[s + '.x' for s in subnets]}. "
+            f"Limpiando cache y re-escaneando."
+        )
+        _clear_ip_cache()
+
+    logger.info(
+        f"[JDDCIA] 🔍 Iniciando autodescubrimiento en "
+        f"{len(subnets)} subred(es): {[s + '.x' for s in subnets]}"
+    )
 
     # IPs prioritarias a probar primero (las más comunes en redes domésticas/oficina)
     priority_ips = [38, 1, 2, 100, 101, 200, 201, 254, 10, 20, 50]
@@ -205,36 +335,43 @@ async def _discover_gateway_ip(auth_header: str) -> Optional[str]:
         timeout=httpx.Timeout(read_timeout, connect=_CONNECT_TIMEOUT),
         follow_redirects=True
     ) as client:
-        # Escanear en lotes para no saturar la red
-        batch_size = 20
-        for batch_start in range(0, len(ordered_ips), batch_size):
-            batch = ordered_ips[batch_start:batch_start + batch_size]
-            tasks = []
-            url_map = {}
+        # Escanear cada subred
+        for subnet in subnets:
+            logger.info(f"[JDDCIA] 🔍 Escaneando subred {subnet}.x ...")
 
-            for last_octet in batch:
-                ip = f"{subnet}.{last_octet}"
-                for port in _GATEWAY_PORTS:
-                    if port in (80, 443):
-                        url = f"{'https' if port == 443 else 'http'}://{ip}{_GATEWAY_PATH}"
-                    else:
-                        url = f"http://{ip}:{port}{_GATEWAY_PATH}"
-                    task = asyncio.create_task(_probe_url(client, url, auth_header))
-                    tasks.append(task)
-                    url_map[id(task)] = (ip, port, url)
+            # Escanear en lotes para no saturar la red
+            batch_size = 20
+            for batch_start in range(0, len(ordered_ips), batch_size):
+                batch = ordered_ips[batch_start:batch_start + batch_size]
+                tasks = []
+                url_map = {}
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+                for last_octet in batch:
+                    ip = f"{subnet}.{last_octet}"
+                    for port in _GATEWAY_PORTS:
+                        if port in (80, 443):
+                            url = f"{'https' if port == 443 else 'http'}://{ip}{_GATEWAY_PATH}"
+                        else:
+                            url = f"http://{ip}:{port}{_GATEWAY_PATH}"
+                        task = asyncio.create_task(_probe_url(client, url, auth_header))
+                        tasks.append(task)
+                        url_map[id(task)] = (ip, port, url)
 
-            for task, result in zip(tasks, results):
-                if result is True:
-                    ip, port, base_url = url_map[id(task)]
-                    logger.info(f"[JDDCIA] ✅ Gateway encontrado en: {base_url}")
-                    # _save_ip_cache solo se llama cuando _probe_url devuelve True
-                    # (200/401), nunca para 404 — garantía anti-router
-                    _save_ip_cache(ip, port, base_url)
-                    return base_url
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    logger.warning(f"[JDDCIA] ❌ Gateway no encontrado en {subnet}.x")
+                for task, result in zip(tasks, results):
+                    if result is True:
+                        ip, port, base_url = url_map[id(task)]
+                        logger.info(f"[JDDCIA] ✅ Gateway encontrado en: {base_url}")
+                        # _save_ip_cache solo se llama cuando _probe_url devuelve True
+                        # (200/401), nunca para 404 — garantía anti-router
+                        _save_ip_cache(ip, port, base_url)
+                        return base_url
+
+    logger.warning(
+        f"[JDDCIA] ❌ Gateway no encontrado en ninguna subred: "
+        f"{[s + '.x' for s in subnets]}"
+    )
     return None
 
 
@@ -273,42 +410,71 @@ class JDDCIAProvider(AIProvider):
     async def _get_working_base_url(self) -> str:
         """
         Devuelve la base_url que funciona actualmente.
-        Orden de intentos:
-        1. URL configurada (de jddcia_models.json)
-        2. IP cacheada en disco (de un descubrimiento anterior)
-        3. Autodescubrimiento escaneando la subred
+        Orden de intentos (v2.0 — multi-red):
+        1. URL configurada (de jddcia_models.json / settings.py)
+        2. FALLBACK URL de settings (JDDCIA_BASE_URL_FALLBACK)
+        3. IP cacheada en disco (de un descubrimiento anterior)
+           → Si la subred cacheada ≠ subred actual → cambio de red → limpiar cache
+        4. Autodescubrimiento en TODAS las subredes locales (WiFi + Ethernet + VPN)
 
-        NUEVO (v1.3): Si la IP cacheada devuelve 404, se limpia la cache
-        automáticamente para evitar que el router se quede cacheado.
+        NUEVO (v2.0): Detecta cambio de red automáticamente.
+        Si el PC está en otra red, invalida la cache y re-escanea todas las
+        subredes disponibles para encontrar el gateway en la nueva ubicación.
         """
+        from backend.core.config.settings import settings as app_settings
         auth_header = f"Basic {self.api_key}"
 
-        # 1. Probar URL configurada
+        # 1. Probar URL configurada (hostname mDNS: jddcia.local)
         async with httpx.AsyncClient() as client:
             if await _probe_url(client, self._configured_base_url, auth_header):
+                logger.debug(f"[JDDCIA] ✅ URL configurada OK: {self._configured_base_url}")
                 return self._configured_base_url
 
         logger.warning(f"[JDDCIA] ⚠️ URL configurada no responde: {self._configured_base_url}")
 
-        # 2. Probar IP cacheada
-        cached = _load_ip_cache()
-        if cached and cached["base_url"] != self._configured_base_url:
+        # 2. Probar FALLBACK URL de settings (IP fija de la red habitual)
+        fallback_url = getattr(app_settings, "JDDCIA_BASE_URL_FALLBACK", None)
+        if fallback_url and fallback_url != self._configured_base_url:
             async with httpx.AsyncClient() as client:
-                if await _probe_url(client, cached["base_url"], auth_header):
-                    logger.info(f"[JDDCIA] 💾 Usando IP cacheada: {cached['base_url']}")
-                    return cached["base_url"]
-            # La IP cacheada ya no funciona (puede ser 404 del router o timeout)
-            logger.warning(f"[JDDCIA] ⚠️ IP cacheada ya no funciona: {cached['base_url']} — limpiando cache")
-            _clear_ip_cache()
+                if await _probe_url(client, fallback_url, auth_header):
+                    logger.info(f"[JDDCIA] ✅ Fallback URL OK: {fallback_url}")
+                    return fallback_url
+            logger.warning(f"[JDDCIA] ⚠️ Fallback URL no responde: {fallback_url}")
 
-        # 3. Autodescubrimiento
-        logger.info("[JDDCIA] 🔍 Iniciando autodescubrimiento de gateway...")
+        # 3. Probar IP cacheada (con detección de cambio de red)
+        cached = _load_ip_cache()
+        if cached:
+            cached_url = cached["base_url"]
+            cached_subnet = _get_cached_subnet()
+            current_subnets = _get_all_local_subnets()
+
+            # Detectar cambio de red
+            if cached_subnet and cached_subnet not in current_subnets:
+                logger.warning(
+                    f"[JDDCIA] 🔄 CAMBIO DE RED: cache={cached_subnet}.x, "
+                    f"actual={[s + '.x' for s in current_subnets]}. "
+                    f"Saltando cache — el gateway está en otra red."
+                )
+                _clear_ip_cache()
+            elif cached_url not in (self._configured_base_url, fallback_url):
+                async with httpx.AsyncClient() as client:
+                    if await _probe_url(client, cached_url, auth_header):
+                        logger.info(f"[JDDCIA] 💾 Usando IP cacheada: {cached_url}")
+                        return cached_url
+                logger.warning(f"[JDDCIA] ⚠️ IP cacheada ya no funciona: {cached_url} — limpiando cache")
+                _clear_ip_cache()
+
+        # 4. Autodescubrimiento en todas las subredes
+        logger.info("[JDDCIA] 🔍 Iniciando autodescubrimiento multi-red...")
         discovered = await _discover_gateway_ip(auth_header)
         if discovered:
             return discovered
 
         # Si todo falla, devolver la URL configurada (el error se manejará en generate_text)
-        logger.warning("[JDDCIA] ⚠️ Autodescubrimiento fallido. Usando URL configurada como último recurso.")
+        logger.warning(
+            "[JDDCIA] ⚠️ Autodescubrimiento fallido en todas las redes. "
+            "Usando URL configurada como último recurso."
+        )
         return self._configured_base_url
 
     async def generate_text(

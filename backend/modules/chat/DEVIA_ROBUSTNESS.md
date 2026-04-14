@@ -26,8 +26,13 @@ backend/modules/chat/
     ├── __init__.py                 ← Exportaciones públicas
     ├── models.py                   ← Dataclasses, Enums, TokenBudget, detect_depth
     ├── phases_1_2.py               ← Fases 0, 1, 2 (comprensión + exploración)
+    ├── phase2_explore.py           ← Exploración de tablas (Fase 2)
+    ├── phase3.py                   ← Generación de SQLs (Fase 3)
+    ├── phase4.py                   ← Análisis crítico (Fase 4)
     ├── phases_3_4_5.py             ← Fases 3, 4, 5 (investigación + análisis + síntesis)
-    └── agent.py                    ← DeepAnalysisAgent (orquestador + helpers)
+    ├── helpers.py                  ← Helpers: SIUO, _phase0_lan_optimize, etc.
+    ├── knowledge_store.py          ← KnowledgeStore: aprendizaje permanente
+    └── agent.py                    ← DeepAnalysisAgent (orquestador)
 ```
 
 ### 2.2 Niveles de profundidad (auto-detectados)
@@ -44,8 +49,10 @@ La detección es determinista (palabras clave) y siempre cae en EPIC si no hay m
 ### 2.3 Arquitectura de 5 fases
 
 ```
-FASE 0: Presupuesto de tokens
-  └─ Ajusta max_sqls y explore_tables según tokens disponibles
+FASE 0: Presupuesto de tokens + optimización LAN
+  ├─ Ajusta max_sqls y explore_tables según tokens disponibles
+  ├─ Detecta si el modelo es LAN (jddcia) o internet
+  └─ Carga patrones conocidos del KnowledgeStore (known_sqls_count)
 
 FASE 1: Comprensión Épica
   ├─ 1.1 Detección de intención (JSON estructurado)
@@ -62,6 +69,11 @@ FASE 2: Exploración Total
   ├─ Distribución por TIPO en DOCCAB
   ├─ Conteo de nulos en CODCLIENTE
   └─ Expansión dinámica: IA puede solicitar tablas adicionales
+
+  Resiliencia de metadatos (3 niveles):
+    1. BD Firebird real (RDB$RELATION_FIELDS)
+    2. SIUO JSON (db_metadata_optimized.json) → _get_siuo_columns()
+    3. db_context texto → _extract_columns_from_context()
 
 FASE 3: Investigación Multi-Angular
   ├─ SQLs dinámicos generados por IA (hasta 12+)
@@ -85,7 +97,7 @@ FASE 4: Análisis Crítico Profundo
 FASE 5: Síntesis Épica
   ├─ Respuesta principal con datos reales en tabla Markdown
   ├─ Análisis crítico
-  ├─ Advertencias y anomalías (HTML coloreado)
+  ├─ Advertencias y anomalías (Markdown puro, sin HTML)
   ├─ Contexto de negocio
   ├─ Sugerencias y próximos pasos
   └─ Detalles técnicos en <details> desplegable
@@ -123,12 +135,12 @@ max_tokens = min(2000 + n_sqls * 500, 8000)
 | 8 (DEEP) | 6000 |
 | 12 (EPIC) | 8000 |
 
-### 3.3 Autoaprendizaje
+### 3.3 Autoaprendizaje (KnowledgeStore)
 
-El SIUO aprende de cada análisis:
-- **Keywords desconocidos** → acumulados en `siuo_query_log.json["unknown_keywords"]`
-- **Tablas más usadas** → estadísticas para priorizar indexación
-- **Feedback de fiabilidad** → mejora el `concept_index` con el tiempo
+El sistema aprende de cada análisis exitoso:
+- **Patrones SQL** → guardados en `knowledge_store.json` con intent + sql + rows_returned
+- **Optimización LAN** → `_phase0_lan_optimize()` carga patrones conocidos para evitar SQLs redundantes
+- **Feedback de fiabilidad** → `register_feedback()` actualiza el índice SIUO
 - **Sugerencias** → `retriever.get_learning_suggestions()` devuelve candidatos para enriquecer el índice
 
 ---
@@ -221,7 +233,7 @@ phase.data["new_analysis"] = new_data
 ### 7.2 Añadir un SQL fijo a Fase 3
 
 ```python
-# En phases_3_4_5.py → _build_fixed_sqls()
+# En phase3.py → _build_fixed_sqls()
 if "nueva_condicion" in msg:
     fixed.append({
         "objetivo": "Descripción del SQL",
@@ -232,7 +244,7 @@ if "nueva_condicion" in msg:
 ### 7.3 Añadir una dimensión de análisis a Fase 4
 
 ```python
-# En phases_3_4_5.py → _phase4_analyze() → system prompt
+# En phase4.py → _phase4_analyze() → system prompt
 "7. NUEVA DIMENSIÓN: descripción\n"
 # Y en el JSON de respuesta:
 '"nueva_dimension":[],'
@@ -271,25 +283,31 @@ if context.get('deep_analysis', False) or self._is_deep_analysis_request(message
 
 ## 9. Tests
 
-```
-tests/unit/test_deep_analysis_agent.py
-```
+Los tests están divididos en 7 ficheros especializados (150 tests en total):
 
-Clases de test:
-- `TestDetectDepth` — auto-detección de profundidad
-- `TestTokenBudget` — conteo, fits, truncate, usage_pct
-- `TestPhase1Fallback` — fallback si IA falla, tablas candidatas, issues
-- `TestPhase2Exploration` — exploración de tablas con mock SQL
-- `TestPhase3FixedSQLs` — SQLs fijos (temporal + instalaciones)
-- `TestPhase4SIUOFeedback` — registro de feedback en SIUO
-- `TestEmergencyFallback` — fallback de emergencia
-- `TestFullAnalysisMock` — análisis completo con mocks
-- `TestHelpers` — _parse_json, _fmt_*, _build_warnings_html
+```
+tests/unit/
+├── test_deep_analysis_agent.py      ← Re-exportador (importa todos los ficheros)
+├── test_deep_analysis_1_core.py     ← detect_depth, TokenBudget, Fase 1/2/3/4, fallback
+├── test_deep_analysis_2_phases.py   ← _phase0_lan_optimize, _build_phase3_system, Fase 3 None
+├── test_deep_analysis_3_learn.py    ← Fase 4b aprendizaje, estado pend/ven/com
+├── test_deep_analysis_4_advanced.py ← SIUO helpers, _build_warnings_html
+├── test_deep_analysis_5_knowledge.py ← KnowledgeStore básico
+├── test_deep_analysis_6_knowledge2.py ← KnowledgeStore avanzado
+└── test_deep_analysis_7_knowledge3.py ← KnowledgeStore edge cases
+```
 
 Ejecutar:
 ```bash
 cd bots/interjddcia
-pytest tests/unit/test_deep_analysis_agent.py -v
+pytest tests/unit/test_deep_analysis_1_core.py \
+       tests/unit/test_deep_analysis_2_phases.py \
+       tests/unit/test_deep_analysis_3_learn.py \
+       tests/unit/test_deep_analysis_4_advanced.py \
+       tests/unit/test_deep_analysis_5_knowledge.py \
+       tests/unit/test_deep_analysis_6_knowledge2.py \
+       tests/unit/test_deep_analysis_7_knowledge3.py -v
+# Resultado esperado: 150 passed, 0 failed
 ```
 
 ---
@@ -301,12 +319,17 @@ pytest tests/unit/test_deep_analysis_agent.py -v
 | `deep_analysis/__init__.py` | ~20 | Exportaciones públicas |
 | `deep_analysis/models.py` | ~170 | Dataclasses, Enums, TokenBudget |
 | `deep_analysis/phases_1_2.py` | ~280 | Fases 0, 1, 2 |
+| `deep_analysis/phase2_explore.py` | ~200 | Exploración de tablas (Fase 2) |
+| `deep_analysis/phase3.py` | ~180 | Generación de SQLs (Fase 3) |
+| `deep_analysis/phase4.py` | ~150 | Análisis crítico (Fase 4) |
 | `deep_analysis/phases_3_4_5.py` | ~380 | Fases 3, 4, 5 + SIUO |
-| `deep_analysis/agent.py` | ~250 | Orquestador + helpers |
+| `deep_analysis/helpers.py` | ~380 | Helpers: SIUO, _phase0_lan_optimize, etc. |
+| `deep_analysis/knowledge_store.py` | ~250 | KnowledgeStore: aprendizaje permanente |
+| `deep_analysis/agent.py` | ~130 | Orquestador principal |
 | `deep_analysis_agent.py` | ~30 | Shim de compatibilidad |
 | `service.py` | ~400 | ChatService (integra agente) |
 | `firebird_sql_constants.py` | ~200 | Constantes SQL centralizadas |
 
 ---
 
-*Última actualización: 16/03/2026 — DeepAnalysisAgent v2.0 con integración SIUO*
+*Última actualización: 14/04/2026 — DeepAnalysisAgent v3.0 + tests 150/150 + multi-red*

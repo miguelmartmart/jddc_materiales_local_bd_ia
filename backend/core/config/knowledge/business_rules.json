@@ -6,8 +6,71 @@
       "confidence": "alto",
       "source": "deep_analysis",
       "discovered_at": "2026-03-17T12:19:57.385802"
+    },
+    {
+      "rule": "1 instalación = N presupuestos",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-17T15:05:57.398373"
+    },
+    {
+      "rule": "Solo el 9.9% de presupuestos tienen documento destino — DOCDESTINO no es indicador fiable de 'aceptado'",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "deep_analysis",
+      "discovered_at": "2026-03-18T11:06:28.794593"
+    },
+    {
+      "rule": "[RESOLUCIÓN] Identificar TIPO correcto para SAT/garantía (distribución real): 20 filas encontradas",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-18T11:06:29.058473"
+    },
+    {
+      "rule": "[RESOLUCIÓN] Datos SAT reales (TIPO=2, serie SAT): 41 filas encontradas",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-18T11:06:29.070973"
+    },
+    {
+      "rule": "[BUCLE] Nuevos ángulos a investigar: Análisis del proceso de envío de presupuestos; Comportamiento de los clientes según tipo de documento destino; Verificación de la lógica de aceptación en el sistema",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-18T11:06:29.082360"
+    },
+    {
+      "rule": "Solo el 15.0% de presupuestos tienen documento destino — DOCDESTINO no es indicador fiable de 'aceptado'",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "deep_analysis",
+      "discovered_at": "2026-03-18T15:35:33.207259"
+    },
+    {
+      "rule": "1 instalación puede tener N presupuestos",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-18T15:35:33.279668"
+    },
+    {
+      "rule": "Los presupuestos sin CODCLIENTE son instalaciones directas",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-03-18T15:35:33.285540"
+    },
+    {
+      "rule": "'Aceptado' = presupuesto convertido a factura (TIPO=13, 750) o pedido (TIPO=12, 95) via DOCDESTINO",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "deep_analysis",
+      "discovered_at": "2026-03-18T15:35:33.790727"
     }
   ],
-  "_count": 1,
-  "_updated_at": "2026-03-17T12:19:57.385802"
+  "_count": 10,
+  "_updated_at": "2026-03-18T15:35:33.790727"
 }

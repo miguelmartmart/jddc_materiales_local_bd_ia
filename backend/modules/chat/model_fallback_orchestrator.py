@@ -147,13 +147,15 @@ class ModelFallbackOrchestrator:
                 sorted_models.insert(0, preferred_model)
                 logger.info(f"{LogPrefixes.AI_PROVIDER} ⭐ Modelo PREFERIDO seleccionado: {preferred_model['name']}")
 
-        logger.info(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEARCH} Modelos disponibles ordenados por Prioridad:")
-        if not sorted_models:
+        # Solo loguear resumen (no la lista completa de 189 modelos — demasiado ruido)
+        if sorted_models:
+            top3 = [f"{m.get('name')} (Score:{m.get('score')})" for m in sorted_models[:3]]
+            logger.debug(
+                f"{LogPrefixes.AI_PROVIDER} {LogEmojis.SEARCH} "
+                f"{len(sorted_models)} modelos disponibles. Top3: {', '.join(top3)}"
+            )
+        else:
             logger.warning(f"  {LogEmojis.WARNING} No se encontraron modelos habilitados.")
-
-        for idx, model in enumerate(sorted_models, 1):
-            marker = "⭐ " if model['id'] == preferred_model_id else ""
-            logger.info(f"  {idx}. {marker}{model.get('name')} (Score: {model.get('score')})")
 
         return sorted_models
 

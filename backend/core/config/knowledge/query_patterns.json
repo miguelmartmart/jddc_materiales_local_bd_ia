@@ -10,9 +10,9 @@
       ],
       "rows_returned": 37,
       "reliability": "medio",
-      "uses": 3,
+      "uses": 5,
       "discovered_at": "2026-03-17T12:19:57.318056",
-      "last_used": "2026-03-17T13:27:11.575787"
+      "last_used": "2026-03-18T11:06:28.627094"
     },
     {
       "intent": "Presupuestos vs clientes únicos",
@@ -22,9 +22,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 2,
+      "uses": 11,
       "discovered_at": "2026-03-17T12:19:57.323093",
-      "last_used": "2026-03-17T12:46:28.636326"
+      "last_used": "2026-04-14T11:53:07.544408"
     },
     {
       "intent": "Distribución de ESTADOPEND en presupuestos (estado real)",
@@ -34,9 +34,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 2,
+      "uses": 11,
       "discovered_at": "2026-03-17T12:19:57.347923",
-      "last_used": "2026-03-17T12:46:28.670471"
+      "last_used": "2026-04-14T11:53:07.577420"
     },
     {
       "intent": "Presupuestos aceptados por tipo de documento destino (factura/pedido)",
@@ -47,9 +47,9 @@
       ],
       "rows_returned": 4,
       "reliability": "medio",
-      "uses": 2,
+      "uses": 11,
       "discovered_at": "2026-03-17T12:19:57.374037",
-      "last_used": "2026-03-17T12:46:28.695783"
+      "last_used": "2026-04-14T11:53:07.594849"
     },
     {
       "intent": "Total presupuestos con cualquier documento destino vinculado",
@@ -60,9 +60,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 2,
+      "uses": 11,
       "discovered_at": "2026-03-17T12:19:57.398695",
-      "last_used": "2026-03-17T12:46:28.738439"
+      "last_used": "2026-04-14T11:53:07.605420"
     },
     {
       "intent": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
@@ -72,11 +72,224 @@
       ],
       "rows_returned": 3,
       "reliability": "medio",
-      "uses": 2,
+      "uses": 11,
       "discovered_at": "2026-03-17T12:19:57.417971",
-      "last_used": "2026-03-17T12:46:28.770295"
+      "last_used": "2026-04-14T11:53:07.615507"
+    },
+    {
+      "intent": "Conteo total",
+      "sql": "-- [OBJETIVO: Conteo total]\nSELECT COUNT(*) AS TOTAL FROM DOCCAB WHERE TIPO=0",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 5,
+      "discovered_at": "2026-03-17T15:05:57.260516",
+      "last_used": "2026-04-14T11:53:07.525419"
+    },
+    {
+      "intent": "Distribución por año",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE TIPO = 0 AND FECHA IS NOT NULL GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO DESC",
+      "tables": [
+        "FECHA)",
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 10,
+      "discovered_at": "2026-03-17T15:05:57.537099",
+      "last_used": "2026-04-14T11:53:07.533826"
+    },
+    {
+      "intent": "Identificar TIPO correcto para SAT/garantía (distribución real)",
+      "sql": "SELECT TIPO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE UPPER(SERIE) LIKE UPPER('%SAT%') OR UPPER(SERIE) LIKE UPPER('%GAR%') OR UPPER(SERIE) LIKE UPPER('%TEC%') GROUP BY TIPO, SERIE ORDER BY N DESC",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 20,
+      "reliability": "bajo",
+      "uses": 4,
+      "discovered_at": "2026-03-18T11:06:28.853613",
+      "last_used": "2026-03-18T11:06:29.032342"
+    },
+    {
+      "intent": "Datos SAT reales (TIPO=2, serie SAT)",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE TIPO = 2 AND FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) <= 2026 GROUP BY EXTRACT(YEAR FROM FECHA), SERIE ORDER BY ANO DESC, N DESC",
+      "tables": [
+        "FECHA),",
+        "FECHA)",
+        "DOCCAB"
+      ],
+      "rows_returned": 41,
+      "reliability": "bajo",
+      "uses": 4,
+      "discovered_at": "2026-03-18T11:06:28.870188",
+      "last_used": "2026-03-18T11:06:29.046284"
+    },
+    {
+      "intent": "Calcular la tasa de éxito de aceptación de presupuestos en 2026",
+      "sql": "SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS_2026, COUNT(DISTINCT dd.CODDOCUMENTO) AS PRESUPUESTOS_ACEPTADOS_2026, CAST((COUNT(DISTINCT dd.CODDOCUMENTO) * 100.0 / COUNT(DISTINCT c.CODIGO)) AS NUMERIC(15,2)) AS TASA_EXITO_PORCENTAJE FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO WHERE c.TIPO = 0 AND c.FECHA >= '2026-01-01' AND c.FECHA < '2027-01-01' AND c.CODCLIENTE IS NOT NULL AND c.CODIGO NOT IN ( SELECT CODDOCUMENTO FROM DOCDESTINO WHERE CODDOCUMENTO IN ( SELECT C",
+      "tables": [
+        "DOCCAB",
+        "DOCDESTINO"
+      ],
+      "rows_returned": 1,
+      "reliability": "bajo",
+      "uses": 1,
+      "discovered_at": "2026-03-18T11:06:28.883087",
+      "last_used": "2026-03-18T11:06:28.883087"
+    },
+    {
+      "intent": "Contar el número total de presupuestos enviados en 2026",
+      "sql": "SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS_ENVIADOS_2026 FROM DOCCAB c WHERE c.TIPO = 0 AND c.FECHA >= '2026-01-01' AND c.FECHA < '2027-01-01' AND c.CODCLIENTE IS NOT NULL",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "bajo",
+      "uses": 1,
+      "discovered_at": "2026-03-18T11:06:28.891130",
+      "last_used": "2026-03-18T11:06:28.891130"
+    },
+    {
+      "intent": "Contar cuántos presupuestos fueron aceptados en 2026",
+      "sql": "SELECT COUNT(DISTINCT dd.CODDOCUMENTO) AS PRESUPUESTOS_ACEPTADOS_2026 FROM DOCDESTINO dd JOIN DOCCAB c ON c.CODIGO = dd.CODDOCUMENTO WHERE c.TIPO = 0 AND c.FECHA >= '2026-01-01' AND c.FECHA < '2027-01-01' AND c.CODCLIENTE IS NOT NULL",
+      "tables": [
+        "DOCCAB",
+        "DOCDESTINO"
+      ],
+      "rows_returned": 1,
+      "reliability": "bajo",
+      "uses": 1,
+      "discovered_at": "2026-03-18T11:06:28.909597",
+      "last_used": "2026-03-18T11:06:28.909597"
+    },
+    {
+      "intent": "Analizar la distribución temporal de presupuestos en 2026 por mes",
+      "sql": "SELECT EXTRACT(MONTH FROM c.FECHA) AS MES, COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT dd.CODDOCUMENTO) AS ACEPTADOS, CAST((COUNT(DISTINCT dd.CODDOCUMENTO) * 100.0 / COUNT(DISTINCT c.CODIGO)) AS NUMERIC(15,2)) AS TASA_EXITO FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON dd.CODDOCUMENTO = c.CODIGO WHERE c.TIPO = 0 AND c.FECHA >= '2026-01-01' AND c.FECHA < '2027-01-01' AND c.CODCLIENTE IS NOT NULL GROUP BY EXTRACT(MONTH FROM c.FECHA) ORDER BY MES",
+      "tables": [
+        "DOCCAB",
+        "DOCDESTINO",
+        "C.FECHA)"
+      ],
+      "rows_returned": 3,
+      "reliability": "bajo",
+      "uses": 1,
+      "discovered_at": "2026-03-18T11:06:28.922875",
+      "last_used": "2026-03-18T11:06:28.922875"
+    },
+    {
+      "intent": "Evaluar la calidad de los datos en 2026, identificando nulos y vacíos en CODCLIENTE",
+      "sql": "SELECT COUNT(DISTINCT c.CODIGO) AS TOTAL_PRESUPUESTOS, COUNT(DISTINCT CASE WHEN c.CODCLIENTE IS NULL THEN c.CODIGO END) AS PRESUPUESTOS_CON_CLIENTE_NULO, CAST((COUNT(DISTINCT CASE WHEN c.CODCLIENTE IS NULL THEN c.CODIGO END) * 100.0 / COUNT(DISTINCT c.CODIGO)) AS NUMERIC(15,2)) AS PORCENTAJE_NULOS_CLIENTE FROM DOCCAB c WHERE c.TIPO = 0 AND c.FECHA >= '2026-01-01' AND c.FECHA < '2027-01-01'",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "bajo",
+      "uses": 1,
+      "discovered_at": "2026-03-18T11:06:28.939665",
+      "last_used": "2026-03-18T11:06:28.939665"
+    },
+    {
+      "intent": "Datos REALES (años <= 2026, excluyendo futuros)",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) <= 2026 AND EXTRACT(YEAR FROM FECHA) >= 2016 GROUP BY EXTRACT(YEAR FROM FECHA), SERIE ORDER BY ANO DESC, N DESC",
+      "tables": [
+        "FECHA),",
+        "FECHA)",
+        "DOCCAB"
+      ],
+      "rows_returned": 779,
+      "reliability": "bajo",
+      "uses": 3,
+      "discovered_at": "2026-03-18T11:06:28.953011",
+      "last_used": "2026-03-18T11:06:29.018577"
+    },
+    {
+      "intent": "Distribución de ESTADOPEND en presupuestos (estado real)",
+      "sql": "SELECT ESTADOPEND, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY ESTADOPEND",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 3,
+      "reliability": "alto",
+      "uses": 7,
+      "discovered_at": "2026-03-18T15:35:33.165658",
+      "last_used": "2026-03-18T16:00:25.374574"
+    },
+    {
+      "intent": "Total presupuestos con cualquier documento destino vinculado",
+      "sql": "SELECT COUNT(*) FROM DOCCAB c LEFT JOIN DOCDESTINO dd ON ...",
+      "tables": [
+        "DOCDESTINO",
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 2,
+      "discovered_at": "2026-03-18T15:35:33.214789",
+      "last_used": "2026-03-18T15:54:48.984831"
+    },
+    {
+      "intent": "Distribución por año",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY 1",
+      "tables": [
+        "FECHA)",
+        "DOCCAB"
+      ],
+      "rows_returned": 8,
+      "reliability": "alto",
+      "uses": 2,
+      "discovered_at": "2026-03-18T15:35:33.308255",
+      "last_used": "2026-03-18T15:54:49.137032"
+    },
+    {
+      "intent": "Distribución de ESTADOPENDVENCOM en presupuestos (estado comercial)",
+      "sql": "SELECT ESTADOPENDVENCOM, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY ESTADOPENDVENCOM",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 3,
+      "reliability": "alto",
+      "uses": 5,
+      "discovered_at": "2026-03-18T15:35:33.709359",
+      "last_used": "2026-03-18T16:00:25.434940"
+    },
+    {
+      "intent": "Cruce ESTADOPEND x ESTADOPENDVENCOM (definición real de aceptado)",
+      "sql": "SELECT ESTADOPEND, ESTADOPENDVENCOM, COUNT(*) AS N FROM DOCCAB WHERE TIPO=0 GROUP BY ESTADOPEND, ESTADOPENDVENCOM",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 4,
+      "reliability": "alto",
+      "uses": 2,
+      "discovered_at": "2026-03-18T15:35:33.756352",
+      "last_used": "2026-03-18T15:54:49.661031"
+    },
+    {
+      "intent": "Presupuestos convertidos a factura (TIPO=13) o pedido (TIPO=12)",
+      "sql": "SELECT SUM(CASE WHEN d.TIPO = 13 THEN 1 ELSE 0 END) AS A_FACTURA ...",
+      "tables": [],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 2,
+      "discovered_at": "2026-03-18T15:35:33.798002",
+      "last_used": "2026-03-18T15:54:49.708201"
+    },
+    {
+      "intent": "Distribución de ESTADOPENDVENCOM en presupuestos (estado comercial)",
+      "sql": "SELECT ESTADOPENDVENCOM, COUNT(*) AS N FROM DOCCAB WHERE TIPO = 0 GROUP BY ESTADOPENDVENCOM ORDER BY N DESC",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 2,
+      "discovered_at": "2026-03-18T15:54:48.685014",
+      "last_used": "2026-04-14T11:53:07.646043"
     }
   ],
-  "_count": 6,
-  "_updated_at": "2026-03-17T12:19:57.417971"
+  "_count": 23,
+  "_updated_at": "2026-03-18T15:54:48.685014"
 }
