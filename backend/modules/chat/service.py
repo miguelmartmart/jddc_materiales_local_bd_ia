@@ -284,6 +284,41 @@ class ChatService:
                 logger.warning(f"Error loading chat config: {e}")
 
 
+    def _is_conversational_message(self, message: str) -> bool:
+        """
+        Detecta si el mensaje es conversacional (saludo, agradecimiento, pregunta general).
+        En ese caso NO se activa el DeepAnalysisAgent ni el flujo SQL.
+        """
+        msg = message.lower().strip()
+        words = msg.split()
+
+        # Patrones conversacionales explícitos
+        conversational_starts = [
+            "hola", "buenos dias", "buenas tardes", "buenas noches", "buenas",
+            "gracias", "de nada", "ok", "vale", "perfecto", "entendido",
+            "adios", "hasta luego", "hasta pronto", "bye",
+            "como estas", "como te llamas", "quien eres", "que eres",
+            "que puedes hacer", "ayuda", "help",
+            "si", "no", "claro", "por supuesto", "genial", "bien",
+        ]
+        for pat in conversational_starts:
+            if msg == pat or msg.startswith(pat + " ") or msg.startswith(pat + ","):
+                return True
+
+        # Mensajes muy cortos (<=3 palabras) sin palabras clave de datos
+        data_keywords = [
+            "cuantos", "cuantas", "total", "suma", "lista", "dame", "muestra",
+            "factura", "presupuesto", "cliente", "articulo", "stock", "precio",
+            "pedido", "albaran", "agente", "proveedor", "importe", "fecha",
+            "analiza", "analisis", "investiga", "consulta", "busca", "encuentra",
+            "cuanto", "cuanta", "ventas", "compras", "cobros", "pagos",
+        ]
+        has_data_keyword = any(k in msg for k in data_keywords)
+        if len(words) <= 3 and not has_data_keyword:
+            return True
+
+        return False
+
     def _is_deep_analysis_request(self, message: str) -> bool:
         """Detecta si el usuario quiere un análisis profundo multi-fase."""
         msg = message.lower().strip()
@@ -374,7 +409,8 @@ class ChatService:
         #   1. Checkbox frontend: context.get('deep_analysis', False) == True
         #   2. Comando explícito: /deep, /analisis
         #   3. Palabras clave: "analiza en profundidad", "investiga", etc.
-        if context.get('deep_analysis', False) or self._is_deep_analysis_request(message):
+        if (context.get('deep_analysis', False) or self._is_deep_analysis_request(message)) \
+                and not self._is_conversational_message(message):
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
