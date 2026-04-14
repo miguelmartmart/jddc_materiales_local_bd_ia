@@ -304,6 +304,54 @@ class ChatService:
         ]
         return any(k in msg for k in deep_keywords)
 
+    async def _chat_no_db(self, message: str, context: Dict[str, Any]) -> str:
+        """
+        Modo chat conversacional puro sin BD.
+        Se activa cuando no hay db_params, no_db=True, o fallo de conexion.
+        Usa la IA local directamente sin generar SQL ni consultar Firebird.
+        """
+        logger.info("[CHAT] Modo SIN BD - chat conversacional puro")
+        try:
+            conv_history = context.get('conversation_history', [])
+            history_text = ""
+            if conv_history:
+                recent = conv_history[-6:]
+                history_text = "\n".join([
+                    f"{'Usuario' if m['role'] == 'user' else 'Asistente'}: {m['content'][:300]}"
+                    for m in recent
+                ])
+
+            system_prompt = (
+                "Eres DEVIA, el asistente inteligente de JDDC. "
+                "Puedes responder preguntas generales, ayudar con analisis, "
+                "explicar conceptos de negocio, climatizacion, facturacion, "
+                "y cualquier consulta del usuario. "
+                "En este momento no tienes acceso a la base de datos, "
+                "pero puedes ayudar con todo lo demas. "
+                "Responde siempre en espanol, de forma clara y util."
+            )
+
+            user_msg = message
+            if history_text:
+                user_msg = f"Historial reciente:\n{history_text}\n\nMensaje actual: {message}"
+
+            response, model_used = await self.model_orchestrator.execute_with_fallback(
+                system_prompt=system_prompt,
+                user_message=user_msg,
+                images=context.get('images'),
+                preferred_model_id=context.get('model_id'),
+            )
+
+            if response:
+                logger.info(f"[CHAT] Respuesta sin BD generada con {model_used}")
+                return response
+            else:
+                return "Lo siento, no pude generar una respuesta. La IA local no esta disponible."
+
+        except Exception as e:
+            logger.error(f"[CHAT] Error en modo sin BD: {e}")
+            return f"Error al procesar el mensaje: {str(e)}"
+
     async def process_message(self, message: str, context: Dict[str, Any]) -> str:
         logger.info("="*80)
         logger.info(f"{LogPrefixes.CHAT_SERVICE} {LogEmojis.NEW_MESSAGE} NUEVO MENSAJE RECIBIDO")
@@ -311,6 +359,15 @@ class ChatService:
         logger.info(f"{LogPrefixes.MENSAJE} {message}")
         logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
+
+        # MODO SIN BD - chat conversacional puro
+        # Se activa si: no_db=True, db_params ausente/vacio, o fallo de conexion
+        no_db_flag = context.get('no_db', False)
+        db_params = context.get('db_params')
+        db_params_empty = not db_params or not db_params.get('host') or not db_params.get('database')
+        if no_db_flag or db_params_empty:
+            logger.info(f"[CHAT] Sin BD (no_db={no_db_flag}, db_params_empty={db_params_empty})")
+            return await self._chat_no_db(message, context)
 
         # ── ANÁLISIS PROFUNDO MULTI-FASE ──────────────────────────────────────
         # Se activa con:

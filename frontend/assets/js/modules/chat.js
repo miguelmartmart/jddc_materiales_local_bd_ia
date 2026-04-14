@@ -425,11 +425,34 @@ export class ChatModule {
           .join("");
 
         if (models.length > 0) {
-          selector.value = models[0].id;
+          // Preseleccionar modelo JDDCIA/Qwen local si está disponible
+          // Prioridad: jddcia > qwen > local > primero de la lista
+          const PREFERRED_KEYWORDS = ["jddcia", "qwen", "local", "lan"];
+          const preferred = models.find((m) =>
+            PREFERRED_KEYWORDS.some(
+              (kw) =>
+                m.id.toLowerCase().includes(kw) ||
+                (m.name || "").toLowerCase().includes(kw),
+            ),
+          );
+          selector.value = preferred ? preferred.id : models[0].id;
+
+          // Indicador visual si es modelo local
+          if (preferred) {
+            selector.title = `🏠 Modelo local seleccionado: ${preferred.name || preferred.id}`;
+          }
         }
       }
     } catch (error) {
       console.error("Error loading models:", error);
+      // Fallback: mostrar opción manual
+      const selector = document.getElementById(
+        DOM_SELECTORS.CHAT.MODEL_SELECTOR,
+      );
+      if (selector) {
+        selector.innerHTML =
+          '<option value="">Sin conexión — modelos no disponibles</option>';
+      }
     }
   }
 
@@ -472,17 +495,22 @@ export class ChatModule {
       const deepToggle = document.getElementById("deep-analysis-toggle");
       const deepAnalysisEnabled = deepToggle ? deepToggle.checked : false;
 
+      // Leer estado del checkbox "Sin BD" (modo conversacional puro)
+      const noDbToggle = document.getElementById("no-db-toggle");
+      const noDbMode = noDbToggle ? noDbToggle.checked : false;
+
       const response = await fetch(`${this.apiBase}/send`, {
         method: HTTP_METHODS.POST,
         headers: { "Content-Type": API.HEADERS.CONTENT_TYPE },
         body: JSON.stringify({
           message: message,
-          db_params: dbParams,
+          db_params: noDbMode ? null : dbParams, // Sin BD → no enviar params
           model_id: selectedModel,
           conversation_history: this.conversationHistory,
           images: imagesToSend,
           session_id: this.currentSessionId, // Send current session ID
           deep_analysis: deepAnalysisEnabled, // 🔬 Checkbox análisis profundo
+          no_db: noDbMode, // 💬 Checkbox sin BD
         }),
       });
 

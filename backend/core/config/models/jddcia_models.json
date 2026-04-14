@@ -2,13 +2,14 @@
   "models": [
     {
       "id": "jddcia-qwen3-30b-ip",
-      "name": "Qwen3 VL 30B (JDDC LAN — IP directa)",
+      "name": "🏠 Qwen3 VL 30B (JDDC LAN — IP directa)",
       "provider": "jddcia",
       "family": "qwen",
       "tier": "elite",
       "model_id": "unified-main",
-      "description": "Qwen3 VL 30B en el servidor JDDC via IP directa (192.168.0.36). Preferido sobre mDNS porque jddcia.local no siempre resuelve en Windows.",
+      "description": "Qwen3 VL 30B en el servidor JDDC via IP directa (192.168.0.36). Preferido sobre mDNS porque jddcia.local no siempre resuelve en Windows. Modelo por defecto del sistema.",
       "enabled": true,
+      "preferred": true,
       "capabilities": [
         "text",
         "vision",
@@ -19,7 +20,7 @@
         "vision",
         "code"
       ],
-      "score": 0,
+      "score": 100,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 4096
@@ -48,6 +49,7 @@
       "model_id": "unified-main",
       "description": "Qwen3 VL 30B via mDNS (jddcia.local). Fallback si la IP directa falla. En Windows el mDNS puede no resolver — usar jddcia-qwen3-30b-ip como primario.",
       "enabled": true,
+      "preferred": false,
       "capabilities": [
         "text",
         "vision",
@@ -58,7 +60,7 @@
         "vision",
         "code"
       ],
-      "score": 16,
+      "score": 20,
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 4096
@@ -70,7 +72,7 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 132,
+        "success": 134,
         "failure": 204
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
