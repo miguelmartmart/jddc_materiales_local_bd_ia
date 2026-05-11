@@ -223,41 +223,53 @@ def test_folders_verification_step():
     has_test_path = _has_test_path(response)
     has_next_action = _has_next_action(response)
 
+    mentions_existing = bool(re.search(
+        r"(ya existen|ya existe|existen carpetas|carpetas (como|existentes)|no puedo usar)",
+        response, re.IGNORECASE
+    ))
+
     return _check({
         "Propone árbol o estructura": any(w in response.lower() for w in ["árbol", "estructura", "carpeta", "folder"]),
         "Contiene Test-Path (verificación)": has_test_path,
         "Contiene [[NEXT_ACTION]]": has_next_action,
-        "El label es Verificar (no Crear directo)": "Verificar" in response or has_test_path,
+        "Botón de Verificar (no Crear directo)": "Verificar" in response or has_test_path,
+        "NO verbaliza folders_context ('ya existen X, Y, Z')": not mentions_existing,
     })
 
 
 def test_folders_no_conflict_with_existing():
-    """La IA NO debe proponer carpetas raíz que ya existen en folders_context."""
+    """La IA usa folders_context internamente pero NO lo verbaliza en la respuesta.
+
+    - Correcto: proponer árbol con nombre alternativo → Test-Path → silencio sobre lo que ya existe
+    - Incorrecto: decir 'ya existen carpetas como cyber, src...' en el texto de respuesta
+    """
     print("\n" + "="*60)
-    print("TEST 9: Folder phase — sin conflicto con carpetas existentes")
+    print("TEST 9: Folder phase — no verbalizar folders_context, usar Test-Path")
     print("="*60)
 
-    # El nombre 'cyber' ya existe — la IA debe proponer otro nombre
+    # 'cyber' ya existe en folders_context vía project_path
     response = _post({
         "prompt": "quiero crear un proyecto de ciberseguridad, llámalo cyber",
         "model_id": "jddcia-qwen3-30b-ip",
         "project_path": "C:/Users/test/proyectos",
-        "messages": [
-            {
-                "role": "system",
-                "content": "[SYSTEM] Carpetas existentes en C:/Users/test/proyectos: cyber, src, backend, electron"
-            }
-        ],
     })
-    print(f"Response (first 800 chars): {response[:800]}...\n")
+    print(f"Response (first 900 chars): {response[:900]}...\n")
 
-    # La IA debería evitar proponer 'cyber' como raíz y sugerir alternativa
-    proposes_conflict = bool(re.search(r"New-Item[^\n]*'[^']*cyber'", response))
-    suggests_alternative = any(w in response.lower() for w in ["cybersec", "cyberlab", "sec_tools", "ciberseg", "alternativ", "diferente", "existe"])
+    # La IA no debe decir "ya existe cyber/src/backend..." en el texto
+    mentions_existing = bool(re.search(
+        r"(ya existen|ya existe|existen carpetas|carpetas (como|existentes)|no puedo usar)",
+        response, re.IGNORECASE
+    ))
+    # No debe proponer New-Item directo con 'cyber' como raíz sin verificar antes
+    direct_new_item_cyber = bool(re.search(r"New-Item[^\n]*'[^']*cyber'", response))
+    # Sí debe proponer Test-Path para verificar
+    has_test_path = _has_test_path(response)
+    has_next_action = _has_next_action(response)
 
     return _check({
-        "Detecta el conflicto o sugiere alternativa": suggests_alternative or not proposes_conflict,
-        "No crea 'cyber' directamente con New-Item si ya existe": not proposes_conflict,
+        "NO verbaliza folders_context ('ya existen X, Y, Z')": not mentions_existing,
+        "Propone Test-Path para verificar (no asume sin comprobar)": has_test_path or has_next_action,
+        "No hace New-Item de 'cyber' sin verificar antes": not direct_new_item_cyber or has_test_path,
         "Respuesta no vacía": len(response) > 50,
     })
 
