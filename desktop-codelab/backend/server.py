@@ -998,9 +998,34 @@ async def generate_code(request: GenerateRequest):
             if len(p) > 120:
                 return True
             return False
+        # ─── Truncar historial para evitar overflow de 4096 tokens ──────────────
+        # El modelo tiene 4096 tokens totales. El system prompt usa ~1600 tokens.
+        # Quedan ~2496 para historial + respuesta. Sin truncación, conversaciones
+        # largas dejan <500 tokens para la respuesta → IA miente o trunca respuestas.
+        #
+        # Estrategia:
+        # 1. Mensajes [SYSTEM] con salidas de terminal se truncan a 300 chars
+        #    (la IA solo necesita saber éxito/error, no el listado completo de dirs)
+        # 2. Solo se envían los últimos MAX_HIST_MESSAGES mensajes al modelo
+        _MAX_HIST_MSG   = 10    # máximo de mensajes del historial enviados al modelo
+        _MAX_SYS_CHARS  = 300   # máximo de chars por mensaje [SYSTEM]
+
+        def _truncate_history(msgs):
+            if not msgs:
+                return msgs
+            recent = msgs[-_MAX_HIST_MSG:]
+            result = []
+            for m in recent:
+                if m.get("role") == "system" and len(m.get("content", "")) > _MAX_SYS_CHARS:
+                    short = m["content"][:_MAX_SYS_CHARS].rstrip() + "…[truncado]"
+                    result.append({**m, "content": short})
+                else:
+                    result.append(m)
+            return result
+
         full_prompt = ""
         if request.messages:
-            for msg in request.messages:
+            for msg in _truncate_history(request.messages):
                 role = msg.get("role", "user").upper()
                 content = msg.get("content", "")
                 full_prompt += f"{role}: {content}\n\n"
