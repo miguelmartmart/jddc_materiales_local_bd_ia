@@ -12,7 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   move: (source: string, dest: string) => ipcRenderer.invoke('fs:move', source, dest),
   writeFile: (path: string, content: string) => ipcRenderer.invoke('fs:writeFile', path, content),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
-  executeCommand: (command: string) => ipcRenderer.invoke('shell:execute', command),
+  writeTempImage: (dataUrl: string) => ipcRenderer.invoke('fs:writeTempImage', dataUrl),
+  executeCommand: (command: string, cwd?: string) => ipcRenderer.invoke('shell:execute', command, cwd),
   onFolderSelected: (callback: (path: string) => void) => {
     ipcRenderer.on('menu:folder-selected', (_event, path) => callback(path));
   },

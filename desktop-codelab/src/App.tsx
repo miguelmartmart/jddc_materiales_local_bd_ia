@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Bot, Play, Settings, RefreshCw, Folder, File, ChevronRight, ChevronDown, Terminal, AlertCircle, CheckCircle, Info, Save, XCircle } from 'lucide-react';
-import { api, Model, API_BASE } from './api';
+import { Bot, Play, Settings, RefreshCw, Folder, File, ChevronRight, ChevronDown, Terminal, AlertCircle, CheckCircle, Info, Save, XCircle, Image as ImageIcon, X as XIcon, Paperclip, MessageSquare, FileText } from 'lucide-react';
+import { api, Model, initializeAPIRoute } from './api';
 import { TaskManager, Task, ChatSession } from './components/TaskManager';
 import { contextManager } from './utils/ContextManager';
+import { renderMarkdown } from './utils/markdownRenderer';
+import { parseNextAction, isExecutableAction } from './utils/nextActionParser';
+import {
+  makeSuccessReport,
+  makeFailureReport,
+  makeCancelledReport,
+  makeAutoSaveReport,
+  combineReports,
+} from './utils/systemReports';
 
 // Add global type for exposed Electron API
 declare global {
@@ -19,6 +28,7 @@ declare global {
       move: (source: string, dest: string) => Promise<boolean>;
       writeFile: (path: string, content: string) => Promise<boolean>;
       openExternal: (url: string) => Promise<void>;
+      writeTempImage: (dataUrl: string) => Promise<string>;
       executeCommand: (command: string) => Promise<{ success: boolean; output: string }>;
       onFolderSelected: (callback: (path: string) => void) => void;
       on: (channel: string, callback: (data: any) => void) => void;
@@ -185,6 +195,13 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
   const [output, setOutput] = useState('');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  // Imágenes pendientes de enviar con el próximo mensaje
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
+  // Documentos pendientes de enviar con el próximo mensaje
+  const [pendingDocuments, setPendingDocuments] = useState<{name: string; text: string; info: string; path?: string}[]>([]);
+  const [isExtractingDoc, setIsExtractingDoc] = useState(false);
+  const docInputRef = React.useRef<HTMLInputElement>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [status, setStatus] = useState<string>('Connecting to backend...');
@@ -192,7 +209,9 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
   const [rootDir, setRootDir] = useState<string>('');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [messages, setMessages] = useState<{role: 'user' | 'assistant' | 'system', content: string, timestamp: number, model?: string}[]>([]);
+  const [messages, setMessages] = useState<{role: 'user' | 'assistant' | 'system', content: string, timestamp: number, model?: string, images?: string[], documents?: {name: string; info: string; text?: string; path?: string}[]}[]>([]);
+  const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
+  const [docPreview, setDocPreview] = useState<{name: string; info: string; text: string} | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   // Current File State
@@ -986,6 +1005,20 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
   }, [rootDir]);
 
   const loadModels = async () => {
+    setStatus('Autodiscovering server...');
+    try {
+      // Intentar descubrir la mejor ruta al servidor (Tailscale, IP local, DNS, etc.)
+      await initializeAPIRoute();
+      const discoveredRoute = api.getDiscoveredRoute();
+      if (discoveredRoute) {
+        setStatus(`Connected via ${discoveredRoute.source} (${discoveredRoute.host})`);
+        console.log(`[App] Server discovered: ${discoveredRoute.source}`);
+      }
+    } catch (e) {
+      console.warn('[App] Autodiscovery failed, using fallback', e);
+    }
+
+    // Cargar modelos
     setStatus('Loading models...');
     try {
       const fetched = await api.getModels();
@@ -1407,6 +1440,66 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
     setIsGenerating(false);
   };
 
+  const submitMessageWithImages = async (
+    text: string,
+    images: string[],
+    documents?: {name: string; text: string; info: string; path?: string}[]
+  ) => {
+    if (!text && images.length === 0 && (!documents || documents.length === 0)) return;
+    setIsGenerating(true);
+    const newMessage = { role: 'user' as const, content: text, timestamp: Date.now(), images, documents: documents?.map(d => ({ name: d.name, info: d.info, text: d.text, path: d.path })) };
+    setMessages(prev => {
+      const newMessages = [...prev, newMessage];
+      generateAIResponseWithImages(newMessages, text, images, documents);
+      return newMessages;
+    });
+  };
+
+  const generateAIResponseWithImages = async (
+    currentMessages: {role: 'user' | 'assistant' | 'system', content: string, timestamp: number}[],
+    userText: string,
+    images: string[],
+    documents?: {name: string; text: string; info: string; path?: string}[]
+  ) => {
+    // Reutiliza generateAIResponse pero pasa imágenes y documentos a api.generateCode
+    let retries = 3;
+    let lastError: any = null;
+    let success = false;
+    while (retries > 0 && !success) {
+      try {
+        const apiMessages = currentMessages.map(m => ({
+          role: m.role === 'system' ? 'user' : m.role,
+          content: m.content
+        }));
+        const fullContext = code;
+        // Convertir documentos al formato que espera api.generateCode
+        const docsForApi = documents && documents.length > 0
+          ? documents.map(d => ({ name: d.name, text: d.text }))
+          : undefined;
+        const { response: result, model: usedModel } = await api.generateCode(
+          userText, fullContext, selectedModel, apiMessages, rootDir, images, docsForApi
+        );
+        setMessages(current => [...current, { role: 'assistant' as const, content: result, model: usedModel, timestamp: Date.now() }]);
+        const logParts = [];
+        if (images.length > 0) logParts.push(`${images.length} imagen(es)`);
+        if (documents && documents.length > 0) logParts.push(`${documents.length} doc(s)`);
+        addLog('success', logParts.length > 0 ? `AI respondió (${logParts.join(', ')})` : 'AI respondió.');
+        success = true;
+      } catch (e: any) {
+        lastError = e;
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+          await new Promise(r => setTimeout(r, 2000));
+        } else { retries = 0; }
+        retries--;
+      }
+    }
+    if (!success) {
+      addLog('error', `AI Request Failed: ${lastError?.message}`);
+      setMessages(current => [...current, { role: 'assistant' as const, content: `[SYSTEM] ⚠️ Error: ${lastError?.message}`, timestamp: Date.now() }]);
+    }
+    setIsGenerating(false);
+  };
+
   const submitMessage = async (text: string, role: 'user' | 'system' = 'user', skipGeneration: boolean = false) => {
     if (!text) return;
     if (!skipGeneration) setIsGenerating(true);
@@ -1459,9 +1552,195 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
     }
 
     const userPrompt = prompt;
-    setPrompt(''); // Clear input immediately
-    await submitMessage(userPrompt);
+    let imagesToSend = [...pendingImages];
+    const docsToSend = [...pendingDocuments];
+    setPrompt('');
+    setPendingImages([]);
+    setPendingDocuments([]);
+
+    // Si el usuario no adjunta imágenes nuevas pero parece referirse a una imagen previa,
+    // incluir las imágenes del mensaje de usuario más reciente que las contenga.
+    if (imagesToSend.length === 0) {
+      const IMAGE_REF = /imagen|foto|captura|screenshot|picture|photo|adjunto.{0,15}anterior|anterior.{0,15}imagen/i;
+      if (IMAGE_REF.test(userPrompt)) {
+        const prevImages = [...messages].reverse().find(m => m.images && m.images.length > 0)?.images;
+        if (prevImages && prevImages.length > 0) {
+          imagesToSend = prevImages;
+        }
+      }
+    }
+
+    await submitMessageWithImages(userPrompt, imagesToSend, docsToSend);
   };
+
+  // ─── Manejo de imágenes ───────────────────────────────────────────────────
+
+  /** Convierte un File a data URL base64 */
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  /** Redimensiona una imagen a max 1024px y calidad 70% JPEG (según DEVIA del servidor) */
+  const resizeImage = (dataUrl: string, maxPx = 1024, quality = 0.7): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
+    });
+
+  /** Añade imágenes desde un FileList */
+  const addImagesFromFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newImages: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const raw = await fileToBase64(file);
+        const resized = await resizeImage(raw);
+        newImages.push(resized);
+      } catch (e) {
+        console.error('Error procesando imagen:', e);
+      }
+    }
+    if (newImages.length > 0) {
+      setPendingImages(prev => [...prev, ...newImages]);
+    }
+  };
+
+  /** Maneja paste de imagen desde el portapapeles (Ctrl+V) */
+  const handleChatPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    let hasImage = false;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        hasImage = true;
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault(); // No insertar como texto
+          try {
+            const raw = await fileToBase64(file);
+            const resized = await resizeImage(raw);
+            setPendingImages(prev => [...prev, resized]);
+          } catch (err) {
+            console.error('Error pegando imagen:', err);
+          }
+        }
+      }
+    }
+    // Si no hay imagen, dejar que el paste normal funcione (texto)
+  };
+
+  // ─── Fin manejo de imágenes ───────────────────────────────────────────────
+
+  // ─── Drag & Drop en el área del chat ─────────────────────────────────────
+
+  const [isChatDragOver, setIsChatDragOver] = useState(false);
+
+  const handleChatDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsChatDragOver(true);
+  };
+
+  const handleChatDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsChatDragOver(false);
+  };
+
+  const handleChatDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsChatDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const imageFiles: File[] = [];
+    const docFiles: File[] = [];
+
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith('image/')) {
+        imageFiles.push(file);
+      } else {
+        docFiles.push(file);
+      }
+    }
+
+    // Procesar imágenes
+    if (imageFiles.length > 0) {
+      const newImages: string[] = [];
+      for (const file of imageFiles) {
+        try {
+          const raw = await fileToBase64(file);
+          const resized = await resizeImage(raw);
+          newImages.push(resized);
+        } catch (err) {
+          console.error('Error procesando imagen arrastrada:', err);
+        }
+      }
+      if (newImages.length > 0) {
+        setPendingImages(prev => [...prev, ...newImages]);
+        addLog('info', `${newImages.length} imagen(es) añadida(s) por drag & drop`);
+      }
+    }
+
+    // Procesar documentos
+    if (docFiles.length > 0) {
+      // Convertir a FileList-like usando DataTransfer
+      const dt = new DataTransfer();
+      docFiles.forEach(f => dt.items.add(f));
+      await addDocumentsFromFiles(dt.files);
+    }
+  };
+
+  // ─── Fin Drag & Drop ──────────────────────────────────────────────────────
+
+  // ─── Manejo de documentos ─────────────────────────────────────────────────
+
+  /** Añade documentos desde un FileList, extrayendo su texto via backend */
+  const addDocumentsFromFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsExtractingDoc(true);
+    for (const file of Array.from(files)) {
+      try {
+        const b64 = await fileToBase64(file);
+        const result = await api.extractText(file.name, b64);
+        if (result.text) {
+          const info = [
+            result.pages ? `${result.pages} págs.` : '',
+            result.rows ? `${result.rows} filas` : '',
+            result.truncated ? '(truncado)' : ''
+          ].filter(Boolean).join(' · ');
+          const filePath = (file as any).path as string | undefined;
+          setPendingDocuments(prev => [...prev, { name: file.name, text: result.text, info, path: filePath }]);
+          addLog('success', `Documento adjunto: ${file.name} — ${result.text.length} chars${info ? ' · ' + info : ''}`);
+        } else if (result.error) {
+          addLog('error', `Error extrayendo ${file.name}: ${result.error}`);
+        }
+      } catch (e: any) {
+        addLog('error', `Error procesando ${file.name}: ${e.message}`);
+      }
+    }
+    setIsExtractingDoc(false);
+  };
+
+  // ─── Fin manejo de documentos ─────────────────────────────────────────────
 
   const handleRunCommand = async (command: string, autoContinue: boolean = false, saveReport?: string) => {
     try {
@@ -1470,83 +1749,31 @@ const CollapsibleSection = ({ title, children, defaultOpen = true, actionButton 
       
       // Sanitizer: Fix Start-Process -Path to -FilePath (Common AI error)
       if (cleanCommand.includes('Start-Process')) {
-         // Replace -Path with -FilePath when used with Start-Process
          cleanCommand = cleanCommand.replace(/(Start-Process[\s\S]*?)-Path/gi, '$1-FilePath');
       }
-      
+      // Sanitizer: replace && with ; — powershell.exe (v5) doesn't support &&
+      cleanCommand = cleanCommand.replace(/\s*&&\s*/g, '; ');
+
       addLog('info', `Running: ${cleanCommand}`);
 
-      const result = await window.electronAPI.executeCommand(cleanCommand);
-      
-      let executionReport = '';
+      const result = await window.electronAPI.executeCommand(cleanCommand, rootDir ?? undefined);
 
+      let executionReport: string;
       if (result.success) {
-        const out = result.output || "(No output)";
+        const out = result.output || '(No output)';
         addLog('success', `Executed: ${cleanCommand}\nOutput:\n${out}`);
-        alert(`Ejecución Exitosa:\n${out}`);
-        
-        executionReport = `[SYSTEM] Execution Result for: ${cleanCommand}\nSuccess: True\nOutput:\n${out}`;
-
-        // Refresh file tree if rootDir is set
+        executionReport = makeSuccessReport(cleanCommand, out);
         if (rootDir) loadDirectory(rootDir);
-
-        // Auto-feed result back to AI
-        if (autoContinue) {
-             // Disabled auto-advance to prevent loops
-        }
-
       } else {
         addLog('error', `Failed: ${cleanCommand}\nOutput: ${result.output}`);
-        alert(`Command Failed:\n${result.output}`);
-        
-        const rawOutput = result.output || "";
-        const isUserCancelled = rawOutput.toLowerCase().includes("cancelled by user");
-
-        if (isUserCancelled) {
-          executionReport = `[SYSTEM] ❌ CRITICAL EXECUTION FAILURE for: ${cleanCommand}
-SUCCESS_FLAG: False
-ERROR_TYPE: USER_CANCELLED
-EXIT_CODE: ${result.exitCode || 'Unknown'}
-ERROR_OUTPUT:
-${rawOutput}
-
-⚠️ URGENT INSTRUCTION FOR AI:
-The command was CANCELLED BY THE USER from the confirmation dialog.
-This is NOT a bug in the code.
-You MUST:
-1. Explicitly say that the previous execution was cancelled by the user.
-2. Confirm that the current code does NOT need changes due to this cancellation.
-3. Offer to re-run the same command with a NEXT_ACTION run_command button.
-4. Do NOT say "Perfecto" or "Genial" until a successful run happens after the cancellation.`;
-        } else {
-          executionReport = `[SYSTEM] ❌ CRITICAL EXECUTION FAILURE for: ${cleanCommand}
-SUCCESS_FLAG: False
-ERROR_TYPE: EXECUTION_ERROR
-EXIT_CODE: ${result.exitCode || 'Unknown'}
-ERROR_OUTPUT:
-${rawOutput}
-
-⚠️ URGENT INSTRUCTION FOR AI:
-The command FAILED. Do NOT say "Perfecto" or "Great". Do NOT proceed to the next step yet.
-Your PRIORITY is to ANALYZE this error and FIX the code immediately.
-You MUST:
-1. Start your answer explicitly acknowledging the error (in Spanish).
-2. Explain in 1 frase clara cuál fue la causa probable del fallo.
-3. Reescribir el bloque COMPLETO del archivo afectado ya corregido.
-4. Decir literalmente: "He corregido el error anterior modificando el fichero [ruta]."
-5. Incluir al final un botón NEXT_ACTION de tipo run_command para volver a ejecutar el script corregido.`;
-        }
+        const rawOutput = result.output || '';
+        const isUserCancelled = rawOutput.toLowerCase().includes('cancelled by user');
+        executionReport = isUserCancelled
+          ? makeCancelledReport(cleanCommand, rawOutput, result.exitCode)
+          : makeFailureReport(cleanCommand, rawOutput, result.exitCode);
       }
 
-      // Combine with save report if available and send to AI
-      // User request: "los resultados han de enviarse, junto con los resultados de guardado, para que los interprete el modelo de ia"
-      let finalReport = executionReport;
-      if (saveReport) {
-          finalReport = `${saveReport}\n\n${executionReport}`;
-      }
-      
-      // Send report to AI context
-      await submitMessage(finalReport, 'system');
+      await submitMessage(combineReports(executionReport, saveReport), 'system');
 
     } catch (e: any) {
       const msg = `Error executing command: ${e.message}`;
@@ -1752,11 +1979,10 @@ You MUST:
             try {
                 // Ensure we save the current content before running
                 await onSave(title, sanitizeCodeContent(content, lang));
-                saveReport = `[SYSTEM] Auto-Save: Successfully saved ${title} before execution.`;
+                saveReport = makeAutoSaveReport(title, true);
             } catch (e: any) {
                 console.error("Auto-save failed before run:", e);
-                // We continue trying to run even if save fails, though it might fail.
-                saveReport = `[SYSTEM] Auto-Save: Failed to save ${title} before execution. Error: ${e.message}`;
+                saveReport = makeAutoSaveReport(title, false, e.message);
             }
         }
 
@@ -1905,7 +2131,7 @@ You MUST:
           return <CodeBlock key={index} content={codeContent} lang={lang} onRun={handleRunCommand} onSave={handleSaveFile} />;
         }
       }
-      return <div key={index} className="whitespace-pre-wrap">{part}</div>;
+      return <div key={index} className="text-sm">{renderMarkdown(part)}</div>;
     });
   };
 
@@ -1961,21 +2187,27 @@ You MUST:
       return null;
   };
 
-  const handleExecuteNextAction = async (action: { type: string, content: string, label?: string }, messageContent?: string) => {
-      // DEBUG: Verify action
+  const handleExecuteNextAction = async (action: { type: string, content: string, label?: string, cancel_label?: string, cancel_message?: string }, messageContent?: string) => {
       console.log("Executing Next Action:", action);
-      alert(`DEBUG: NextAction Triggered\nType: ${action.type}\nContent: ${action.content}`);
 
       try {
+          if (action.type === 'confirm_plan') {
+              await submitMessage(action.content || 'Confirmado. Procede con el plan.', 'system');
+              return;
+          }
+
           if (action.type === 'run_command') {
               // AUTO-SAVE LOGIC FOR NEXT_ACTION
               let targetFile = '';
               let saveReport = '';
               const cmd = action.content;
               
-              // Identify target file from command
+              // Identify target file from command.
+              // Exclude flag-only invocations like "python --version" or "node -e" —
+              // those are not script files; matching them as targetFile causes a false
+              // "file not found" error dialog.
               const scriptMatch = cmd.match(/(?:python|node|ts-node)\s+["']?([^"'\s]+)["']?/);
-              if (scriptMatch) {
+              if (scriptMatch && !scriptMatch[1].startsWith('-')) {
                   targetFile = scriptMatch[1];
               } else if (cmd.includes('pip install') && cmd.includes('-r')) {
                    const reqMatch = cmd.match(/-r\s+["']?([^"'\s]+)["']?/);
@@ -2019,9 +2251,9 @@ You MUST:
                        if (blockTitle && (normTitle === normTarget || normTarget.endsWith('/' + normTitle) || normTitle.endsWith('/' + normTarget) || normTarget.endsWith(normTitle) || normTitle.endsWith(normTarget))) {
                             try {
                                 await handleSaveFile(targetFile, sanitizeCodeContent(code, lang));
-                                saveReport = `[SYSTEM] Auto-Save: Successfully saved ${targetFile} before execution.`;
+                                saveReport = makeAutoSaveReport(targetFile, true);
                             } catch (e: any) {
-                                saveReport = `[SYSTEM] Auto-Save: Failed to save ${targetFile} before execution. Error: ${e.message}`;
+                                saveReport = makeAutoSaveReport(targetFile, false, e.message);
                             }
                             break; 
                        }
@@ -2032,7 +2264,7 @@ You MUST:
                             if (code.includes('"name":') || code.includes('"dependencies":')) {
                                 try {
                                     await handleSaveFile('package.json', sanitizeCodeContent(code, lang));
-                                    saveReport = `[SYSTEM] Auto-Save: Successfully saved package.json before execution.`;
+                                    saveReport = makeAutoSaveReport('package.json', true);
                                 } catch (e: any) {
                                     saveReport = `[SYSTEM] Auto-Save: Failed to save package.json before execution. Error: ${e.message}`;
                                 }
@@ -2044,9 +2276,9 @@ You MUST:
                        if (targetFile === 'requirements.txt' && (lang === '' || lang === 'txt' || lang === 'text')) {
                             try {
                                 await handleSaveFile('requirements.txt', sanitizeCodeContent(code, lang));
-                                saveReport = `[SYSTEM] Auto-Save: Successfully saved requirements.txt before execution.`;
+                                saveReport = makeAutoSaveReport('requirements.txt', true);
                             } catch (e: any) {
-                                saveReport = `[SYSTEM] Auto-Save: Failed to save requirements.txt before execution. Error: ${e.message}`;
+                                saveReport = makeAutoSaveReport('requirements.txt', false, e.message);
                             }
                             break;
                        }
@@ -2472,156 +2704,360 @@ You MUST:
                     </div>
                 </div>
               </div>
+              {/* Modal de preview de documento */}
+              {docPreview && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                  onClick={() => setDocPreview(null)}
+                >
+                  <div
+                    className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700 bg-gray-800 rounded-t-lg">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={14} className="text-amber-400 shrink-0" />
+                        <span className="text-sm font-semibold text-white truncate">{docPreview.name}</span>
+                        {docPreview.info && <span className="text-[10px] text-gray-400 shrink-0">{docPreview.info}</span>}
+                      </div>
+                      <button
+                        onClick={() => setDocPreview(null)}
+                        className="text-gray-400 hover:text-white transition-colors ml-3 shrink-0"
+                        title="Cerrar"
+                      >
+                        <XIcon size={16} />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap break-words">
+                      {docPreview.text || '(Sin contenido extraído)'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex-1 p-2 overflow-y-auto overflow-x-auto min-h-0 bg-[#1e1e1e]">
-                 <div className="flex flex-col gap-4">
-                   {messages.map((msg, idx) => (
-                     <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                       <div className={`max-w-[95%] rounded-lg p-3 ${
-                         msg.role === 'user' 
-                           ? 'bg-blue-900/30 border border-blue-800 text-white' 
-                           : 'bg-gray-800/50 border border-gray-700 text-gray-200'
-                       }`}>
-                         {msg.role === 'assistant' && (
-                           <div className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-wider flex items-center gap-2">
-                             <Bot size={12} /> AI Assistant
+                 <div className="flex flex-col gap-3">
+                   {messages.map((msg, idx) => {
+                     const isCollapsed = collapsedMessages.has(msg.timestamp);
+                     const toggleCollapsed = () => setCollapsedMessages(prev => {
+                       const next = new Set(prev);
+                       if (next.has(msg.timestamp)) next.delete(msg.timestamp);
+                       else next.add(msg.timestamp);
+                       return next;
+                     });
+                     const isUser = msg.role === 'user';
+                     // Solo el último mensaje del asistente tiene botones activos.
+                     // Un mensaje del asistente queda obsoleto únicamente cuando la IA
+                     // ya ha respondido de nuevo (hay otro mensaje 'assistant' después).
+                     // Si el usuario escribió pero la IA aún no respondió, el botón sigue activo.
+                     const isLastAssistant = msg.role === 'assistant' &&
+                       !messages.slice(idx + 1).some(m => m.role === 'assistant');
+                     // Adjuntos del propio mensaje (usuario) o del mensaje de usuario previo (asistente)
+                     const userAttachSrc = isUser
+                       ? msg
+                       : (idx > 0 && messages[idx - 1].role === 'user' ? messages[idx - 1] : null);
+                     const attachImages = userAttachSrc?.images ?? [];
+                     const attachDocs = userAttachSrc?.documents ?? [];
+                     const hasAttachments = attachImages.length > 0 || attachDocs.length > 0;
+
+                     return (
+                       <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                         <div className={`max-w-[95%] rounded-lg overflow-hidden border ${
+                           isUser
+                             ? 'bg-blue-900/30 border-blue-800 text-white'
+                             : 'bg-gray-800/50 border-gray-700 text-gray-200'
+                         }`}>
+                           {/* Header — siempre visible, clic para colapsar */}
+                           <div
+                             className={`flex items-center justify-between px-3 py-1.5 cursor-pointer select-none transition-colors ${
+                               isUser ? 'bg-blue-900/50 hover:bg-blue-900/70' : 'bg-gray-700/40 hover:bg-gray-700/60'
+                             }`}
+                             onClick={toggleCollapsed}
+                           >
+                             <div className="flex items-center gap-2 text-[11px] font-semibold">
+                               {isUser ? (
+                                 <MessageSquare size={11} className="text-blue-400 shrink-0" />
+                               ) : (
+                                 <Bot size={11} className="text-blue-400 shrink-0" />
+                               )}
+                               <span className={isUser ? 'text-blue-300' : 'text-blue-400 uppercase tracking-wider'}>
+                                 {isUser ? 'Tú' : 'AI Assistant'}
+                               </span>
+                               {/* Indicador compacto de adjuntos en el header (solo en mensaje de usuario) */}
+                               {isUser && hasAttachments && (
+                                 <span className="flex items-center gap-1 text-amber-400">
+                                   <Paperclip size={10} />
+                                   <span className="text-[10px]">
+                                     {[
+                                       attachImages.length > 0 ? `${attachImages.length} img` : null,
+                                       attachDocs.length > 0 ? `${attachDocs.length} doc` : null,
+                                     ].filter(Boolean).join(' · ')}
+                                   </span>
+                                 </span>
+                               )}
+                             </div>
+                             <div className="flex items-center gap-1.5">
+                               <span className="text-[10px] text-gray-500">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                               {isCollapsed ? <ChevronRight size={12} className="text-gray-500" /> : <ChevronDown size={12} className="text-gray-500" />}
+                             </div>
                            </div>
-                         )}
-                         <div className="text-sm leading-relaxed overflow-x-auto">
-                           {(() => {
-                            const rawContent = msg.content;
-                            const displayContent = rawContent.replace(/\[\[\s*NEXT_ACTION\s*:\s*[\s\S]*?\]\]/gi, '').trim();
-                            const regex = /\[\[\s*NEXT_ACTION\s*:\s*([\s\S]*?)\]\]/i;
-                            const nextActionMatch = rawContent.match(regex);
-                            
-                            return (
-                              <>
-                                {renderMessageContent(displayContent)}
-                                  {displayContent.includes('NEXT_ACTION') && (
-                                     <div className="mt-2 p-2 bg-yellow-900/40 border border-yellow-700/50 rounded text-[10px] text-yellow-200 font-mono overflow-hidden">
-                                        <div className="font-bold mb-1">⚠️ DETECTADO 'NEXT_ACTION' PERO NO PROCESADO</div>
-                                        <div>Regex Failed. Raw segment around marker:</div>
-                                        <div className="opacity-70 break-all p-1 bg-black/20 mt-1">
-                                            {displayContent.substring(Math.max(0, displayContent.indexOf('NEXT_ACTION') - 20), Math.min(displayContent.length, displayContent.indexOf('NEXT_ACTION') + 100))}
-                                        </div>
+
+                           {/* Cuerpo — colapsable */}
+                           {!isCollapsed && (
+                             <div className="p-3">
+                               {/* Panel de adjuntos — en msg de asistente, después del header y antes de la respuesta */}
+                               {!isUser && hasAttachments && (
+                                 <details className="mb-3 group">
+                                   <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[10px] font-semibold text-amber-400 uppercase tracking-wider select-none py-1 px-2 rounded bg-amber-900/20 border border-amber-700/30 hover:bg-amber-900/30 transition-colors">
+                                     <Paperclip size={10} />
+                                     <span>
+                                       Adjuntos enviados ({[
+                                         attachImages.length > 0 ? `${attachImages.length} imagen${attachImages.length > 1 ? 'es' : ''}` : null,
+                                         attachDocs.length > 0 ? `${attachDocs.length} documento${attachDocs.length > 1 ? 's' : ''}` : null,
+                                       ].filter(Boolean).join(', ')})
+                                     </span>
+                                     <ChevronRight size={10} className="ml-auto transition-transform group-open:rotate-90" />
+                                   </summary>
+                                   <div className="mt-1.5 flex flex-col gap-1.5 pl-1">
+                                     {attachImages.length > 0 && (
+                                       <div className="flex flex-wrap gap-1.5">
+                                         {attachImages.map((img, i) => (
+                                           <img
+                                             key={i}
+                                             src={img}
+                                             alt=""
+                                             role="presentation"
+                                             className="h-14 w-14 object-cover rounded border border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
+                                             title={`Imagen ${i + 1} — clic para abrir`}
+                                             onClick={async () => {
+                                               try {
+                                                 const tempPath = await window.electronAPI.writeTempImage(img);
+                                                 await window.electronAPI.openExternal(`file://${tempPath}`);
+                                               } catch {
+                                                 window.open(img, '_blank');
+                                               }
+                                             }}
+                                           />
+                                         ))}
+                                       </div>
+                                     )}
+                                     {attachDocs.length > 0 && (
+                                       <div className="flex flex-col gap-1">
+                                         {attachDocs.map((doc, i) => (
+                                           <button
+                                             key={i}
+                                             className="flex items-center gap-1.5 text-[11px] text-gray-300 bg-gray-800/60 hover:bg-gray-700/80 rounded px-2 py-1 border border-gray-700/50 hover:border-amber-700/50 transition-colors text-left w-full"
+                                             title={doc.path ? `Abrir: ${doc.path}` : (doc.text ? 'Ver contenido extraído' : doc.name)}
+                                             onClick={() => {
+                                               if (doc.path) {
+                                                 window.electronAPI.openExternal(`file://${doc.path}`);
+                                               } else if (doc.text) {
+                                                 setDocPreview({ name: doc.name, info: doc.info ?? '', text: doc.text });
+                                               }
+                                             }}
+                                           >
+                                             <FileText size={11} className="text-amber-400 shrink-0" />
+                                             <span className="truncate font-medium">{doc.name}</span>
+                                             {doc.info && <span className="text-gray-500 shrink-0 ml-auto">{doc.info}</span>}
+                                             <span className="text-amber-600 shrink-0 ml-1">↗</span>
+                                           </button>
+                                         ))}
+                                       </div>
+                                     )}
+                                   </div>
+                                 </details>
+                               )}
+
+                               {/* Contenido del mensaje */}
+                               <div className="text-sm leading-relaxed overflow-x-auto">
+                                 {(() => {
+                                   const rawContent = msg.content;
+                                   const displayContent = rawContent.replace(/\[\[\s*NEXT_ACTION\s*:\s*[\s\S]*?\]\]/gi, '').trim();
+                                   return (
+                                     <>
+                                       {renderMessageContent(displayContent)}
+                                       {displayContent.includes('NEXT_ACTION') && (
+                                         <div className="mt-2 p-2 bg-yellow-900/40 border border-yellow-700/50 rounded text-[10px] text-yellow-200 font-mono overflow-hidden">
+                                           <div className="font-bold mb-1">⚠️ NEXT_ACTION detectado pero no procesado</div>
+                                           <div className="opacity-70 break-all p-1 bg-black/20 mt-1">
+                                             {displayContent.substring(Math.max(0, displayContent.indexOf('NEXT_ACTION') - 20), Math.min(displayContent.length, displayContent.indexOf('NEXT_ACTION') + 100))}
+                                           </div>
+                                         </div>
+                                       )}
+                                     </>
+                                   );
+                                 })()}
+                               </div>
+
+                               {/* Botones de acción — solo cuando la IA incluye NEXT_ACTION explícito */}
+                               {msg.role === 'assistant' && (() => {
+                                 const { action: nextAction, error: parseError } = parseNextAction(msg.content);
+
+                                 if (parseError) {
+                                   return (
+                                     <div className="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200">
+                                       <div className="font-bold flex items-center gap-1"><AlertCircle size={12} /> Error al procesar acción</div>
+                                       <div className="font-mono opacity-70 truncate">{parseError}</div>
                                      </div>
-                                  )}
-                                </>
-                             );
-                           })()}
+                                   );
+                                 }
+
+                                 if (!isExecutableAction(nextAction)) return null;
+
+                                 // Botón obsoleto: la IA ya respondió de nuevo con otro mensaje.
+                                 // El usuario había escrito algo en lugar de pulsar el botón.
+                                 if (!isLastAssistant) {
+                                   return (
+                                     <div className="mt-3 pt-3 border-t border-gray-600/30 flex flex-col gap-1.5">
+                                       <div className="text-[10px] uppercase tracking-wider font-bold text-gray-600 flex items-center gap-1">
+                                         <Play size={10} className="text-gray-600" /> Acción superada
+                                       </div>
+                                       <div className="flex gap-2 opacity-40 cursor-not-allowed" title="Esta acción ya no está vigente porque el flujo continuó con un mensaje posterior">
+                                         <div className="bg-gray-700/50 text-gray-500 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 border border-gray-700/50 select-none">
+                                           <CheckCircle size={14} />
+                                           {nextAction.label || 'Ejecutar'}
+                                         </div>
+                                       </div>
+                                     </div>
+                                   );
+                                 }
+
+                                 // Botón activo: es el último mensaje del asistente
+                                 const cancelLabel = nextAction.cancel_label || 'Cancelar';
+                                 const cancelMsg = nextAction.cancel_message || 'Cancela esa acción. Espera a nuevas instrucciones.';
+                                 return (
+                                   <div className="mt-3 pt-3 border-t border-gray-700/50 flex flex-col gap-2">
+                                     <div className="text-[10px] uppercase tracking-wider font-bold text-gray-400 flex items-center gap-1">
+                                       <Play size={10} className="text-blue-400" /> Acción Recomendada
+                                     </div>
+                                     <div className="flex gap-2">
+                                       <button
+                                         onClick={() => handleExecuteNextAction(nextAction, msg.content)}
+                                         className="bg-green-600/90 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm hover:shadow-md"
+                                         title={nextAction.label || 'Ejecutar acción'}
+                                       >
+                                         <CheckCircle size={14} />
+                                         {nextAction.label || 'Ejecutar'}
+                                       </button>
+                                       <button
+                                         onClick={() => submitMessage(cancelMsg)}
+                                         className="bg-gray-700 hover:bg-red-900/50 text-gray-300 hover:text-red-200 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all border border-gray-600 hover:border-red-800"
+                                         title={cancelLabel}
+                                       >
+                                         <XCircle size={14} />
+                                         {cancelLabel}
+                                       </button>
+                                     </div>
+                                   </div>
+                                 );
+                               })()}
+                             </div>
+                           )}
                          </div>
-                         
-                        {/* Next Step Confirmation Buttons - Render for ANY assistant message that has the tag */}
-                        {msg.role === 'assistant' && (() => {
-                            const rawContent = msg.content;
-                            const regex = /\[\[\s*NEXT_ACTION\s*:\s*([\s\S]*?)\]\]/i;
-                            const nextActionMatch = rawContent.match(regex);
-                            
-                            let nextAction = null;
-                            let error = null;
- 
-                             if (nextActionMatch) {
-                                try {
-                                    let jsonStr = nextActionMatch[1].trim();
-                                    // Cleanup common markdown artifacts
-                                    jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
-                                    // Sanitize newlines to spaces (common issue in LLM JSON output)
-                                    jsonStr = jsonStr.replace(/\n/g, ' ');
-                                    
-                                    nextAction = JSON.parse(jsonStr);
-                                } catch (e: any) {
-                                    console.error("Failed to parse NEXT_ACTION", e);
-                                    error = e.message;
-                                }
-                             }
-                             
-                             // If no match but marker exists, we handled visual warning above in content render.
-                             // Here we just handle success or parse error.
-
-                             if (error) {
-                                return (
-                                   <div className="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200">
-                                       <div className="font-bold flex items-center gap-1"><AlertCircle size={12}/> Error parsing action button</div>
-                                       <div className="font-mono opacity-70 truncate">{error}</div>
-                                       <div className="mt-1 opacity-50 text-[10px] break-all">Raw: {nextActionMatch?.[1]}</div>
-                                   </div>
-                                );
-                             }
-
-                            if (nextAction) {
-                                return (
-                                   <div className="mt-3 pt-3 border-t border-gray-700/50 flex flex-col gap-2">
-                                       <div className="text-[10px] uppercase tracking-wider font-bold text-gray-400 flex items-center gap-1">
-                                         <Play size={10} className="text-blue-400" /> Acción Recomendada
-                                       </div>
-                                       <div className="flex gap-2">
-                                           <button 
-                                               onClick={() => handleExecuteNextAction(nextAction, msg.content)}
-                                               className="bg-green-600/90 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm hover:shadow-md"
-                                               title={nextAction.label || "Ejecutar acción"}
-                                           >
-                                               <CheckCircle size={14} />
-                                               {nextAction.label || (nextAction.type === 'run_command' ? "Ejecutar Pasos" : "Confirmar y Ejecutar")}
-                                           </button>
-                                           <button 
-                                               onClick={() => submitMessage("Cancela esa acción. Espera a nuevas instrucciones.")}
-                                               className="bg-gray-700 hover:bg-red-900/50 text-gray-300 hover:text-red-200 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all border border-gray-600 hover:border-red-800"
-                                               title="Cancelar acción"
-                                           >
-                                               <XCircle size={14} />
-                                               Cancelar
-                                           </button>
-                                       </div>
-                                   </div>
-                                );
-                            } else if (idx >= messages.length - 1 && msg.content.match(/(Próximos Pasos|Next Steps|ESTADO|STATUS|Resumen|Summary|Listo|Button|Botón|Ejecutar|Run)/i)) {
-                                // Fallback to generic continue button if no explicit action block AND it is the last message
-                                return (
-                                   <div className="mt-3 pt-3 border-t border-gray-700/50 flex flex-col gap-2">
-                                       <div className="text-[10px] uppercase tracking-wider font-bold text-gray-400 flex items-center gap-1">
-                                         <Play size={10} className="text-blue-400" /> Siguiente Paso
-                                       </div>
-                                       <div className="flex gap-2">
-                                           <button 
-                                               onClick={() => submitMessage("Continúa con el siguiente paso, por favor.")}
-                                               className="bg-green-600/90 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm hover:shadow-md"
-                                               title="Confirmar y ejecutar el siguiente paso sugerido"
-                                           >
-                                               <CheckCircle size={14} />
-                                               Continuar
-                                           </button>
-                                           <button 
-                                               onClick={() => submitMessage("Espera, no continúes todavía.")}
-                                               className="bg-gray-700 hover:bg-red-900/50 text-gray-300 hover:text-red-200 px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all border border-gray-600 hover:border-red-800"
-                                           >
-                                               <XCircle size={14} />
-                                               Cancelar
-                                           </button>
-                                       </div>
-                                   </div>
-                                );
-                            }
-                            return null;
-                        })()}
                        </div>
-                     </div>
-                   ))}
+                     );
+                   })}
                    {isGenerating && (
-                     <div className="flex items-center gap-2 text-gray-500 italic text-xs p-2">
-                       <RefreshCw className="animate-spin" size={12} />
-                       <span>Thinking...</span>
+                     <div className="flex items-start">
+                       <div className="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 flex items-center gap-2 text-gray-500 italic text-xs">
+                         <Bot size={11} className="text-blue-400 shrink-0" />
+                         <RefreshCw className="animate-spin" size={11} />
+                         <span>Procesando...</span>
+                       </div>
                      </div>
                    )}
                    <div ref={messagesEndRef} />
                  </div>
               </div>
-              <div className="p-2 border-t border-gray-700 bg-gray-900 shrink-0">
+              <div
+                className={`relative p-2 border-t border-gray-700 bg-gray-900 shrink-0 transition-colors ${isChatDragOver ? 'bg-blue-900/30 border-blue-500' : ''}`}
+                onDragOver={handleChatDragOver}
+                onDragLeave={handleChatDragLeave}
+                onDrop={handleChatDrop}
+              >
+                {/* Indicador visual de drag & drop */}
+                {isChatDragOver && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                    <div className="bg-blue-900/80 border-2 border-dashed border-blue-400 rounded-lg px-6 py-4 text-blue-200 text-sm font-semibold flex items-center gap-2">
+                      <span>📎</span>
+                      <span>Suelta aquí para adjuntar</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2">
+                  {/* Preview de imágenes pendientes */}
+                  {pendingImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2 p-1 bg-gray-800/60 rounded border border-gray-700">
+                      {pendingImages.map((img, i) => (
+                        <div key={i} className="relative group">
+                          <img
+                            src={img}
+                            alt={`img-${i}`}
+                            className="h-16 w-16 object-cover rounded border border-gray-600"
+                          />
+                          <button
+                            onClick={() => setPendingImages(prev => prev.filter((_, idx) => idx !== i))}
+                            className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Eliminar imagen"
+                          >
+                            <XIcon size={10} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="text-[10px] text-gray-400 self-end pb-1">
+                        {pendingImages.length} imagen{pendingImages.length > 1 ? 'es' : ''} adjunta{pendingImages.length > 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  )}
+                  {/* Preview de documentos pendientes */}
+                  {pendingDocuments.length > 0 && (
+                    <div className="flex flex-col gap-1 p-1.5 bg-amber-900/20 rounded border border-amber-700/50">
+                      <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">
+                        📄 {pendingDocuments.length} documento{pendingDocuments.length > 1 ? 's' : ''} adjunto{pendingDocuments.length > 1 ? 's' : ''}
+                      </div>
+                      {pendingDocuments.map((doc, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 bg-gray-800/60 rounded px-2 py-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-amber-300 text-xs">📄</span>
+                            <span className="text-xs text-gray-200 truncate">{doc.name}</span>
+                            {doc.info && <span className="text-[10px] text-gray-500 shrink-0">{doc.info}</span>}
+                          </div>
+                          <button
+                            onClick={() => setPendingDocuments(prev => prev.filter((_, idx) => idx !== i))}
+                            className="text-gray-500 hover:text-red-400 transition-colors shrink-0"
+                            title="Eliminar documento"
+                          >
+                            <XIcon size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Input file oculto para adjuntar imágenes */}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addImagesFromFiles(e.target.files)}
+                  />
+                  {/* Input file oculto para adjuntar documentos */}
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.xml,.html,.htm,.py,.js,.ts,.jsx,.tsx,.css,.scss,.yaml,.yml,.toml,.ini,.cfg,.sql,.log"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addDocumentsFromFiles(e.target.files)}
+                  />
                   <textarea 
                     className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white focus:outline-none focus:border-blue-500 resize-none font-sans"
                     rows={3}
-                    placeholder="Describe what you want..."
+                    placeholder={pendingImages.length > 0 ? "Pregunta sobre la imagen... (o deja vacío)" : pendingDocuments.length > 0 ? "Pregunta sobre el documento..." : "Describe what you want... (Ctrl+V para pegar imagen)"}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
+                    onPaste={handleChatPaste}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -2629,7 +3065,33 @@ You MUST:
                       }
                     }}
                   />
-                  <div className="flex justify-end">
+                  <div className="flex justify-between items-center gap-1">
+                    {/* Botones adjuntar */}
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => imageInputRef.current?.click()}
+                        className="flex items-center gap-1 px-2 py-1.5 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-600 transition-colors"
+                        title="Adjuntar imagen (también puedes pegar con Ctrl+V)"
+                      >
+                        <ImageIcon size={13} />
+                        <span>Imagen</span>
+                      </button>
+                      <button
+                        onClick={() => docInputRef.current?.click()}
+                        disabled={isExtractingDoc}
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded text-xs border transition-colors ${
+                          isExtractingDoc
+                            ? 'text-amber-400 border-amber-700 bg-amber-900/20 cursor-wait'
+                            : pendingDocuments.length > 0
+                              ? 'text-amber-300 border-amber-600 bg-amber-900/30 hover:bg-amber-900/50'
+                              : 'text-gray-400 hover:text-white hover:bg-gray-700 border-gray-600'
+                        }`}
+                        title="Adjuntar documento (PDF, Excel, Word, CSV, TXT...)"
+                      >
+                        <span>{isExtractingDoc ? '⏳' : '📎'}</span>
+                        <span>{isExtractingDoc ? 'Leyendo...' : 'Doc'}{pendingDocuments.length > 0 ? ` (${pendingDocuments.length})` : ''}</span>
+                      </button>
+                    </div>
                     <button 
                       className={`flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors ${
                         isGenerating 
@@ -2640,7 +3102,7 @@ You MUST:
                       disabled={isGenerating}
                     >
                       {isGenerating ? <RefreshCw className="animate-spin" size={14} /> : <Play size={14} fill="currentColor" />}
-                      <span>{isGenerating ? 'Generating...' : 'Generate Code'}</span>
+                      <span>{isGenerating ? 'Generating...' : (pendingImages.length > 0 || pendingDocuments.length > 0) ? 'Enviar' : 'Generate Code'}</span>
                     </button>
                   </div>
                 </div>

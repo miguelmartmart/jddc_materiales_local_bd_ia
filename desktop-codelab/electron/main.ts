@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, dialog, shell } from 'electron';
 import path from 'path';
+import os from 'os';
 import { spawn, exec } from 'child_process';
 import fs from 'fs/promises';
 
@@ -91,6 +92,18 @@ function createMenu() {
 
 ipcMain.handle('shell:openExternal', async (_event, url) => {
   await shell.openExternal(url);
+});
+
+// Escribe una imagen en base64 (data URL) a un fichero temporal y devuelve su ruta.
+// Permite abrir imágenes adjuntas con el visor predeterminado de Windows.
+ipcMain.handle('fs:writeTempImage', async (_event, dataUrl: string) => {
+  const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!matches) throw new Error('Data URL de imagen no válida');
+  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  const filePath = path.join(os.tmpdir(), `codelab_img_${Date.now()}.${ext}`);
+  await fs.writeFile(filePath, buffer);
+  return filePath;
 });
 
 // IPC Handlers
@@ -186,7 +199,7 @@ ipcMain.handle('fs:move', async (_event, sourcePath, destPath) => {
   }
 });
 
-ipcMain.handle('shell:execute', async (_event, command) => {
+ipcMain.handle('shell:execute', async (_event, command, cwd?: string) => {
   const { response } = await dialog.showMessageBox({
     type: 'warning',
     buttons: ['Execute', 'Cancel'],
@@ -195,9 +208,10 @@ ipcMain.handle('shell:execute', async (_event, command) => {
   });
 
   if (response === 0) { // Execute
-    return new Promise((resolve, reject) => {
-      exec(command, { 
-        cwd: path.join(__dirname, '../../'),
+    const workingDir = cwd || path.join(__dirname, '../../');
+    return new Promise((resolve) => {
+      exec(command, {
+        cwd: workingDir,
         shell: 'powershell.exe'
       }, (error, stdout, stderr) => {
         if (error) {

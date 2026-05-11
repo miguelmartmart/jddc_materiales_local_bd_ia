@@ -1,44 +1,78 @@
 # Gestión de Proyectos, Tareas y Sesiones
 
-Este documento detalla la lógica funcional y técnica detrás de la organización del trabajo en **AI Code Lab**.
+Este documento detalla la lógica funcional y técnica detrás de la organización del trabajo en **AI Code Lab** (v1.2.0).
 
 ## 1. Jerarquía de Tareas y Subtareas
-La aplicación utiliza un modelo de datos recursivo para permitir una organización infinita.
+
+La aplicación usa un modelo de datos recursivo para organización flexible de proyectos.
 
 ### Modelo de Datos (Task)
-Definido en [TaskManager.tsx](file:///c:/Users/migue/Documents/activepieces/pendiente-fact/bots/interjddcia/desktop-codelab/src/components/TaskManager.tsx):
-- `id`: String único generado aleatoriamente.
-- `title`: Nombre descriptivo de la tarea.
-- `status`: Estado actual (`todo`, `in-progress`, `done`).
-- `subtasks`: Array de objetos `Task` (recursividad).
-- `chats`: Lista de sesiones de conversación asociadas exclusivamente a esta tarea.
-- `isExpanded`: Estado visual para la UI.
+Definido en [src/components/TaskManager.tsx](../src/components/TaskManager.tsx):
 
-### Operaciones Funcionales:
-- **Creación**: Las tareas raíz se crean desde el input superior del `TaskManager`. Las subtareas se crean pulsando el icono `CornerDownRight` de una tarea existente.
-- **Reorganización (Drag & Drop)**: Implementado mediante la API nativa de HTML5 Drag and Drop. Se puede arrastrar una tarea sobre otra para convertirla en subtarea, o al fondo del panel para devolverla a la raíz.
-- **Estados**: El clic en el icono de círculo/check alterna entre los tres estados, cambiando visualmente el color y aplicando `line-through` al completar.
+```typescript
+interface Task {
+  id: string;           // Único, generado aleatoriamente
+  title: string;        // Nombre descriptivo
+  status: 'todo' | 'in-progress' | 'done';
+  subtasks: Task[];     // Recursivo — permite anidamiento infinito
+  chats: ChatSession[]; // Sesiones de chat exclusivas de esta tarea
+  isExpanded: boolean;  // Estado visual (no persistido en AI context)
+}
+```
 
-## 2. Sesiones de Chat y Usuarios
-Actualmente, la aplicación es **monousuario** y local, centrada en la privacidad y el control total del desarrollador.
+### Operaciones Funcionales
+- **Creación**: tareas raíz desde el input superior del `TaskManager`. Subtareas con el icono `CornerDownRight`.
+- **Reorganización (Drag & Drop)**: API nativa HTML5. Arrastrar sobre otra tarea la convierte en subtarea; arrastrar al fondo la devuelve a la raíz.
+- **Estados**: clic en el icono de estado alterna `todo → in-progress → done`. El estado `done` aplica `line-through` al título.
+- **Eliminación**: icono `Trash2` requiere confirmación antes de borrar la tarea y todos sus chats y subtareas.
 
-### Sesiones de Chat (ChatSession)
-- Cada tarea puede tener múltiples chats independientes. Esto permite separar, por ejemplo, "Refactorización de UI" de "Corrección de Bugs" dentro de la misma tarea.
-- **Persistencia**: Los mensajes se guardan en el historial de la sesión (`messages: Message[]`).
-- **Exportación**: El botón de "Documento" en la lista de chats permite volcar toda la conversación al editor principal para su edición o guardado manual.
+## 2. Sesiones de Chat
 
-## 3. Botones de Acción y Flujos
-La interfaz está diseñada para minimizar la navegación manual.
+La aplicación es **monousuario y local** — sin sincronización en la nube, sin autenticación.
 
-### Acciones de Tarea:
-- **BookOpen (Amarillo)**: Abre el fichero de contexto específico de la tarea (`.md`).
-- **CornerDownRight (Azul)**: Despliega el input para añadir una subtarea.
-- **Trash2 (Rojo)**: Elimina la tarea y todas sus subtareas/chats asociados (requiere confirmación).
+### Modelo ChatSession
+```typescript
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+}
 
-### Acciones de Chat:
-- **Plus**: Crea una nueva sesión de chat en blanco para la tarea activa.
-- **MessageSquare**: Selecciona la sesión y carga el historial en el panel derecho.
-- **FileText**: Exporta el historial de chat al editor Monaco.
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  model?: string;      // 'jddcia-qwen3-30b-ip' para respuestas IA
+  timestamp: number;
+}
+```
 
-## 4. Asociación de Contexto
-Cada vez que se selecciona una tarea o un chat, el [ContextManager.ts](file:///c:/Users/migue/Documents/activepieces/pendiente-fact/bots/interjddcia/desktop-codelab/src/utils/ContextManager.ts) asegura que el asistente de IA reciba el resumen actualizado de esa unidad de trabajo específica, evitando que la IA "se pierda" en proyectos grandes.
+### Características
+- Cada tarea puede tener **múltiples chats independientes** (ej. "Refactorización UI" vs "Fix bug login").
+- El historial completo de cada chat se envía al modelo como contexto de conversación.
+- Los mensajes de tipo `system` (resultados de ejecución, errores) son visibles en el hilo y los recibe la IA.
+
+## 3. Botones de Acción por Contexto
+
+### Acciones de Tarea
+- **BookOpen (Amarillo)**: Abre el fichero de contexto Markdown de la tarea (`.codelab/contexts/task_<id>.md`).
+- **CornerDownRight (Azul)**: Despliega input para añadir subtarea.
+- **Trash2 (Rojo)**: Elimina la tarea y todo su contenido (requiere confirmación).
+
+### Acciones de Chat
+- **Plus**: Crea nueva sesión de chat en blanco para la tarea activa.
+- **MessageSquare**: Selecciona la sesión y carga su historial en el panel derecho.
+- **FileText**: Exporta el historial de chat al editor Monaco como texto plano.
+
+## 4. Asociación de Contexto IA
+
+Cuando el usuario selecciona una tarea o chat, `ContextManager` carga automáticamente el resumen correspondiente y lo inyecta en el `PhaseContext.task_context`. La IA recibe ese resumen en todas las consultas de esa sesión, evitando perder el hilo en proyectos grandes.
+
+### Actualización Automática
+Tras cada respuesta relevante de la IA, `updateContextWithAI()` solicita a Qwen3 que actualice el resumen de la tarea con la nueva información del intercambio. Si la actualización falla (IA ocupada), el chat continúa sin interrupción.
+
+## 5. Persistencia
+
+- **Índice del proyecto**: `.codelab/project_index.json` — árbol completo de tareas serializado.
+- **Contextos de tarea**: `.codelab/contexts/task_<id>.md` — resumen Markdown por tarea.
+- **Contextos de chat**: `.codelab/contexts/chat_<id>.md` — resumen Markdown por chat.
+- **Sin base de datos**: todo en ficheros locales, garantía de privacidad y acceso offline.

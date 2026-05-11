@@ -1,58 +1,82 @@
 # AI Code Lab
 
-A desktop application for AI-assisted code development, built with Electron, React, and reusing the powerful AI core from the InterJDDCIA bot.
+Aplicación de escritorio con asistente IA integrado para desarrollo de software paso a paso.
+Construida con **Electron + React + TypeScript** en el frontend y **FastAPI (Python)** en el backend.
+Usa exclusivamente el modelo **Qwen3 VL 30B** en la red LAN JDDC — sin internet, sin APIs externas.
 
-## Structure
+## Estructura
 
-- `electron/`: Main process code (window management, backend spawning).
-- `src/`: Renderer process (React UI, Monaco Editor).
-- `backend/`: Python server that bridges the Electron app with the existing AI core (`../backend/core`).
+```
+desktop-codelab/
+├── backend/               ← FastAPI en puerto 8002
+│   ├── server.py          ← Orquestador: endpoints, retry LAN, _fix_next_action
+│   └── prompt_engine/     ← Motor modular de prompts (17 fases)
+│       ├── builder.py     ← PromptBuilder: ensambla fases según contexto
+│       ├── context.py     ← PhaseContext: datos que comparten todas las fases
+│       └── phases/        ← Una clase por fase (p01_header.py … p17_error.py)
+├── electron/
+│   ├── main.ts            ← Proceso principal: ventana, IPC, arranque de backend
+│   └── preload.ts         ← Bridge seguro renderer ↔ main
+├── src/
+│   ├── App.tsx            ← UI principal (chat, editor Monaco, terminal, árbol)
+│   ├── api.ts             ← Cliente HTTP hacia backend
+│   ├── components/
+│   │   └── TaskManager.tsx ← Tareas/subtareas/chats con drag & drop
+│   └── utils/
+│       ├── nextActionParser.ts ← Parser robusto de [[NEXT_ACTION]] (3 capas)
+│       ├── systemReports.ts    ← Fábrica de mensajes [SYSTEM] para el chat
+│       └── ContextManager.ts  ← Memoria persistente en .codelab/
+├── DOCS_README/           ← Documentación técnica detallada (7 documentos)
+├── DEVIA.MD               ← Referencia completa de arquitectura
+└── start_codelab.bat      ← Script de arranque recomendado
+```
 
-## Setup
+## Arranque rápido
 
-1. Ensure you have Node.js installed.
-2. Ensure you have Python installed and the dependencies for the main bot are satisfied.
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-## Running
-
-### Option 1: From Project Root (Recommended)
-If you are in the main `interjddcia` folder, use the global start script:
-
-```bash
+### Opción A — Script automático (recomendado)
+```cmd
+cd C:\Users\migue\Documents\activepieces\pendiente-fact\bots\interjddcia
 start_codelab.bat
 ```
-This will launch the Python backend in a separate window (useful for debugging) and then start the Electron app.
 
-### Option 2: From this directory
-You can start the application using the local batch script:
-
-```bash
-start.bat
-```
-
-Or using npm commands:
-
-```bash
+### Opción B — Modo desarrollo (hot-reload)
+```cmd
+cd desktop-codelab
 npm run dev
 ```
 
-This will:
-1. Start the Vite dev server for the UI.
-2. Compile the Electron main process.
-3. Start Electron.
-4. Electron will spawn the Python backend (`backend/server.py`) on port 8002.
+### Opción C — Manual (dos terminales)
+```cmd
+REM Terminal 1
+python backend/server.py
 
-## Features
+REM Terminal 2
+npm run build && npm start
+```
 
-- **Model Selection**: Choose from any enabled AI model in your configuration.
-- **Code Context**: The current code in the editor is automatically sent as context to the AI.
-- **Independent**: Runs as a separate desktop app, but leverages your existing AI configuration and keys.
+## Requisitos
 
-## Troubleshooting
+- Node.js 18+
+- Python 3.10+
+- Red LAN JDDC con acceso a `10.13.79.31` (Qwen3 VL 30B)
+- `pip install fastapi uvicorn httpx`
 
-- If models don't load, check the console for Python errors.
-- Ensure the Python environment used by the spawn command has access to the required libraries (`fastapi`, `uvicorn`, etc.).
+## Diagnóstico rápido
+
+```cmd
+REM Backend activo?
+curl http://127.0.0.1:8002/health
+
+REM IA LAN responde?
+curl http://127.0.0.1:8002/debug/ping-ai
+
+REM Test de generación
+curl -X POST http://127.0.0.1:8002/api/generate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"prompt\": \"hola\"}"
+```
+
+## Documentación completa
+
+Ver [DEVIA.MD](DEVIA.MD) para arquitectura detallada, endpoints, sistema de fases y guía de resolución de problemas.
+Ver [DOCS_README/](DOCS_README/) para documentación técnica exhaustiva por área.

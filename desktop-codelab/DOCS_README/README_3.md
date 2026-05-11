@@ -1,47 +1,83 @@
 # Interfaz de Usuario y Experiencia (UI/UX)
 
-Este documento describe detalladamente la capa visual de **AI Code Lab**, sus componentes, distribución y principios de diseño.
+Este documento describe la capa visual de **AI Code Lab** (v1.2.0): paneles, componentes y flujos de usuario.
 
 ## 1. Layout y Distribución de Pantalla
-La aplicación utiliza un diseño de **Paneles Colapsables** con Flexbox y CSS Grid para maximizar el área de trabajo.
 
-### Estructura de Paneles (De izquierda a derecha):
-1. **Sidebar Izquierdo (250px - 400px)**:
-   - **Explorador de Archivos**: Árbol jerárquico de ficheros del proyecto.
-   - **TaskManager**: Panel inferior para la gestión de tareas y chats.
+La aplicación utiliza un diseño de **Paneles Colapsables** con Flexbox para maximizar el área de trabajo.
+
+### Estructura de Paneles (De izquierda a derecha)
+
+1. **Sidebar Izquierdo (250px–400px)**:
+   - **Explorador de Archivos**: Árbol jerárquico de ficheros del proyecto (`rootDir`).
+   - **TaskManager**: Panel inferior para la gestión de tareas, subtareas y chats.
+
 2. **Área Central (Flexible)**:
-   - **Editor de Código**: Editor Monaco ocupando la mayor parte del espacio.
-   - **Terminal (Panel Inferior)**: Salida de comandos en tiempo real, colapsable.
-3. **Sidebar Derecho (350px - 500px)**:
-   - **Chat de IA**: Interfaz de conversación con soporte para Markdown y bloques de código interactivos.
+   - **Editor de Código**: Monaco Editor occupando la mayor parte del espacio.
+   - **Terminal (Panel Inferior)**: Salida de comandos PowerShell en tiempo real, colapsable.
+
+3. **Sidebar Derecho (350px–500px)**:
+   - **Chat de IA**: Conversación con Qwen3. Soporta Markdown y bloques de código interactivos.
 
 ## 2. Componentes de Interfaz y Botones
-La aplicación cuenta con botones dinámicos basados en el estado:
 
-### Cabecera (Header):
-- **CONTEXT**: Botón púrpura para abrir el fichero de resumen optimizado de la tarea activa.
-- **Selector de Modelo**: Dropdown para cambiar entre Gemini 2.0, 1.5 Pro, GPT-4o, etc.
-- **Botones de Sincronización**: Recarga de modelos y descubrimiento de nuevos proveedores.
+### Cabecera (Header)
+- **CONTEXT**: Botón púrpura — abre el fichero de resumen Markdown de la tarea activa.
+- **Selector de Modelo**: Muestra el modelo LAN activo (siempre Qwen3 VL 30B).
+- **Deep Analysis**: Checkbox que activa el flag `deep_analysis` en el PhaseContext.
 
-### Bloques de Código (CodeBlock.tsx):
-- **SAVE**: Botón azul para persistir cambios en el disco.
-- **RUN**: Botón verde para ejecutar el script actual.
+### Bloques de Código (`CodeBlock`)
+- **SAVE**: Botón azul — persiste el bloque en el disco usando la ruta del comentario de cabecera.
+- **RUN**: Botón verde — ejecuta el script en PowerShell.
 
-### Acciones del Chat (Next Actions):
-- **Ejecutar Pasos (Verde Esmeralda)**: 
-  - **Lógica**: Automatiza el guardado de los archivos modificados en el mensaje de la IA y lanza el comando de ejecución (`python`, `node`, `npm`, etc.) en la terminal.
-  - **Ubicación**: Aparece al final de los mensajes del asistente que contienen bloques de código ejecutables.
-- **Abrir en Navegador (Azul)**: 
-  - **Lógica**: Llama a `handleOpenInBrowser` para abrir ficheros HTML generados por la IA en el navegador predeterminado del sistema.
-- **Continuar (Verde)**: Botón genérico para solicitar el siguiente paso a la IA si no hay una acción específica detectada.
-- **Cancelar (Gris/Rojo)**: Detiene la ejecución sugerida y solicita a la IA que espere nuevas instrucciones.
+### Botones de Acción del Chat (`[[NEXT_ACTION]]`)
+
+Solo el **último mensaje del asistente** muestra botones activos. Los mensajes anteriores con `[[NEXT_ACTION]]` muestran "Acción superada" (badge gris).
+
+| Tipo | Color | Label por defecto | Acción |
+|------|-------|-------------------|--------|
+| `run_command` | Verde esmeralda | "Ejecutar" | Ejecuta `content` en PowerShell |
+| `browser` | Azul | "Abrir en navegador" | Abre `content` en el navegador |
+| `confirm_plan` | Verde | "Continuar" | Confirma al asistente para el siguiente paso |
+| `open_file` | Azul claro | "Abrir archivo" | Carga `content` en el editor Monaco |
+
+Cada acción tiene un botón de **Cancelar** (gris/rojo) que envía `cancel_message` al chat.
+
+### Mensajes [SYSTEM] en el Chat
+Los resultados de ejecución, guardados de archivos y errores aparecen como mensajes de sistema
+en el hilo de conversación con fondo diferenciado. La IA los recibe como contexto para auto-repararse.
 
 ## 3. Flujos de Usuario Detallados
-1. **Flujo de Tarea**: Crear Tarea > Seleccionar Tarea > Crear Chat > Preguntar a la IA.
-2. **Flujo de Desarrollo**: IA propone código > Usuario pulsa **Save** (o **Ejecutar Pasos**) > Terminal muestra resultado > IA recibe reporte de ejecución > IA propone corrección o siguiente paso.
-3. **Flujo de Contexto**: Usuario pulsa **CONTEXT** en el header > Se abre el fichero Markdown de resumen > Usuario edita el resumen manualmente si lo desea > IA usa ese resumen como "memoria" en la siguiente consulta.
 
-## 4. Características de Diseño (Tailwind CSS)
-- **Consistencia**: Uso de la escala de colores de Tailwind (gray, blue, green, red, purple).
-- **Interactividad**: Efectos `hover` en todos los botones y nodos del árbol de archivos.
-- **Animaciones**: Transiciones suaves en la apertura/cierre de paneles y el spinner de generación de IA.
+### Flujo de Desarrollo (caso principal)
+1. Usuario abre una carpeta (`rootDir`) con el explorador de archivos.
+2. Crea una tarea en el TaskManager y un chat asociado.
+3. Escribe en el chat: "Crea una app Flask que liste archivos".
+4. La IA responde con:
+   - Análisis previo (qué va a crear y por qué — fase `p01b_analysis_first`)
+   - Árbol de carpetas propuesto (verificando que no existan ya — fase `p03_folders`)
+   - Botón "Crear carpetas" (`run_command` con `New-Item`)
+5. Usuario pulsa "Crear carpetas" → PowerShell crea la estructura → `[SYSTEM]` reporta el resultado.
+6. IA propone el código → Usuario pulsa **Save** en el CodeBlock → `[SYSTEM]` confirma guardado.
+7. IA propone ejecutar → Usuario pulsa botón "Ejecutar" → Terminal muestra resultado → `[SYSTEM]` reporta.
+8. Si hay error, la IA lo recibe y propone corrección automáticamente.
+
+### Flujo de Contexto
+1. Usuario pulsa **CONTEXT** en el header.
+2. Se abre el fichero `.codelab/contexts/task_<id>.md` en el editor.
+3. Usuario puede editar el resumen manualmente.
+4. En la siguiente consulta, la IA recibe ese resumen como `task_context`.
+
+### Flujo de Tareas
+1. Crear tarea raíz → Crear subtareas (icono `CornerDownRight`).
+2. Drag & drop para reorganizar jerarquía.
+3. Clic en icono de círculo alterna estados: `todo` → `in-progress` → `done`.
+4. Cada tarea puede tener múltiples chats independientes (ej. "Refactor UI" vs "Fix bug login").
+
+## 4. Características de Diseño
+
+- **Tailwind CSS**: escala de colores consistente (gray, blue, green, red, purple).
+- **Interactividad**: efectos `hover` en todos los botones y nodos del árbol de archivos.
+- **Animaciones**: transiciones suaves en apertura/cierre de paneles, spinner de generación IA.
+- **Seguridad**: confirmación nativa del sistema operativo antes de ejecutar cualquier comando PowerShell.
+- **Robustez visual**: si `[[NEXT_ACTION]]` tiene JSON malformado, el parser de 3 capas lo recupera en silencio sin romper la UI.

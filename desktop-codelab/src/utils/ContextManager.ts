@@ -1,3 +1,14 @@
+/**
+ * ContextManager.ts — Gestión de contexto persistente para CodeLab
+ *
+ * Guarda y actualiza el contexto de tareas y chats en archivos .md
+ * dentro de la carpeta .codelab/ del proyecto.
+ *
+ * MODO AI_LOCAL_ONLY: Las actualizaciones de contexto con IA usan
+ * exclusivamente el modelo Qwen3 LAN (jddcia-qwen3-30b-ip).
+ * Nunca se conecta a internet para actualizar el contexto.
+ */
+
 import { api } from '../api';
 
 export interface TaskContext {
@@ -14,7 +25,7 @@ export class ContextManager {
 
   private constructor() {
     if (typeof window !== 'undefined') {
-        this.electronAPI = (window as any).electronAPI;
+      this.electronAPI = (window as any).electronAPI;
     }
   }
 
@@ -29,17 +40,16 @@ export class ContextManager {
     this.rootDir = path;
   }
 
-  // --- Persistence ---
+  // ─── Persistencia ──────────────────────────────────────────────────────────
 
   public async saveProjectIndex(tasks: any[]) {
     if (!this.rootDir || !this.electronAPI) return;
     const path = `${this.rootDir}\\.codelab\\project_index.json`;
     try {
-      // Ensure directory exists
       await this.ensureDir(`${this.rootDir}\\.codelab`);
       await this.electronAPI.writeFile(path, JSON.stringify(tasks, null, 2));
     } catch (e) {
-      console.error("Failed to save project index", e);
+      console.error('[ContextManager] Failed to save project index', e);
     }
   }
 
@@ -55,7 +65,7 @@ export class ContextManager {
     }
   }
 
-  // --- Context File Management ---
+  // ─── Gestión de archivos de contexto ───────────────────────────────────────
 
   public getContextPath(id: string, type: 'task' | 'chat'): string {
     if (!this.rootDir) return '';
@@ -67,84 +77,125 @@ export class ContextManager {
     try {
       await this.electronAPI.createDir(path);
     } catch (e) {
-      // Ignore if exists
+      // Ignorar si ya existe
     }
   }
 
-  public async ensureContextFile(id: string, type: 'task' | 'chat', initialTitle: string): Promise<string> {
+  public async ensureContextFile(
+    id: string,
+    type: 'task' | 'chat',
+    initialTitle: string
+  ): Promise<string> {
     if (!this.rootDir || !this.electronAPI) return '';
     const path = this.getContextPath(id, type);
-    
+
     try {
-        const exists = await this.electronAPI.exists(path);
-        if (exists) {
-            return path;
-        }
-        
-        // Create new
-        const content = `# Context for ${type === 'task' ? 'Task' : 'Chat'}: ${initialTitle}\nID: ${id}\n\n## Status\nActive\n\n## Summary\n(No summary yet)\n\n## Technical Details\n- \n`;
-        await this.ensureDir(`${this.rootDir}\\.codelab\\contexts`);
-        await this.electronAPI.writeFile(path, content);
+      const exists = await this.electronAPI.exists(path);
+      if (exists) {
         return path;
+      }
+
+      // Crear nuevo archivo de contexto con plantilla inicial
+      const content = [
+        `# Contexto de ${type === 'task' ? 'Tarea' : 'Chat'}: ${initialTitle}`,
+        `ID: ${id}`,
+        '',
+        '## Estado',
+        'Activo',
+        '',
+        '## Resumen',
+        '(Sin resumen todavía)',
+        '',
+        '## Detalles Técnicos',
+        '- ',
+        '',
+        '## Archivos Creados/Modificados',
+        '- ',
+        '',
+        '## Próximos Pasos',
+        '- ',
+      ].join('\n');
+
+      await this.ensureDir(`${this.rootDir}\\.codelab\\contexts`);
+      await this.electronAPI.writeFile(path, content);
+      return path;
     } catch (e) {
-        console.error("Context file error:", e);
-        return path; // Return path anyway to avoid blockers
+      console.error('[ContextManager] Error creando archivo de contexto:', e);
+      return path; // Devolver la ruta de todas formas para no bloquear
     }
   }
 
-  // --- AI Auto-Update ---
+  // ─── Actualización de contexto con IA (solo Qwen3 LAN) ────────────────────
 
-  public async updateContextWithAI(id: string, type: 'task' | 'chat', recentActivity: string, currentContextContent: string) {
-    if (!this.rootDir) return;
+  /**
+   * Actualiza el archivo de contexto usando Qwen3 LAN.
+   *
+   * GARANTÍA: Solo usa api.generateContextUpdate() que fuerza el modelo
+   * jddcia-qwen3-30b-ip. NUNCA llama a modelos de internet.
+   *
+   * Si la IA no está disponible, el contexto NO se actualiza (fail-safe).
+   * El flujo de chat continúa normalmente aunque el contexto no se actualice.
+   */
+  public async updateContextWithAI(
+    id: string,
+    type: 'task' | 'chat',
+    recentActivity: string,
+    currentContextContent: string
+  ): Promise<boolean> {
+    if (!this.rootDir) return false;
 
-    // We use the existing API, but we need to format the prompt carefully.
-    // We want the AI to merge the new activity into the existing context.
-    
     const prompt = `
-You are the Context Manager for a coding project.
-Your goal is to maintain a **Super Optimized Schematic Summary** of the development state.
-This file serves as the "Long Term Memory" for the AI, so it must be concise, accurate, and up-to-date.
+Eres el Gestor de Contexto de un proyecto de programación.
+Tu objetivo es mantener un **Resumen Esquemático Optimizado** del estado del desarrollo.
+Este archivo sirve como "Memoria a Largo Plazo" para la IA, por lo que debe ser conciso, preciso y actualizado.
 
-CURRENT CONTEXT FILE:
+ARCHIVO DE CONTEXTO ACTUAL:
 \`\`\`markdown
 ${currentContextContent}
 \`\`\`
 
-RECENT ACTIVITY (Chat/Logs):
+ACTIVIDAD RECIENTE (Chat/Logs):
 \`\`\`text
 ${recentActivity}
 \`\`\`
 
-INSTRUCTIONS:
-1. **State Summary**: Update the summary to be a schematic overview of the project status. Use bullet points.
-2. **Current Phase**: Explicitly state the current phase/step (e.g., "Phase: UI Implementation", "Step 3/5").
-3. **File Index**: Maintain a structured, hierarchical list of ALL files created or modified, with 1-line descriptions.
-4. **Technical Decisions**: Log key decisions, libraries chosen, or patterns used.
-5. **Pending Tasks**: List immediate next steps based on the recent activity.
-6. **Optimization**: Remove obsolete information. Keep it high-density and token-efficient. Do not be chatty.
+INSTRUCCIONES:
+1. **Resumen de Estado**: Actualiza el resumen con un esquema del estado actual del proyecto. Usa viñetas.
+2. **Fase Actual**: Indica explícitamente la fase/paso actual (ej: "Fase: Implementación UI", "Paso 3/5").
+3. **Índice de Archivos**: Mantén una lista estructurada de TODOS los archivos creados o modificados, con descripción de 1 línea.
+4. **Decisiones Técnicas**: Registra decisiones clave, librerías elegidas o patrones usados.
+5. **Tareas Pendientes**: Lista los próximos pasos inmediatos basados en la actividad reciente.
+6. **Optimización**: Elimina información obsoleta. Mantén alta densidad de información y eficiencia de tokens. No seas verboso.
 
-Return ONLY the updated Markdown content.
-    `;
+Devuelve ÚNICAMENTE el contenido Markdown actualizado, sin explicaciones adicionales.
+    `.trim();
 
     try {
-        // Use a "fast" model if possible, or just the default.
-        // We pass empty code context for now.
-        const result = await api.generateCode(prompt, "", undefined, []);
-        const updatedContent = result.response;
-        
-        // Clean up response (remove markdown fences if AI added them)
-        let cleanContent = updatedContent;
-        if (cleanContent.startsWith('```markdown')) cleanContent = cleanContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
-        if (cleanContent.startsWith('```')) cleanContent = cleanContent.replace(/^```\n/, '').replace(/\n```$/, '');
+      // Usar generateContextUpdate que fuerza el modelo LAN (jddcia-qwen3-30b-ip)
+      const updatedContent = await api.generateContextUpdate(prompt);
 
-        // Save back to file
-        const path = this.getContextPath(id, type);
-        await this.electronAPI.writeFile(path, cleanContent);
-        console.log(`[ContextManager] Updated context for ${type} ${id}`);
-        return true;
-    } catch (e) {
-        console.error("[ContextManager] Failed to update context with AI", e);
+      if (!updatedContent) {
+        console.warn('[ContextManager] La IA LAN no devolvió contenido para el contexto. Saltando actualización.');
         return false;
+      }
+
+      // Limpiar respuesta (eliminar fences de markdown si la IA los añadió)
+      let cleanContent = updatedContent.trim();
+      if (cleanContent.startsWith('```markdown')) {
+        cleanContent = cleanContent.replace(/^```markdown\n?/, '').replace(/\n?```$/, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\n?/, '').replace(/\n?```$/, '');
+      }
+
+      // Guardar en archivo
+      const path = this.getContextPath(id, type);
+      await this.electronAPI.writeFile(path, cleanContent.trim());
+      console.log(`[ContextManager] ✅ Contexto actualizado para ${type} ${id} (Qwen3 LAN)`);
+      return true;
+    } catch (e) {
+      // Fail-safe: si la IA falla, el contexto no se actualiza pero el chat continúa
+      console.error('[ContextManager] Error actualizando contexto con IA LAN:', e);
+      return false;
     }
   }
 }
