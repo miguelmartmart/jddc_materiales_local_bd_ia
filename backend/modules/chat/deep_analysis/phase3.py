@@ -89,12 +89,14 @@ class Phase3Mixin(Phase3SqlsMixin):
         except Exception as e:
             logger.error(f"[DEEP AGENT] Fase 3 IA falló: {e}")
             phase.error = str(e)
+            result.ai_unavailable = True
             await self._execute_fixed_sqls(fixed_sqls, result, phase)
             phase.success = len(result.sql_queries) > 0
             return phase
 
         if not response or not isinstance(response, str):
             logger.warning("[DEEP AGENT] Fase 3: respuesta IA vacía — usando solo SQLs fijos")
+            result.ai_unavailable = True
             await self._execute_fixed_sqls(fixed_sqls, result, phase)
             phase.success = len(result.sql_queries) > 0
             return phase

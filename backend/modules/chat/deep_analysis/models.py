@@ -114,6 +114,8 @@ class EpicAnalysisResult:
     partial_summary_files: List[str] = field(default_factory=list)
     # Ciclos del bucle de investigación ejecutados
     investigation_cycles: int = 0
+    # True si la IA devolvió None en alguna fase crítica (servidor IA no disponible)
+    ai_unavailable: bool = False
 
 
 # ─── TokenBudget ──────────────────────────────────────────────────────────────

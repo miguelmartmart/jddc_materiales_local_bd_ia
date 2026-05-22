@@ -182,32 +182,68 @@ class HelpersAgentMixin:
         return "\n".join(lines)
 
     def _emergency_fallback(self, result) -> str:
-        """Respuesta de emergencia si todo falla — siempre devuelve algo útil."""
-        parts = [f"## 📊 Análisis de: {result.question}\n"]
+        """
+        Respuesta de emergencia si todo falla — siempre devuelve algo útil.
+        Si result.ai_unavailable es True, informa explícitamente al usuario
+        que el servidor de IA no está disponible (no inventa respuestas).
+        """
+        parts = [f"## 📊 {result.question}\n"]
 
+        # ── Aviso principal: IA no disponible ────────────────────────────────
+        ai_down = getattr(result, "ai_unavailable", False)
+        if ai_down:
+            parts.append(
+                "> ❌ **El servidor de IA no está disponible en este momento.**\n"
+                "> El asistente no puede generar una respuesta. "
+                "Comprueba que el servidor Qwen3 (192.168.0.36) esté activo e inténtalo de nuevo.\n"
+            )
+
+        # ── Datos directos de BD (si los hay) ───────────────────────────────
         if result.sql_queries:
-            parts.append(f"Se ejecutaron {len(result.sql_queries)} consultas:\n")
-            for q in result.sql_queries[:5]:
-                objetivo = q.get("objetivo", "?")
-                rows = q.get("rows", 0)
-                error = q.get("error")
-                if error:
-                    parts.append(f"- ❌ **{objetivo}**: {error}")
-                else:
-                    parts.append(f"- ✅ **{objetivo}**: {rows} filas")
-                    for row in q.get("data", [])[:2]:
-                        parts.append(f"  `{row}`")
+            successful = [q for q in result.sql_queries if not q.get("error")]
+            failed = [q for q in result.sql_queries if q.get("error")]
+
+            if successful:
+                parts.append(
+                    f"Se obtuvieron datos directamente de la base de datos "
+                    f"({len(successful)} consulta{'s' if len(successful) != 1 else ''} exitosa{'s' if len(successful) != 1 else ''}):\n"
+                )
+                for q in successful[:5]:
+                    objetivo = q.get("objetivo", "?")
+                    rows = q.get("rows", 0)
+                    parts.append(f"### {objetivo} ({rows} filas)")
+                    for row in q.get("data", [])[:3]:
+                        parts.append(f"- `{row}`")
+                    parts.append("")
+
+            if failed:
+                parts.append(f"**Consultas con error ({len(failed)}):**")
+                for q in failed[:3]:
+                    parts.append(f"- ❌ {q.get('objetivo', '?')}: {q.get('error', '')}")
+                parts.append("")
+
+            if ai_down:
+                parts.append(
+                    "> ⚠️ Los datos anteriores son resultados directos de la BD, "
+                    "sin síntesis ni interpretación — el servidor de IA estaba inaccesible."
+                )
+            else:
+                parts.append(
+                    "> ⚠️ La síntesis automática no pudo completarse. "
+                    "Los datos anteriores son los resultados directos de la base de datos."
+                )
         else:
-            parts.append("No se pudieron ejecutar consultas SQL.")
+            # Sin datos de BD ni IA — fallo total
+            if not ai_down:
+                parts.append(
+                    "No se pudieron ejecutar consultas SQL. "
+                    "Comprueba la conexión a la base de datos."
+                )
 
         if result.warnings:
             parts.append("\n**⚠️ Advertencias:**")
             parts.extend(f"- {w}" for w in result.warnings[:3])
 
-        parts.append(
-            "\n> ⚠️ La síntesis automática no pudo completarse. "
-            "Los datos anteriores son los resultados directos de la base de datos."
-        )
         return "\n".join(parts)
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -149,10 +149,13 @@ class Phase5Mixin:
                 ])
                 logger.info("[DEEP AGENT] Fase 5 OK")
             else:
+                logger.warning("[DEEP AGENT] Fase 5: IA no disponible — usando fallback con datos crudos")
+                result.ai_unavailable = True
                 phase.success = False
                 result.final_answer = self._emergency_fallback(result)
         except Exception as e:
             logger.error(f"[DEEP AGENT] Fase 5 error: {e}")
+            result.ai_unavailable = True
             phase.success = False
             phase.error = str(e)
             result.final_answer = self._emergency_fallback(result)
