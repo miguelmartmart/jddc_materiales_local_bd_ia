@@ -21,6 +21,8 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+
+
 class Phase3SqlsMixin:
     """
     Mixin con los SQLs fijos y de resolución para Fase 3.
@@ -52,6 +54,20 @@ class Phase3SqlsMixin:
                             has_codigoobra = True
             except Exception as e:
                 logger.debug(f"[DEEP AGENT] KnowledgeStore en _build_fixed_sqls: {e}")
+
+        # SQL FIJO 0: Resumen general por tipo de documento (SIEMPRE para DOCCAB)
+        # Útil para CUALQUIER pregunta — da contexto general del volumen de datos
+        if "DOCCAB" in phase2_data:
+            fixed.append({
+                "objetivo": "Resumen general por tipo de documento (N, total y media EUR)",
+                "sql": (
+                    "SELECT TIPO, COUNT(*) AS N, "
+                    "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
+                    "FROM DOCCAB WHERE FECHA IS NOT NULL "
+                    "GROUP BY TIPO ORDER BY N DESC"
+                )
+            })
 
         # SQL FIJO 1: Distribución temporal (SIEMPRE para DOCCAB)
         if "DOCCAB" in phase2_data:
@@ -179,6 +195,107 @@ class Phase3SqlsMixin:
                     )
                 },
             ])
+
+        # ── SQLs FIJOS para preguntas de IMPORTE / MEDIA / PROMEDIO ─────────────
+        # Se activan cuando la pregunta menciona importes, medias o promedios.
+        importe_kw = ["importe", "media", "promedio", "precio", "facturado", "facturación",
+                      "facturacion", "ingreso", "ingresos", "cobro", "cobros", "total"]
+        if any(k in msg for k in importe_kw):
+            fixed.append({
+                "objetivo": "Importe medio, mínimo y máximo por tipo de documento",
+                "sql": (
+                    "SELECT TIPO, COUNT(*) AS N, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR, "
+                    "CAST(MIN(IMPORTETOTAL) AS NUMERIC(15,2)) AS MIN_EUR, "
+                    "CAST(MAX(IMPORTETOTAL) AS NUMERIC(15,2)) AS MAX_EUR "
+                    "FROM DOCCAB WHERE IMPORTETOTAL > 0 "
+                    "GROUP BY TIPO ORDER BY N DESC"
+                )
+            })
+            fixed.append({
+                "objetivo": "Importe total y medio de facturas (TIPO=13) por año",
+                "sql": (
+                    "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N_FACTURAS, "
+                    "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
+                    "FROM DOCCAB WHERE TIPO = 13 AND FECHA IS NOT NULL "
+                    "GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO DESC"
+                )
+            })
+
+        # ── SQLs FIJOS para preguntas de CLIENTES ────────────────────────────────
+        cliente_kw = ["cliente", "clientes", "comprador", "compradores"]
+        if any(k in msg for k in cliente_kw):
+            fixed.append({
+                "objetivo": "Top 10 clientes por importe total facturado",
+                "sql": (
+                    "SELECT FIRST 10 c.NOMBRE, COUNT(d.CODIGO) AS N_FACTURAS, "
+                    "CAST(SUM(d.IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                    "FROM CLIENTE c "
+                    "JOIN DOCCAB d ON d.CODCLIENTE = c.CODIGO AND d.TIPO = 13 "
+                    "GROUP BY c.CODIGO, c.NOMBRE "
+                    "ORDER BY TOTAL_EUR DESC"
+                )
+            })
+            fixed.append({
+                "objetivo": "Estadísticas generales de clientes",
+                "sql": (
+                    "SELECT COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, "
+                    "COUNT(*) AS TOTAL_DOCUMENTOS, "
+                    "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
+                    "FROM DOCCAB WHERE TIPO = 13 AND CODCLIENTE IS NOT NULL"
+                )
+            })
+
+        # ── SQLs FIJOS para ARTÍCULOS más vendidos / comprados ───────────────────
+        # Se activan cuando la pregunta menciona artículos/productos y compras/ventas.
+        # Usan sintaxis Firebird estándar — el query_translator los convierte
+        # automáticamente a SQLite cuando el simulador está activo.
+        # Columnas comunes a Firebird real y simulador:
+        #   DOCLIN.CODART (FK → ARTICULO.CODIGO), DOCLIN.CODIGO (FK → DOCCAB.CODIGO),
+        #   ARTICULO.CODIGO, ARTICULO.NOMBRE, ARTICULO.STOCKARTICULO
+        art_kw = ["artículo", "articulo", "producto", "item"]
+        comp_kw = ["compra", "venta", "vendido", "vendidos", "comprado", "comprados",
+                   "top", "más", "mas", "compras", "ventas"]
+        if any(k in msg for k in art_kw) and any(k in msg for k in comp_kw):
+            fixed.append({
+                "objetivo": "Top artículos por líneas de venta (frecuencia de compra)",
+                "sql": (
+                    "SELECT FIRST 10 a.NOMBRE, COUNT(d.CODIGO) AS N_LINEAS, "
+                    "CAST(SUM(d.CANTIDAD) AS NUMERIC(15,2)) AS CANTIDAD_TOTAL, "
+                    "CAST(SUM(d.IMPORTE) AS NUMERIC(15,2)) AS IMPORTE_TOTAL "
+                    "FROM ARTICULO a "
+                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
+                    "JOIN DOCCAB c ON c.CODIGO = d.CODIGO AND c.TIPO = 13 "
+                    "GROUP BY a.CODIGO, a.NOMBRE "
+                    "ORDER BY N_LINEAS DESC"
+                )
+            })
+            fixed.append({
+                "objetivo": "Top artículos por importe total de ventas",
+                "sql": (
+                    "SELECT FIRST 10 a.NOMBRE, "
+                    "CAST(SUM(d.IMPORTE) AS NUMERIC(15,2)) AS IMPORTE_TOTAL, "
+                    "COUNT(d.CODIGO) AS N_LINEAS "
+                    "FROM ARTICULO a "
+                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
+                    "JOIN DOCCAB c ON c.CODIGO = d.CODIGO AND c.TIPO = 13 "
+                    "GROUP BY a.CODIGO, a.NOMBRE "
+                    "ORDER BY IMPORTE_TOTAL DESC"
+                )
+            })
+            fixed.append({
+                "objetivo": "Top artículos por cantidad vendida (unidades)",
+                "sql": (
+                    "SELECT FIRST 10 a.NOMBRE, "
+                    "CAST(SUM(d.CANTIDAD) AS NUMERIC(15,2)) AS CANTIDAD_TOTAL, "
+                    "COUNT(d.CODIGO) AS N_PEDIDOS "
+                    "FROM ARTICULO a "
+                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
+                    "GROUP BY a.CODIGO, a.NOMBRE "
+                    "ORDER BY CANTIDAD_TOTAL DESC"
+                )
+            })
 
         return fixed
 

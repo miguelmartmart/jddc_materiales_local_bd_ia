@@ -104,10 +104,14 @@ class HelpersAgentMixin:
             cols = ", ".join(info.get("columns", [])[:8])
             tipo_dist = info.get("tipo_distribution", [])
             tipo_str = ""
-            if tipo_dist:
-                tipo_str = " | TIPOS: " + ", ".join(
-                    f"TIPO={r.get('TIPO','?')}:{r.get('N','?')}" for r in tipo_dist[:5]
-                )
+            # Defensa: tipo_distribution debe ser lista de dicts; ignorar si es dict o incorrecto
+            if tipo_dist and isinstance(tipo_dist, list):
+                try:
+                    tipo_str = " | TIPOS: " + ", ".join(
+                        f"TIPO={r.get('TIPO','?')}:{r.get('N','?')}" for r in tipo_dist[:5]
+                    )
+                except Exception:
+                    tipo_str = ""
             null_cc = info.get("null_codcliente")
             null_str = f" | NULOS_CODCLIENTE={null_cc}" if null_cc is not None else ""
             lines.append(f"• {table}: {total} registros | Cols: {cols}{tipo_str}{null_str}")

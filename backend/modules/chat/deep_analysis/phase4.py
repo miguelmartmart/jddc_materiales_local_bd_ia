@@ -200,10 +200,16 @@ class Phase4Mixin:
                 if isinstance(total, int) and total > 0:
                     updates["record_count_real"] = total
                 tipo_dist = info.get("tipo_distribution", [])
-                if tipo_dist and table == "DOCCAB":
-                    updates["tipo_distribution"] = {
-                        str(r.get("TIPO", "?")): r.get("N", 0) for r in tipo_dist
-                    }
+                # Guardar como lista de dicts (mismo formato que devuelve SQL)
+                # No convertir a dict: causa errores en _fmt_exploration y lecturas posteriores
+                if tipo_dist and isinstance(tipo_dist, list) and table == "DOCCAB":
+                    try:
+                        updates["tipo_distribution"] = [
+                            {"TIPO": r.get("TIPO", "?"), "N": r.get("N", 0)}
+                            for r in tipo_dist if isinstance(r, dict)
+                        ]
+                    except Exception:
+                        pass
                 if updates:
                     changed = store.update_table(table, updates)
                     if changed:
