@@ -1,7 +1,7 @@
 # DEVIA — KnowledgeStore: Almacén de Conocimiento Persistente
 
 **Módulo:** `backend/modules/chat/deep_analysis/knowledge_store.py`  
-**Versión:** 1.0 — 17/03/2026  
+**Versión:** 1.1 — 22/05/2026  
 **Principio:** LAN_ONLY — Nunca se envían datos a internet
 
 ---
@@ -49,7 +49,7 @@ core/config/knowledge/
   "columns_source": "firebird_rdb",
   "record_count_real": 74034,
   "record_count_source": "firebird_count",
-  "tipo_distribution": {"0": 18500, "13": 42000, "11": 8000, "12": 5534},
+  "tipo_distribution": [{"TIPO": 13, "N": 42000}, {"TIPO": 0, "N": 18500}, {"TIPO": 11, "N": 8000}, {"TIPO": 12, "N": 5534}],
   "estadopend_distribution": {"0": 15000, "1": 2500, "2": 1000},
   "columns_estado": ["ESTADOPEND", "ESTADOPENDVENCOM", "CODSEGUIMIENTO"],
   "docdestino_tipo_distribution": {"13": 768, "12": 120},
@@ -168,6 +168,50 @@ del prompt con conocimiento previo (via `get_ia_summary()`).
 6. **Ultra-resiliente**: Cada operación con `try/except` independiente.
 7. **Singleton**: `get_knowledge_store()` devuelve siempre la misma instancia.
 8. **IA-friendly**: `get_ia_summary()` genera texto compacto para prompts.
+
+---
+
+## ⚠️ Formato obligatorio de `tipo_distribution`
+
+> **Bug conocido (corregido 22/05/2026):** El campo `tipo_distribution` en los ficheros
+> de tabla (ej. `DOCCAB.json`) **DEBE ser una lista de dicts**, no un dict.
+
+### ✅ Formato correcto (lista de dicts)
+
+```json
+"tipo_distribution": [
+  {"TIPO": 13, "N": 85},
+  {"TIPO": 0,  "N": 66},
+  {"TIPO": 11, "N": 30}
+]
+```
+
+### ❌ Formato incorrecto (dict — causa crashes)
+
+```json
+"tipo_distribution": {"13": 85, "0": 66, "11": 30}
+```
+
+**Por qué importa:**
+
+- `_fmt_exploration()` en `helpers.py` hace `tipo_dist[:5]` (slicing). Sobre una lista → OK. Sobre un dict → `TypeError: unhashable type: 'slice'`.
+- Este TypeError escapa al bloque `except Exception` del agente antes de que la Fase 3 pueda ejecutar SQLs, dejando `sql_queries` vacío y mostrando "No se pudieron ejecutar consultas SQL" aunque el simulador funcione correctamente.
+
+**Origen del bug:**
+
+`_phase4b_learn_and_persist` (en `phase4.py`) convertía la lista a dict antes de guardar:
+
+```python
+# ANTES (bug) — convertía a dict:
+{str(r.get("TIPO","?")): r.get("N",0) for r in tipo_dist}
+
+# AHORA (correcto) — conserva lista de dicts:
+[{"TIPO": r.get("TIPO","?"), "N": r.get("N",0)} for r in tipo_dist if isinstance(r, dict)]
+```
+
+**Defensa adicional:**
+
+`_fmt_exploration()` y `_phase4b_learn_and_persist` comprueban `isinstance(tipo_dist, list)` antes de operar, con `try/except` interior para absorber cualquier formato inesperado sin crashear.
 
 ---
 

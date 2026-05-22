@@ -77,12 +77,16 @@ FASE 2: Exploración Total
 
 FASE 3: Investigación Multi-Angular
   ├─ SQLs dinámicos generados por IA (hasta 12+)
-  ├─ SQLs fijos SIEMPRE incluidos:
+  ├─ SQLs fijos SIEMPRE incluidos (fallback cuando IA no disponible):
+  │   ├─ SQL FIJO 0: resumen general por tipo (SIEMPRE si hay DOCCAB)
   │   ├─ Distribución temporal (año/serie)
-  │   └─ Instalaciones únicas vs presupuestos
+  │   ├─ Instalaciones únicas vs presupuestos
+  │   ├─ Grupo importe/media (si pregunta contiene importe/precio/total…)
+  │   └─ Grupo cliente (si pregunta contiene cliente/clientes)
   ├─ Expansión dinámica (<!-- NECESITO_MAS_SQLS: N -->)
   ├─ Auto-corrección de SQLs fallidos (hasta 2 reintentos + IA)
-  └─ Resumen progresivo si se supera el presupuesto de tokens
+  ├─ Resumen progresivo si se supera el presupuesto de tokens
+  └─ Si IA devuelve None → marca result.ai_unavailable = True y ejecuta solo SQLs fijos
 
 FASE 4: Análisis Crítico Profundo
   ├─ 4.1 Anomalías estadísticas
@@ -182,8 +186,11 @@ except Exception as e:
 Jerarquía de fallbacks:
 1. **Subfase falla** → usa valores por defecto, continúa
 2. **Fase falla** → continúa con lo que tiene
-3. **IA falla** → ejecuta SQLs fijos deterministas
-4. **Todo falla** → `_emergency_fallback()` devuelve datos crudos
+3. **IA falla / no disponible** → activa `result.ai_unavailable = True`, ejecuta SQLs fijos deterministas
+4. **Todo falla** → `_emergency_fallback()` devuelve datos crudos con aviso explícito de IA caída
+
+> Si `ai_unavailable` es `True`, `_emergency_fallback()` muestra el aviso:
+> *"❌ El servidor de IA no está disponible en este momento. Comprueba que el servidor Qwen3 (192.168.0.36) esté activo."*
 
 ---
 
@@ -332,4 +339,151 @@ pytest tests/unit/test_deep_analysis_1_core.py \
 
 ---
 
-*Última actualización: 14/04/2026 — DeepAnalysisAgent v3.0 + tests 150/150 + multi-red*
+---
+
+## 11. Informe de Disponibilidad del Servidor IA (22/05/2026)
+
+### 11.1 Problema anterior
+
+Cuando el servidor Qwen3 (192.168.0.36) no está disponible, las fases 3 y 5 del DeepAgent recibían `None` de `orchestrator.execute_with_fallback()`. El sistema ejecutaba SQLs fijos y generaba datos correctos, pero `_emergency_fallback()` mostraba:
+
+> "No se pudieron ejecutar consultas SQL. Comprueba la conexión a la base de datos."
+
+…aunque los datos SÍ existían (se habían ejecutado los SQLs fijos). El mensaje era confuso.
+
+### 11.2 Solución implementada
+
+#### Campo `ai_unavailable` en `EpicAnalysisResult`
+
+```python
+# models.py
+@dataclass
+class EpicAnalysisResult:
+    ...
+    # True si la IA devolvió None en alguna fase crítica (servidor IA no disponible)
+    ai_unavailable: bool = False
+```
+
+#### Fases que activan el flag
+
+**Fase 3** (`phase3.py`) — dos rutas:
+
+```python
+# Ruta 1: excepción al llamar a la IA
+except Exception as e:
+    result.ai_unavailable = True
+    await self._execute_fixed_sqls(fixed_sqls, result, phase)
+
+# Ruta 2: IA devuelve vacío/None
+if not response or not isinstance(response, str):
+    result.ai_unavailable = True
+    await self._execute_fixed_sqls(fixed_sqls, result, phase)
+```
+
+**Fase 5** (`phase5.py`) — dos rutas:
+
+```python
+# Ruta 1: IA devuelve None (resp vacío)
+result.ai_unavailable = True
+result.final_answer = self._emergency_fallback(result)
+
+# Ruta 2: excepción
+result.ai_unavailable = True
+result.final_answer = self._emergency_fallback(result)
+```
+
+#### `_emergency_fallback()` actualizado
+
+Distingue dos escenarios según `result.ai_unavailable`:
+
+**IA caída + datos de BD disponibles:**
+
+```
+## 📊 <pregunta>
+
+> ❌ **El servidor de IA no está disponible en este momento.**
+> El asistente no puede generar una respuesta.
+> Comprueba que el servidor Qwen3 (192.168.0.36) esté activo e inténtalo de nuevo.
+
+Se obtuvieron datos directamente de la base de datos (N consultas exitosas):
+### Resumen general por tipo de documento (5 filas)
+- `{'TIPO': 13, 'N': 85, 'TOTAL_EUR': 348585.0, 'MEDIA_EUR': 4101.0}`
+...
+
+> ⚠️ Los datos anteriores son resultados directos de la BD, sin síntesis
+>    ni interpretación — el servidor de IA estaba inaccesible.
+```
+
+**Sin datos de BD ni IA (fallo total):**
+
+```
+> ❌ **El servidor de IA no está disponible en este momento.**
+No se pudieron ejecutar consultas SQL. Comprueba la conexión a la base de datos.
+```
+
+---
+
+## 12. SQLs Fijos Generalizados (Fase 3)
+
+Los SQLs fijos (`_build_fixed_sqls()` en `phase3_sqls.py`) son la última línea defensiva cuando la IA no responde. Se han extendido con nuevos grupos:
+
+### SQL FIJO 0 — Siempre activo para DOCCAB
+
+Se incluye **siempre** que DOCCAB aparezca en los datos de exploración (Fase 2), independientemente de la pregunta:
+
+```sql
+SELECT TIPO, COUNT(*) AS N,
+  CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR,
+  CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR
+FROM DOCCAB WHERE FECHA IS NOT NULL
+GROUP BY TIPO ORDER BY N DESC
+```
+
+Esto garantiza que cualquier pregunta sobre DOCCAB tenga al menos estadísticas básicas reales.
+
+### Grupo importe/media/promedio
+
+Activo si la pregunta contiene: `importe`, `media`, `promedio`, `precio`, `facturado`, `facturación`, `ingreso`, `cobro`, `total`:
+
+```sql
+-- Importe medio, mínimo y máximo por tipo de documento
+SELECT TIPO, COUNT(*) AS N,
+  CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR,
+  CAST(MIN(IMPORTETOTAL) AS NUMERIC(15,2)) AS MIN_EUR,
+  CAST(MAX(IMPORTETOTAL) AS NUMERIC(15,2)) AS MAX_EUR
+FROM DOCCAB WHERE IMPORTETOTAL > 0
+GROUP BY TIPO ORDER BY N DESC
+
+-- Importe total y medio de facturas (TIPO=13) por año
+SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N_FACTURAS,
+  CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR,
+  CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR
+FROM DOCCAB WHERE TIPO = 13 AND FECHA IS NOT NULL
+GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO DESC
+```
+
+### Grupo cliente
+
+Activo si la pregunta contiene: `cliente`, `clientes`, `compradores`:
+
+```sql
+-- TOP 10 clientes por importe facturado
+SELECT FIRST 10 CODCLIENTE, COUNT(*) AS N_DOCS,
+  CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR
+FROM DOCCAB WHERE CODCLIENTE IS NOT NULL
+GROUP BY CODCLIENTE ORDER BY TOTAL_EUR DESC
+
+-- Estadísticas generales de clientes
+SELECT COUNT(DISTINCT CODCLIENTE) AS N_CLIENTES,
+  COUNT(*) AS N_DOCS,
+  CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_DOC_EUR
+FROM DOCCAB WHERE CODCLIENTE IS NOT NULL
+```
+
+### Regla general
+
+Todos los SQLs fijos usan **sintaxis Firebird nativa** (`EXTRACT`, `FIRST`, `CAST AS NUMERIC(15,2)`). El `SimulatedFirebirdDriver` los traduce automáticamente a SQLite vía `query_translator.py`. No se necesita ningún tratamiento especial en el DeepAgent.
+
+---
+
+*Última actualización: 22/05/2026 — AI unavailability reporting + SQLs fijos generalizados + simulador server-side*
