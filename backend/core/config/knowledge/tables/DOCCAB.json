@@ -1,82 +1,38 @@
 {
-  "columns_real": [
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-  ],
-  "columns_count": 14,
-  "columns_source": "firebird_rdb",
-  "record_count_real": 220,
-  "record_count_source": "firebird_count",
-  "tipo_distribution": {
-    "13": 85,
-    "0": 66,
-    "11": 30,
-    "2": 22,
-    "12": 17
-  },
   "_table": "DOCCAB",
-  "_updated_at": "2026-05-22T12:59:01.727273",
-  "estadopend_distribution": {
-    "?": 0
-  },
-  "_nota_estadopend": "ESTADOPEND en presupuestos: {'?': 0}",
-  "docdestino_tipo_distribution": {
-    "?": 0
-  },
-  "_nota_docdestino": "De 1000 presupuestos: 100 tienen destino (10.0%).",
+  "_updated_at": "2026-05-25T00:00:00",
+  "columns_real": [
+    "CODIGO", "TIPO", "NUMERO", "FECHA", "SERIE",
+    "CODCLIENTE", "CODAGENTE", "CODALMACEN",
+    "BASEIMPONIBLE", "IVA", "IMPORTETOTAL",
+    "ESTADO", "ESTADOPEND", "ESTADOPENDVENCOM",
+    "DESCRIPCION", "OBSERVACIONES", "CODPROYECTO",
+    "OBRASIMPUTARCOSTES", "OBRASCERTIFICAR",
+    "OBRATIPORETENCION", "OBRAPORCRETENCION"
+  ],
+  "columns_count": 21,
+  "columns_source": "manual_schema_2026_05_25",
+  "record_count_real": 220,
+  "record_count_source": "simulator_synthetic",
+  "tipo_distribution": [
+    {"TIPO": 13, "N": 85},
+    {"TIPO": 0,  "N": 66},
+    {"TIPO": 11, "N": 30},
+    {"TIPO": 2,  "N": 22},
+    {"TIPO": 12, "N": 17}
+  ],
   "columns_estado": [
     "ESTADOPEND",
     "ESTADOPENDVENCOM",
     "CODSEGUIMIENTO"
   ],
-  "estadopendvencom_distribution": {
-    "?": 0
-  },
-  "_nota_estadopendvencom": "ESTADOPENDVENCOM en presupuestos: {'?': 0}. Indica estado desde el punto de vista del vendedor/comercial.",
-  "estadopend_cruce": [
-    {
-      "ep": "0",
-      "epv": "0",
-      "n": 6000
-    },
-    {
-      "ep": "0",
-      "epv": "1",
-      "n": 2000
-    },
-    {
-      "ep": "1",
-      "epv": "1",
-      "n": 1500
-    },
-    {
-      "ep": "2",
-      "epv": "2",
-      "n": 300
-    }
-  ],
-  "conversion_distribution": {
-    "a_factura": 750,
-    "a_pedido": 95,
-    "a_albaran": 20,
-    "total": 879
-  },
-  "_nota_conversion": "Presupuestos con destino: 879. Factura=750, Pedido=95, Albarán=20.",
-  "sample": [
-    {
-      "NULOS": 0
-    }
-  ]
+  "_nota_estadopend": "ESTADOPEND en presupuestos (TIPO=0): 0=pendiente, 1=en_proceso, 2=rechazado. Verificar valores reales con SELECT ESTADOPEND, COUNT(*) FROM DOCCAB WHERE TIPO=0 GROUP BY ESTADOPEND.",
+  "_nota_docdestino": "DOCDESTINO no es indicador fiable de 'aceptado' — solo el 10-15% de presupuestos tienen documento destino.",
+  "_nota_codproyecto": "CODPROYECTO es STRING que enlaza con PROYECTOS.CODIGO. Para análisis de ejecución: JOIN DOCCAB WHERE TIPO=13 con PROYECTOS y calcular % = Facturado/Presupuesto.",
+  "estadopend_distribution": {},
+  "estadopendvencom_distribution": {},
+  "docdestino_tipo_distribution": {},
+  "estadopend_cruce": [],
+  "conversion_distribution": {},
+  "sample": []
 }

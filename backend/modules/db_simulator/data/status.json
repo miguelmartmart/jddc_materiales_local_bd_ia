@@ -1,0 +1,23 @@
+{
+  "status": "ready",
+  "mode": "synthetic",
+  "updated_at": "2026-05-25T12:20:17.751179",
+  "db_path": "C:\\Users\\migue\\Documents\\activepieces\\pendiente-fact\\bots\\interjddcia\\backend\\modules\\db_simulator\\data\\simulator.db",
+  "row_counts": {
+    "FAMILIA": 15,
+    "ALMACEN": 4,
+    "RECURSO": 12,
+    "PROVEED": 15,
+    "ARTICULO": 46,
+    "CLIENTE": 51,
+    "PROYECTOS": 0,
+    "PROYVAR": 0,
+    "PRESUPROYE": 0,
+    "DOCCAB": 220,
+    "DOCLIN": 774,
+    "CAJA": 90,
+    "ESTALMACEN": 180
+  },
+  "error": null,
+  "snapshot_date": ""
+}

@@ -69,8 +69,78 @@
       "confidence": "alto",
       "source": "deep_analysis",
       "discovered_at": "2026-03-18T15:35:33.790727"
+    },
+    {
+      "rule": "[RESOLUCIÓN] Desglose por TIPO para identificar mezcla de documentos: 5 filas encontradas",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-05-21T09:49:45.898652"
+    },
+    {
+      "rule": "[BUCLE] Nuevos ángulos: Investigar el origen del error de formato en TOTAL_EUR; Analizar la integración de datos entre tablas para detectar fallos de migración; Verificar si el campo TIPO está correctamente categorizado",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-05-21T09:49:45.909759"
+    },
+    {
+      "rule": "[BUCLE] Nuevos ángulos: Investigar el origen de los valores con formato incorrecto en TOTAL_EUR; Verificar si el uso de [TELEFONO] indica una categoría de datos no válidos o una codificación errónea; Analizar si hay correlación entre TIPO y los valores anómalos en TOTAL_EUR",
+      "table": null,
+      "confidence": "medio",
+      "source": "deep_analysis_ia",
+      "discovered_at": "2026-05-21T09:49:45.919283"
+    },
+    {
+      "rule": "% Ejecución (Fact) = Facturado / Presupuesto × 100. NO confundir con % Certificado = Certificado / Presupuesto. Ejemplo real: Facturado=221369€ / Presupuesto=589105€ = 37.58% ejecución.",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "Facturado por proyecto = SUM(DOCCAB.IMPORTETOTAL) WHERE TIPO=13 AND CODPROYECTO='<codigo>'. DOCCAB.CODPROYECTO es STRING que apunta a PROYECTOS.CODIGO.",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "Presupuesto proyectado por proyecto = SUM(DOCCAB.IMPORTETOTAL WHERE TIPO=0) enlazado via PRESUPROYE: PRESUPROYE.CODPRESUPUESTO = DOCCAB.CODIGO y PRESUPROYE.CODPROYECTO = PROYECTOS.CODIGO.",
+      "table": "PRESUPROYE",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "PROYECTOS.CODIGO es STRING (ej: '48511'), no entero. DOCCAB.CODPROYECTO también es STRING. Comparar con = no con CAST.",
+      "table": "PROYECTOS",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "PROYVAR almacena NIF (TIPOIDFISCAL) y razón social (RAZONSOCIAL) del cliente de cada proyecto. JOIN: PROYVAR.CODPROYECTO = PROYECTOS.CODIGO.",
+      "table": "PROYVAR",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "Diferencia Certificado vs Facturado: Certificado=aprobado para facturar (43.19% en ejemplo), Facturado=ya facturado (37.58%). Diferencia=certificaciones pendientes de emitir factura.",
+      "table": "DOCCAB",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
+    },
+    {
+      "rule": "Informe de análisis de proyectos incluye: NIF (PROYVAR), Cliente (PROYVAR.RAZONSOCIAL), Obra (PROYECTOS.NOMBRE), Proyecto (PROYECTOS.CODIGO), Presupuesto (PRESUPROYE→DOCCAB), Fac.Origen (DOCCAB TIPO=13), %Ejecucion=Facturado/Presupuesto, Coste real (OBRACAB/OBRALIN).",
+      "table": "PROYECTOS",
+      "confidence": "alto",
+      "source": "manual_2026_05_25",
+      "discovered_at": "2026-05-25T00:00:00"
     }
   ],
-  "_count": 10,
-  "_updated_at": "2026-03-18T15:35:33.790727"
+  "_count": 20,
+  "_updated_at": "2026-05-25T00:00:00"
 }

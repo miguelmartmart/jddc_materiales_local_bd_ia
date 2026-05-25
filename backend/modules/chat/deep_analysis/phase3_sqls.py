@@ -247,6 +247,96 @@ class Phase3SqlsMixin:
                 )
             })
 
+        # ── SQLs FIJOS para PROYECTOS / ANÁLISIS ECONÓMICO ──────────────────────
+        # Activos cuando la pregunta menciona: proyecto, obra, ejecución, presupuesto
+        # proyectado, análisis económico, facturado vs previsto, coste real,
+        # porcentaje de ejecución, certificación, retención
+        proyecto_kw = ["proyecto", "proyectos", "obra", "obras", "ejecución", "ejecucion",
+                       "análisis económico", "analisis economico", "previsto",
+                       "certificado", "certificación", "certificacion",
+                       "retención", "retencion", "partida", "partidas"]
+        if any(k in msg for k in proyecto_kw):
+            # PROY-1: Listado de proyectos con nombre y fechas
+            fixed.append({
+                "objetivo": "Listado de proyectos (código, nombre, fecha inicio/fin, tipo obra)",
+                "sql": (
+                    "SELECT FIRST 30 CODIGO, NOMBRE, CLIENTE, "
+                    "FECHAINICIO, FECHAFIN, TIPOOBRA, TIPORETENCION "
+                    "FROM PROYECTOS WHERE CODIGO IS NOT NULL "
+                    "ORDER BY FECHAINICIO DESC"
+                )
+            })
+            # PROY-2: Facturado por proyecto (facturas TIPO=13 enlazadas por CODPROYECTO)
+            fixed.append({
+                "objetivo": "Total facturado por proyecto (DOCCAB TIPO=13 por CODPROYECTO)",
+                "sql": (
+                    "SELECT FIRST 30 d.CODPROYECTO, p.NOMBRE, "
+                    "COUNT(d.CODIGO) AS N_FACTURAS, "
+                    "CAST(SUM(d.IMPORTETOTAL) AS NUMERIC(15,2)) AS FACTURADO_EUR "
+                    "FROM DOCCAB d "
+                    "LEFT JOIN PROYECTOS p ON p.CODIGO = d.CODPROYECTO "
+                    "WHERE d.TIPO = 13 "
+                    "AND d.CODPROYECTO IS NOT NULL AND d.CODPROYECTO <> '' "
+                    "GROUP BY d.CODPROYECTO, p.NOMBRE "
+                    "ORDER BY FACTURADO_EUR DESC"
+                )
+            })
+            # PROY-3: Presupuesto proyectado por proyecto (via PRESUPROYE → DOCCAB TIPO=0)
+            fixed.append({
+                "objetivo": "Presupuesto proyectado por proyecto (PRESUPROYE → DOCCAB TIPO=0)",
+                "sql": (
+                    "SELECT FIRST 30 pre.CODPROYECTO, p.NOMBRE, "
+                    "COUNT(pre.CODPRESUPUESTO) AS N_PRESUPUESTOS, "
+                    "CAST(SUM(d.IMPORTETOTAL) AS NUMERIC(15,2)) AS PRESUPUESTO_EUR "
+                    "FROM PRESUPROYE pre "
+                    "JOIN DOCCAB d ON d.CODIGO = pre.CODPRESUPUESTO "
+                    "LEFT JOIN PROYECTOS p ON p.CODIGO = pre.CODPROYECTO "
+                    "WHERE d.TIPO = 0 "
+                    "GROUP BY pre.CODPROYECTO, p.NOMBRE "
+                    "ORDER BY PRESUPUESTO_EUR DESC"
+                )
+            })
+            # PROY-4: % Ejecución — facturado vs presupuesto (por proyecto)
+            # Firebird: subqueries correladas + NULLIF para evitar / 0
+            fixed.append({
+                "objetivo": "% Ejecución por proyecto: Facturado / Presupuesto × 100",
+                "sql": (
+                    "SELECT FIRST 30 "
+                    "  pr.CODIGO AS PROYECTO, "
+                    "  pr.NOMBRE, "
+                    "  CAST(fact.FACTURADO AS NUMERIC(15,2)) AS FACTURADO_EUR, "
+                    "  CAST(presu.PRESUPUESTO AS NUMERIC(15,2)) AS PRESUPUESTO_EUR, "
+                    "  CAST(fact.FACTURADO * 100.0 / NULLIF(presu.PRESUPUESTO, 0) "
+                    "    AS NUMERIC(5,2)) AS PORC_EJECUCION "
+                    "FROM PROYECTOS pr "
+                    "LEFT JOIN ( "
+                    "  SELECT CODPROYECTO, SUM(IMPORTETOTAL) AS FACTURADO "
+                    "  FROM DOCCAB WHERE TIPO = 13 "
+                    "  AND CODPROYECTO IS NOT NULL AND CODPROYECTO <> '' "
+                    "  GROUP BY CODPROYECTO "
+                    ") fact ON fact.CODPROYECTO = pr.CODIGO "
+                    "LEFT JOIN ( "
+                    "  SELECT pre2.CODPROYECTO, SUM(d2.IMPORTETOTAL) AS PRESUPUESTO "
+                    "  FROM PRESUPROYE pre2 "
+                    "  JOIN DOCCAB d2 ON d2.CODIGO = pre2.CODPRESUPUESTO AND d2.TIPO = 0 "
+                    "  GROUP BY pre2.CODPROYECTO "
+                    ") presu ON presu.CODPROYECTO = pr.CODIGO "
+                    "WHERE (fact.FACTURADO IS NOT NULL OR presu.PRESUPUESTO IS NOT NULL) "
+                    "ORDER BY PORC_EJECUCION DESC NULLS LAST"
+                )
+            })
+            # PROY-5: Cliente/variante del proyecto (NIF + razón social)
+            fixed.append({
+                "objetivo": "Cliente y NIF por proyecto (PROYVAR)",
+                "sql": (
+                    "SELECT FIRST 30 pv.CODPROYECTO, p.NOMBRE AS OBRA, "
+                    "pv.RAZONSOCIAL AS CLIENTE, pv.TIPOIDFISCAL "
+                    "FROM PROYVAR pv "
+                    "LEFT JOIN PROYECTOS p ON p.CODIGO = pv.CODPROYECTO "
+                    "ORDER BY pv.CODPROYECTO"
+                )
+            })
+
         # ── SQLs FIJOS para ARTÍCULOS más vendidos / comprados ───────────────────
         # Se activan cuando la pregunta menciona artículos/productos y compras/ventas.
         # Usan sintaxis Firebird estándar — el query_translator los convierte
