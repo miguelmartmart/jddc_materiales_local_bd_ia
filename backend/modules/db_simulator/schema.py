@@ -105,10 +105,11 @@ TABLE_SCHEMAS: Dict[str, str] = {
             IVA            REAL    DEFAULT 21.0,
             IMPORTETOTAL   REAL    DEFAULT 0.0,
             ESTADO         INTEGER DEFAULT 0,
-            ESTADOPEND     INTEGER DEFAULT 0,
-            DESCRIPCION    TEXT,
-            OBSERVACIONES  TEXT,
-            CODPROYECTO    TEXT    DEFAULT NULL
+            ESTADOPEND        INTEGER DEFAULT 0,
+            ESTADOPENDVENCOM  INTEGER DEFAULT 0,
+            DESCRIPCION       TEXT,
+            OBSERVACIONES     TEXT,
+            CODPROYECTO       TEXT    DEFAULT NULL
         )
     """,
 
@@ -187,6 +188,19 @@ TABLE_SCHEMAS: Dict[str, str] = {
             PRIMARY KEY (CODPROYECTO, CODPRESUPUESTO)
         )
     """,
+
+    # ── Relación documento→documento destino (presupuesto→factura/pedido) ─────
+    # Solo lectura — se rellena por snapshot. Necesaria para queries de conversión.
+
+    "DOCDESTINO": """
+        CREATE TABLE IF NOT EXISTS DOCDESTINO (
+            CODDOCUMENTO        INTEGER NOT NULL,
+            CODDOCUMENTODESTINO INTEGER NOT NULL,
+            ORDENENVIO          INTEGER DEFAULT 0,
+            ORDENRECEPCION      INTEGER DEFAULT 0,
+            PRIMARY KEY (CODDOCUMENTO, CODDOCUMENTODESTINO)
+        )
+    """,
 }
 
 # Orden de creación (respeta dependencias FK para snapshots)
@@ -201,6 +215,7 @@ TABLE_CREATION_ORDER: List[str] = [
     "PROYVAR",
     "PRESUPROYE",
     "DOCCAB",
+    "DOCDESTINO",
     "DOCLIN",
     "CAJA",
     "ESTALMACEN",
@@ -221,6 +236,10 @@ TABLE_INDEXES: Dict[str, List[str]] = {
     "PRESUPROYE": [
         "CREATE INDEX IF NOT EXISTS idx_presuproye_proy  ON PRESUPROYE (CODPROYECTO)",
         "CREATE INDEX IF NOT EXISTS idx_presuproye_presu ON PRESUPROYE (CODPRESUPUESTO)",
+    ],
+    "DOCDESTINO": [
+        "CREATE INDEX IF NOT EXISTS idx_docdestino_src  ON DOCDESTINO (CODDOCUMENTO)",
+        "CREATE INDEX IF NOT EXISTS idx_docdestino_dst  ON DOCDESTINO (CODDOCUMENTODESTINO)",
     ],
     "DOCLIN": [
         "CREATE INDEX IF NOT EXISTS idx_doclin_codigo ON DOCLIN (CODIGO)",
@@ -256,7 +275,8 @@ TABLE_COLUMNS: Dict[str, List[str]] = {
                    "PROVINCIA", "TELEFONO", "EMAIL", "CODAGENTE", "FORMAPAGO"],
     "DOCCAB":     ["CODIGO", "TIPO", "NUMERO", "FECHA", "SERIE", "CODCLIENTE", "CODAGENTE",
                    "CODALMACEN", "BASEIMPONIBLE", "IVA", "IMPORTETOTAL", "ESTADO",
-                   "ESTADOPEND", "DESCRIPCION", "OBSERVACIONES", "CODPROYECTO"],
+                   "ESTADOPEND", "ESTADOPENDVENCOM", "DESCRIPCION", "OBSERVACIONES", "CODPROYECTO"],
+    "DOCDESTINO": ["CODDOCUMENTO", "CODDOCUMENTODESTINO", "ORDENENVIO", "ORDENRECEPCION"],
     "DOCLIN":     ["CODIGO", "NUMLINIA", "CODART", "DESCRIPCION",
                    "CANTIDAD", "PRECIO", "DESCUENTO", "IMPORTE"],
     "CAJA":       ["CODIGO", "FECHA", "CONCEPTO", "IMPORTE", "TIPO", "CODCLIENTE", "CODAGENTE"],

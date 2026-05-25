@@ -196,6 +196,32 @@ BASE_CONCEPT_INDEX = {
     "iva":         [{"table": "TIPOSIVA"}, {"table": "DOCCAB"}],
     "tarifa":      [{"table": "TARIFAS"}],
 
+    # ── Proyectos / Obras (análisis económico) ────────────────────────────────
+    # CRÍTICO: estas keywords permiten generar el informe de ejecución de proyectos.
+    # Siempre incluir PROYECTOS + PROYVAR + PRESUPROYE + DOCCAB para contexto completo.
+    "proyecto":    [{"table": "PROYECTOS"}, {"table": "PROYVAR"},
+                    {"table": "PRESUPROYE"}, {"table": "DOCCAB"}],
+    "proyectos":   [{"table": "PROYECTOS"}, {"table": "PROYVAR"},
+                    {"table": "PRESUPROYE"}, {"table": "DOCCAB"}],
+    "obra":        [{"table": "PROYECTOS"}, {"table": "PROYVAR"},
+                    {"table": "PRESUPROYE"}, {"table": "DOCCAB"},
+                    {"table": "DOCDESTINO"}],
+    "obras":       [{"table": "PROYECTOS"}, {"table": "PROYVAR"},
+                    {"table": "PRESUPROYE"}, {"table": "DOCCAB"}],
+    # %Ejecución = Facturado/Presupuesto×100 — siempre necesita PROYECTOS+DOCCAB
+    "ejecucion":   [{"table": "PROYECTOS"}, {"table": "PRESUPROYE"},
+                    {"table": "DOCCAB", "filter": "TIPO=13"}],
+    "ejecución":   [{"table": "PROYECTOS"}, {"table": "PRESUPROYE"},
+                    {"table": "DOCCAB", "filter": "TIPO=13"}],
+    "certificado": [{"table": "PROYECTOS"}, {"table": "DOCCAB", "filter": "TIPO=51"}],
+    "certificacion":[{"table": "PROYECTOS"}, {"table": "DOCCAB", "filter": "TIPO=51"}],
+    "retencion":   [{"table": "PROYECTOS"}, {"table": "DOCCAB"}],
+    "partida":     [{"table": "PROYECTOS"}, {"table": "PRESUPROYE"}, {"table": "DOCCAB"}],
+    "nif":         [{"table": "PROYVAR"}, {"table": "CLIENTE"}],
+    "razon social":[{"table": "PROYVAR"}, {"table": "CLIENTE"}],
+    "analisis economico": [{"table": "PROYECTOS"}, {"table": "PROYVAR"},
+                           {"table": "PRESUPROYE"}, {"table": "DOCCAB"}],
+
     # ── Otros ──────────────────────────────────────────────────────────────────
     "aviso":       [{"table": "AVISOS"}],
     "serie":       [{"table": "SERIES"}],

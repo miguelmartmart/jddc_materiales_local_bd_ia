@@ -89,12 +89,14 @@ class JDDCTableNames:
     PROYECTOS   = "PROYECTOS"
     PROYVAR     = "PROYVAR"
     PRESUPROYE  = "PRESUPROYE"
+    # Relación documento→destino (presupuesto→factura/pedido)
+    DOCDESTINO  = "DOCDESTINO"
 
     # Lista ordenada para snapshot (las de referencia primero)
     REFERENCE_TABLES = [FAMILIA, ALMACEN, RECURSO, PROVEED, ARTICULO, CLIENTE,
                         PROYECTOS, PROYVAR, PRESUPROYE]
     DATE_TABLES      = [DOCCAB, CAJA, ESTALMACEN]  # Tienen columna fecha
-    LINKED_TABLES    = [DOCLIN]  # Enlazadas vía FK (no filtradas por fecha directamente)
+    LINKED_TABLES    = [DOCLIN, DOCDESTINO]  # Enlazadas vía FK (no filtradas por fecha directamente)
     ALL = REFERENCE_TABLES + DATE_TABLES + LINKED_TABLES
 
 

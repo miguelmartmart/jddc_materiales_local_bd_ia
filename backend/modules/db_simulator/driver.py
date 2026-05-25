@@ -167,9 +167,10 @@ class SimulatedFirebirdDriver(DatabaseDriver):
         # en ALTER TABLE).
         _COLUMN_MIGRATIONS: List[tuple] = [
             # (tabla, columna, definición SQLite)
-            ("DOCCAB", "SERIE",       "TEXT DEFAULT 'A'"),
-            ("DOCCAB", "ESTADOPEND",  "INTEGER DEFAULT 0"),
-            ("DOCCAB", "CODPROYECTO", "TEXT DEFAULT NULL"),
+            ("DOCCAB", "SERIE",            "TEXT DEFAULT 'A'"),
+            ("DOCCAB", "ESTADOPEND",       "INTEGER DEFAULT 0"),
+            ("DOCCAB", "ESTADOPENDVENCOM", "INTEGER DEFAULT 0"),
+            ("DOCCAB", "CODPROYECTO",      "TEXT DEFAULT NULL"),
         ]
         for table, col, col_def in _COLUMN_MIGRATIONS:
             try:

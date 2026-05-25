@@ -76,6 +76,9 @@ STOPWORDS_ES = frozenset({
     "cuantos", "cuantas", "cual", "cuales", "como", "donde",
     "cuando", "quien", "quienes", "mas", "menos", "todos",
     "todas", "cada", "otro", "otra", "mismo", "misma",
+    # Campos ERP ultra-genéricos que aparecen en TODAS las tablas y no aportan discriminación:
+    "codigo", "codigos", "numero", "numeros", "referencia",
+    "origen", "destino", "porcentaje", "imputacion",
 })
 
 
@@ -110,6 +113,9 @@ class ContextRetriever:
         Carga todos los indices en memoria.
         Devuelve True si los indices del SIUO estan disponibles,
         False si solo hay fallback (db_metadata_optimized.json).
+
+        Las reglas manuales BASE_CONCEPT_INDEX tienen PRIORIDAD sobre el indice
+        generado por IA — sobreescriben entradas incorrectas (ej: "ejecucion"→ADMINPROG).
         """
         try:
             table_data   = _load_json(TABLE_INDEX_PATH,   {})
@@ -118,7 +124,16 @@ class ContextRetriever:
             value_data   = _load_json(VALUE_INDEX_PATH,   {})
 
             self._table_index   = table_data.get("tables", {})
-            self._concept_index = concept_data.get("index", {})
+            loaded_index        = concept_data.get("index", {})
+
+            # Fusionar: BASE_CONCEPT_INDEX gana sobre el indice generado por IA
+            # para evitar que keywords criticos apunten a tablas incorrectas.
+            from backend.modules.db_explorer.deep_indexer_service import BASE_CONCEPT_INDEX
+            merged = dict(loaded_index)
+            for concept, tables in BASE_CONCEPT_INDEX.items():
+                merged[concept] = list(tables)  # Sobreescribir con regla manual
+
+            self._concept_index = merged
             self._value_index   = value_data
 
             # Construir lista de adyacencia del grafo
@@ -331,10 +346,16 @@ class ContextRetriever:
         """
         Busca tablas candidatas en concept_index para los keywords dados.
         Devuelve {table_name: {filter, score, source}}.
+
+        Deduplicacion: cada keyword unico contribuye UNA sola vez al score,
+        aunque aparezca repetido en la pregunta (evita que palabras frecuentes
+        como "total" o "facturacion" inflen scores de forma incorrecta).
         """
         candidates: Dict[str, Dict] = {}
+        # Deduplicar keywords para scoring justo: cada kw cuenta 1 vez
+        unique_keywords = list(dict.fromkeys(keywords))
 
-        for kw in keywords:
+        for kw in unique_keywords:
             entries = self._concept_index.get(kw, [])
             for entry in entries:
                 if isinstance(entry, str):
