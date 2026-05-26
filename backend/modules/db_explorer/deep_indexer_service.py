@@ -176,10 +176,13 @@ BASE_CONCEPT_INDEX = {
     # ── Entidades ──────────────────────────────────────────────────────────────
     "cliente":     [{"table": "CLIENTE"}],
     "proveedor":   [{"table": "PROVEED"}],
-    "agente":      [{"table": "AGENTE"}],
-    "comercial":   [{"table": "AGENTE"}],
-    "empleado":    [{"table": "EMPLEADOS"}],
-    "tecnico":     [{"table": "EMPLEADOS"}],
+    # AGENTES (plural) — nombre real confirmado por FK CODAGENTE → AGENTES
+    "agente":      [{"table": "AGENTES"}],
+    "agentes":     [{"table": "AGENTES"}],
+    "comercial":   [{"table": "AGENTES"}, {"table": "DOCCAB"}],
+    "comisionista":[{"table": "AGENTES"}],
+    "empleado":    [{"table": "RECURSO"}],   # RECURSO = empleados/técnicos internos
+    "tecnico":     [{"table": "RECURSO"}, {"table": "DOCCAB", "filter": "TIPO=2"}],
 
     # ── Almacén / Logística ────────────────────────────────────────────────────
     "almacen":     [{"table": "ALMACEN"}, {"table": "ESTALMACEN"}],
@@ -191,10 +194,15 @@ BASE_CONCEPT_INDEX = {
     "pago":        [{"table": "CAJA"}, {"table": "DOCCAB"}],
     "impago":      [{"table": "DOCCAB"}, {"table": "CAJA"}],
     "deuda":       [{"table": "DOCCAB"}, {"table": "CAJA"}],
-    "banco":       [{"table": "BANCOS"}],
-    "forma pago":  [{"table": "FORMASPAGO"}],
-    "iva":         [{"table": "TIPOSIVA"}, {"table": "DOCCAB"}],
-    "tarifa":      [{"table": "TARIFAS"}],
+    "banco":       [{"table": "CAJA"}],             # BANCOS no está en simulador; CAJA registra movimientos bancarios
+    "forma pago":  [{"table": "FORMASPAGO"}, {"table": "CLIENTE"}],
+    "formapago":   [{"table": "FORMASPAGO"}, {"table": "CLIENTE"}],
+    "iva":         [{"table": "TIPOSIVA"}, {"table": "DOCCAB"}, {"table": "ARTICULO"}],
+    "tipo iva":    [{"table": "TIPOSIVA"}],
+    "tarifa":      [{"table": "TARIFAS"}, {"table": "ARTICULO"}],
+    "serie":       [{"table": "SERIES"}, {"table": "DOCCAB"}],
+    "aviso":       [{"table": "AVISOS"}, {"table": "CLIENTE"}],
+    "avisos":      [{"table": "AVISOS"}],
 
     # ── Proyectos / Obras (análisis económico) ────────────────────────────────
     # CRÍTICO: estas keywords permiten generar el informe de ejecución de proyectos.

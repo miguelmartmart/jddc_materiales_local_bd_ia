@@ -93,10 +93,23 @@ class JDDCTableNames:
     PRESUPROYE  = "PRESUPROYE"
     # Relación documento→destino (presupuesto→factura/pedido)
     DOCDESTINO  = "DOCDESTINO"
+    # Tablas auxiliares (referencia) — necesarias para responder cualquier pregunta ERP
+    AGENTES     = "AGENTES"     # Agentes/comerciales (FK: CODAGENTE en DOCCAB/CLIENTE)
+    TIPOSIVA    = "TIPOSIVA"    # Tipos de IVA (FK: CODIVA en ARTICULO/DOCCAB)
+    TARIFAS     = "TARIFAS"     # Tarifas de precio (FK: CODTARIFA)
+    FORMASPAGO  = "FORMASPAGO"  # Formas de pago (FK: FORMAPAGO en CLIENTE)
+    SERIES      = "SERIES"      # Series de documentos (FK: SERIE en DOCCAB)
+    AVISOS      = "AVISOS"      # Avisos / notificaciones internas
 
     # Lista ordenada para snapshot (las de referencia primero)
-    REFERENCE_TABLES = [FAMILIA, ALMACEN, RECURSO, PROVEED, ARTICULO, CLIENTE,
-                        PROYECTOS, PROYVAR, PRESUPROYE]
+    REFERENCE_TABLES = [
+        # Maestros principales
+        FAMILIA, ALMACEN, RECURSO, PROVEED, ARTICULO, CLIENTE,
+        # Proyectos / obras
+        PROYECTOS, PROYVAR, PRESUPROYE,
+        # Auxiliares — responden preguntas sobre agentes, IVA, tarifas, cobros, series
+        AGENTES, TIPOSIVA, TARIFAS, FORMASPAGO, SERIES, AVISOS,
+    ]
     DATE_TABLES      = [DOCCAB, CAJA, ESTALMACEN]  # Tienen columna fecha
     LINKED_TABLES    = [DOCLIN, DOCDESTINO]  # Enlazadas vía FK (no filtradas por fecha directamente)
     ALL = REFERENCE_TABLES + DATE_TABLES + LINKED_TABLES

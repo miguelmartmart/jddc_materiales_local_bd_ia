@@ -640,9 +640,26 @@ Si ves texto en la imagen, transcríbelo pero NO lo busques en ninguna tabla.
 """
         else:
             # Standard SQL Mode — system prompt ultra-compacto para minimizar tokens
+            # ── Nota simulador (solo si está activo) ─────────────────────────
+            _sim_note = ""
+            try:
+                from backend.modules.db_simulator.manager import simulator_manager as _sm
+                if _sm.is_enabled():
+                    from backend.modules.db_simulator.schema import TABLE_SCHEMAS
+                    _sim_tables = ", ".join(sorted(TABLE_SCHEMAS.keys()))
+                    _sim_note = (
+                        f"\n⚠️ MODO SIMULADOR ACTIVO (SQLite local — snapshot de Firebird).\n"
+                        f"TABLAS DISPONIBLES (SOLO ESTAS): {_sim_tables}\n"
+                        f"NO generes SQL contra tablas que no estén en esta lista.\n"
+                        f"Escribe SQL con sintaxis Firebird (FIRST N, EXTRACT, etc.) — "
+                        f"el sistema lo convierte a SQLite automáticamente.\n"
+                    )
+            except Exception:
+                pass
+
             system_prompt = f"""Firebird 2.5 SQL. Convierte preguntas a SQL válido.
 {history_context}
-{db_context}
+{db_context}{_sim_note}
 REGLAS(no negociar):
 • FIRST N no LIMIT/TOP/ROWS: SELECT FIRST 10 CODIGO FROM ARTICULO
 • UPPER(col) LIKE UPPER('%x%') para texto (Firebird es case-sensitive)

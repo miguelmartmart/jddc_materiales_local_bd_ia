@@ -201,24 +201,97 @@ TABLE_SCHEMAS: Dict[str, str] = {
             PRIMARY KEY (CODDOCUMENTO, CODDOCUMENTODESTINO)
         )
     """,
+
+    # ── Tablas auxiliares de referencia ────────────────────────────────────────
+    # Esquemas mínimos de fallback — _sync_schema_from_firebird los amplía con
+    # las columnas reales de Firebird durante build-snapshot.
+    # Vacías en modo sintético; rellenas tras snapshot real.
+
+    "AGENTES": """
+        CREATE TABLE IF NOT EXISTS AGENTES (
+            CODIGO      INTEGER PRIMARY KEY,
+            NOMBRE      TEXT    NOT NULL,
+            NIF         TEXT,
+            TELEFONO    TEXT,
+            EMAIL       TEXT,
+            COMISION    REAL    DEFAULT 0.0
+        )
+    """,
+
+    "TIPOSIVA": """
+        CREATE TABLE IF NOT EXISTS TIPOSIVA (
+            CODIGO      INTEGER PRIMARY KEY,
+            NOMBRE      TEXT    NOT NULL,
+            PORCENTAJE  REAL    DEFAULT 21.0,
+            PORCENTAJE2 REAL    DEFAULT 0.0
+        )
+    """,
+
+    "TARIFAS": """
+        CREATE TABLE IF NOT EXISTS TARIFAS (
+            CODIGO      INTEGER PRIMARY KEY,
+            NOMBRE      TEXT    NOT NULL,
+            DESCRIPCION TEXT,
+            PORCENTAJE  REAL    DEFAULT 0.0
+        )
+    """,
+
+    "FORMASPAGO": """
+        CREATE TABLE IF NOT EXISTS FORMASPAGO (
+            CODIGO      TEXT    PRIMARY KEY,
+            NOMBRE      TEXT    NOT NULL,
+            DIASVENC    INTEGER DEFAULT 0,
+            TIPOCOBRO   INTEGER DEFAULT 0
+        )
+    """,
+
+    "SERIES": """
+        CREATE TABLE IF NOT EXISTS SERIES (
+            CODIGO      TEXT    PRIMARY KEY,
+            NOMBRE      TEXT    NOT NULL,
+            TIPO        INTEGER DEFAULT 0
+        )
+    """,
+
+    "AVISOS": """
+        CREATE TABLE IF NOT EXISTS AVISOS (
+            CODIGO      INTEGER PRIMARY KEY,
+            FECHA       TEXT,
+            DESCRIPCION TEXT,
+            ESTADO      INTEGER DEFAULT 0,
+            CODCLIENTE  INTEGER DEFAULT 0,
+            CODAGENTE   INTEGER DEFAULT 0
+        )
+    """,
 }
 
 # Orden de creación (respeta dependencias FK para snapshots)
 TABLE_CREATION_ORDER: List[str] = [
+    # Maestros (sin dependencias)
     "FAMILIA",
     "ALMACEN",
+    "AGENTES",
+    "TIPOSIVA",
+    "TARIFAS",
+    "FORMASPAGO",
+    "SERIES",
     "RECURSO",
     "PROVEED",
     "ARTICULO",
     "CLIENTE",
+    # Proyectos
     "PROYECTOS",
     "PROYVAR",
     "PRESUPROYE",
+    # Documentos (dependen de maestros)
     "DOCCAB",
     "DOCDESTINO",
     "DOCLIN",
+    # Movimientos
     "CAJA",
     "ESTALMACEN",
+    # Avisos
+    "AVISOS",
 ]
 
 # ─── Índices para mejorar rendimiento de queries frecuentes ──────────────────
@@ -281,4 +354,11 @@ TABLE_COLUMNS: Dict[str, List[str]] = {
                    "CANTIDAD", "PRECIO", "DESCUENTO", "IMPORTE"],
     "CAJA":       ["CODIGO", "FECHA", "CONCEPTO", "IMPORTE", "TIPO", "CODCLIENTE", "CODAGENTE"],
     "ESTALMACEN": ["CODIGO", "CODART", "CODALMACEN", "FECHA", "CANTIDAD", "COSTE", "VENTA"],
+    # Auxiliares
+    "AGENTES":    ["CODIGO", "NOMBRE", "NIF", "TELEFONO", "EMAIL", "COMISION"],
+    "TIPOSIVA":   ["CODIGO", "NOMBRE", "PORCENTAJE", "PORCENTAJE2"],
+    "TARIFAS":    ["CODIGO", "NOMBRE", "DESCRIPCION", "PORCENTAJE"],
+    "FORMASPAGO": ["CODIGO", "NOMBRE", "DIASVENC", "TIPOCOBRO"],
+    "SERIES":     ["CODIGO", "NOMBRE", "TIPO"],
+    "AVISOS":     ["CODIGO", "FECHA", "DESCRIPCION", "ESTADO", "CODCLIENTE", "CODAGENTE"],
 }
