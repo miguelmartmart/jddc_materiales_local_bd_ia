@@ -406,18 +406,24 @@ class SnapshotService:
             return 0
 
     def _capture_doclin(self, doccab_ids: List[int]) -> int:
-        """Captura líneas de documento para los DOCCAB capturados."""
+        """
+        Captura TODAS las líneas de documento para los DOCCAB capturados.
+
+        No aplica límite FIRST porque se filtra por IDs concretos:
+        queremos TODAS las líneas de esos documentos, no un subconjunto
+        arbitrario. Un presupuesto de proyecto puede tener 30-80 líneas.
+        Usamos lotes de 500 para no superar el límite de IN de Firebird.
+        """
         if not doccab_ids:
             return 0
         try:
-            # SQLite tiene límite de 999 en IN clause; usamos lotes
             total = 0
             batch_size = 500
             for i in range(0, len(doccab_ids), batch_size):
                 batch = doccab_ids[i:i + batch_size]
                 placeholders = ",".join(str(x) for x in batch)
                 rows = self._fb_query(
-                    f"SELECT FIRST {Cfg.MAX_DOCLIN_ROWS} * FROM DOCLIN "
+                    f"SELECT * FROM DOCLIN "
                     f"WHERE CODIGO IN ({placeholders})"
                 )
                 if rows:

@@ -441,6 +441,20 @@ class ChatService:
         no_db_flag = context.get('no_db', False)
         db_params = context.get('db_params')
         db_params_empty = not db_params or not db_params.get('host') or not db_params.get('database')
+
+        simulator_available = False
+        try:
+            from backend.modules.db_simulator.manager import simulator_manager
+            simulator_available = simulator_manager.is_enabled()
+        except Exception as sim_err:
+            logger.warning(f"[CHAT] No se pudo consultar el simulador: {sim_err}")
+
+        if simulator_available and db_params_empty and not no_db_flag:
+            logger.info("[CHAT] Simulador activo y no hay parámetros reales; usando simulador para generar respuestas SQL")
+            db_params = {}
+            db_params_empty = False
+            context['db_params'] = db_params
+
         if no_db_flag or db_params_empty:
             logger.info(f"[CHAT] Sin BD (no_db={no_db_flag}, db_params_empty={db_params_empty})")
             return await self._chat_no_db(message, context)
@@ -465,7 +479,8 @@ class ChatService:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
-                # Obtener contexto SIUO
+                # Obtener contexto SIUO (mismo esquema Firebird siempre —
+                # el simulador traduce la sintaxis transparentemente)
                 try:
                     retriever = get_context_retriever()
                     db_context, _ = retriever.get_context(message)
@@ -1106,6 +1121,46 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
 
 
     def _get_db_context(self, db_params: Dict[str, Any]) -> str:
+        from backend.modules.db_simulator.manager import simulator_manager as _sim_mgr
+        if not db_params and _sim_mgr.is_enabled():
+            logger.info("[DATABASE] No hay parámetros reales pero el simulador está activo — construyendo contexto desde la BD simulada")
+            try:
+                from backend.modules.db_simulator.driver import SimulatedFirebirdDriver
+                driver = SimulatedFirebirdDriver()
+                driver.connect()
+                tables = driver.execute_query(QUERY_TABLES)
+                table_names = [t['TABLE_NAME'] for t in tables if not t['TABLE_NAME'].startswith('RDB$')]
+                schema_parts = [f"Base de datos simulada con {len(table_names)} tablas de usuario.\n"]
+                schema_parts.append(f"Tablas disponibles: {', '.join(table_names)}\n")
+                # Tablas principales de la BD JDDC (nombres reales, no genéricos)
+                important_tables = [
+                    'DOCCAB',      # Documentos: facturas, presupuestos, albaranes, SATs, pedidos
+                    'DOCLIN',      # Líneas de documento (FK→DOCCAB.CODIGO)
+                    'CLIENTE',     # Clientes
+                    'ARTICULO',    # Artículos / productos / servicios
+                    'PROYECTOS',   # Obras/proyectos
+                    'PROYVAR',     # NIF y razón social por proyecto
+                    'PRESUPROYE',  # Relación presupuesto↔proyecto
+                    'PROVEED',     # Proveedores
+                    'DOCDESTINO',  # Relación presupuesto→factura/pedido
+                ]
+                available_important = [t for t in important_tables if t in table_names]
+                for table_name in available_important:
+                    try:
+                        columns = driver.execute_query(QUERY_TABLE_COLUMNS, (table_name,))
+                        if columns:
+                            col_details = [f"  - {c['FIELD_NAME']} ({c.get('FIELD_TYPE', 'UNKNOWN')})" for c in columns]
+                            schema_parts.append(f"\nTabla: {table_name}")
+                            schema_parts.append(f"Columnas ({len(columns)}):")
+                            schema_parts.extend(col_details)
+                    except Exception as e:
+                        logger.warning(f"[DATABASE] No se pudo obtener esquema simulado de {table_name}: {e}")
+                driver.disconnect()
+                return "\n".join(schema_parts)
+            except Exception as e:
+                logger.error(f"[DATABASE] Error construyendo contexto simulado: {e}")
+                return f"Error obteniendo esquema del simulador: {str(e)}"
+
         if not db_params:
             logger.warning("[DATABASE] No hay parámetros de conexión")
             return "No hay conexión a base de datos definida."
@@ -1135,8 +1190,18 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
             schema_parts = [f"Base de datos Firebird con {len(table_names)} tablas de usuario.\n"]
             schema_parts.append(f"Tablas disponibles: {', '.join(table_names)}\n")
             
-            # Get detailed info for important tables (limit to avoid token overflow)
-            important_tables = ['ARTICULO', 'CLIENTE', 'FACTURA', 'PROVEEDOR', 'PEDIDO']
+            # Tablas principales de la BD JDDC (nombres reales)
+            important_tables = [
+                'DOCCAB',      # Documentos: facturas, presupuestos, albaranes, SATs, pedidos
+                'DOCLIN',      # Líneas de documento
+                'CLIENTE',     # Clientes
+                'ARTICULO',    # Artículos / productos / servicios
+                'PROYECTOS',   # Obras/proyectos
+                'PROYVAR',     # NIF y razón social por proyecto
+                'PRESUPROYE',  # Relación presupuesto↔proyecto
+                'PROVEED',     # Proveedores
+                'DOCDESTINO',  # Relación presupuesto→factura/pedido
+            ]
             available_important = [t for t in important_tables if t in table_names]
             
             logger.info(f"[DATABASE] Obteniendo esquema detallado de {len(available_important)} tablas principales...")
@@ -1172,8 +1237,36 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
             return f"Error obteniendo esquema: {str(e)}"
 
     def _execute_sql(self, query: str, db_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Ejecuta SQL contra la BD configurada.
+
+        Lógica de selección de BD (sin fallback automático):
+          - simulator_enabled=true  → SQLite local (BD simulada)
+          - simulator_enabled=false → Firebird real (sin fallback)
+
+        IMPORTANTE: No usa time.sleep() para no bloquear el event loop de asyncio.
+        Un único intento — si falla, lanza excepción inmediatamente.
+        """
         logger.info(f"[DATABASE] Preparando ejecución de consulta...")
-        
+
+        # ── MODO SIMULADOR (activación servidor) ──────────────────────────────
+        # El simulador se activa SOLO si simulator_enabled=true en
+        # backend/modules/db_simulator/config.json (parámetro servidor).
+        # El cliente NO puede activarlo — seguridad y control centralizado.
+        from backend.modules.db_simulator.manager import simulator_manager as _sim_mgr
+        if _sim_mgr.is_enabled():
+            logger.info("[DATABASE] 🎭 Modo simulador activo (config.json) — usando SQLite local")
+            from backend.modules.db_simulator.driver import SimulatedFirebirdDriver
+            _sim_mgr.ensure_ready()
+            driver = SimulatedFirebirdDriver()
+            driver.connect()
+            try:
+                return driver.execute_query(query)
+            finally:
+                driver.disconnect()
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── MODO FIREBIRD REAL ────────────────────────────────────────────────
         # Si no hay db_params (ej: petición desde gafas sin parámetros),
         # usar los valores del .env como fallback
         if not db_params:
@@ -1185,58 +1278,37 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 "user": settings.DB_USER,
                 "password": settings.DB_PASSWORD,
             }
-        
-        max_retries = 3
-        retry_count = 0
-        last_error = None
-        
-        while retry_count < max_retries:
-            driver = None
-            try:
-                logger.info(f"[DATABASE] Intento {retry_count + 1}/{max_retries}")
-                
-                driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
-                
-                # Map username to user for DBConfig
-                config_params = db_params.copy()
-                if 'username' in config_params:
-                    config_params['user'] = config_params.pop('username')
-                
-                # Filter out non-DB params
-                if 'confirm_data_sending' in config_params:
-                    del config_params['confirm_data_sending']
-                
-                config = DBConfig(**config_params)
-                
-                logger.info(f"[DATABASE] Conectando para ejecutar consulta...")
-                driver.connect(config)
-                
-                logger.info(f"[DATABASE] Ejecutando: {query}")
-                results = driver.execute_query(query)
-                
-                logger.info(f"[DATABASE] ✓ Consulta ejecutada: {len(results)} filas retornadas")
-                
-                return results
-                
-            except Exception as e:
-                last_error = e
-                retry_count += 1
-                logger.error(f"[DATABASE] ❌ Error en intento {retry_count}: {str(e)}")
-                
-                if retry_count < max_retries:
-                    import time
-                    wait_time = retry_count * 0.5  # Espera incremental
-                    logger.info(f"[DATABASE] Esperando {wait_time}s antes de reintentar...")
-                    time.sleep(wait_time)
-            finally:
-                if driver:
-                    try:
-                        driver.disconnect()
-                        logger.info(f"[DATABASE] ✓ Desconectado")
-                    except:
-                        pass
-        
-        # Si llegamos aquí, todos los intentos fallaron
-        error_msg = f"Error después de {max_retries} intentos: {str(last_error)}"
-        logger.error(f"[DATABASE] ❌ {error_msg}")
-        raise Exception(error_msg)
+
+        driver = None
+        try:
+            driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD)
+
+            # Map username to user for DBConfig
+            config_params = db_params.copy()
+            if 'username' in config_params:
+                config_params['user'] = config_params.pop('username')
+
+            # Filter out non-DB params
+            if 'confirm_data_sending' in config_params:
+                del config_params['confirm_data_sending']
+
+            config = DBConfig(**config_params)
+
+            logger.info(f"[DATABASE] Conectando a Firebird {config_params.get('host')}:{config_params.get('port')}...")
+            driver.connect(config)
+
+            logger.info(f"[DATABASE] Ejecutando: {query[:120]}")
+            results = driver.execute_query(query)
+
+            logger.info(f"[DATABASE] ✓ {len(results)} filas retornadas")
+            return results
+
+        except Exception as e:
+            logger.error(f"[DATABASE] ❌ Error Firebird: {str(e)}")
+            raise
+        finally:
+            if driver:
+                try:
+                    driver.disconnect()
+                except Exception:
+                    pass

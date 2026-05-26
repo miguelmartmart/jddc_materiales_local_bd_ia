@@ -208,9 +208,33 @@ class SimulatedFirebirdDriver(DatabaseDriver):
         # ── RDB$RELATION_FIELDS → columnas de una tabla ───────────────────────
         if "RDB$RELATION_FIELDS" in q:
             table_name = _extract_table_from_fields_query(query, params)
-            cols = TABLE_COLUMNS.get(table_name.upper(), []) if table_name else []
+            if not table_name:
+                return []
+
+            # Prioridad 1: leer columnas REALES del esquema SQLite actual.
+            # Después de un build-snapshot, _sync_schema_from_firebird añadió
+            # todas las columnas de Firebird real. PRAGMA table_info las devuelve.
+            if self.conn:
+                try:
+                    cur = self.conn.cursor()
+                    cur.execute(f"PRAGMA table_info({table_name})")
+                    pragma_rows = cur.fetchall()
+                    if pragma_rows:
+                        cols = [r[1] for r in pragma_rows]  # r[1] = column name
+                        logger.debug(
+                            f"{SimulatorLog.DRIVER} System query (PRAGMA): "
+                            f"columnas de {table_name} → {len(cols)} campos"
+                        )
+                        return [{"FIELD_NAME": c, "F": c} for c in cols]
+                except Exception as e:
+                    logger.warning(
+                        f"{SimulatorLog.DRIVER} PRAGMA table_info({table_name}) falló: {e}"
+                    )
+
+            # Prioridad 2: fallback al dict estático (BD sintética / sin conexión)
+            cols = TABLE_COLUMNS.get(table_name.upper(), [])
             logger.debug(
-                f"{SimulatorLog.DRIVER} System query: columnas de {table_name} "
+                f"{SimulatorLog.DRIVER} System query (static): columnas de {table_name} "
                 f"→ {len(cols)} campos"
             )
             return [{"FIELD_NAME": c, "F": c} for c in cols]
