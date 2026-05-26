@@ -43,9 +43,11 @@ class SimulatorStatus:
 class SimulatorConfig:
     """Parámetros de volumen y comportamiento."""
     # Snapshot de BD real
-    SNAPSHOT_MONTHS_BACK   = 1     # Cuántos meses atrás capturar
-    MAX_ROWS_PER_TABLE     = 500   # Límite de filas por tabla en snapshot
-    MAX_DOCLIN_ROWS        = 2000  # Límite para tabla de líneas de documento
+    SNAPSHOT_MONTHS_BACK       = 1     # Cuántos meses atrás capturar (tablas con fecha)
+    MAX_ROWS_PER_TABLE         = 500   # Límite de filas por tabla de referencia
+    MAX_PROYECTO_ROWS          = 2000  # Límite para tablas de proyectos (más registros)
+    MAX_DOCCAB_PROYECTO_ROWS   = 2000  # Límite para DOCCAB histórico por proyecto
+    MAX_DOCLIN_ROWS            = 2000  # Límite para tabla de líneas de documento
 
     # Datos sintéticos
     SYNTHETIC_FAMILIAS     = 15
