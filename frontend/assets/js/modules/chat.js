@@ -9,6 +9,133 @@ import {
   HTTP_METHODS,
 } from "../core/constants.js";
 
+// ─── Renderer Markdown global (configurado UNA sola vez) ─────────────────────
+// Se inicializa la primera vez que se llama a _renderMarkdown().
+// Usar una función global evita reconfigurar marked en cada mensaje.
+let _markedConfigured = false;
+
+function _configureMarked() {
+  if (_markedConfigured || typeof marked === "undefined") return;
+  _markedConfigured = true;
+
+  // Renderer personalizado compatible con marked v4+
+  const renderer = {
+    // Tablas GFM → envueltas en .chat-table-wrapper para scroll horizontal
+    table(token) {
+      // token.header: array de celdas de cabecera
+      // token.rows: array de filas (cada fila es array de celdas)
+      const headerCells = (token.header || [])
+        .map((cell) => `<th>${cell.text || cell}</th>`)
+        .join("");
+      const bodyRows = (token.rows || [])
+        .map(
+          (row) =>
+            `<tr>${row.map((cell) => `<td>${cell.text || cell}</td>`).join("")}</tr>`,
+        )
+        .join("");
+      return (
+        `<div class="chat-table-wrapper">` +
+        `<table class="chat-table">` +
+        `<thead><tr>${headerCells}</tr></thead>` +
+        `<tbody>${bodyRows}</tbody>` +
+        `</table></div>`
+      );
+    },
+    // Bloques de código → NO mostrar al usuario no técnico
+    // Los bloques ```sql ... ``` se ocultan completamente
+    code(token) {
+      const lang = (token.lang || "").toLowerCase();
+      if (lang === "sql" || lang === "python" || lang === "bash" || lang === "sh") {
+        // Ocultar código técnico — el usuario no sabe programación
+        return "";
+      }
+      // Otros bloques de código: mostrar con estilo discreto
+      const escaped = (token.text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<pre class="chat-code-block"><code>${escaped}</code></pre>`;
+    },
+  };
+
+  marked.use({
+    gfm: true,
+    breaks: true,
+    renderer,
+  });
+}
+
+/**
+ * Renderiza texto Markdown a HTML seguro para el chat.
+ * - Configura marked una sola vez (no en cada mensaje).
+ * - Cierra bloques <details> abiertos (respuestas cortadas).
+ * - Elimina bloques SQL visibles.
+ * - Preserva HTML inline (<details>, <summary>, etc.).
+ *
+ * @param {string} text - Texto Markdown/HTML de la IA
+ * @returns {string} HTML renderizado
+ */
+function _renderMarkdown(text) {
+  if (!text || typeof text !== "string") return "";
+
+  // 1. Configurar marked una sola vez
+  _configureMarked();
+
+  // 2. Reparar respuestas cortadas: cerrar <details> abiertos
+  text = _repairTruncatedResponse(text);
+
+  // 3. Renderizar Markdown → HTML
+  let html;
+  try {
+    html = marked.parse(text);
+  } catch (e) {
+    // Fallback: escapar y mostrar como texto plano
+    html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+  }
+
+  // 4. Post-proceso: añadir clase CSS al <details> generado por la IA
+  html = html.replace(
+    /<details>/gi,
+    '<details class="chat-justification">',
+  );
+
+  return html;
+}
+
+/**
+ * Repara respuestas truncadas por el modelo:
+ * - Cierra bloques <details> abiertos
+ * - Elimina bloques ```sql ... ``` que el modelo haya incluido por error
+ * - Cierra listas/tablas incompletas
+ */
+function _repairTruncatedResponse(text) {
+  // Eliminar bloques de código SQL/técnico que no deben verse
+  text = text.replace(/```(?:sql|SQL|python|bash|sh)[^`]*```/gs, "");
+  text = text.replace(/```[^`]*```/gs, (match) => {
+    // Mantener bloques de código no técnicos (ej: texto plano)
+    const lang = match.match(/```(\w*)/)?.[1]?.toLowerCase() || "";
+    if (["sql", "python", "bash", "sh", "javascript", "js"].includes(lang)) {
+      return "";
+    }
+    return match;
+  });
+
+  // Contar <details> y </details> para cerrar los que faltan
+  const openCount = (text.match(/<details[^>]*>/gi) || []).length;
+  const closeCount = (text.match(/<\/details>/gi) || []).length;
+  const missing = openCount - closeCount;
+  if (missing > 0) {
+    // La respuesta fue cortada dentro de un <details>
+    // Añadir contenido mínimo y cerrar
+    text += "\n\n*(Información adicional disponible — consulta al asistente para más detalles)*\n\n";
+    for (let i = 0; i < missing; i++) {
+      text += "\n</details>";
+    }
+  }
+
+  return text;
+}
+
 export class ChatModule {
   constructor() {
     this.apiBase = API.ENDPOINTS.CHAT;
@@ -747,19 +874,7 @@ export class ChatModule {
     textDiv.className = "chat-markdown-body";
     // Render Markdown if available
     if (typeof marked !== "undefined") {
-      // Configurar marked con GFM (tablas, listas de tareas, etc.)
-      marked.use({
-        gfm: true,
-        breaks: true,
-        renderer: (() => {
-          const r = new marked.Renderer();
-          // Tablas con clase para estilos
-          r.table = (header, body) =>
-            `<div class="chat-table-wrapper"><table class="chat-table"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-          return r;
-        })(),
-      });
-      textDiv.innerHTML = marked.parse(text);
+      textDiv.innerHTML = _renderMarkdown(text);
 
       // Add custom styles for images in markdown
       const imagesInMd = textDiv.querySelectorAll("img");
@@ -770,6 +885,7 @@ export class ChatModule {
         img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
       });
     } else {
+      // Fallback: escapar HTML y mostrar texto plano
       textDiv.textContent = text;
     }
     msgDiv.appendChild(textDiv);

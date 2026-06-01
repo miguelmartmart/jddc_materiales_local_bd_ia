@@ -9,6 +9,26 @@
  * CLASES PRINCIPALES: .chat-markdown-body, .chat-table-wrapper, .chat-table
  */
 
+/* ─── Área de mensajes: scroll vertical ────────────────────────────────────── */
+
+#chat-messages {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* ─── Burbuja de mensaje IA: ancho máximo ampliado + scroll interno ─────────── */
+
+.message.ai {
+  max-width: 92% !important;   /* Más ancho para tablas y respuestas largas */
+  overflow-x: auto;            /* Scroll horizontal si la tabla es muy ancha */
+  word-break: break-word;
+}
+
+.message.user {
+  max-width: 75% !important;
+}
+
 /* ─── Contenedor Markdown ──────────────────────────────────────────────────── */
 
 .chat-markdown-body {
@@ -16,6 +36,7 @@
   line-height: 1.6;
   color: #334155;
   word-break: break-word;
+  overflow-x: auto;            /* Scroll horizontal para tablas anchas */
 }
 
 .chat-markdown-body p {

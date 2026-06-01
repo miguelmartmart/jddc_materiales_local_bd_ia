@@ -360,6 +360,31 @@ class ChatService:
 
         return False
 
+    def _is_clarification_request(self, message: str) -> bool:
+        """
+        Detecta si el usuario pide más detalle/justificación sobre la respuesta anterior.
+        Estas peticiones NO generan nueva SQL — usan el historial de conversación.
+
+        Ejemplos: "justifica", "explica", "en detalle", "por qué", "cómo lo calculaste",
+                  "detállame", "amplía", "más información", "no entiendo".
+        """
+        msg = message.lower().strip()
+        clarification_keywords = [
+            "justifica", "justifícame", "justificame",
+            "explica", "explícame", "explicame",
+            "en detalle", "detállame", "detallame", "más detalle", "mas detalle",
+            "por qué", "por que", "cómo lo calculaste", "como lo calculaste",
+            "cómo llegaste", "como llegaste", "cómo obtuviste", "como obtuviste",
+            "amplía", "amplia", "más información", "mas informacion",
+            "no entiendo", "no lo entiendo", "qué significa", "que significa",
+            "qué quiere decir", "que quiere decir",
+            "profundiza", "profundízame", "profundizame",
+            "dime más", "dime mas", "cuéntame más", "cuentame mas",
+            "cómo verifico", "como verifico", "cómo compruebo", "como compruebo",
+            "es fiable", "es correcto", "estás seguro", "estas seguro",
+        ]
+        return any(k in msg for k in clarification_keywords)
+
     def _is_deep_analysis_request(self, message: str) -> bool:
         """
         Detecta si el usuario quiere un análisis profundo multi-fase.
@@ -489,6 +514,72 @@ class ChatService:
             if not _needs_db:
                 logger.info("[CHAT] 💬 IA clasificó como NO requiere BD — chat conversacional directo")
                 return await self._chat_no_db(message, context)
+
+        # ── PETICIÓN DE ACLARACIÓN/JUSTIFICACIÓN ─────────────────────────────
+        # Si el usuario pide "justifica", "explica", "en detalle", etc.,
+        # NO generamos nueva SQL — usamos el historial de conversación para
+        # generar una justificación profunda de la respuesta anterior.
+        # Esto evita que el sistema intente hacer una nueva consulta SQL
+        # cuando el usuario solo quiere entender mejor la respuesta anterior.
+        if self._is_clarification_request(message) and not _is_conv:
+            conv_history = context.get('conversation_history', [])
+            # Buscar la última respuesta del asistente y la pregunta anterior
+            last_assistant_msg = ""
+            last_user_question = ""
+            for m in reversed(conv_history):
+                if m.get('role') == 'assistant' and not last_assistant_msg:
+                    last_assistant_msg = m.get('content', '')[:2000]
+                elif m.get('role') == 'user' and last_assistant_msg and not last_user_question:
+                    last_user_question = m.get('content', '')
+                    break
+
+            if last_assistant_msg:
+                logger.info("[CHAT] 💬 Petición de aclaración detectada — generando justificación profunda sin nueva SQL")
+                clarification_system = (
+                    "Eres DEVIA, el asistente de datos de JDDC (empresa de climatización). "
+                    "El usuario quiere entender mejor o verificar la respuesta que acabas de dar. "
+                    "\n\n"
+                    "REGLAS ABSOLUTAS:\n"
+                    "• NUNCA escribas código SQL, ni una sola línea.\n"
+                    "• NUNCA uses términos técnicos: 'query', 'tabla', 'columna', 'JOIN', 'WHERE', "
+                    "'SELECT', 'FROM', 'GROUP BY', 'base de datos', 'registro', 'campo'.\n"
+                    "• NUNCA uses # o ## para títulos. Usa **negrita** o emojis.\n"
+                    "• Habla SIEMPRE en lenguaje de negocio.\n"
+                    "• Los importes SIEMPRE en formato europeo: 1.234,56 EUR\n"
+                    "• NUNCA inventes datos. Usa SOLO la información de la respuesta anterior.\n"
+                    "\n"
+                    "TU OBJETIVO: Explicar en profundidad POR QUÉ el dato es correcto y fiable, "
+                    "usando únicamente la información que ya tienes de la respuesta anterior. "
+                    "Desglosa el razonamiento paso a paso en lenguaje de negocio. "
+                    "Indica cómo el usuario puede verificarlo manualmente en el programa de gestión. "
+                    "Si hay matices o limitaciones, menciónalos con ⚠️."
+                )
+                clarification_prompt = (
+                    f"PREGUNTA ORIGINAL DEL USUARIO: {last_user_question}\n\n"
+                    f"RESPUESTA QUE DI ANTERIORMENTE:\n{last_assistant_msg}\n\n"
+                    f"NUEVA PETICIÓN DEL USUARIO: {message}\n\n"
+                    "INSTRUCCIONES:\n"
+                    "1. Explica en detalle el razonamiento detrás de la respuesta anterior.\n"
+                    "2. Desglosa los datos: qué documentos/registros se contaron, qué período, "
+                    "qué se incluyó y qué se excluyó — en lenguaje de negocio.\n"
+                    "3. Indica cómo el usuario puede verificarlo manualmente en el programa de gestión "
+                    "(sin mencionar SQL ni términos técnicos).\n"
+                    "4. Si hay limitaciones o matices importantes, menciónalos con ⚠️.\n"
+                    "5. Propón una verificación adicional si es útil.\n"
+                    "6. SIN código SQL. SIN términos técnicos. SIN # o ##.\n"
+                    "7. Completa SIEMPRE la respuesta. No la cortes a mitad."
+                )
+                clarification_response, _ = await self.model_orchestrator.execute_with_fallback(
+                    system_prompt=clarification_system,
+                    user_message=clarification_prompt,
+                    feedback_callback=None,
+                    preferred_model_id="jddcia-qwen3-30b"
+                )
+                if clarification_response:
+                    logger.info("[CHAT] ✅ Justificación profunda generada")
+                    return clarification_response
+                # Si falla, continuar con el flujo normal
+                logger.warning("[CHAT] ⚠️ Justificación profunda falló — continuando con flujo normal")
 
         _wants_deep = context.get('deep_analysis', False) or self._is_deep_analysis_request(message)
         if _wants_deep and not _is_conv:
@@ -1007,13 +1098,17 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "Eres DEVIA, el asistente de datos de JDDC (empresa de climatización). "
                         "Interpretas resultados de base de datos para usuarios SIN conocimientos técnicos. "
                         "\n\n"
-                        "REGLAS CRÍTICAS:\n"
-                        "• NUNCA muestres código SQL al usuario. El SQL es interno, no lo verbalices.\n"
-                        "• NUNCA uses términos técnicos como 'query', 'tabla', 'columna', 'JOIN', 'WHERE'.\n"
-                        "• Habla en lenguaje de negocio: 'facturas', 'clientes', 'importes', 'período'.\n"
-                        "• Muestra los datos tal cual están. Nulos → '(sin datos)'.\n"
-                        "• NUNCA inventes datos ni diagnósticos sin base en los resultados.\n"
-                        "• Los importes siempre en formato europeo: 1.234,56 EUR\n"
+                        "REGLAS ABSOLUTAS — NUNCA las incumplas:\n"
+                        "• NUNCA escribas código SQL, ni una sola línea. Ni en el cuerpo ni en los detalles.\n"
+                        "• NUNCA uses términos técnicos: 'query', 'tabla', 'columna', 'JOIN', 'WHERE', "
+                        "'SELECT', 'FROM', 'GROUP BY', 'base de datos', 'registro', 'campo'.\n"
+                        "• NUNCA uses símbolos Markdown de estructura como # o ## para títulos. "
+                        "Usa texto en negrita (**texto**) o emojis para destacar secciones.\n"
+                        "• Habla SIEMPRE en lenguaje de negocio: 'facturas emitidas', 'clientes activos', "
+                        "'importe total', 'período analizado', 'documentos incluidos'.\n"
+                        "• Los importes SIEMPRE en formato europeo: 1.234,56 EUR\n"
+                        "• Nulos o vacíos → '(sin datos)'\n"
+                        "• NUNCA inventes datos. Usa SOLO los resultados proporcionados.\n"
                         "\n"
                         "ANÁLISIS OBLIGATORIO — menciona SIEMPRE si aplica:\n"
                         "1. ¿Los datos son coherentes? ¿Hay valores extremos o sospechosos?\n"
@@ -1021,11 +1116,19 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "3. ¿Qué tipos de documentos se incluyen/excluyen y por qué?\n"
                         "4. ¿El resultado responde completamente a la pregunta o hay matices?\n"
                         "\n"
-                        "FORMATO OBLIGATORIO — usa EXACTAMENTE esta estructura HTML:\n"
+                        "FORMATO OBLIGATORIO — usa EXACTAMENTE esta estructura:\n"
                         "1. Respuesta directa en lenguaje natural (párrafo o tabla Markdown)\n"
-                        "2. Análisis crítico breve (2-3 puntos clave)\n"
-                        "3. Bloque <details> con justificación para quien quiera profundizar\n"
-                        "4. Propuesta de verificación adicional al final\n"
+                        "2. Análisis crítico breve (2-3 puntos clave, sin # ni ##)\n"
+                        "3. Bloque <details> con justificación de negocio (SIN SQL, SIN términos técnicos)\n"
+                        "4. Propuesta de verificación adicional al final (💡)\n"
+                        "\n"
+                        "SOBRE EL BLOQUE <details>:\n"
+                        "• Es para usuarios de negocio que quieren entender POR QUÉ el dato es fiable.\n"
+                        "• Explica en lenguaje de negocio: qué documentos se contaron, qué período, "
+                        "qué se excluyó, cómo verificarlo en el programa de gestión (sin mencionar SQL).\n"
+                        "• NUNCA incluyas código SQL dentro del bloque <details>.\n"
+                        "• Puedes mencionar nombres de conceptos de negocio (facturas, albaranes, "
+                        "presupuestos, clientes, artículos) pero NO nombres técnicos de tablas.\n"
                     )
                     n_rows = len(results)
                     cols_used = list(results[0].keys()) if results else []
@@ -1047,40 +1150,51 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         f"PREGUNTA DEL USUARIO: {message}\n\n"
                         f"DATOS OBTENIDOS ({n_rows} registros, campos: {', '.join(cols_used)}):\n{results}\n\n"
                         + (
-                            f"ADVERTENCIA INTERNA: Las siguientes tablas tienen muy pocos registros "
+                            f"ADVERTENCIA INTERNA: Las siguientes fuentes de datos tienen muy pocos registros "
                             f"y los datos podrían estar incompletos: "
                             f"{[t for t in tables_in_query if t.upper() in LOW_RECORD_TABLES]}\n\n"
                             if any(t.upper() in LOW_RECORD_TABLES for t in tables_in_query) else ""
                         ) +
                         "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
-                        "## 📊 Respuesta Principal\n"
-                        "[Aquí va la respuesta directa en lenguaje de negocio. "
-                        "Tabla Markdown si hay múltiples resultados. "
+                        "**📊 Respuesta**\n"
+                        "[Respuesta directa en lenguaje de negocio. "
+                        "Tabla Markdown si hay múltiples resultados (usa | col | col | formato). "
                         "Importes en formato europeo (1.234,56 EUR). "
-                        "NO uses términos técnicos. NO muestres SQL.]\n\n"
-                        "🔍 Análisis Crítico\n"
-                        "[2-3 puntos clave sobre los datos: coherencia, período, tipos incluidos, matices importantes]\n\n"
+                        "SIN términos técnicos. SIN código SQL. SIN símbolos # o ##.]\n\n"
+                        "**🔍 Análisis**\n"
+                        "[2-3 puntos clave: coherencia de los datos, período cubierto, "
+                        "qué tipos de documentos se incluyen, matices importantes. "
+                        "En lenguaje de negocio, sin términos técnicos.]\n\n"
                         "<details>\n"
                         "<summary>📋 Ver justificación detallada</summary>\n\n"
                         + low_record_html +
-                        "**Período analizado:** [indica el rango de fechas de los datos]\n\n"
-                        "**Qué incluye este cálculo:** [explica en lenguaje de negocio qué tipos de documentos/registros se consideran]\n\n"
-                        "**Qué NO incluye:** [explica qué se excluye y por qué]\n\n"
-                        "**Cómo verificarlo manualmente:** [indica cómo el usuario podría comprobar el dato en el programa de gestión, sin mencionar SQL]\n\n"
-                        "**Fiabilidad del dato:** [indica si el dato es completo, parcial, o tiene limitaciones conocidas]\n\n"
+                        "**Período analizado:** [rango de fechas de los datos, en lenguaje natural]\n\n"
+                        "**Qué incluye este cálculo:** [en lenguaje de negocio: qué tipos de documentos "
+                        "se consideraron — facturas emitidas, albaranes, presupuestos aceptados, etc. "
+                        "SIN mencionar nombres técnicos de tablas ni SQL]\n\n"
+                        "**Qué NO incluye:** [qué se excluyó y por qué, en lenguaje de negocio]\n\n"
+                        "**Cómo verificarlo:** [cómo el usuario puede comprobar el dato en el programa "
+                        "de gestión — por ejemplo: 'Ve a Facturación > Listado de facturas, filtra por "
+                        "el año 2026 y suma la columna Total'. SIN mencionar SQL ni términos técnicos.]\n\n"
+                        "**Fiabilidad:** [si el dato es completo, parcial, o tiene limitaciones conocidas. "
+                        "Indica el nivel de confianza: alto, medio, bajo y por qué.]\n\n"
+                        "**Datos de respaldo:** [2-3 datos adicionales de los resultados que corroboran "
+                        "la cifra principal — por ejemplo: número de documentos, media por documento, "
+                        "rango mínimo/máximo. Esto demuestra que el dato es correcto.]\n\n"
                         "</details>\n\n"
                         "---\n"
-                        "💡 *¿Quieres que justifique estos datos con más detalle? Puedo analizar los registros uno a uno, "
-                        "comparar con períodos anteriores, o desglosar por cliente/artículo/tipo.*\n\n"
-                        "REGLAS:\n"
+                        "💡 *¿Quieres que profundice más? Puedo analizar los datos uno a uno, "
+                        "comparar con períodos anteriores, o desglosar por cliente, artículo o tipo de documento.*\n\n"
+                        "REGLAS ABSOLUTAS:\n"
                         "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
                         "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
-                        "3. NUNCA muestres código SQL en la respuesta al usuario.\n"
-                        "4. Si hay datos sospechosos (negativos, nulos, valores extremos), "
+                        "3. NUNCA escribas código SQL en ninguna parte de la respuesta.\n"
+                        "4. NUNCA uses # o ## para títulos. Usa **negrita** o emojis.\n"
+                        "5. Si hay datos sospechosos (negativos, nulos, valores extremos), "
                         "menciónalos con ⚠️ en lenguaje de negocio.\n"
-                        "5. El bloque <details>...</details> debe estar SIEMPRE presente, "
-                        "después de la respuesta principal y el análisis crítico.\n"
-                        "6. La propuesta de verificación adicional (💡) debe estar SIEMPRE al final."
+                        "6. El bloque <details>...</details> debe estar SIEMPRE presente.\n"
+                        "7. La propuesta 💡 debe estar SIEMPRE al final.\n"
+                        "8. Completa SIEMPRE la respuesta. No la cortes a mitad."
                     )
                     
                     logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB (Qwen3 LAN preferido)...")
