@@ -858,10 +858,12 @@ class TestContextSentToAI:
                 )
 
         assert len(captured_system_prompts) > 0, "Debe haberse llamado al orchestrator"
-        prompt = captured_system_prompts[0]
+        # Verificar en TODOS los prompts capturados (puede haber llamada de clasificación previa
+        # del IntentClassifier antes del prompt de SQL con el esquema)
+        all_prompts = " ".join(captured_system_prompts)
 
-        # El system_prompt debe incluir los datos de ejemplo
-        assert "AC001" in prompt or "Split Daikin" in prompt or "Datos de ejemplo" in prompt, \
+        # El system_prompt de SQL debe incluir los datos de ejemplo
+        assert "AC001" in all_prompts or "Split Daikin" in all_prompts or "Datos de ejemplo" in all_prompts, \
             "El system_prompt debe incluir los datos de ejemplo de las tablas"
 
     @pytest.mark.asyncio

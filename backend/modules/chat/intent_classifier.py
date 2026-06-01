@@ -341,14 +341,16 @@ FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
         # ── DEFAULT: si hay BD disponible y el mensaje no es obvio → DB_QUERY ─
         # Es mejor intentar una consulta SQL y fallar graciosamente que
         # ignorar una petición legítima de datos.
-        if len(msg.split()) > 3:
+        # Umbral reducido a >2 palabras para capturar frases cortas como
+        # "artículos más caros", "top clientes", "ventas enero", etc.
+        if len(msg.split()) > 2:
             return IntentResult(
                 intent=IntentType.DB_QUERY,
                 confidence=0.55,
                 reasoning="Mensaje no clasificado → intentar consulta BD por defecto",
             )
 
-        # Mensaje muy corto y no clasificado → conversacional
+        # Mensaje muy corto (1-2 palabras) y no clasificado → conversacional
         return IntentResult(
             intent=IntentType.CONVERSATIONAL,
             confidence=0.6,

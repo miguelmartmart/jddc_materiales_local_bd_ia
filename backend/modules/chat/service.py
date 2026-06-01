@@ -503,30 +503,43 @@ class ChatService:
             logger.info(f"[CHAT] Sin BD (no_db={no_db_flag}, db_params_empty={db_params_empty})")
             return await self._chat_no_db(message, context)
 
-        # ── ANÁLISIS PROFUNDO MULTI-FASE ──────────────────────────────────────
-        # Se activa con:
-        #   1. Checkbox frontend: context.get('deep_analysis', False) == True
-        #   2. Comando explícito: /deep, /analisis
-        #   3. Palabras clave: "analiza en profundidad", "investiga", etc.
-        # Detección de intención: ¿requiere BD o es conversacional/general?
-        # _is_conversational_message: detección rápida determinista (saludos, mensajes cortos)
-        # _ai_requires_database: clasificación IA para el resto (una llamada ligera a Qwen3)
-        _is_conv = self._is_conversational_message(message)
-        if not _is_conv:
-            _needs_db = await self._ai_requires_database(message)
-            if not _needs_db:
-                logger.info("[CHAT] 💬 IA clasificó como NO requiere BD — chat conversacional directo")
-                return await self._chat_no_db(message, context)
+        # ══════════════════════════════════════════════════════════════════════
+        # FASE 1 — CLASIFICACIÓN DE INTENCIÓN POR IA (genérica, sin keywords)
+        # ══════════════════════════════════════════════════════════════════════
+        # El IntentClassifier usa el modelo IA local (Qwen3 30B LAN) para
+        # determinar qué quiere el usuario en UNA sola llamada ligera.
+        # Funciona con cualquier idioma, sinónimo, paráfrasis o expresión
+        # coloquial — no depende de listas de palabras clave hardcodeadas.
+        #
+        # Si la IA falla (timeout, error de red), usa un clasificador
+        # determinista de fallback basado en patrones semánticos amplios.
+        # ══════════════════════════════════════════════════════════════════════
+        from backend.modules.chat.intent_classifier import IntentClassifier, IntentType
 
-        # ── PETICIÓN DE ACLARACIÓN/JUSTIFICACIÓN ─────────────────────────────
-        # Si el usuario pide "justifica", "explica", "en detalle", etc.,
-        # NO generamos nueva SQL — usamos el historial de conversación para
-        # generar una justificación profunda de la respuesta anterior.
-        # Esto evita que el sistema intente hacer una nueva consulta SQL
-        # cuando el usuario solo quiere entender mejor la respuesta anterior.
-        if self._is_clarification_request(message) and not _is_conv:
-            conv_history = context.get('conversation_history', [])
-            # Buscar la última respuesta del asistente y la pregunta anterior
+        # Inicializar clasificador lazy (evita imports circulares en __init__)
+        if self._intent_classifier is None:
+            self._intent_classifier = IntentClassifier(orchestrator=self.model_orchestrator)
+
+        conv_history = context.get('conversation_history', [])
+
+        # Forzar deep_analysis si el checkbox del frontend está activo
+        _force_deep = context.get('deep_analysis', False)
+
+        intent = await self._intent_classifier.classify(message, conv_history)
+        logger.info(
+            f"[FASE1] Intención: {intent.intent} "
+            f"(conf={intent.confidence:.2f}, force_deep={_force_deep}) | {intent.reasoning}"
+        )
+
+        # ── FASE 1a: CONVERSACIONAL ───────────────────────────────────────────
+        if intent.is_conversational() and not _force_deep:
+            logger.info("[FASE1] 💬 Conversacional → chat sin BD")
+            return await self._chat_no_db(message, context)
+
+        # ── FASE 1b: ACLARACIÓN/JUSTIFICACIÓN ────────────────────────────────
+        # El usuario pide más detalle sobre la respuesta anterior.
+        # NO generamos nueva SQL — usamos el historial de conversación.
+        if intent.is_clarification() and not _force_deep:
             last_assistant_msg = ""
             last_user_question = ""
             for m in reversed(conv_history):
@@ -537,7 +550,7 @@ class ChatService:
                     break
 
             if last_assistant_msg:
-                logger.info("[CHAT] 💬 Petición de aclaración detectada — generando justificación profunda sin nueva SQL")
+                logger.info("[FASE1] 💬 Aclaración → justificación profunda sin nueva SQL")
                 clarification_system = (
                     "Eres DEVIA, el asistente de datos de JDDC (empresa de climatización). "
                     "El usuario quiere entender mejor o verificar la respuesta que acabas de dar. "
@@ -579,13 +592,16 @@ class ChatService:
                     preferred_model_id="jddcia-qwen3-30b"
                 )
                 if clarification_response:
-                    logger.info("[CHAT] ✅ Justificación profunda generada")
+                    logger.info("[FASE1] ✅ Justificación profunda generada")
                     return clarification_response
-                # Si falla, continuar con el flujo normal
-                logger.warning("[CHAT] ⚠️ Justificación profunda falló — continuando con flujo normal")
+                logger.warning("[FASE1] ⚠️ Justificación profunda falló — continuando con flujo normal")
+            else:
+                # Sin historial → tratar como DB_QUERY
+                logger.info("[FASE1] Sin historial para aclaración → redirigiendo a DB_QUERY")
 
-        _wants_deep = context.get('deep_analysis', False) or self._is_deep_analysis_request(message)
-        if _wants_deep and not _is_conv:
+        # ── FASE 1c: ANÁLISIS PROFUNDO ────────────────────────────────────────
+        _wants_deep = _force_deep or intent.is_deep_analysis()
+        if _wants_deep:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
