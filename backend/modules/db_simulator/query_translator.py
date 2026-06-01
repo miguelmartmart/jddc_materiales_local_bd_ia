@@ -214,6 +214,26 @@ class FirebirdToSQLiteTranslator:
 
     # ── CAST(x AS NUMERIC(p,s)) → ROUND(CAST(x AS REAL), s) ─────────────────
 
+    @staticmethod
+    def _extract_cast_inner(sql: str, start: int) -> Tuple[str, int]:
+        """
+        Extrae el contenido interno de CAST( ... AS TYPE ) manejando paréntesis anidados.
+        start apunta al '(' de apertura de CAST.
+        Devuelve (contenido_antes_de_AS_TYPE, posición_del_cierre).
+        """
+        depth = 0
+        i = start
+        n = len(sql)
+        while i < n:
+            if sql[i] == '(':
+                depth += 1
+            elif sql[i] == ')':
+                depth -= 1
+                if depth == 0:
+                    return sql[start + 1:i], i
+            i += 1
+        return sql[start + 1:], n - 1
+
     def _translate_cast_numeric(self, sql: str) -> Tuple[str, List[str]]:
         """
         SQLite no tiene NUMERIC(p,s). Conversiones:
@@ -221,29 +241,58 @@ class FirebirdToSQLiteTranslator:
           CAST(x AS NUMERIC(p))   → CAST(x AS REAL)
           CAST(x AS NUMERIC)      → CAST(x AS REAL)
           CAST(x AS DECIMAL(p,s)) → igual que NUMERIC
+
+        Usa extracción con balance de paréntesis para manejar expresiones
+        anidadas como CAST(SUM(col) AS NUMERIC(15,2)).
         """
         changes: List[str] = []
+        result = []
+        i = 0
+        sql_upper = sql.upper()
+        n = len(sql)
 
-        # NUMERIC(p,s) o DECIMAL(p,s) con dos parámetros
-        pat_ps = re.compile(
-            r'\bCAST\s*\((.+?)\s+AS\s+(?:NUMERIC|DECIMAL)\s*\(\s*\d+\s*,\s*(\d+)\s*\)\s*\)',
-            re.IGNORECASE
-        )
-        def _rep_ps(m: re.Match) -> str:
-            changes.append(f"CAST AS NUMERIC(p,s) → ROUND(CAST AS REAL, {m.group(2)})")
-            return f"ROUND(CAST({m.group(1).strip()} AS REAL), {m.group(2)})"
-        sql = pat_ps.sub(_rep_ps, sql)
+        while i < n:
+            # Buscar CAST(
+            cast_match = re.search(r'\bCAST\s*\(', sql_upper[i:], re.IGNORECASE)
+            if not cast_match:
+                result.append(sql[i:])
+                break
 
-        # NUMERIC(p) o DECIMAL(p) con un parámetro, o sin parámetros
-        pat_n = re.compile(
-            r'\bCAST\s*\((.+?)\s+AS\s+(?:NUMERIC|DECIMAL)(?:\s*\(\s*\d+\s*\))?\s*\)',
-            re.IGNORECASE
-        )
-        def _rep_n(m: re.Match) -> str:
-            changes.append("CAST AS NUMERIC → CAST AS REAL")
-            return f"CAST({m.group(1).strip()} AS REAL)"
-        sql = pat_n.sub(_rep_n, sql)
+            cast_start = i + cast_match.start()
+            paren_start = i + cast_match.end() - 1  # posición del '('
 
+            # Añadir texto antes de CAST
+            result.append(sql[i:cast_start])
+
+            # Extraer contenido balanceado del CAST(...)
+            inner, paren_end = self._extract_cast_inner(sql, paren_start)
+
+            # Verificar si es CAST(x AS NUMERIC/DECIMAL...)
+            as_numeric_ps = re.match(
+                r'^(.*?)\s+AS\s+(?:NUMERIC|DECIMAL)\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$',
+                inner, re.IGNORECASE | re.DOTALL
+            )
+            as_numeric_p = re.match(
+                r'^(.*?)\s+AS\s+(?:NUMERIC|DECIMAL)\s*(?:\(\s*\d+\s*\))?\s*$',
+                inner, re.IGNORECASE | re.DOTALL
+            )
+
+            if as_numeric_ps:
+                expr = as_numeric_ps.group(1).strip()
+                scale = as_numeric_ps.group(3)
+                changes.append(f"CAST AS NUMERIC(p,s) → ROUND(CAST AS REAL, {scale})")
+                result.append(f"ROUND(CAST({expr} AS REAL), {scale})")
+            elif as_numeric_p:
+                expr = as_numeric_p.group(1).strip()
+                changes.append("CAST AS NUMERIC → CAST AS REAL")
+                result.append(f"CAST({expr} AS REAL)")
+            else:
+                # No es NUMERIC/DECIMAL — dejar como está
+                result.append(sql[cast_start:paren_end + 1])
+
+            i = paren_end + 1
+
+        sql = "".join(result)
         return sql, changes
 
     # ── CAST(x AS VARCHAR(n)) → CAST(x AS TEXT) ──────────────────────────────

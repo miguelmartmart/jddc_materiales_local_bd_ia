@@ -2,9 +2,9 @@
 ## Simulador de BD Firebird para trabajo offline
 
 > **Ruta:** `backend/modules/db_simulator/`  
-> **Versión:** 1.3.0  
-> **Fecha:** 2026-05-22  
-> **Estado:** ✅ Implementado y funcional
+> **Versión:** 1.5.0  
+> **Fecha:** 2026-06-01  
+> **Estado:** ✅ Implementado y funcional — 1464 tests OK, 0 fallos, 67 omitidos (integración sin servidor)
 
 ## 📚 Documentación de sesiones
 
@@ -13,11 +13,71 @@
 | 20/05/2026 | `SESION_RESUMEN_2026_05_20.md` | Fix HTTP 500 query_library truncado, filtros UI vacíos |
 | 21/05/2026 | `SESION_RESUMEN_2026_05_20.md` | Context Manager v3.0, fix _execute_sql bloqueante |
 | 21/05/2026 | `SESION_RESUMEN_2026_05_20.md` | Tests 40/40 ✅: get_queries_by_rol, catalog_summary aliases, Firebird-only handling |
+| 29/05/2026 | `DEVIA.md` | Auditoría completa query_library: 0 fallos SQL, correcciones contextuales aplicadas |
+| 01/06/2026 | `DEVIA.md` | Fix crítico `query_translator.py`: `_translate_cast_numeric` con balance de paréntesis para `CAST(SUM(col) AS NUMERIC(15,2))` |
+
+## 🔧 Correcciones aplicadas (29/05/2026)
+
+### Errores corregidos en `query_library.py`
+
+| Query ID | Error original | Corrección aplicada |
+|----------|---------------|---------------------|
+| `f_riesgo_facturas_alto_importe_sin_cobrar` | `AS ROUND(CAST(CANTIDAD AS REAL)*...)` — alias inválido (expresión como alias) | Cambiado a `AS IMPORTE`, `ORDER BY D.IMPORTETOTAL` |
+| `s_kpi_sats_abiertos_antiguos` | `AS ROUND(CAST(CANTIDAD AS REAL)*...)` — alias inválido | Cambiado a `AS IMPORTE`, alias `AS CLIENTE` añadido |
+| `d_kpi_resumen_ejecutivo` | `ROUND(CAST(CANTIDAD AS REAL)*CAST(PRECIO AS REAL),2)` en CAJA — CAJA no tiene CANTIDAD/PRECIO | Cambiado a `IMPORTE` (columna real de CAJA) |
+| `f_saldo_clientes_vencido` | `E.COBRADO = 0` — columna inexistente en RECIBO1 | Cambiado a `(E.ACTIVO IS NULL OR E.ACTIVO != '1')` |
+| `f_pagos_proximos` | `E.FECHAVENC`, `E.CODPROVEEDOR`, `E.PAGADO`, `R.FECHAVENC` — columnas/alias inexistentes en RECIBO3 | Cambiado a `E.FECHA`, `E.CODPAGADOR`, `E.DEVOLUCION`, alias `E.` |
+| `alm_stock_critico` | `A.STOCKMINIMO` — columna inexistente en ARTICULO | Sustituido por literal `3` como umbral mínimo configurable |
+| `cmp_top_proveedores` | `D.CODPROVEEDOR` — columna inexistente en DOCCAB | Reescrita: JOIN via ARTICULO.CODPROVEEDOR → PROVEED |
+| `alerta_clientes_inactivos` | `C.ACTIVO = 1` — columna inexistente en CLIENTE | Cambiado a `C.BAJA IS NULL OR C.BAJA = ''` |
+| `v_kpi_top10_clientes` | COALESCE sin alias `AS NOMBRE` | Añadido `AS NOMBRE` |
+| `mod_segmentacion_rfm` | COALESCE sin alias `AS NOMBRE` | Añadido `AS NOMBRE` |
+| `f_ahorro_descuentos_excesivos` | Expresión sin alias en SELECT | Añadido `AS IMPORTE_CON_DTO`, lógica de descuento corregida |
+
+### Esquema real de tablas clave (SQLite simulador)
+
+| Tabla | Columnas relevantes |
+|-------|---------------------|
+| `RECIBO1` | `CODDOCUMENTO, CODIGO, FECHAVENC, IMPORTE, CODPAGADOR, ACTIVO` |
+| `RECIBO3` | `CODDOCUMENTO, CODRECIBO, FECHA, IMPORTE, CODPAGADOR, DEVOLUCION` |
+| `CAJA` | `CODIGO, FECHA, IMPORTE, TIPO (1=entrada, 2=salida), CONCEPTO` |
+| `DOCLIN` | `CODDOCUMENTO, CODIGO, CODARTICULO, CANTIDAD, PRECIO, DESCUENTOS` |
+| `DOCCAB` | `CODIGO, TIPO, FECHA, CODCLIENTE, CODAGENTE, IMPORTETOTAL, ESTADO` |
+| `CLIENTE` | `CODIGO, NOMBRECOMERCIAL, RAZONSOCIAL, TEL, BAJA` (sin ACTIVO, sin NOMBRE) |
+| `PROVEED` | `CODIGO, NOMBRECOMERCIAL, RAZONSOCIAL, TEL` (sin NOMBRE directo) |
+| `ARTICULO` | `CODIGO, NOMBRE, PRECIO, PRECIOCOSTE, STOCKARTICULO, CODPROVEEDOR, CODFAMILIA` (sin STOCKMINIMO) |
+| `ESTALMACEN` | `CODIGO, FECHA, IMPCOSTE, IMPVENTA` |
+
+### Fix crítico query_translator.py (01/06/2026)
+
+**Bug:** `_translate_cast_numeric` usaba regex lazy `(.+?)` que fallaba con paréntesis anidados.
+- `CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2))` → capturaba `SUM(IMPORTETOTAL` (sin `)`) → SQL inválido
+- `EXTRACT(YEAR FROM FECHA) AS ANO, CAST(SUM(...) AS NUMERIC(15,2))` → `near "AS": syntax error`
+
+**Fix:** Reemplazado por algoritmo de balance de paréntesis (`_extract_cast_inner`) que extrae correctamente el contenido de `CAST(...)` con cualquier nivel de anidamiento.
+
+**Impacto:** Todas las queries del DeepAnalysisAgent con `CAST(SUM/AVG/MIN/MAX(col) AS NUMERIC(15,2))` ahora se traducen correctamente a `ROUND(CAST(expr AS REAL), 2)`.
+
+**Tests:** 9 nuevos tests en `TestTranslatorNestedParentheses` (test_db_simulator_core.py).
+
+---
+
+### Reglas de compatibilidad SQLite (aplicar en nuevas queries)
+
+1. **CLIENTE/PROVEED sin columna NOMBRE**: usar siempre `COALESCE(X.NOMBRECOMERCIAL, X.RAZONSOCIAL, 'Sin nombre') AS NOMBRE`
+2. **DOCLIN sin IMPORTE**: calcular como `ROUND(CAST(L.CANTIDAD AS REAL)*CAST(L.PRECIO AS REAL),2)`
+3. **DOCLIN.CODDOCUMENTO** (no CODIGO) para JOIN con DOCCAB: `ON D.CODIGO = L.CODDOCUMENTO`
+4. **DOCLIN.CODARTICULO** (no CODART): `JOIN ARTICULO A ON A.CODIGO = L.CODARTICULO`
+5. **CAJA usa IMPORTE** directamente (no CANTIDAD*PRECIO)
+6. **RECIBO1**: sin columna COBRADO → usar `ACTIVO` o filtrar por fecha
+7. **RECIBO3**: sin FECHAVENC → usar `FECHA`; sin CODPROVEEDOR → usar `CODPAGADOR`
+8. **ARTICULO**: sin STOCKMINIMO → usar literal o constante configurable
+9. **DOCCAB**: sin CODPROVEEDOR → acceder via DOCLIN→ARTICULO→PROVEED
+10. **Alias obligatorio** en todas las expresiones COALESCE y cálculos en SELECT
 
 **Tablas/columnas Firebird-only** (válidas en producción, no disponibles en SQLite del simulador):
-- Tablas: `EFECTOSCOBRO`, `EFECTOSPAGO`, `PROVEEDOR`
-- Columnas: `STOCKACTUAL`, `STOCKMINIMO`, `PRECIOCOSTE`, `ACTIVO`, `CODDOCREL`
-- Las consultas que las usan están marcadas en `test_query_library.py::_FIREBIRD_ONLY_*`
+- Columnas: `STOCKMINIMO`, `ACTIVO` (en CLIENTE), `COBRADO` (en RECIBO1), `CODPROVEEDOR` (en DOCCAB), `FECHAVENC` (en RECIBO3)
+- Las consultas adaptadas usan equivalentes SQLite documentados arriba
 
 ---
 

@@ -38,6 +38,7 @@ from backend.modules.db_simulator.query_library import (
     search_queries,
     get_query_by_id,
 )
+from backend.modules.db_simulator.query_verifications import get_verifications_for_query
 from backend.modules.db_simulator.query_library_constants import (
     TIPO_ICONOS,
     URGENCIA_COLORES,
@@ -87,6 +88,96 @@ class SimulatorResponse(BaseModel):
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
+
+@router.get("/onboarding-status", summary="Estado de configuración del simulador para el chat IA")
+async def get_onboarding_status():
+    """
+    Devuelve el estado de configuración del simulador con los pasos exactos
+    que el usuario debe seguir para que el chat IA funcione correctamente.
+
+    Usado por el frontend para mostrar un panel de onboarding cuando el
+    simulador no está listo o no está activado.
+
+    Respuesta:
+      • ready: bool — True si el chat IA puede usarse ahora mismo
+      • steps: lista de pasos con estado (done/pending/error)
+      • message: mensaje amigable para mostrar al usuario
+      • simulator_enabled: bool
+      • has_data: bool
+      • row_counts: dict con filas por tabla
+    """
+    try:
+        status = simulator_manager.get_status()
+        is_enabled = simulator_manager.is_enabled()
+        sim_status = status.get("status", "not_initialized")
+        row_counts = status.get("row_counts", {})
+        has_data = sim_status == SimulatorStatus.READY and bool(row_counts) and any(v > 0 for v in row_counts.values())
+
+        steps = [
+            {
+                "step": 1,
+                "title": "Activar el simulador",
+                "description": "El simulador permite usar el chat IA sin conexión a Firebird real.",
+                "action": "POST /api/db-simulator/config  →  {\"simulator_enabled\": true}",
+                "done": is_enabled,
+                "required": True,
+            },
+            {
+                "step": 2,
+                "title": "Generar datos sintéticos",
+                "description": "Crea ~1.200 registros realistas del sector climatización JDDC (facturas, clientes, artículos, etc.).",
+                "action": "POST /api/db-simulator/build-synthetic",
+                "done": has_data,
+                "required": True,
+            },
+            {
+                "step": 3,
+                "title": "Usar el chat IA",
+                "description": "Ya puedes hacer preguntas como '¿Cuántas facturas hay este mes?' o 'Dame el top 5 de clientes'.",
+                "action": "Escribe tu pregunta en el chat",
+                "done": is_enabled and has_data,
+                "required": True,
+            },
+        ]
+
+        all_done = all(s["done"] for s in steps if s["required"])
+
+        if all_done:
+            message = (
+                "✅ **Chat IA listo** — El simulador está activo con datos sintéticos. "
+                f"Tablas disponibles: {', '.join(sorted(row_counts.keys()))}. "
+                "Puedes hacer preguntas sobre facturas, clientes, artículos, stock, etc."
+            )
+        elif not is_enabled:
+            message = (
+                "⚠️ **Simulador no activado** — Para usar el chat IA sin Firebird real, "
+                "activa el simulador desde el panel de administración o llama a "
+                "`POST /api/db-simulator/config` con `{\"simulator_enabled\": true}`."
+            )
+        elif not has_data:
+            message = (
+                "⚠️ **Sin datos** — El simulador está activado pero no tiene datos. "
+                "Genera datos sintéticos con `POST /api/db-simulator/build-synthetic` "
+                "(tarda ~2 segundos, no requiere Firebird)."
+            )
+        else:
+            message = f"⚠️ Estado del simulador: {sim_status}"
+
+        return {
+            "ready": all_done,
+            "simulator_enabled": is_enabled,
+            "has_data": has_data,
+            "simulator_status": sim_status,
+            "steps": steps,
+            "message": message,
+            "row_counts": row_counts,
+            "mode": status.get("mode", ""),
+            "updated_at": status.get("updated_at", ""),
+        }
+    except Exception as e:
+        logger.error(f"{SimulatorLog.PREFIX} Error en /onboarding-status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/demo", summary="Consultas de demostración del simulador")
 async def get_demo_data():
@@ -433,17 +524,19 @@ async def search_query_library(
         # Devolver sin SQL en el listado (el SQL se obtiene al seleccionar una consulta)
         items = [
             {
-                "id":       q["id"],
-                "title":    q["title"],
-                "desc":     q["desc"],
-                "dept":     q.get("dept", []),
-                "rol":      q.get("rol", []),
-                "tipo":     q.get("tipo", ""),
-                "urgencia": q.get("urgencia", ""),
-                "kpi":      q.get("kpi", ""),
-                "accion":   q.get("accion", ""),
-                "icono":    TIPO_ICONOS.get(q.get("tipo", ""), "📋"),
-                "color":    URGENCIA_COLORES.get(q.get("urgencia", ""), "#64748b"),
+                "id":          q["id"],
+                "title":       q["title"],
+                "desc":        q["desc"],
+                "desc_simple": q.get("desc_simple", ""),
+                "desc_tecnica": q.get("desc_tecnica", ""),
+                "dept":        q.get("dept", []),
+                "rol":         q.get("rol", []),
+                "tipo":        q.get("tipo", ""),
+                "urgencia":    q.get("urgencia", ""),
+                "kpi":         q.get("kpi", ""),
+                "accion":      q.get("accion", ""),
+                "icono":       TIPO_ICONOS.get(q.get("tipo", ""), "📋"),
+                "color":       URGENCIA_COLORES.get(q.get("urgencia", ""), "#64748b"),
             }
             for q in results[:limit]
         ]
@@ -499,22 +592,112 @@ async def execute_library_query(query_id: str):
     try:
         rows = driver.execute_query(q["sql"])
         return {
-            "success":  True,
-            "query_id": query_id,
-            "title":    q["title"],
-            "desc":     q["desc"],
-            "accion":   q.get("accion", ""),
-            "kpi":      q.get("kpi", ""),
-            "tipo":     q.get("tipo", ""),
-            "urgencia": q.get("urgencia", ""),
-            "icono":    TIPO_ICONOS.get(q.get("tipo", ""), "📋"),
-            "color":    URGENCIA_COLORES.get(q.get("urgencia", ""), "#64748b"),
-            "rows":     rows,
-            "columns":  list(rows[0].keys()) if rows else [],
-            "n_rows":   len(rows),
+            "success":     True,
+            "query_id":    query_id,
+            "title":       q["title"],
+            "desc":        q["desc"],
+            "desc_simple": q.get("desc_simple", ""),
+            "desc_tecnica": q.get("desc_tecnica", ""),
+            "accion":      q.get("accion", ""),
+            "kpi":         q.get("kpi", ""),
+            "tipo":        q.get("tipo", ""),
+            "urgencia":    q.get("urgencia", ""),
+            "icono":       TIPO_ICONOS.get(q.get("tipo", ""), "📋"),
+            "color":       URGENCIA_COLORES.get(q.get("urgencia", ""), "#64748b"),
+            "rows":        rows,
+            "columns":     list(rows[0].keys()) if rows else [],
+            "n_rows":      len(rows),
         }
     except Exception as e:
         logger.error(f"{SimulatorLog.PREFIX} Error ejecutando consulta '{query_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         driver.disconnect()
+
+
+@router.get("/query-library/{query_id}/verify", summary="Ejecutar sub-consultas de verificación")
+async def verify_library_query(query_id: str):
+    """
+    Ejecuta todas las sub-consultas de verificación/justificación definidas para una consulta.
+    Devuelve los resultados de cada sub-consulta con su justificación textual.
+    Si la consulta no tiene verificaciones definidas, devuelve lista vacía.
+    Si el simulador no está listo, devuelve los metadatos sin datos.
+    """
+    # Obtener metadatos de verificaciones (sin ejecutar)
+    verifications_meta = get_verifications_for_query(query_id)
+
+    # Comprobar si el simulador tiene datos (en memoria o en disco)
+    status = simulator_manager.get_status()
+    sim_ready = status.get("status") == SimulatorStatus.READY
+    # Fallback: intentar conectar al driver directamente aunque el manager no esté "ready"
+    # (ocurre cuando hay un snapshot real en disco pero el servidor acaba de arrancar)
+    if not sim_ready:
+        try:
+            _test_driver = SimulatedFirebirdDriver()
+            _test_driver.connect()
+            _test_rows = _test_driver.execute_query("SELECT COUNT(*) AS N FROM DOCCAB")
+            _test_driver.disconnect()
+            sim_ready = bool(_test_rows and _test_rows[0].get("N", 0) > 0)
+        except Exception:
+            sim_ready = False
+
+    if not sim_ready:
+        return {
+            "success": True,
+            "query_id": query_id,
+            "simulator_ready": False,
+            "verifications": [
+                {
+                    "id": v["id"],
+                    "label": v["label"],
+                    "justificacion": v["justificacion"],
+                    "icono": v.get("icono", "📋"),
+                    "tipo": v.get("tipo", "tabla"),
+                    "rows": [],
+                    "columns": [],
+                    "error": None,
+                    "executed": False,
+                }
+                for v in verifications_meta
+            ],
+        }
+
+    driver = SimulatedFirebirdDriver()
+    driver.connect()
+    results = []
+    try:
+        for v in verifications_meta:
+            item = {
+                "id": v["id"],
+                "label": v["label"],
+                "justificacion": v["justificacion"],
+                "icono": v.get("icono", "📋"),
+                "tipo": v.get("tipo", "tabla"),
+                "max_rows": v.get("max_rows", 20),
+                "rows": [],
+                "columns": [],
+                "error": None,
+                "executed": True,
+            }
+            try:
+                rows = driver.execute_query(v["sql"])
+                max_r = v.get("max_rows", 20)
+                item["rows"] = rows[:max_r]
+                item["columns"] = list(rows[0].keys()) if rows else []
+                item["n_rows"] = len(rows)
+            except Exception as e:
+                item["error"] = str(e)
+                logger.warning(
+                    f"{SimulatorLog.PREFIX} Verificación '{v['id']}' de '{query_id}' falló: {e}"
+                )
+            results.append(item)
+    finally:
+        driver.disconnect()
+
+    return {
+        "success": True,
+        "query_id": query_id,
+        "simulator_ready": True,
+        "n_verifications": len(results),
+        "verifications": results,
+    }

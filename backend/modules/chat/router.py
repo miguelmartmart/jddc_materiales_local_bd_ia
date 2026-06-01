@@ -131,11 +131,65 @@ async def send_message(request: ChatRequest):
         # 3. Process with AI
         # Pass the full request dict which includes confirm_data_sending
         response_text = await service.process_message(request.message, request.dict())
-        
+
+        # ── Disclaimer de simulación (server-side) ───────────────────────────
+        # Si el simulador está activo, se antepone un aviso claro al usuario
+        # para que sepa que los datos NO son de la BD real.
+        from backend.modules.db_simulator.manager import simulator_manager as _sim_mgr
+        from backend.modules.db_simulator.constants import SimulatorDisclaimer, SimulatorStatus
+
+        if _sim_mgr.is_enabled():
+            # Verificar si el simulador tiene datos — si no, mostrar onboarding
+            _sim_status = _sim_mgr.get_status()
+            _sim_ready = _sim_status.get("status") == SimulatorStatus.READY
+            _row_counts = _sim_status.get("row_counts", {})
+            _has_data = _sim_ready and bool(_row_counts) and any(v > 0 for v in _row_counts.values())
+
+            if not _has_data:
+                # ── ONBOARDING: simulador activo pero sin datos ───────────────
+                # El usuario necesita generar datos sintéticos antes de usar el chat.
+                # Mostramos los pasos exactos en lugar de un error críptico.
+                _total_docs = _row_counts.get("DOCCAB", 0)
+                _total_arts = _row_counts.get("ARTICULO", 0)
+                _total_cli  = _row_counts.get("CLIENTE", 0)
+                response_text = (
+                    "<div style='background:#fff3cd;border:1px solid #ffc107;border-radius:8px;"
+                    "padding:16px;margin-bottom:12px;font-family:sans-serif'>"
+                    "<h3 style='margin:0 0 12px;color:#856404'>⚙️ Configuración necesaria</h3>"
+                    "<p style='margin:0 0 10px'>El simulador está <strong>activado</strong> "
+                    "pero aún no tiene datos. Sigue estos pasos para usar el chat IA:</p>"
+                    "<ol style='margin:0 0 12px;padding-left:20px'>"
+                    "<li style='margin-bottom:8px'>"
+                    "<strong>✅ Simulador activado</strong> — ya está hecho</li>"
+                    "<li style='margin-bottom:8px'>"
+                    "<strong>⏳ Generar datos sintéticos</strong> — "
+                    "Ve al panel del simulador y pulsa <em>«Generar datos sintéticos»</em>, "
+                    "o llama a <code>POST /api/db-simulator/build-synthetic</code> "
+                    "(tarda ~2 segundos, no requiere Firebird)</li>"
+                    "<li style='margin-bottom:8px'>"
+                    "<strong>💬 Usar el chat</strong> — "
+                    "Después podrás preguntar cosas como:<br>"
+                    "<em>«¿Cuántas facturas hay este mes?»</em>, "
+                    "<em>«Dame el top 5 de clientes»</em>, "
+                    "<em>«¿Qué artículos tienen stock bajo?»</em></li>"
+                    "</ol>"
+                    "<p style='margin:0;font-size:0.85em;color:#6c757d'>"
+                    "💡 Los datos sintéticos son realistas pero ficticios — "
+                    "no se conecta a ningún servidor Firebird real.</p>"
+                    "</div>"
+                )
+            else:
+                # Simulador listo — añadir disclaimer normal
+                if isinstance(response_text, dict):
+                    response_text[SimulatorDisclaimer.JSON_KEY] = SimulatorDisclaimer.JSON_TEXT
+                elif isinstance(response_text, str):
+                    response_text = _sim_mgr.get_disclaimer(html=True) + response_text
+        # ─────────────────────────────────────────────────────────────────────
+
         # Handle dict response (confirmation) vs string response
         assistant_meta = {}
         final_response_text = response_text
-        
+
         if isinstance(response_text, dict):
              # It's a structured response (like confirmation required)
              # We might not want to save this to history as a final message yet if it's just a confirmation request
