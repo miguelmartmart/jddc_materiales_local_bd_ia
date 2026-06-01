@@ -125,6 +125,28 @@ Un único intento directo. Si falla → excepción inmediata. El caller decide c
     "onboarding_en_chat": "Si simulator_enabled=true pero sin datos, el router del chat devuelve HTML con los 3 pasos en lugar de un error críptico",
     "flujo_execute_sql": "_execute_sql() → simulator_manager.is_enabled() → si true: SimulatedFirebirdDriver.connect(simulator.db) → si false: FirebirdDriver.connect(Firebird real)"
   },
+  "intent_classification_v2": {
+    "description": "Sistema de interpretacion por fases con IA local (generico, sin keywords hardcodeadas)",
+    "module": "backend/modules/chat/intent_classifier.py",
+    "class": "IntentClassifier",
+    "how_it_works": "UNA sola llamada ligera al modelo IA (Qwen3 30B LAN). Respuesta JSON con intent+confidence+reasoning.",
+    "intent_types": ["CONVERSATIONAL", "DB_QUERY", "CLARIFICATION", "DEEP_ANALYSIS", "IMAGE_GEN", "COMMAND"],
+    "fallback": "Si la IA falla, usa clasificador determinista con patrones semanticos amplios (no solo keywords exactas)",
+    "ventajas": [
+      "Funciona con cualquier idioma, sinonimo, parafrasis o expresion coloquial",
+      "'cuanto vendimos?' -> DB_QUERY (sin keyword 'factura')",
+      "'no me queda claro' -> CLARIFICATION (sin keyword 'justifica')",
+      "'hazme un resumen completo' -> DEEP_ANALYSIS (sin keyword 'analiza en profundidad')",
+      "'dibuja un logo' -> IMAGE_GEN (sin keyword 'generar imagen')"
+    ],
+    "fases": {
+      "FASE_1": "IntentClassifier.classify(message, history) -> IntentResult",
+      "FASE_2": "Accion segun intent: CONVERSATIONAL->_chat_no_db | DB_QUERY->SQL | CLARIFICATION->historial | DEEP_ANALYSIS->DeepAgent | IMAGE_GEN->ImageService",
+      "FASE_3": "Interpretacion con lenguaje de negocio, sin SQL visible, con justificacion en <details>"
+    },
+    "integration_status": "IntentClassifier creado y disponible. Integracion gradual en process_message en curso.",
+    "commit": "a6deed5 (01/06/2026)"
+  },
   "last_updated": "01/06/2026",
   "related_devia": [
     "bots/interjddcia/DEVIA.MD (documentación principal)",
