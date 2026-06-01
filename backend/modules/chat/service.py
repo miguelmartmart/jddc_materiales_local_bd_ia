@@ -240,6 +240,9 @@ class ChatService:
         self._load_config()
         self.image_service = ImageService()
         self.storage = LocalStorageManager()
+        # ── Clasificador de intenciones por IA (genérico, sin keywords) ──────
+        # Se inicializa lazy en process_message para evitar imports circulares
+        self._intent_classifier = None
         
     async def _analyze_images(self, images: List[str]) -> str:
         """
