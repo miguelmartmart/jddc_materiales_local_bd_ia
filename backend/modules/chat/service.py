@@ -361,41 +361,55 @@ class ChatService:
         return False
 
     def _is_deep_analysis_request(self, message: str) -> bool:
-        """Detecta si el usuario quiere un análisis profundo multi-fase."""
+        """
+        Detecta si el usuario quiere un análisis profundo multi-fase.
+
+        IMPORTANTE: Palabras como "justifica", "detalla", "explica" NO activan
+        el DeepAnalysisAgent — son peticiones de aclaración sobre la respuesta
+        anterior, no análisis nuevos. El DeepAgent solo se activa con comandos
+        explícitos o peticiones de análisis completo desde cero.
+        """
         msg = message.lower().strip()
         # Comando explícito
         if msg.startswith("/deep") or msg.startswith("/analisis"):
             return True
-        # Palabras clave de análisis profundo
+        # Palabras clave de análisis profundo DESDE CERO (no aclaraciones)
+        # EXCLUIDAS: "justifica", "detalla", "explica", "en detalle", "detallado"
+        # porque son peticiones de aclaración sobre la respuesta anterior.
         deep_keywords = [
             "analiza en profundidad", "análisis profundo", "análisis completo",
-            "investiga", "analiza todo", "análisis detallado", "en detalle",
+            "investiga", "analiza todo",
             "con todo el detalle", "profundamente", "a fondo",
             "analiza los datos", "investiga los datos", "estudio completo",
             "análisis exhaustivo", "analiza exhaustivamente",
-            # Variantes cortas que el usuario usa en producción
-            "en profundidad", "dime en profundidad", "profundidad",
+            "en profundidad", "dime en profundidad",
             "tasa de éxito", "tasa exito", "tasa de aceptacion",
-            "analiza", "análisis", "detallado", "completo",
         ]
         return any(k in msg for k in deep_keywords)
 
     async def _chat_no_db(self, message: str, context: Dict[str, Any]) -> str:
         """
-        Modo chat conversacional puro sin BD.
+        Modo chat conversacional puro sin BD (o con simulador activo sin parámetros reales).
         Se activa cuando no hay db_params, no_db=True, o fallo de conexion.
-        Usa la IA local directamente sin generar SQL ni consultar Firebird.
+        Usa la IA local directamente. Incluye historial de conversación y reglas Firebird
+        en el system_prompt para mantener coherencia multi-turno.
         """
         logger.info("[CHAT] Modo SIN BD - chat conversacional puro")
         try:
             conv_history = context.get('conversation_history', [])
-            history_text = ""
+            history_context = ""
             if conv_history:
                 recent = conv_history[-6:]
-                history_text = "\n".join([
-                    f"{'Usuario' if m['role'] == 'user' else 'Asistente'}: {m['content'][:300]}"
-                    for m in recent
-                ])
+                history_context = "\n\n=== CONTEXTO DE CONVERSACIÓN ANTERIOR ===\n"
+                for m in recent:
+                    role = m.get('role', 'user')
+                    content = m.get('content', '')[:300]
+                    if role == 'user':
+                        history_context += f"Usuario: {content}\n"
+                    elif role == 'assistant':
+                        history_context += f"Asistente: {content}\n"
+                history_context += "=== FIN DEL CONTEXTO ===\n"
+                logger.info(f"[CHAT] Incluyendo {len(recent)} mensajes de historial en el contexto (no-db)")
 
             system_prompt = (
                 "Eres DEVIA, el asistente inteligente de JDDC. "
@@ -404,16 +418,18 @@ class ChatService:
                 "y cualquier consulta del usuario. "
                 "En este momento no tienes acceso a la base de datos, "
                 "pero puedes ayudar con todo lo demas. "
-                "Responde siempre en espanol, de forma clara y util."
+                "Responde siempre en espanol, de forma clara y util.\n"
+                "REGLAS SQL Firebird (para referencia): usa FIRST N (no LIMIT/TOP), "
+                "UPPER(col) LIKE UPPER('%x%') para texto, "
+                "DOCCAB.TIPO: 13=factura, 11=albaran, 0=presupuesto, 12=pedido, 3=abono, 2=SAT."
             )
 
-            user_msg = message
-            if history_text:
-                user_msg = f"Historial reciente:\n{history_text}\n\nMensaje actual: {message}"
+            if history_context:
+                system_prompt += history_context
 
             response, model_used = await self.model_orchestrator.execute_with_fallback(
                 system_prompt=system_prompt,
-                user_message=user_msg,
+                user_message=message,
                 images=context.get('images'),
                 preferred_model_id=context.get('model_id'),
             )
@@ -988,26 +1004,28 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                     # La justificación va dentro de <details><summary> para que el usuario
                     # pueda desplegarla si quiere. marked.parse() preserva HTML inline.
                     interpretation_system = (
-                        "Eres un analista de datos experto en Firebird 2.5 para una empresa de climatización. "
-                        "Tu misión es interpretar resultados SQL con VISIÓN CRÍTICA y PROFUNDIDAD ANALÍTICA. "
+                        "Eres DEVIA, el asistente de datos de JDDC (empresa de climatización). "
+                        "Interpretas resultados de base de datos para usuarios SIN conocimientos técnicos. "
                         "\n\n"
-                        "REGLAS DE PRESENTACIÓN:\n"
-                        "• Muestra los datos tal cual están en la BD. Nulos → '(vacío)'.\n"
+                        "REGLAS CRÍTICAS:\n"
+                        "• NUNCA muestres código SQL al usuario. El SQL es interno, no lo verbalices.\n"
+                        "• NUNCA uses términos técnicos como 'query', 'tabla', 'columna', 'JOIN', 'WHERE'.\n"
+                        "• Habla en lenguaje de negocio: 'facturas', 'clientes', 'importes', 'período'.\n"
+                        "• Muestra los datos tal cual están. Nulos → '(sin datos)'.\n"
                         "• NUNCA inventes datos ni diagnósticos sin base en los resultados.\n"
+                        "• Los importes siempre en formato europeo: 1.234,56 EUR\n"
                         "\n"
-                        "ANÁLISIS PROFUNDO OBLIGATORIO — busca y menciona SIEMPRE:\n"
-                        "1. DUPLICADOS: ¿Hay clientes/documentos/artículos repetidos? ¿Mismo cliente con varios presupuestos para la misma instalación?\n"
-                        "2. CALIDAD DE DATOS: ¿Campos vacíos, fechas incoherentes (fecha fin < fecha inicio), importes negativos, registros sin cliente asignado?\n"
-                        "3. ANOMALÍAS ESTADÍSTICAS: ¿Valores extremos (muy altos o muy bajos)? ¿Tasa de éxito inusualmente baja/alta?\n"
-                        "4. CONTEXTO DE NEGOCIO: Para presupuestos, considera que una instalación puede tener VARIOS presupuestos (versiones, revisiones). "
-                        "El total de presupuestos ≠ total de instalaciones. Indica esto cuando sea relevante.\n"
-                        "5. LIMITACIONES DEL SQL: ¿El SQL podría estar contando mal? ¿Hay LEFT JOINs que podrían inflar/deflactar resultados? "
-                        "¿Se están contando documentos relacionados correctamente?\n"
-                        "6. ADVERTENCIAS PROACTIVAS: Si los datos sugieren un problema (ej: 90% de presupuestos sin aceptar), "
-                        "menciona posibles causas (datos no migrados, presupuestos cancelados sin registrar, etc.).\n"
-                        "7. SUGERENCIAS DE MEJORA: Si la pregunta podría responderse mejor con una consulta diferente, indícalo.\n"
+                        "ANÁLISIS OBLIGATORIO — menciona SIEMPRE si aplica:\n"
+                        "1. ¿Los datos son coherentes? ¿Hay valores extremos o sospechosos?\n"
+                        "2. ¿Qué período cubre la consulta? ¿Hay datos de todos los meses?\n"
+                        "3. ¿Qué tipos de documentos se incluyen/excluyen y por qué?\n"
+                        "4. ¿El resultado responde completamente a la pregunta o hay matices?\n"
                         "\n"
-                        "FORMATO: Respuesta directa primero, luego análisis crítico, luego justificación técnica en <details>."
+                        "FORMATO OBLIGATORIO — usa EXACTAMENTE esta estructura HTML:\n"
+                        "1. Respuesta directa en lenguaje natural (párrafo o tabla Markdown)\n"
+                        "2. Análisis crítico breve (2-3 puntos clave)\n"
+                        "3. Bloque <details> con justificación para quien quiera profundizar\n"
+                        "4. Propuesta de verificación adicional al final\n"
                     )
                     n_rows = len(results)
                     cols_used = list(results[0].keys()) if results else []
@@ -1027,41 +1045,42 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
 
                     interpretation_prompt = (
                         f"PREGUNTA DEL USUARIO: {message}\n\n"
-                        f"SQL EJECUTADO:\n```sql\n{sql_query}\n```\n\n"
-                        f"RESULTADOS ({n_rows} filas, columnas: {', '.join(cols_used)}):\n{results}\n\n"
+                        f"DATOS OBTENIDOS ({n_rows} registros, campos: {', '.join(cols_used)}):\n{results}\n\n"
                         + (
-                            f"ADVERTENCIA DE DATOS: Las siguientes tablas tienen muy pocos registros "
-                            f"y los datos podrían estar mal ubicados: "
+                            f"ADVERTENCIA INTERNA: Las siguientes tablas tienen muy pocos registros "
+                            f"y los datos podrían estar incompletos: "
                             f"{[t for t in tables_in_query if t.upper() in LOW_RECORD_TABLES]}\n\n"
                             if any(t.upper() in LOW_RECORD_TABLES for t in tables_in_query) else ""
                         ) +
                         "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
-                        "[Aquí va la respuesta directa a la pregunta. Lista o tabla Markdown si hay múltiples resultados. "
-                        "Precios en EUR. NO inventes datos. Sin encabezados extra.]\n\n"
+                        "## 📊 Respuesta Principal\n"
+                        "[Aquí va la respuesta directa en lenguaje de negocio. "
+                        "Tabla Markdown si hay múltiples resultados. "
+                        "Importes en formato europeo (1.234,56 EUR). "
+                        "NO uses términos técnicos. NO muestres SQL.]\n\n"
+                        "🔍 Análisis Crítico\n"
+                        "[2-3 puntos clave sobre los datos: coherencia, período, tipos incluidos, matices importantes]\n\n"
                         "<details>\n"
-                        "<summary>🔍 Ver justificación y fuentes</summary>\n\n"
+                        "<summary>📋 Ver justificación detallada</summary>\n\n"
                         + low_record_html +
-                        "**Tablas consultadas:** [lista las tablas del SQL]\n\n"
-                        "**Columnas devueltas:** [lista las columnas del resultado]\n\n"
-                        "**Registros devueltos:** [número exacto]\n\n"
-                        "**SQL ejecutado:**\n"
-                        "```sql\n"
-                        "[copia aquí el SQL exacto]\n"
-                        "```\n\n"
-                        "**Cómo verificarlo:** [indica el campo clave para buscar en la BD, "
-                        "ej: busca ARTICULO.CODIGO = X en la tabla ARTICULO]\n\n"
-                        "**Razonamiento:** [explica brevemente qué tablas se unieron, "
-                        "qué filtros se aplicaron y por qué el resultado responde a la pregunta. "
-                        "Si alguna tabla tiene pocos registros, indícalo en ROJO con <span style='color:#c0392b'>texto</span>]\n\n"
+                        "**Período analizado:** [indica el rango de fechas de los datos]\n\n"
+                        "**Qué incluye este cálculo:** [explica en lenguaje de negocio qué tipos de documentos/registros se consideran]\n\n"
+                        "**Qué NO incluye:** [explica qué se excluye y por qué]\n\n"
+                        "**Cómo verificarlo manualmente:** [indica cómo el usuario podría comprobar el dato en el programa de gestión, sin mencionar SQL]\n\n"
+                        "**Fiabilidad del dato:** [indica si el dato es completo, parcial, o tiene limitaciones conocidas]\n\n"
                         "</details>\n\n"
+                        "---\n"
+                        "💡 *¿Quieres que justifique estos datos con más detalle? Puedo analizar los registros uno a uno, "
+                        "comparar con períodos anteriores, o desglosar por cliente/artículo/tipo.*\n\n"
                         "REGLAS:\n"
                         "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
                         "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
-                        "3. Sé objetivo. Sin frases como 'Es importante destacar'.\n"
-                        "4. Si hay datos sospechosos (negativos, nulos, tablas con pocos registros), "
-                        "menciónalos en ROJO con <span style='color:#c0392b'>texto</span>.\n"
-                        "5. El bloque <details>...</details> debe estar SIEMPRE al final, "
-                        "después de la respuesta principal."
+                        "3. NUNCA muestres código SQL en la respuesta al usuario.\n"
+                        "4. Si hay datos sospechosos (negativos, nulos, valores extremos), "
+                        "menciónalos con ⚠️ en lenguaje de negocio.\n"
+                        "5. El bloque <details>...</details> debe estar SIEMPRE presente, "
+                        "después de la respuesta principal y el análisis crítico.\n"
+                        "6. La propuesta de verificación adicional (💡) debe estar SIEMPRE al final."
                     )
                     
                     logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB (Qwen3 LAN preferido)...")

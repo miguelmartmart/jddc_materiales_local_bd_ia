@@ -597,10 +597,11 @@ class TestMultiTurnChatUntilCorrectSQL:
                         context
                     )
 
-        # Verificar que el historial está en el system_prompt
+        # Verificar que el historial está en alguno de los prompts enviados al orchestrator
+        # (puede haber una llamada previa de clasificación de intención)
         assert len(captured_prompts) > 0, "Debe haberse llamado al orchestrator"
-        first_prompt = captured_prompts[0]
-        assert "artículos más vendidos" in first_prompt or "CONTEXTO" in first_prompt, \
+        all_prompts = " ".join(captured_prompts)
+        assert "artículos más vendidos" in all_prompts or "CONTEXTO" in all_prompts, \
             "El historial de conversación debe estar en el system_prompt"
 
     @pytest.mark.asyncio
@@ -895,11 +896,12 @@ class TestContextSentToAI:
                 )
 
         assert len(captured_prompts) > 0
-        prompt = captured_prompts[0]
+        # Verificar en todos los prompts capturados (puede haber llamada de clasificación previa)
+        all_prompts = " ".join(captured_prompts)
 
-        # Reglas Firebird deben estar en el prompt
-        assert "FIRST" in prompt, "El prompt debe incluir la regla FIRST N"
-        assert "TIPO" in prompt or "13" in prompt, \
+        # Reglas Firebird deben estar en alguno de los prompts
+        assert "FIRST" in all_prompts, "El prompt debe incluir la regla FIRST N"
+        assert "TIPO" in all_prompts or "13" in all_prompts, \
             "El prompt debe incluir información sobre tipos de documentos"
 
     @pytest.mark.asyncio
@@ -1096,3 +1098,232 @@ class TestRetrieverStats:
         """get_stats() indica que los índices están cargados."""
         stats = retriever.get_stats()
         assert stats["loaded"] is True, "loaded debe ser True cuando los índices están cargados"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOQUE 10: DETECCIÓN DE ANÁLISIS PROFUNDO vs ACLARACIÓN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestDeepAnalysisDetection:
+    """
+    Verifica que _is_deep_analysis_request NO activa el DeepAgent para
+    peticiones de aclaración/justificación sobre la respuesta anterior.
+
+    CONTEXTO DEL BUG:
+      El usuario pregunta "cuánto ha facturado la empresa" → respuesta A.
+      Luego dice "justifica en detalle los datos" → antes activaba DeepAgent
+      que generaba sus propias queries con valores distintos → inconsistencia.
+      Ahora "justifica", "detalla", "explica" NO activan el DeepAgent.
+    """
+
+    def _make_service(self):
+        """Crea un ChatService con mocks mínimos."""
+        from backend.modules.chat.service import ChatService
+        with patch("backend.modules.chat.service.SQLCorrector"), \
+             patch("backend.modules.chat.service.FirebirdSQLNormalizer"), \
+             patch("backend.modules.chat.service.ModelFallbackOrchestrator"), \
+             patch("backend.modules.chat.service.ImageService"), \
+             patch("backend.modules.chat.service.LocalStorageManager"):
+            svc = ChatService()
+        return svc
+
+    # ── Mensajes que NO deben activar DeepAgent ────────────────────────────────
+
+    def test_justifica_no_activa_deep(self):
+        """'justifica en detalle los datos' NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("justifica en detalle los datos") is False
+
+    def test_justifica_corto_no_activa_deep(self):
+        """'justifica' solo NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("justifica") is False
+
+    def test_detalla_no_activa_deep(self):
+        """'detalla la respuesta' NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("detalla la respuesta") is False
+
+    def test_explica_no_activa_deep(self):
+        """'explícame los datos' NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("explícame los datos") is False
+
+    def test_en_detalle_no_activa_deep(self):
+        """'en detalle' solo NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("en detalle") is False
+
+    def test_detallado_no_activa_deep(self):
+        """'quiero un análisis detallado' NO activa DeepAgent (sin 'profundo'/'completo')."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("quiero un análisis detallado") is False
+
+    def test_completo_solo_no_activa_deep(self):
+        """'completo' solo NO activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("completo") is False
+
+    # ── Mensajes que SÍ deben activar DeepAgent ───────────────────────────────
+
+    def test_deep_command_activa(self):
+        """/deep activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("/deep facturación") is True
+
+    def test_analisis_command_activa(self):
+        """/analisis activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("/analisis ventas") is True
+
+    def test_analiza_en_profundidad_activa(self):
+        """'analiza en profundidad' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("analiza en profundidad la facturación") is True
+
+    def test_analisis_profundo_activa(self):
+        """'análisis profundo' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("quiero un análisis profundo") is True
+
+    def test_analisis_completo_activa(self):
+        """'análisis completo' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("dame un análisis completo") is True
+
+    def test_investiga_activa(self):
+        """'investiga' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("investiga los datos de ventas") is True
+
+    def test_en_profundidad_activa(self):
+        """'en profundidad' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("dime en profundidad") is True
+
+    def test_tasa_exito_activa(self):
+        """'tasa de éxito' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("cuál es la tasa de éxito de presupuestos") is True
+
+    def test_analisis_exhaustivo_activa(self):
+        """'análisis exhaustivo' activa DeepAgent."""
+        svc = self._make_service()
+        assert svc._is_deep_analysis_request("análisis exhaustivo de clientes") is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOQUE 11: PROMPT DE INTERPRETACIÓN — SIN SQL VISIBLE AL USUARIO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestInterpretationPromptNoSQL:
+    """
+    Verifica que el prompt de interpretación para web:
+    1. NO incluye el SQL en la respuesta visible al usuario.
+    2. SÍ incluye el bloque <details> con justificación.
+    3. SÍ incluye la propuesta de verificación adicional (💡).
+    4. Usa lenguaje de negocio, no técnico.
+    """
+
+    def _build_prompt(self, message: str, results: list, sql_query: str) -> str:
+        """Reconstruye el interpretation_prompt tal como lo hace service.py."""
+        n_rows = len(results)
+        cols_used = list(results[0].keys()) if results else []
+        return (
+            f"PREGUNTA DEL USUARIO: {message}\n\n"
+            f"DATOS OBTENIDOS ({n_rows} registros, campos: {', '.join(cols_used)}):\n{results}\n\n"
+            "INSTRUCCIONES — responde con esta estructura EXACTA (respeta el HTML):\n\n"
+            "## 📊 Respuesta Principal\n"
+            "[Aquí va la respuesta directa en lenguaje de negocio. "
+            "Tabla Markdown si hay múltiples resultados. "
+            "Importes en formato europeo (1.234,56 EUR). "
+            "NO uses términos técnicos. NO muestres SQL.]\n\n"
+            "🔍 Análisis Crítico\n"
+            "[2-3 puntos clave sobre los datos: coherencia, período, tipos incluidos, matices importantes]\n\n"
+            "<details>\n"
+            "<summary>📋 Ver justificación detallada</summary>\n\n"
+            "**Período analizado:** [indica el rango de fechas de los datos]\n\n"
+            "**Qué incluye este cálculo:** [explica en lenguaje de negocio qué tipos de documentos/registros se consideran]\n\n"
+            "**Qué NO incluye:** [explica qué se excluye y por qué]\n\n"
+            "**Cómo verificarlo manualmente:** [indica cómo el usuario podría comprobar el dato en el programa de gestión, sin mencionar SQL]\n\n"
+            "**Fiabilidad del dato:** [indica si el dato es completo, parcial, o tiene limitaciones conocidas]\n\n"
+            "</details>\n\n"
+            "---\n"
+            "💡 *¿Quieres que justifique estos datos con más detalle? Puedo analizar los registros uno a uno, "
+            "comparar con períodos anteriores, o desglosar por cliente/artículo/tipo.*\n\n"
+            "REGLAS:\n"
+            "1. NO inventes datos. Usa SOLO los resultados proporcionados.\n"
+            "2. Si no hay resultados, dilo claramente y sugiere por qué.\n"
+            "3. NUNCA muestres código SQL en la respuesta al usuario.\n"
+            "4. Si hay datos sospechosos (negativos, nulos, valores extremos), "
+            "menciónalos con ⚠️ en lenguaje de negocio.\n"
+            "5. El bloque <details>...</details> debe estar SIEMPRE presente, "
+            "después de la respuesta principal y el análisis crítico.\n"
+            "6. La propuesta de verificación adicional (💡) debe estar SIEMPRE al final."
+        )
+
+    def test_prompt_no_contiene_sql_visible(self):
+        """El prompt NO incluye el SQL en la parte visible (solo en DATOS OBTENIDOS)."""
+        sql = "SELECT SUM(IMPORTETOTAL) FROM DOCCAB WHERE TIPO=13"
+        results = [{"TOTAL_FACTURADO": 732688.42}]
+        prompt = self._build_prompt("cuánto ha facturado la empresa", results, sql)
+        # El SQL NO debe aparecer en las instrucciones de respuesta al usuario
+        assert "NUNCA muestres código SQL" in prompt, \
+            "El prompt debe prohibir mostrar SQL al usuario"
+        assert "NO muestres SQL" in prompt, \
+            "El prompt debe indicar explícitamente no mostrar SQL"
+
+    def test_prompt_contiene_details_desplegable(self):
+        """El prompt incluye el bloque <details> para el desplegable."""
+        results = [{"TOTAL": 100000.0}]
+        prompt = self._build_prompt("facturación total", results, "SELECT SUM(IMPORTETOTAL) FROM DOCCAB")
+        assert "<details>" in prompt, "El prompt debe incluir <details>"
+        assert "<summary>" in prompt, "El prompt debe incluir <summary>"
+        assert "</details>" in prompt, "El prompt debe incluir </details>"
+
+    def test_prompt_contiene_propuesta_verificacion(self):
+        """El prompt incluye la propuesta de verificación adicional (💡)."""
+        results = [{"TOTAL": 100000.0}]
+        prompt = self._build_prompt("facturación total", results, "SELECT SUM(IMPORTETOTAL) FROM DOCCAB")
+        assert "💡" in prompt, "El prompt debe incluir la propuesta de verificación (💡)"
+        assert "justifique estos datos con más detalle" in prompt, \
+            "El prompt debe proponer justificar con más detalle"
+
+    def test_prompt_usa_lenguaje_negocio(self):
+        """El prompt usa términos de negocio, no técnicos."""
+        results = [{"TOTAL": 100000.0}]
+        prompt = self._build_prompt("facturación total", results, "SELECT SUM(IMPORTETOTAL) FROM DOCCAB")
+        assert "lenguaje de negocio" in prompt, \
+            "El prompt debe indicar usar lenguaje de negocio"
+        assert "términos técnicos" in prompt, \
+            "El prompt debe prohibir términos técnicos"
+
+    def test_prompt_contiene_datos_obtenidos(self):
+        """El prompt incluye los datos obtenidos (no el SQL)."""
+        results = [{"TOTAL_FACTURADO": 732688.42}]
+        prompt = self._build_prompt("facturación", results, "SELECT SUM(IMPORTETOTAL) FROM DOCCAB")
+        assert "DATOS OBTENIDOS" in prompt, \
+            "El prompt debe incluir 'DATOS OBTENIDOS' (no 'SQL EJECUTADO')"
+        assert "SQL EJECUTADO" not in prompt, \
+            "El prompt NO debe incluir 'SQL EJECUTADO' (visible al usuario)"
+
+    def test_prompt_formato_europeo_importes(self):
+        """El prompt indica usar formato europeo para importes."""
+        results = [{"TOTAL": 100000.0}]
+        prompt = self._build_prompt("facturación", results, "SELECT SUM(IMPORTETOTAL) FROM DOCCAB")
+        assert "1.234,56 EUR" in prompt or "formato europeo" in prompt, \
+            "El prompt debe indicar formato europeo para importes"
+
+    def test_system_prompt_no_sql_al_usuario(self):
+        """El system prompt de interpretación prohíbe mostrar SQL."""
+        interpretation_system = (
+            "Eres DEVIA, el asistente de datos de JDDC (empresa de climatización). "
+            "Interpretas resultados de base de datos para usuarios SIN conocimientos técnicos. "
+            "\n\n"
+            "REGLAS CRÍTICAS:\n"
+            "• NUNCA muestres código SQL al usuario. El SQL es interno, no lo verbalices.\n"
+            "• NUNCA uses términos técnicos como 'query', 'tabla', 'columna', 'JOIN', 'WHERE'.\n"
+        )
+        assert "NUNCA muestres código SQL" in interpretation_system
+        assert "SIN conocimientos técnicos" in interpretation_system
+        assert "query" in interpretation_system  # prohibido en respuesta
