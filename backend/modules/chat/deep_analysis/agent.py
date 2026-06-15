@@ -29,6 +29,7 @@ from backend.modules.chat.deep_analysis.models import (
 from backend.modules.chat.deep_analysis.helpers import HelpersAgentMixin
 from backend.modules.chat.deep_analysis.phases_1_2 import Phases12Mixin
 from backend.modules.chat.deep_analysis.phases_3_4_5 import Phases345Mixin
+from backend.modules.chat.deep_analysis.phase_verify import PhaseVerifyMixin
 
 # Importación a nivel de módulo para permitir mocking en tests
 try:
@@ -39,7 +40,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin):
+class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseVerifyMixin):
     """
     Agente de análisis profundo multi-fase ÉPICO v3.0.
 
@@ -182,6 +183,15 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin):
             # ── FASE 5: Síntesis épica ────────────────────────────────────────
             phase5 = await self._phase5_synthesize(question, result, cfg)
             result.phases.append(phase5)
+
+            # ── FASE 5b: Verificación de resultados ───────────────────────────
+            # Verifica que la respuesta IA no contiene datos inventados.
+            # Añade sello de fiabilidad al final de la respuesta.
+            try:
+                phase5b = await self._phase5b_verify(question, result, cfg)
+                result.phases.append(phase5b)
+            except Exception as verify_err:
+                logger.warning(f"[DEEP AGENT] Fase 5b (verificación) falló: {verify_err}")
 
             # Limpieza de ficheros temporales
             self._cleanup_partial_files(result)

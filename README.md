@@ -1,19 +1,20 @@
 # DEVIA - Sistema de Gestión e Inteligencia Artificial
 
-Sistema genérico de gestión de bases de datos con integración de IA para consultas en lenguaje natural.
+Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatización).  
+Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
 ## 🚀 Características
 
-- **Chat IA**: Consulta tu base de datos en lenguaje natural
-- **Múltiples Modelos IA**: Soporte para Groq, OpenRouter, Google Gemini, OpenAI
-- **Sistema de Proveedores**: Arquitectura modular que separa proveedores reales de esquemas de API
+- **Chat IA**: Consulta la BD Firebird en lenguaje natural (Qwen3 VL 30B local LAN)
+- **SIUO**: Sistema de Índices Ultra-Optimizado — indexa las 437 tablas de la BD para contexto preciso
+- **Múltiples Modelos IA**: Qwen3 LAN (principal), Groq, Gemini, OpenAI, Anthropic (fallback)
 - **Gestión de Artículos**: CRUD completo con análisis de IA
-- **Sistema de Metadatos Inteligente**: Optimización automática de esquemas para IA
-- **Constantes Centralizadas**: Single source of truth para toda la configuración
-- **Arquitectura Modular**: Fácilmente extensible a diferentes bases de datos
-- **Seguridad**: API keys en variables de entorno, nunca en el código
-- **API Empleados**: Endpoint `GET /api/employees-real` con jerarquía departamental (CODPADRE/ORDEN)
-- **Tests automatizados**: Suite pytest con 38 tests (100% passing)
+- **Constructor BD**: Análisis manual tabla a tabla con Qwen3 LAN
+- **Anonimizador**: Anonimización de datos sensibles (RGPD)
+- **Outlook**: Bandeja de entrada unificada
+- **Seguridad**: API keys en `.env`, datos de BD solo a IA local LAN (nunca a internet)
+- **Análisis Profundo**: Pipeline multi-fase con verificación de fiabilidad (anti-alucinación)
+- **Tests automatizados**: Suite pytest con 1.762+ tests (1.652 passing, 71 skipped)
 
 ## 📋 Requisitos
 
@@ -80,6 +81,94 @@ python backend/scripts/extract_db_metadata.py
 ```
 
 Esto creará archivos JSON optimizados con la estructura de tu BD.
+
+## 🗄️ Base de Datos Firebird — Configuración Real
+
+### Archivo `.fdb` de la empresa
+
+| Parámetro | Valor real |
+|-----------|-----------|
+| **Ruta del .fdb** | `C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb` |
+| **Servidor (IP)** | `192.168.0.254` |
+| **Puerto** | `3050` |
+| **Usuario** | `SYSDBA` |
+| **Password** | `masterkey` |
+| **Charset** | `latin1` (para caracteres españoles) |
+
+> ⚠️ El hostname `HOST1.JDDC.local` **NO funciona** en Python/firebirdsql en Windows.
+> Siempre usar la IP directa `192.168.0.254`.
+
+### Cómo el programa obtiene la ruta del .fdb — cadena completa
+
+```
+bots/interjddcia/.env
+  └── DB_NAME=C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb
+      DB_HOST=192.168.0.254
+      DB_PORT=3050
+      DB_USER=SYSDBA
+      DB_PASSWORD=masterkey
+          │
+          ▼
+backend/core/config/settings.py  (línea 8)
+  └── _ENV_FILE = Path(__file__).parent.parent.parent.parent / ".env"
+      # Resuelve a: bots/interjddcia/.env  (4 niveles arriba del settings.py)
+      class Settings(BaseSettings):
+          DB_NAME: str = ""   ← se rellena desde .env
+          DB_HOST: str = "localhost"
+          ...
+      settings = Settings()  ← singleton global importado por todo el backend
+          │
+          ▼
+Cualquier servicio (employees, chat, articles, db_explorer...):
+  └── from backend.core.config.settings import settings
+      config = DBConfig(
+          host=settings.DB_HOST,       # "192.168.0.254"
+          port=settings.DB_PORT,       # 3050
+          database=settings.DB_NAME,   # "C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb"
+          user=settings.DB_USER,       # "SYSDBA"
+          password=settings.DB_PASSWORD # "masterkey"
+      )
+          │
+          ▼
+backend/drivers/db/firebird_driver.py → FirebirdDriver.connect(config)
+  └── firebirdsql.connect(
+          host="192.168.0.254",
+          port=3050,
+          database="C:\\Distrito\\OBRAS\\Database\\JUANDEDI\\2021.fdb",
+          user="SYSDBA",
+          password="masterkey",
+          charset="latin1"
+      )
+      → CONEXIÓN ESTABLECIDA con el .fdb real de la empresa
+```
+
+### Caso especial: Chat IA sin db_params del frontend
+
+Cuando el cliente (gafas Meta, API directa) no envía parámetros de BD,
+`chat_db_executor.py` usa automáticamente el fallback del `.env`:
+
+```python
+# backend/modules/chat/chat_db_executor.py → _get_fallback_db_params()
+return {
+    "host":     settings.DB_HOST,      # "192.168.0.254"
+    "port":     settings.DB_PORT,      # 3050
+    "database": settings.DB_NAME,      # "C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb"
+    "user":     settings.DB_USER,      # "SYSDBA"
+    "password": settings.DB_PASSWORD,  # "masterkey"
+}
+```
+
+### Cambiar el archivo .fdb (ej: nuevo año)
+
+```bash
+# Editar bots/interjddcia/.env:
+DB_NAME=C:\Distrito\OBRAS\Database\JUANDEDI\2022.fdb
+
+# Reiniciar el backend para que settings.py recargue el .env:
+ARRANCAR_DEVIA.bat
+```
+
+---
 
 ## 🎯 Uso
 

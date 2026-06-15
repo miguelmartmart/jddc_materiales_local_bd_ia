@@ -1,8 +1,8 @@
 # DEVIA — Documentacion Tecnica del Sistema
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Ultima actualizacion:** 09/03/2026
-> **Version:** 2.4.0
+> **Ultima actualizacion:** 15/06/2026
+> **Version:** 2.7.0
 > **Ruta:** `bots/interjddcia/`
 
 ---
@@ -42,6 +42,7 @@ Tras arrancar, se abre automaticamente: **http://localhost:8001**
 9. [Como levantar el backend](#9-como-levantar)
 10. [Comandos de diagnostico rapido](#10-comandos-diagnostico)
 11. [Archivos clave](#11-archivos-clave)
+12. [Pipeline de Analisis Profundo — Fases](#12-pipeline-analisis-profundo)
 
 ---
 
@@ -83,7 +84,7 @@ Backend DEVIA (bots/interjddcia/)
         |    +- [NUEVO] deep_analyze_table() -> analisis profundo con SIUO
         |
         +- FirebirdDriver (drivers/db/)
-             +- BD: Firebird 2.5 @ 192.168.0.254:3050 (empresa.fdb)
+             +- BD: Firebird 2.5 @ 192.168.0.254:3050 (C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb)
              +- 437 tablas de usuario
              +- ~11.846 articulos, datos reales de empresa
 ```
@@ -1386,3 +1387,165 @@ if normalized in self._concept_index:
 ```
 
 **Impacto:** Todas las preguntas en plural ahora funcionan correctamente.
+
+---
+
+## 12. Pipeline de Analisis Profundo — Fases
+
+> **Implementado:** 15/06/2026 | **Modulo:** `backend/modules/chat/deep_analysis/`
+
+El agente de analisis profundo (`DeepAnalysisAgent`) ejecuta un pipeline multi-fase
+para responder preguntas complejas sobre la base de datos. Cada fase es un Mixin
+independiente (SRP) que hereda de la clase base del agente.
+
+### Fases del pipeline
+
+```
+Pregunta usuario
+    |
+    v
+Fase 0  — Presupuesto de tokens + optimizacion LAN
+    |
+    v
+Fase 1  — Comprension epica (intencion, sub-preguntas, tablas candidatas)
+    |
+    v
+Fase 2  — Exploracion total (conteo, columnas, muestreo de datos reales)
+    |
+    v
+BUCLE DE INVESTIGACION (hasta MAX_INVESTIGATION_CYCLES):
+    |
+    +-- Fase 3  — Investigacion multi-angular (SQLs dinamicos + fijos)
+    |
+    +-- Fase 4  — Analisis critico (anomalias, calidad, contexto)
+    |
+    +-- Fase 3b — Resolucion de inconsistencias detectadas
+    |
+    +-- Decision IA: continuar o salir del bucle
+    |
+    v
+Fase 4b — Aprendizaje permanente (KnowledgeStore)
+    |
+    v
+Fase 5  — Sintesis epica (respuesta amigable para el usuario)
+    |
+    v
+Fase 5b — VERIFICACION DE RESULTADOS (nueva — 15/06/2026)
+    |
+    v
+Respuesta final con sello de fiabilidad
+```
+
+### Fase 5b — Verificacion de Resultados (PhaseVerifyMixin)
+
+**Fichero:** `backend/modules/chat/deep_analysis/phase_verify.py`
+**Clase:** `PhaseVerifyMixin`
+**Tests:** `tests/unit/test_phase_verify.py` (32 tests)
+
+**Proposito:** Verificar que la respuesta de la IA no contiene datos inventados.
+La IA puede alucinar nombres de clientes, importes o articulos que no existen en la BD.
+Esta fase cruza los valores de la tabla Markdown de la respuesta con los datos reales
+obtenidos de las consultas SQL ejecutadas.
+
+**Metodos:**
+
+| Metodo | Responsabilidad |
+|--------|----------------|
+| `_extract_real_values(sql_queries)` | Extrae todos los valores reales de los resultados SQL en un set para comparacion O(1) |
+| `_extract_table_values_from_markdown(response)` | Parsea las tablas Markdown de la seccion `## Respuesta Principal` |
+| `_verify_response_against_data(...)` | Cruza valores de la tabla con datos reales. Clasifica fiabilidad |
+| `_build_verification_block(...)` | Genera bloque Markdown con sello de fiabilidad |
+| `_phase5b_verify(question, result, cfg)` | Orquesta todo y modifica `result.final_answer` |
+
+**Clasificacion de fiabilidad:**
+
+| Nivel | Icono | Criterio |
+|-------|-------|---------|
+| `alta` | ✅ | 0 valores no verificados |
+| `media` | ⚠️ | 1-2 valores no verificados, o <20% del total |
+| `baja` | ⚠️ | >20% de valores no verificados |
+| `no_data` | ❌ | Todas las queries fallaron — sin datos reales para comparar |
+| `no_table` | ℹ️ | La respuesta no contiene tabla de datos |
+
+**Filtros aplicados (valores que se ignoran en la verificacion):**
+- Fechas en formato `dd/mm/yyyy` (la IA puede reformatear fechas)
+- Valores que terminan en `%` o `€` (porcentajes y monedas formateados)
+- Valores especiales: `(SIN DATOS)`, `N/A`, `NULL`, `-`
+- Valores de menos de 3 caracteres (cabeceras de columna cortas)
+
+**Integracion en agent.py:**
+
+```python
+# Fase 5b: Verificacion de resultados
+try:
+    phase5b = await self._phase5b_verify(question, result, cfg)
+    result.phases.append(phase5b)
+except Exception as verify_err:
+    logger.warning(f"[DEEP AGENT] Fase 5b (verificacion) fallo: {verify_err}")
+    # La verificacion NUNCA rompe la respuesta principal
+```
+
+**Principio de diseno:** La fase 5b es opcional y tolerante a fallos. Si falla,
+la respuesta principal se entrega igualmente sin el sello de fiabilidad.
+
+**Ejemplo de bloque de verificacion generado:**
+
+```markdown
+---
+### ✅ Verificacion de Fiabilidad
+
+**Consultas ejecutadas:** 3/3 exitosas
+
+**Valores verificados:** 8/8 (100%)
+
+> Nota: Los datos mostrados provienen del simulador de base de datos JDDC.
+> Los valores reales pueden diferir si la base de datos ha cambiado.
+```
+
+### Ficheros del modulo deep_analysis
+
+```
+backend/modules/chat/deep_analysis/
+|
++-- agent.py          <- Orquestador principal (DeepAnalysisAgent)
++-- helpers.py        <- HelpersAgentMixin — helpers compartidos
++-- phases_1_2.py     <- Phases12Mixin — Fases 0, 1, 2
++-- phases_3_4_5.py   <- Phases345Mixin — Fases 3, 3b, 4, 4b, 5
++-- phase_verify.py   <- PhaseVerifyMixin — Fase 5b (NUEVA 15/06/2026)
++-- models.py         <- Tipos, constantes, EpicAnalysisResult, TokenBudget
++-- knowledge_store.py <- KnowledgeStore — aprendizaje permanente
++-- phase5.py         <- Logica de sintesis (Fase 5)
+```
+
+### Tests del modulo deep_analysis
+
+```
+tests/unit/
+|
++-- test_phase_verify.py              <- 32 tests Fase 5b (NUEVO 15/06/2026)
++-- test_phase5_no_invention.py       <- Tests anti-invencion Fase 5
++-- test_simulator_table_validation.py <- Tests validacion de tablas SQL
++-- test_deep_analysis_1_core.py      <- Tests core del agente
++-- test_deep_analysis_2_phases.py    <- Tests de fases
++-- test_deep_analysis_3_learn.py     <- Tests de aprendizaje
++-- test_deep_analysis_4_advanced.py  <- Tests avanzados
++-- test_deep_analysis_5_knowledge.py <- Tests KnowledgeStore
++-- test_deep_analysis_6_knowledge2.py
++-- test_deep_analysis_7_knowledge3.py
+```
+
+### Validacion de tablas SQL (TableValidationLayer)
+
+**Fichero:** `backend/modules/db_simulator/` (integrado en el simulador)
+**Tests:** `tests/unit/test_simulator_table_validation.py` (60 tests)
+
+Antes de ejecutar cualquier SQL, el simulador valida que todas las tablas referenciadas
+existen en su esquema. Si una tabla no existe (ej: `DOCVAR`, `REPARA`), lanza un error
+descriptivo que incluye la lista de tablas disponibles y pide reescribir la consulta.
+
+**Alias automaticos soportados:**
+- `CLIENTES` -> `CLIENTE`
+- `ARTICULOS` -> `ARTICULO`
+- `PROVEEDORES` -> `PROVEED`
+- `FACTURAS` / `PRESUPUESTOS` / `PEDIDOS` / `ALBARANES` / `COMPRAS` -> `DOCCAB`
+- `AGENTE` -> `AGENTES`
