@@ -21,6 +21,56 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# ─── Helpers de módulo (sin estado, reutilizables) ───────────────────────────
+
+def _detect_tipo_filter(msg: str) -> str:
+    """
+    Detecta el filtro TIPO adecuado según las palabras clave de la pregunta.
+    Devuelve la cláusula SQL (ej: 'TIPO = 13') o '' si no se detecta tipo específico.
+
+    ORDEN IMPORTANTE: los tipos más específicos se comprueban antes que los más generales.
+    Ejemplo: "albaranes sin facturar" debe devolver TIPO=11 (albarán), no TIPO=13 (factura).
+    El término "facturar" en ese contexto es un verbo, no el tipo de documento.
+    """
+    msg = msg.lower()
+    # Albarán ANTES que factura (evita que "albaranes sin facturar" → TIPO=13)
+    if any(k in msg for k in ["albarán", "albaran", "albaranes"]):
+        return "TIPO = 11"
+    if any(k in msg for k in ["presupuesto", "presupuestos"]):
+        return "TIPO = 0"
+    if any(k in msg for k in ["pedido", "pedidos"]):
+        return "TIPO = 12"
+    if any(k in msg for k in ["abono", "abonos"]):
+        return "TIPO = 3"
+    if any(k in msg for k in ["sat", "servicio técnico", "servicio tecnico", "orden de trabajo"]):
+        return "TIPO = 2"
+    # Factura al final — es el más genérico y puede aparecer como verbo ("sin facturar")
+    # Solo aplica si no hay otro tipo más específico detectado
+    if any(k in msg for k in ["factura ", "facturas", "facturado", "facturación", "facturacion",
+                               " factura", "la factura", "las facturas"]):
+        return "TIPO = 13"
+    return ""
+
+
+def _detect_month_number(msg: str) -> int:
+    """
+    Detecta el número de mes (1-12) mencionado en la pregunta.
+    Devuelve 0 si no se detecta ningún mes.
+    """
+    _MONTHS = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
+        "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
+        "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
+        # Abreviaturas
+        "ene": 1, "feb": 2, "mar": 3, "abr": 4,
+        "may": 5, "jun": 6, "jul": 7, "ago": 8,
+        "sep": 9, "oct": 10, "nov": 11, "dic": 12,
+    }
+    msg_lower = msg.lower()
+    for name, num in _MONTHS.items():
+        if name in msg_lower:
+            return num
+    return 0
 
 
 class Phase3SqlsMixin:
@@ -55,9 +105,37 @@ class Phase3SqlsMixin:
             except Exception as e:
                 logger.debug(f"[DEEP AGENT] KnowledgeStore en _build_fixed_sqls: {e}")
 
+        # ── Detección de tema principal de la pregunta ────────────────────────────
+        # Si la pregunta es claramente sobre artículos/productos, los SQLs genéricos
+        # de DOCCAB (distribución temporal, instalaciones) son irrelevantes y confunden
+        # a la IA en la síntesis. Se suprimen para mantener el foco en el tema real.
+        # Mismas listas que art_kw/comp_kw de abajo — deben mantenerse sincronizadas
+        _art_kw_early = [
+            "artículo", "articulo", "artículos", "artículos",
+            "producto", "productos",
+            "item", "items",
+            "referencia", "referencias",
+        ]
+        _art_movement_kw = [
+            "rotación", "rotacion", "rotan", "rota",
+            "negociar", "negociación", "negociacion", "volumen",
+            "candidatos", "candidato",
+            "frecuencia", "frecuente", "frecuentes",
+            "mayor", "mayores", "mejor", "mejores",
+            "demanda", "popular", "populares",
+            "compra", "venta", "compras", "ventas", "top",
+            "vendido", "vendidos", "comprado", "comprados",
+            "más", "mas",
+        ]
+        _is_article_focused = (
+            any(k in msg for k in _art_kw_early) and
+            any(k in msg for k in _art_movement_kw)
+        )
+
         # SQL FIJO 0: Resumen general por tipo de documento (SIEMPRE para DOCCAB)
         # Útil para CUALQUIER pregunta — da contexto general del volumen de datos
-        if "DOCCAB" in phase2_data:
+        # EXCEPCIÓN: si la pregunta es sobre artículos, este SQL es irrelevante y confunde.
+        if "DOCCAB" in phase2_data and not _is_article_focused:
             fixed.append({
                 "objetivo": "Resumen general por tipo de documento (N, total y media EUR)",
                 "sql": (
@@ -69,27 +147,72 @@ class Phase3SqlsMixin:
                 )
             })
 
-        # SQL FIJO 1: Distribución temporal (SIEMPRE para DOCCAB)
-        if "DOCCAB" in phase2_data:
+        # SQL FIJO 1: Distribución temporal — adaptada al tipo de documento preguntado
+        # EXCEPCIÓN: si la pregunta es sobre artículos, este SQL es irrelevante y confunde.
+        if "DOCCAB" in phase2_data and not _is_article_focused:
+            # Detectar tipo de documento según la pregunta
+            _tipo_filter = _detect_tipo_filter(msg)
+            _tipo_label = _tipo_filter if _tipo_filter else "todos los tipos"
+
             if has_serie:
                 fixed.append({
-                    "objetivo": "Distribución por año y serie",
+                    "objetivo": f"Distribución por año y serie ({_tipo_label})",
                     "sql": (
                         "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, SERIE, COUNT(*) AS N, "
                         "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
-                        "FROM DOCCAB WHERE TIPO = 0 AND FECHA IS NOT NULL "
+                        f"FROM DOCCAB WHERE {_tipo_filter + ' AND ' if _tipo_filter else ''}FECHA IS NOT NULL "
                         "GROUP BY EXTRACT(YEAR FROM FECHA), SERIE "
                         "ORDER BY ANO DESC, N DESC"
                     )
                 })
             else:
                 fixed.append({
-                    "objetivo": "Distribución por año",
+                    "objetivo": f"Distribución por año ({_tipo_label})",
                     "sql": (
                         "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N, "
                         "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
-                        "FROM DOCCAB WHERE TIPO = 0 AND FECHA IS NOT NULL "
+                        f"FROM DOCCAB WHERE {_tipo_filter + ' AND ' if _tipo_filter else ''}FECHA IS NOT NULL "
                         "GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO DESC"
+                    )
+                })
+
+            # SQL FIJO 1b: Distribución por mes (SIEMPRE — detecta estacionalidad y anomalías)
+            fixed.append({
+                "objetivo": f"Distribución por mes del año actual ({_tipo_label})",
+                "sql": (
+                    "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, EXTRACT(MONTH FROM FECHA) AS MES, "
+                    "COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                    f"FROM DOCCAB WHERE {_tipo_filter + ' AND ' if _tipo_filter else ''}FECHA IS NOT NULL "
+                    "AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE) "
+                    "GROUP BY EXTRACT(YEAR FROM FECHA), EXTRACT(MONTH FROM FECHA) "
+                    "ORDER BY ANO DESC, MES DESC"
+                )
+            })
+
+            # SQL FIJO 1c: Si la pregunta menciona un mes específico, añadir consulta directa
+            _month_num = _detect_month_number(msg)
+            if _month_num:
+                fixed.append({
+                    "objetivo": f"Facturas/documentos en mes {_month_num} del año actual (verificación directa)",
+                    "sql": (
+                        "SELECT COUNT(*) AS N_DOCS, "
+                        "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, "
+                        "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
+                        f"FROM DOCCAB WHERE {_tipo_filter + ' AND ' if _tipo_filter else ''}"
+                        f"EXTRACT(MONTH FROM FECHA) = {_month_num} "
+                        "AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                    )
+                })
+                # También desglose por cliente para ese mes
+                fixed.append({
+                    "objetivo": f"Top clientes en mes {_month_num} del año actual",
+                    "sql": (
+                        "SELECT FIRST 10 CODCLIENTE, COUNT(*) AS N_DOCS, "
+                        "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
+                        f"FROM DOCCAB WHERE {_tipo_filter + ' AND ' if _tipo_filter else ''}"
+                        f"EXTRACT(MONTH FROM FECHA) = {_month_num} "
+                        "AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE) "
+                        "GROUP BY CODCLIENTE ORDER BY TOTAL_EUR DESC"
                     )
                 })
 
@@ -337,26 +460,41 @@ class Phase3SqlsMixin:
                 )
             })
 
-        # ── SQLs FIJOS para ARTÍCULOS más vendidos / comprados ───────────────────
-        # Se activan cuando la pregunta menciona artículos/productos y compras/ventas.
+        # ── SQLs FIJOS para ARTÍCULOS más vendidos / comprados / rotación ────────
+        # Se activan cuando la pregunta menciona artículos/productos y cualquier
+        # indicador de movimiento/volumen (compras, ventas, rotación, negociación...).
         # Usan sintaxis Firebird estándar — el query_translator los convierte
         # automáticamente a SQLite cuando el simulador está activo.
-        # Columnas comunes a Firebird real y simulador:
-        #   DOCLIN.CODART (FK → ARTICULO.CODIGO), DOCLIN.CODIGO (FK → DOCCAB.CODIGO),
-        #   ARTICULO.CODIGO, ARTICULO.NOMBRE, ARTICULO.STOCKARTICULO
-        art_kw = ["artículo", "articulo", "producto", "item"]
-        comp_kw = ["compra", "venta", "vendido", "vendidos", "comprado", "comprados",
-                   "top", "más", "mas", "compras", "ventas"]
-        if any(k in msg for k in art_kw) and any(k in msg for k in comp_kw):
+        #
+        # ESQUEMA SIMULADOR (schema.py):
+        #   DOCLIN: CODDOCUMENTO (FK→DOCCAB.CODIGO), CODIGO (línea), CODARTICULO (FK→ARTICULO.CODIGO)
+        #           CANTIDAD, PRECIO, COSTE, DESCUENTOS, TIPOIVA
+        #   NOTA: No existe DOCLIN.CODART ni DOCLIN.IMPORTE en el simulador.
+        #         IMPORTE = ROUND(CAST(CANTIDAD AS REAL)*CAST(PRECIO AS REAL),2)
+        #         JOIN DOCCAB: ON c.CODIGO = d.CODDOCUMENTO (no d.CODIGO)
+        art_kw = ["artículo", "articulo", "producto", "item", "referencia", "referencias"]
+        comp_kw = [
+            "compra", "venta", "vendido", "vendidos", "comprado", "comprados",
+            "top", "más", "mas", "compras", "ventas",
+            # Rotación y negociación de volumen
+            "rotación", "rotacion", "rotan", "rota",
+            "negociar", "negociación", "negociacion", "volumen",
+            "candidatos", "candidato",
+            "frecuencia", "frecuente", "frecuentes",
+            "mayor", "mayores", "mejor", "mejores",
+            "demanda", "popular", "populares",
+        ]
+        is_article_question = any(k in msg for k in art_kw) and any(k in msg for k in comp_kw)
+        if is_article_question:
             fixed.append({
                 "objetivo": "Top artículos por líneas de venta (frecuencia de compra)",
                 "sql": (
                     "SELECT FIRST 10 a.NOMBRE, COUNT(d.CODIGO) AS N_LINEAS, "
                     "CAST(SUM(d.CANTIDAD) AS NUMERIC(15,2)) AS CANTIDAD_TOTAL, "
-                    "CAST(SUM(d.IMPORTE) AS NUMERIC(15,2)) AS IMPORTE_TOTAL "
+                    "CAST(SUM(CAST(d.CANTIDAD AS REAL)*CAST(d.PRECIO AS REAL)) AS NUMERIC(15,2)) AS IMPORTE_TOTAL "
                     "FROM ARTICULO a "
-                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
-                    "JOIN DOCCAB c ON c.CODIGO = d.CODIGO AND c.TIPO = 13 "
+                    "JOIN DOCLIN d ON d.CODARTICULO = a.CODIGO "
+                    "JOIN DOCCAB c ON c.CODIGO = d.CODDOCUMENTO AND c.TIPO = 13 "
                     "GROUP BY a.CODIGO, a.NOMBRE "
                     "ORDER BY N_LINEAS DESC"
                 )
@@ -365,11 +503,11 @@ class Phase3SqlsMixin:
                 "objetivo": "Top artículos por importe total de ventas",
                 "sql": (
                     "SELECT FIRST 10 a.NOMBRE, "
-                    "CAST(SUM(d.IMPORTE) AS NUMERIC(15,2)) AS IMPORTE_TOTAL, "
+                    "CAST(SUM(CAST(d.CANTIDAD AS REAL)*CAST(d.PRECIO AS REAL)) AS NUMERIC(15,2)) AS IMPORTE_TOTAL, "
                     "COUNT(d.CODIGO) AS N_LINEAS "
                     "FROM ARTICULO a "
-                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
-                    "JOIN DOCCAB c ON c.CODIGO = d.CODIGO AND c.TIPO = 13 "
+                    "JOIN DOCLIN d ON d.CODARTICULO = a.CODIGO "
+                    "JOIN DOCCAB c ON c.CODIGO = d.CODDOCUMENTO AND c.TIPO = 13 "
                     "GROUP BY a.CODIGO, a.NOMBRE "
                     "ORDER BY IMPORTE_TOTAL DESC"
                 )
@@ -381,7 +519,7 @@ class Phase3SqlsMixin:
                     "CAST(SUM(d.CANTIDAD) AS NUMERIC(15,2)) AS CANTIDAD_TOTAL, "
                     "COUNT(d.CODIGO) AS N_PEDIDOS "
                     "FROM ARTICULO a "
-                    "JOIN DOCLIN d ON d.CODART = a.CODIGO "
+                    "JOIN DOCLIN d ON d.CODARTICULO = a.CODIGO "
                     "GROUP BY a.CODIGO, a.NOMBRE "
                     "ORDER BY CANTIDAD_TOTAL DESC"
                 )
