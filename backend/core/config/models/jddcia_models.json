@@ -20,10 +20,12 @@
         "vision",
         "code"
       ],
-      "score": 100,
+      "score": 0,
+      "context_limit": 4096,
       "parameters": {
         "temperature": 0.7,
-        "max_tokens": 4096
+        "max_tokens": 4096,
+        "_max_tokens_note": "4096: suficiente para análisis profundo (Fase 5 ~2000-3500 tokens). 512 era demasiado bajo y cortaba respuestas largas."
       },
       "quota": {
         "blocked": false,
@@ -32,8 +34,8 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 0,
-        "failure": 205
+        "success": 9,
+        "failure": 501
       },
       "base_url": "http://192.168.0.36/api/vlm/v1",
       "headers": {
@@ -60,10 +62,12 @@
         "vision",
         "code"
       ],
-      "score": 20,
+      "score": 0,
+      "context_limit": 4096,
       "parameters": {
         "temperature": 0.7,
-        "max_tokens": 4096
+        "max_tokens": 4096,
+        "_max_tokens_note": "4096: suficiente para análisis profundo. 512 era demasiado bajo y cortaba respuestas largas."
       },
       "quota": {
         "blocked": false,
@@ -72,13 +76,107 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 134,
-        "failure": 204
+        "success": 530,
+        "failure": 517
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
       "headers": {
         "Authorization": "Basic YWRtaW46YWlzdGFjazIwMjY="
       }
+    },
+    {
+      "id": "jddcia-qwen3-8b-ip",
+      "name": "⚡ Qwen3 8B VL (LM Studio — IP directa)",
+      "provider": "jddcia",
+      "schema": "openai_compatible",
+      "family": "qwen",
+      "tier": "high",
+      "model_id": "qwen/qwen3-vl-8b",
+      "_model_id_note": "ID real del modelo en LM Studio (GET /v1/models → campo 'id'). Confirmado: 'qwen/qwen3-vl-8b'. Si cambia, actualizar aquí.",
+      "description": "Qwen3 8B VL corriendo en LM Studio (http://172.19.64.1:1234/v1). API OpenAI-compatible sin Basic Auth. Más rápido que el 30B, ideal para consultas simples. Fallback ligero del 30B. NOTA: LM Studio expone en 172.19.64.1 (interfaz Hyper-V/WSL), no en 192.168.0.36.",
+      "enabled": true,
+      "preferred": false,
+      "api_key": "lm-studio",
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "vision",
+        "code"
+      ],
+      "score": 14,
+      "context_limit": 8192,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "timeout_s": 180,
+        "enable_thinking": false,
+        "_max_tokens_note": "4096: suficiente para análisis profundo. 512 era demasiado bajo y cortaba respuestas largas.",
+        "_timeout_note": "180s: aumentado de 120s para dar margen a respuestas largas (análisis profundo ~3000 tokens).",
+        "_thinking_note": "false: desactiva el CoT de Qwen3 (thinking tokens). Dobla la velocidad sin degradar calidad en consultas de negocio."
+      },
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 30
+      },
+      "stats": {
+        "success": 45,
+        "failure": 178
+      },
+      "base_url": "http://172.19.64.1:1234/v1",
+      "headers": {}
+    },
+    {
+      "id": "jddcia-qwen3-8b",
+      "name": "⚡ Qwen3 8B VL (LM Studio — mDNS)",
+      "provider": "jddcia",
+      "schema": "openai_compatible",
+      "family": "qwen",
+      "tier": "high",
+      "model_id": "qwen/qwen3-vl-8b",
+      "_model_id_note": "ID real del modelo en LM Studio (GET /v1/models → campo 'id'). Confirmado: 'qwen/qwen3-vl-8b'. Si cambia, actualizar aquí.",
+      "description": "Qwen3 8B VL en LM Studio via mDNS (jddcia.local:1234/v1). API OpenAI-compatible sin Basic Auth. Fallback del 8B-IP si la IP directa no responde. En Windows preferir la variante IP directa.",
+      "enabled": true,
+      "preferred": false,
+      "api_key": "lm-studio",
+      "capabilities": [
+        "text",
+        "vision",
+        "code"
+      ],
+      "usage": [
+        "chat",
+        "vision",
+        "code"
+      ],
+      "score": 0,
+      "context_limit": 8192,
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "timeout_s": 180,
+        "enable_thinking": false,
+        "_max_tokens_note": "4096: suficiente para análisis profundo. 512 era demasiado bajo y cortaba respuestas largas.",
+        "_timeout_note": "180s: aumentado de 120s para dar margen a respuestas largas (análisis profundo ~3000 tokens).",
+        "_thinking_note": "false: desactiva CoT de Qwen3. Dobla velocidad sin degradar calidad."
+      },
+      "quota": {
+        "blocked": false,
+        "blocked_at": null,
+        "reset_at": null,
+        "avg_reset_time": 30
+      },
+      "stats": {
+        "success": 0,
+        "failure": 177
+      },
+      "base_url": "http://jddcia.local:1234/v1",
+      "headers": {}
     }
   ]
 }
