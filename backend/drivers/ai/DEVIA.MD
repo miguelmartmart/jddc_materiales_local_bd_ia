@@ -124,19 +124,117 @@ _GATEWAY_PORTS = [80, 8080, 443, 8443, 3000, 11434]
 
 ---
 
-## 3. Otros Providers
+## 3. LM Studio Discovery — Autodescubrimiento de IP Local
 
-| Provider | Fichero | Descripción |
-|----------|---------|-------------|
-| OpenAI | `openai_provider.py` | GPT-4, GPT-4o via API |
-| Gemini | `gemini_provider.py` | Gemini Pro/Flash via API |
-| Groq | `groq_provider.py` | Llama, Mixtral via Groq API |
-| Anthropic | `anthropic_provider.py` | Claude via API |
-| JDDCIA | `jddcia_provider.py` | Qwen3 VL 30B local (este módulo) |
+**Fichero:** `lmstudio_discovery.py`  
+**Versión:** v1.0 (17/06/2026)
+
+### 3.1 Descripción
+
+Módulo de autodescubrimiento de LM Studio en red local. Resuelve el problema de que
+la IP de LM Studio cambia según la interfaz de red activa (VirtualBox, WSL2, Hyper-V).
+
+### 3.2 Estrategia de descubrimiento (en orden de prioridad)
+
+```
+1. Cache en memoria (TTL 5 min) — evita re-escaneos en cada llamada
+   ↓ miss o force=True
+2. Cache en disco (.lmstudio_ip_cache.json, TTL 24h) — persiste entre reinicios
+   ↓ miss o expirada
+3. IPs conocidas del config JSON (jddcia_models.json → lmstudio.known_ips)
+   ↓ ninguna responde
+4. Escaneo paralelo de subredes locales (MAX_PARALLEL_PROBES=20)
+   ↓ nada encontrado
+5. Devuelve None → el provider usa la URL configurada como fallback
+```
+
+### 3.3 IPs conocidas configuradas
+
+En `backend/core/config/models/jddcia_models.json`:
+```json
+{
+  "lmstudio": {
+    "known_ips": ["192.168.56.1:1234", "172.19.64.1:1234"]
+  }
+}
+```
+
+- `192.168.56.1:1234` — VirtualBox Host-Only (confirmada activa)
+- `172.19.64.1:1234` — Hyper-V/WSL2 (alternativa)
+
+### 3.4 Cache en disco
+
+**Fichero:** `.lmstudio_ip_cache.json` (en el mismo directorio que el provider)
+
+```json
+{
+  "base_url": "http://192.168.56.1:1234/v1",
+  "timestamp": 1718625000.0
+}
+```
+
+TTL: 24 horas. Se invalida con `invalidate_cache()`.
+
+### 3.5 API pública
+
+```python
+# Obtener URL base (con autodescubrimiento)
+base_url = get_lmstudio_base_url(configured_url="http://192.168.56.1:1234/v1")
+# → "http://192.168.56.1:1234/v1" si responde, o autodescubierta, o None
+
+# Descubrimiento directo
+base_url = discover_lmstudio(force=False)
+# → "http://192.168.56.1:1234/v1" o None
+
+# Invalidar cache (tras error de conexión)
+invalidate_cache()
+```
+
+### 3.6 Integración con OpenAICompatibleProvider
+
+`openai_compatible_provider.py` llama a `get_lmstudio_base_url()` en cada reintento
+cuando el modelo es LM Studio (`is_lmstudio_model(model_name)`). Si la URL falla,
+invalida la cache y redescubre en el siguiente intento.
+
+```python
+# En generate_text(), bucle de reintentos:
+if is_lmstudio_model(model_name) and attempt > 0:
+    invalidate_cache()
+    base_url = get_lmstudio_base_url(configured_url)
+```
+
+### 3.7 Tests
+
+**Fichero:** `backend/tests/test_lmstudio_discovery.py` — 25 tests  
+**Fichero:** `backend/tests/test_openai_compatible_provider.py` — 24 tests  
+**Total:** 49 tests / 0 fallos
+
+Cobertura:
+- Cache memoria: TTL, invalidación, hit/miss
+- Cache disco: guardado, lectura, expiración, JSON corrupto
+- `probe_ip()`: 200 OK, 404, ConnectionError, Timeout
+- `get_known_ips_from_config()`: lectura JSON, deduplicación, archivo inexistente
+- `discover_lmstudio()`: cache hit, force, config JSON, sin resultado
+- `get_lmstudio_base_url()`: URL configurada OK/falla, sin URL, fallback
+- `is_lmstudio_model()`: detección por nombre de modelo
+- `build_extra_body()`: enable_thinking False/True/None
+- `build_messages()`: truncado, system instruction
+- `generate_text()`: éxito, reintentos, backoff, errores no reintentables
 
 ---
 
-## 4. Interfaz AIProvider
+## 4. Otros Providers
+
+| Provider | Fichero | Descripción |
+|----------|---------|-------------|
+| OpenAI Compatible | `openai_compatible_provider.py` | LM Studio local (Qwen3 VL 8B) |
+| Gemini | `gemini_provider.py` | Gemini Pro/Flash via API |
+| JDDCIA | `jddcia_provider.py` | Qwen3 VL 30B local LAN |
+| LM Studio Discovery | `lmstudio_discovery.py` | Autodescubrimiento de IP LM Studio |
+
+---
+
+## 5. Interfaz AIProvider
 
 ```python
 class AIProvider(ABC):
@@ -148,7 +246,7 @@ class AIProvider(ABC):
 
 ---
 
-## 5. Principios de Diseño
+## 6. Principios de Diseño
 
 1. **Ultra-resiliente**: cada provider tiene fallbacks para todos los errores posibles
 2. **Sin romper lo existente**: las mejoras son aditivas, no modifican la interfaz
@@ -158,4 +256,4 @@ class AIProvider(ABC):
 
 ---
 
-*Última actualización: 14/04/2026 — JDDCIAProvider v2.0 multi-red*
+*Última actualización: 17/06/2026 — LmStudioDiscovery v1.0 + OpenAICompatibleProvider reintentos + 49 tests*
