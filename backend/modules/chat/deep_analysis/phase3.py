@@ -128,6 +128,20 @@ class Phase3Mixin(Phase3SqlsMixin):
             if not sql:
                 continue
 
+            # Detect obviously incomplete SQL (unbalanced parentheses → SQLite "incomplete input")
+            if sql.count('(') != sql.count(')'):
+                logger.warning(
+                    f"[DEEP AGENT] SQL {i+1} paréntesis desbalanceados "
+                    f"({sql.count('(')} abiertos, {sql.count(')')} cerrados) — omitiendo"
+                )
+                entry = {"objetivo": objetivo, "sql": sql, "rows": 0, "data": [],
+                         "error": "SQL incompleto (paréntesis desbalanceados)"}
+                result.sql_queries.append(entry)
+                phase.sub_phases.append(SubPhaseResult(
+                    f"3.{i+1} {objetivo[:40]}", False, entry
+                ))
+                continue
+
             if self.sql_normalizer:
                 try:
                     sql, _ = self.sql_normalizer.normalize(sql)
@@ -164,13 +178,53 @@ class Phase3Mixin(Phase3SqlsMixin):
         self, schema: str, exploration: str, n_sqls: int,
         lan_mode: bool = False, known_patterns_text: str = ""
     ) -> str:
-        rules = (
-            "REGLAS FIREBIRD 2.5:\n"
-            "• FIRST N (no LIMIT/TOP) • UPPER(col) LIKE UPPER('%x%')\n"
-            "• DOCCAB.TIPO: 0=presupuesto,13=factura,11=albaran,12=pedido,2=SAT\n"
-            "• NO ROUND() → CAST(x AS NUMERIC(15,2)) • BLOB→NO GROUP BY\n"
-            "• DOCDESTINO vincula origen→destino • DOCLIN sin FECHA→JOIN DOCCAB\n"
+        # Detectar si el simulador está activo para adaptar la sintaxis SQL
+        _sim_active = False
+        try:
+            from backend.modules.db_simulator.manager import simulator_manager as _sm
+            _sim_active = _sm.is_enabled()
+        except Exception:
+            pass
+
+        # Mapeo de TIPO verificado con el usuario (2026-06-25):
+        # 0=presupuesto_cliente, 1=pedido_cliente, 2=albarán_cliente, 3=factura_cliente
+        # 10=presupuesto_prov, 11=pedido_prov, 12=albarán_prov, 13=factura_prov
+        # 21=mov.almacén, 31=recuento, 51=certificación, 52=producción, 61=cert.subcontrata
+        # En DOCCAB, todos los tipos pueden tener CODCLIENTE (compras vinculadas a proyecto cliente)
+        _tipo_rules = (
+            "• DOCCAB.TIPO (VERIFICADO): "
+            "0=presupuesto_cliente | 1=pedido_cliente | 2=albarán_cliente | 3=factura_cliente | "
+            "10=presupuesto_prov | 11=pedido_prov | 12=albarán_prov | 13=factura_prov | "
+            "21=mov.almacén | 31=recuento | 51=certificación\n"
+            "• CRÍTICO — etiquetas obligatorias: TIPO=0→'Presupuesto', TIPO=2→'Albarán cliente', "
+            "TIPO=3→'Factura cliente', TIPO=11→'Pedido proveedor', TIPO=13→'Factura proveedor'. "
+            "NUNCA llames 'Albarán' a TIPO=0 (es Presupuesto). NUNCA omitas tipos del resultado.\n"
+            "• Albaranes de cliente pendientes de facturar → WHERE TIPO=2 AND CODIGO NOT IN "
+            "(SELECT CODDOCUMENTO FROM DOCDESTINO WHERE ...)\n"
+            "• TODOS los tipos tienen CODCLIENTE: las compras (11,12,13) se vinculan al cliente-proyecto\n"
         )
+
+        if _sim_active:
+            # Simulador SQLite: usar LIMIT N (SQLite no soporta FIRST N)
+            rules = (
+                "REGLAS SQL (modo simulador SQLite):\n"
+                "• LIMIT N al final de la query (NO FIRST N, NO TOP N)\n"
+                "• Usar INNER JOIN cuando la relación es obligatoria (evita filas nulas)\n"
+                + _tipo_rules
+                + "• SUM(), COUNT(), AVG() funcionan igual que en Firebird\n"
+                "• DOCLIN sin FECHA → JOIN DOCCAB ON DOCLIN.CODDOCUMENTO=DOCCAB.CODIGO\n"
+                "• Filtrar siempre por DOCCAB.TIPO para evitar mezclar tipos de documento\n"
+            )
+        else:
+            # Base de datos real Firebird 2.5
+            rules = (
+                "REGLAS FIREBIRD 2.5:\n"
+                "• FIRST N (no LIMIT/TOP) • UPPER(col) LIKE UPPER('%x%')\n"
+                + _tipo_rules
+                + "• NO ROUND() → CAST(x AS NUMERIC(15,2)) • BLOB→NO GROUP BY\n"
+                "• DOCDESTINO vincula origen→destino • DOCLIN sin FECHA→JOIN DOCCAB\n"
+                "• Filtrar siempre por DOCCAB.TIPO para evitar mezclar tipos de documento\n"
+            )
         if lan_mode:
             known_section = (
                 f"\nSQLs YA CUBIERTOS (no repetir):\n{known_patterns_text}\n"

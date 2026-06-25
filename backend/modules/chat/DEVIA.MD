@@ -5,11 +5,103 @@
 
 | Sesión | Archivo | Contenido |
 |--------|---------|-----------|
+| 25/06/2026 | `DEVIA.MD` | **FIX ORDEN RESPUESTA deep_analysis**: `phase5.py` — las anomalías y advertencias ahora aparecen DESPUES del cuerpo principal, bajo sección "## 🔎 Evidencias y Aclaraciones". Antes preprendían al principio. |
+| 25/06/2026 | `DEVIA.MD` | **FIX SQL INCOMPLETO**: `phase3.py` — comprobación de paréntesis balanceados antes de ejecutar SQL. SQL con paréntesis desbalanceados (IA truncada) se descarta con mensaje limpio. |
+| 25/06/2026 | `DEVIA.MD` | **FIX TIPO MAPPING** (deep_analysis): Mapeo DOCCAB.TIPO verificado con usuario el 25/06/2026. `_detect_tipo_filter` en `phase3_sqls.py` ahora usa TIPO=2 para albarán cliente (era 11), TIPO=1 para pedido cliente (era 12), TIPO=11 para pedido proveedor, TIPO=3 para factura cliente, TIPO=13 para factura proveedor. Distinción proveedor/cliente por contexto. |
+| 25/06/2026 | `DEVIA.MD` | **FIX IA ETIQUETAS TIPO**: prompt de síntesis en `phase5.py` incluye las 15 etiquetas verificadas de DOCCAB.TIPO y exige mostrar TODOS los tipos presentes (no solo top-3). Regla explícita: "TIPO=0 es PRESUPUESTO, NUNCA Albarán". |
+| 25/06/2026 | `DEVIA.MD` | **FIX SIUO DOCCAB NOTE**: `table_index.json` — nota de DOCCAB corregida. Contenía "21=Factura, 12=Pedido" (alucinación de IA). Sustituida por mapeo verificado completo. Consultas de ejemplo también corregidas (eliminado `WHERE TIPO=21`). |
 | 21/05/2026 | `SESION_RESUMEN_2026_05_20.md` | Fix `_execute_sql`: eliminado `time.sleep()` síncrono, 1 intento directo sin bloquear asyncio |
 | 21/05/2026 | `SESION_RESUMEN_2026_05_20.md` | Context Manager v3.0 integrado en `jddcia_provider.py` |
+| 10/06/2026 | `DEVIA.MD` | Añadido soporte Qwen3 8B VL en LM Studio (jddcia-qwen3-8b-ip / jddcia-qwen3-8b) |
+| 10/06/2026 | `DEVIA.MD` | FirebirdSQLNormalizer: paso 23 (CAST AS TEXT→VARCHAR(100)), paso 24 (derived table AS alias), fix_after_error TOKEN UNKNOWN AS. 34/34 tests ✅ |
+| 10/06/2026 | `DEVIA.MD` | **BUG FIX**: `ChatRequest` en `router.py` no tenía campo `preferred_model_id` ni `no_db` → Pydantic los ignoraba silenciosamente. Añadidos ambos campos. |
+| 10/06/2026 | `DEVIA.MD` | **BUG FIX**: `service.py` usaba `context.get('model_id')` como `preferred_model_id` en el orchestrator (2 lugares: `_chat_no_db` y `process_message`). Corregido a `context.get('preferred_model_id') or context.get('model_id')`. |
+| 11/06/2026 | `DEVIA.MD` | **BUG FIX CRÍTICO — Respuesta cortada**: `max_tokens=512` en todos los modelos Qwen3 cortaba respuestas largas (análisis profundo ~2000-3500 tokens). Causa raíz: `jddcia_provider.py` calculaba `max_tokens = context_limit // 8` ignorando el valor del JSON. |
+| 11/06/2026 | `DEVIA.MD` | **FIX**: `jddcia_provider.py` `configure()` ahora lee `max_tokens` con prioridad: 1) `parameters.max_tokens` del JSON del modelo, 2) `lan_model_max_tokens` en `config.json`, 3) auto-cálculo 50% del contexto (mínimo 512). |
+| 11/06/2026 | `DEVIA.MD` | **FIX**: `jddcia_models.json` — `max_tokens` actualizado a 4096 para los 4 modelos Qwen3 (30B-ip, 30B-mDNS, 8B-ip, 8B-mDNS). Timeout 8B actualizado a 180s. |
+| 11/06/2026 | `DEVIA.MD` | **FIX**: `chat/config.json` — añadidos `lan_model_max_tokens=4096` y `lan_model_context_limit=4096` como overrides globales. |
+| 11/06/2026 | `DEVIA.MD` | **NUEVO**: `phase5.py` — `_continue_if_truncated()`: detecta respuesta cortada (secciones obligatorias ausentes) y pide al modelo que continúe hasta 3 veces. Si no se puede completar, añade aviso amigable al usuario. |
 
 **Regla crítica `_execute_sql`:** NO usar `time.sleep()` ni reintentos en código async.
 Un único intento directo. Si falla → excepción inmediata. El caller decide cómo manejarla.
+
+---
+
+## 🤖 Modelos IA locales disponibles (LAN JDDC)
+
+| ID | Nombre | Provider/Schema | URL | Auth | Notas |
+|----|--------|-----------------|-----|------|-------|
+| `jddcia-qwen3-30b-ip` | Qwen3 VL 30B (IP directa) | `jddcia` | `http://192.168.0.36/api/vlm/v1` | Basic Auth (nginx) | **Preferido**. tier=elite |
+| `jddcia-qwen3-30b` | Qwen3 VL 30B (mDNS) | `jddcia` | `http://jddcia.local/api/vlm/v1` | Basic Auth (nginx) | Fallback del 30B-IP |
+| `jddcia-qwen3-8b-ip` | ⚡ Qwen3 8B VL (LM Studio IP) | `jddcia` / schema=`openai_compatible` | `http://192.168.0.36:1234/v1` | Bearer `lm-studio` | **Nuevo**. tier=high. Más rápido |
+| `jddcia-qwen3-8b` | ⚡ Qwen3 8B VL (LM Studio mDNS) | `jddcia` / schema=`openai_compatible` | `http://jddcia.local:1234/v1` | Bearer `lm-studio` | **Nuevo**. Fallback del 8B-IP |
+
+### Diferencias clave 30B vs 8B
+
+| Aspecto | Qwen3 30B (vLLM gateway) | Qwen3 8B (LM Studio) |
+|---------|--------------------------|----------------------|
+| Puerto | 80 (nginx) | 1234 (LM Studio) |
+| Auth | Basic Auth (nginx) | Bearer `lm-studio` (cualquier string) |
+| Provider Python | `JDDCIAProvider` | `OpenAICompatibleProvider` |
+| Schema en JSON | `jddcia` | `openai_compatible` |
+| Velocidad | 30-60s primera petición | 5-15s |
+| Context | 4096 tokens | 8192 tokens |
+| Autodescubrimiento | Sí (escanea subred) | No (URL fija) |
+
+### ⚠️ Configuración del model_id en LM Studio
+
+El campo `model_id` en `jddcia_models.json` debe coincidir con el identificador que LM Studio
+asigna al modelo cargado. Para verificarlo:
+1. Abrir LM Studio → pestaña **Developer**
+2. Iniciar el servidor local
+3. Hacer `GET http://192.168.0.36:1234/v1/models` → ver el campo `id` en la respuesta
+4. Si difiere de `qwen/qwen3-vl-8b`, actualizar `model_id` en `jddcia_models.json`
+
+**Valor confirmado (10/06/2026):** `qwen/qwen3-vl-8b`
+
+Otros valores posibles según la versión del modelo GGUF:
+- `qwen3-8b` (nombre corto, versiones antiguas)
+- `Qwen3-8B` (con mayúsculas)
+- `qwen3-8b-instruct` (con sufijo instruct)
+- Nombre del archivo GGUF sin extensión (ej: `Qwen3-8B-Q4_K_M`)
+
+### ⚠️ Caveat técnico: timeout de socket con stream=false
+
+LM Studio usa `stream: false` por defecto. Esto significa que el servidor genera **todos los tokens
+internamente** y envía la respuesta de golpe al final. Durante la generación, el socket HTTP no
+recibe datos → el timeout de socket salta aunque el servidor esté trabajando.
+
+**Síntoma:** `ReadTimeout` o `ConnectionTimeout` después de 60s aunque el modelo esté procesando.
+
+**Solución:** Timeouts generosos en `config.json`:
+```json
+{
+  "lan_read_timeout_s": 120,
+  "lan_connect_timeout_s": 10
+}
+```
+
+Valores recomendados:
+- Chat conversacional: **120s** (Qwen3 8B en CPU puede tardar 60-90s)
+- Análisis profundo: **180s** (consultas complejas con contexto largo)
+- Status check: **3s** (falla rápido si LM Studio no está activo)
+
+Si el hardware tiene GPU, los tiempos bajan a 5-15s y estos timeouts son más que suficientes.
+
+### Fuente única de verdad para IDs de modelos locales
+
+`backend/core/utils/network_audit_constants.py` → clase `LocalModelIds`
+
+```python
+LocalModelIds.QWEN3_MDNS    = "jddcia-qwen3-30b"
+LocalModelIds.QWEN3_IP      = "jddcia-qwen3-30b-ip"
+LocalModelIds.QWEN3_8B_IP   = "jddcia-qwen3-8b-ip"   # NUEVO
+LocalModelIds.QWEN3_8B_MDNS = "jddcia-qwen3-8b"       # NUEVO
+LocalModelIds.ALL            = frozenset({...todos...})
+```
+
+El orchestrator usa `LocalModelIds.ALL` para filtrar modelos LAN en modo `ai_local_only=true`.
+Al añadir los IDs 8B aquí, el orchestrator los incluye automáticamente sin más cambios.
 
 ---
 
@@ -109,10 +201,35 @@ Un único intento directo. Si falla → excepción inmediata. El caller decide c
     "POST /api/chat/config": "Cambiar configuración en caliente",
     "GET /api/chat/history": "Ver historial de conversación"
   },
+  "frontend_lan_model_selector": {
+    "description": "Desplegable '⚡ Motor LAN:' en la cabecera del Chat IA para elegir entre Qwen3 30B y Qwen3 8B VL sin recargar la página.",
+    "element_id": "chat-lan-model-selector",
+    "location": "frontend/index.html — sección #view-chat, junto al selector de modelo IA",
+    "options": [
+      { "value": "jddcia-qwen3-30b-ip", "label": "🏠 Qwen3 30B (potente)" },
+      { "value": "jddcia-qwen3-8b-ip",  "label": "⚡ Qwen3 8B VL (rápido)" }
+    ],
+    "wire_js": "frontend/assets/js/modules/chat.js — sendMessage() y confirmAndSend() leen el selector y envían preferred_model_id en el body del POST /api/chat/send",
+    "backend_field": "preferred_model_id en ChatRequest → el orchestrator coloca ese modelo primero en la lista de fallback",
+    "visual": "Borde azul (#93c5fd), fondo #eff6ff, texto azul oscuro — diferenciado del selector de modelo general",
+    "nota": "El selector LAN es independiente del selector de modelo IA general. El selector general elige el 'canal' (jddcia, groq, etc.); el selector LAN elige el motor específico dentro del canal JDDC."
+  },
   "tests": {
-    "unit": "tests/unit/test_voice_and_tts.py (voz+TTS), tests/unit/test_response_summarizer.py (paginación web+MetaGlass)",
-    "coverage": "115 tests unitarios, 0 fallos (09/03/2026)",
-    "run": ".venv/Scripts/pytest tests/unit/ -v"
+    "unit": "tests/unit/test_voice_and_tts.py (voz+TTS), tests/unit/test_response_summarizer.py (paginación web+MetaGlass), tests/unit/test_qwen3_8b_lmstudio.py (Qwen3 8B VL — 27 tests, 8 sistemas)",
+    "coverage": "115 tests unitarios, 0 fallos (09/03/2026) + 27 tests Qwen3 8B (10/06/2026)",
+    "run": ".venv/Scripts/pytest tests/unit/ -v",
+    "run_8b_only": "python -m pytest bots/interjddcia/tests/unit/test_qwen3_8b_lmstudio.py -v",
+    "run_8b_fast": "python -m pytest bots/interjddcia/tests/unit/test_qwen3_8b_lmstudio.py -v -k 'Configuracion or Privacidad or Timeouts or Frontend'",
+    "test_8b_sistemas": [
+      "1. TestConfiguracionModelos — jddcia_models.json: model_id, schema, api_key, base_url, auth, tier, context_limit",
+      "2. TestLocalModelIds — LocalModelIds.ALL incluye los 4 IDs (30B×2 + 8B×2)",
+      "3. TestAIFactory — schema='openai_compatible' → OpenAICompatibleProvider; schema='jddcia' → JDDCIAProvider",
+      "4. TestDiscoveryServiceLMStudio — discover_lmstudio(): sin servidor→[], con servidor→parsea correctamente",
+      "5. TestOrchestratorPreferredModel8B — preferred_model_id coloca el 8B primero; sin preferred→orden por score",
+      "6. TestPrivacidad8BEsLAN — URLs 192.168.0.36:1234 y jddcia.local:1234 son LAN (RFC 1918 / .local)",
+      "7. TestTimeouts8B — CHAT_MS>=120s, ANALYZE_MS>=180s, STATUS_MS<=5s, lan_read_timeout_s>=120",
+      "8. TestFrontendDesplegableLAN — #chat-lan-model-selector en HTML, preferred_model_id en chat.js"
+    ]
   },
   "simulator_onboarding": {
     "why_tests_pass_but_app_fails": "Los tests usan BD SQLite en :memory: (siempre vacía pero con tablas). La app usa simulator.db en disco. Si simulator_enabled=false en config.json, _execute_sql intenta Firebird real → falla. Si simulator_enabled=true pero sin datos → falla con tabla vacía.",
@@ -147,7 +264,7 @@ Un único intento directo. Si falla → excepción inmediata. El caller decide c
     "integration_status": "IntentClassifier creado y disponible. Integracion gradual en process_message en curso.",
     "commit": "a6deed5 (01/06/2026)"
   },
-  "last_updated": "01/06/2026",
+  "last_updated": "10/06/2026",
   "related_devia": [
     "bots/interjddcia/DEVIA.MD (documentación principal)",
     "backend/modules/chat/DEVIA_ROBUSTNESS.md (Model Fallback & Self-Healing)",

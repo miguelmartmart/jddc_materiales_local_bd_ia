@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated": "2026-03-06T15:38:32.946948",
+  "generated": "2026-06-01T10:01:23.306907",
   "tables": {
     "ACC_ACC": {
       "cat": "configuracion",
@@ -9626,13 +9626,13 @@
         "GEOLOCALTA",
         "GEOLOCFIRMA"
       ],
-      "note": "El campo TIPO tiene valores numéricos que representan tipos de documento (21=Factura, 12=Pedido, etc.). El campo DESCRIPCION puede contener texto libre. El campo OBSERVACIONES es BLOB y puede contener datos sensibles. El campo CODIGOLIQUIDAGENTE puede ser nulo.",
+      "note": "TIPO verificado (2026-06-25): 0=presupuesto_cliente, 1=pedido_cliente, 2=albaran_cliente, 3=factura_cliente, 10=presupuesto_prov, 11=pedido_prov, 12=albaran_prov, 13=factura_prov, 21=mov.almacen, 31=recuento, 51=certificacion, 52=produccion, 61=cert.subcontrata. Todos los tipos pueden tener CODCLIENTE (compras vinculadas a proyecto de cliente). El campo DESCRIPCION puede contener texto libre. El campo OBSERVACIONES es BLOB y puede contener datos sensibles. El campo CODIGOLIQUIDAGENTE puede ser nulo.",
       "queries": [
         "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, FECHAEMISION, CODCLIENTE, CODAGENTE, DESCRIPCION FROM DOCCAB ORDER BY FECHA DESC",
-        "SELECT FIRST 10 CODIGO, TIPO, SERIE, NUMERO, FECHA, FECHAEMISION, CODCLIENTE, CODAGENTE, DESCRIPCION FROM DOCCAB WHERE TIPO = 21 AND FECHA >= '2023-01-01' AND FECHA <= '2023-12-31' ORDER BY FECHA",
-        "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, FECHAEMISION, CODCLIENTE, CODAGENTE, DESCRIPCION FROM DOCCAB WHERE UPPER(DESCRIPCION) LIKE UPPER('%factura%') AND TIPO IN (21, 12) ORDER BY FECHA DESC",
-        "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, FECHAEMISION, CODCLIENTE, CODAGENTE, DESCRIPCION FROM DOCCAB WHERE FECHA BETWEEN '2024-01-01' AND '2024-12-31' AND TIPO = 12 ORDER BY FECHA",
-        "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, FECHAEMISION, CODCLIENTE, CODAGENTE, DESCRIPCION FROM DOCCAB WHERE CODCLIENTE = 1000 AND TIPO = 21 ORDER BY FECHA DESC"
+        "SELECT TIPO, COUNT(*) AS N, SUM(IMPORTETOTAL) AS TOTAL FROM DOCCAB GROUP BY TIPO ORDER BY N DESC",
+        "SELECT FIRST 10 CODIGO, TIPO, SERIE, NUMERO, FECHA, CODCLIENTE, IMPORTETOTAL FROM DOCCAB WHERE TIPO = 2 AND FECHA >= '2026-01-01' ORDER BY FECHA DESC",
+        "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, CODCLIENTE, IMPORTETOTAL FROM DOCCAB WHERE TIPO = 3 AND FECHA >= '2026-01-01' ORDER BY FECHA DESC",
+        "SELECT FIRST 5 CODIGO, TIPO, SERIE, NUMERO, FECHA, CODCLIENTE, IMPORTETOTAL FROM DOCCAB WHERE CODCLIENTE = 1000 AND TIPO IN (0,2,3) ORDER BY FECHA DESC"
       ]
     },
     "DOCCABAUTORIZA": {
@@ -29351,6 +29351,235 @@
       "note": "La tabla no contiene registros. Asegúrate de que los datos estén correctamente cargados antes de realizar consultas.",
       "queries": [
         "SELECT FIRST 5 IDTIENDA, CODPAIS, CODPROVINCIA, SERIEPEDIDOS, REGIMENIVA FROM WEBTIENDAPAISCONFIG"
+      ]
+    },
+    "FAMILIA": {
+      "cat": "productos",
+      "desc": "Tabla que contiene las familias de productos de climatización, como tipos de equipos o componentes.",
+      "n": 15,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE",
+        "DESCRIPCION"
+      ],
+      "related": [],
+      "kw": [
+        "categoria",
+        "climatizacion",
+        "codigo",
+        "descripcion",
+        "equipo",
+        "familia",
+        "familia de productos",
+        "nombre",
+        "productos",
+        "tipo"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "DESCRIPCION"
+      ],
+      "note": "El campo CODIGO es clave primaria y debe ser único. No se permiten valores NULL en CODIGO.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, DESCRIPCION FROM FAMILIA ORDER BY CODIGO",
+        "SELECT FIRST 5 CODIGO, NOMBRE FROM FAMILIA WHERE UPPER(NOMBRE) LIKE UPPER('%aire%')",
+        "SELECT FIRST 5 CODIGO, NOMBRE FROM FAMILIA WHERE UPPER(DESCRIPCION) LIKE UPPER('%refrigerante%')"
+      ]
+    },
+    "AGENTES": {
+      "cat": "empleados",
+      "desc": "Tabla de agentes de la empresa de climatizacion, con datos de contacto y comisiones.",
+      "n": 0,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE"
+      ],
+      "related": [],
+      "kw": [
+        "agentes",
+        "codigo",
+        "comision",
+        "comisiones",
+        "contacto",
+        "email",
+        "empleados",
+        "nif",
+        "nombre",
+        "telefono",
+        "vendedores"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "NIF",
+        "TELEFONO",
+        "EMAIL",
+        "COMISION"
+      ],
+      "note": "La tabla AGENTES no contiene registros. Asegúrese de que los agentes estén correctamente cargados antes de realizar consultas.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, COMISION FROM AGENTES ORDER BY NOMBRE",
+        "SELECT FIRST 5 * FROM AGENTES WHERE UPPER(NOMBRE) LIKE UPPER('%AGENTE%')",
+        "SELECT FIRST 5 NOMBRE, EMAIL FROM AGENTES WHERE COMISION > 0",
+        "SELECT FIRST 5 CODIGO, NOMBRE, TELEFONO FROM AGENTES WHERE NIF IS NOT NULL"
+      ]
+    },
+    "TIPOSIVA": {
+      "cat": "finanzas",
+      "desc": "Tabla de tipos de impuestos IVA con códigos, nombres y porcentajes",
+      "n": 0,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE"
+      ],
+      "related": [],
+      "kw": [
+        "codigo",
+        "facturacion",
+        "impuesto",
+        "impuestos",
+        "iva",
+        "nombre",
+        "porcentaje",
+        "porcentaje2",
+        "tipo",
+        "tiposiva",
+        "tributos"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "PORCENTAJE",
+        "PORCENTAJE2"
+      ],
+      "note": "La tabla no tiene registros. Verificar si se debe cargar datos de tipos de IVA.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, PORCENTAJE, PORCENTAJE2 FROM TIPOSIVA ORDER BY CODIGO",
+        "SELECT FIRST 5 CODIGO, NOMBRE FROM TIPOSIVA WHERE UPPER(NOMBRE) LIKE UPPER('%IVA%')",
+        "SELECT FIRST 5 NOMBRE, PORCENTAJE FROM TIPOSIVA WHERE PORCENTAJE > 0 ORDER BY PORCENTAJE DESC"
+      ]
+    },
+    "TARIFAS": {
+      "cat": "configuracion",
+      "desc": "Tabla de tarifas de servicios o productos, con código, nombre, descripción y porcentaje de descuento o recargo.",
+      "n": 0,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE",
+        "DESCRIPCION"
+      ],
+      "related": [],
+      "kw": [
+        "codigo",
+        "configuracion",
+        "descripcion",
+        "descuento",
+        "nombre",
+        "porcentaje",
+        "precios",
+        "recargo",
+        "servicios",
+        "tarifas"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "DESCRIPCION",
+        "PORCENTAJE"
+      ],
+      "note": "La tabla TARIFAS no tiene registros. Verificar si se deben cargar datos o si es una tabla de configuración pendiente de llenado.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, DESCRIPCION, PORCENTAJE FROM TARIFAS ORDER BY CODIGO",
+        "SELECT FIRST 5 CODIGO, NOMBRE FROM TARIFAS WHERE UPPER(NOMBRE) LIKE UPPER('%tarifa%')",
+        "SELECT FIRST 5 NOMBRE, DESCRIPCION FROM TARIFAS WHERE PORCENTAJE > 0"
+      ]
+    },
+    "FORMASPAGO": {
+      "cat": "finanzas",
+      "desc": "Tabla de formas de pago utilizadas en transacciones financieras, incluyendo nombre, días de vencimiento y tipo de cobro.",
+      "n": 0,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE",
+        "TIPOCOBRO"
+      ],
+      "related": [],
+      "kw": [
+        "codigo",
+        "codigo de pago",
+        "dias de vencimiento",
+        "diasvenc",
+        "forma de pago",
+        "formas de pago",
+        "formaspago",
+        "metodos de pago",
+        "nombre",
+        "tipo de cobro",
+        "tipocobro"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "DIASVENC",
+        "TIPOCOBRO"
+      ],
+      "note": "El campo CODIGO es clave primaria y debe ser único. El campo TIPOCOBRO es numérico y puede tener valores como 1 para contado y 2 para crédito, aunque no hay validación explícita.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, DIASVENC, TIPOCOBRO FROM FORMASPAGO ORDER BY CODIGO"
+      ]
+    },
+    "SERIES": {
+      "cat": "productos",
+      "desc": "Tabla de series de equipos de climatizacion, con codigo, nombre y tipo de serie",
+      "n": 0,
+      "pk": [
+        "CODIGO"
+      ],
+      "cols_key": [
+        "CODIGO",
+        "NOMBRE",
+        "TIPO"
+      ],
+      "related": [],
+      "kw": [
+        "climatizacion",
+        "codigo",
+        "equipos",
+        "nombre",
+        "serie",
+        "series",
+        "tipo"
+      ],
+      "fks": [],
+      "cols_all": [
+        "CODIGO",
+        "NOMBRE",
+        "TIPO"
+      ],
+      "note": "El campo CODIGO es clave primaria y debe ser único. El campo TIPO es numérico y podría referirse a categorías como 'split', 'inverter', 'industrial'.",
+      "queries": [
+        "SELECT FIRST 5 CODIGO, NOMBRE, TIPO FROM SERIES WHERE UPPER(NOMBRE) LIKE UPPER('%%')"
       ]
     }
   }

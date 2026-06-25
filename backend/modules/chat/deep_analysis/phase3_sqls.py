@@ -26,29 +26,37 @@ logger = logging.getLogger(__name__)
 def _detect_tipo_filter(msg: str) -> str:
     """
     Detecta el filtro TIPO adecuado según las palabras clave de la pregunta.
-    Devuelve la cláusula SQL (ej: 'TIPO = 13') o '' si no se detecta tipo específico.
+    Devuelve la cláusula SQL (ej: 'TIPO = 2') o '' si no se detecta tipo específico.
+
+    MAPEO VERIFICADO (2026-06-25 — confirmado por usuario):
+      0=presupuesto_cliente  1=pedido_cliente   2=albarán_cliente   3=factura_cliente
+      10=presupuesto_prov   11=pedido_prov      12=albarán_prov     13=factura_prov
+      21=mov.almacén   31=recuento   51=certificación   52=producción   61=cert.subcontrata
 
     ORDEN IMPORTANTE: los tipos más específicos se comprueban antes que los más generales.
-    Ejemplo: "albaranes sin facturar" debe devolver TIPO=11 (albarán), no TIPO=13 (factura).
-    El término "facturar" en ese contexto es un verbo, no el tipo de documento.
+    "albaranes sin facturar" → TIPO=2 (albarán de cliente), el verbo "facturar" no cambia esto.
     """
     msg = msg.lower()
+    # Proveedor context: distinguir albarán/pedido/factura de proveedor vs cliente
+    is_proveedor = any(k in msg for k in ["proveedor", "proveedores", "compra", "compras"])
+
     # Albarán ANTES que factura (evita que "albaranes sin facturar" → TIPO=13)
     if any(k in msg for k in ["albarán", "albaran", "albaranes"]):
-        return "TIPO = 11"
+        return "TIPO = 12" if is_proveedor else "TIPO = 2"   # 2=albarán cliente, 12=albarán prov
     if any(k in msg for k in ["presupuesto", "presupuestos"]):
-        return "TIPO = 0"
+        return "TIPO = 10" if is_proveedor else "TIPO = 0"
     if any(k in msg for k in ["pedido", "pedidos"]):
-        return "TIPO = 12"
+        return "TIPO = 11" if is_proveedor else "TIPO = 1"   # 11=pedido prov, 1=pedido cliente
     if any(k in msg for k in ["abono", "abonos"]):
         return "TIPO = 3"
     if any(k in msg for k in ["sat", "servicio técnico", "servicio tecnico", "orden de trabajo"]):
-        return "TIPO = 2"
+        return ""   # SAT no tiene TIPO fijo verificado — no filtrar por TIPO
     # Factura al final — es el más genérico y puede aparecer como verbo ("sin facturar")
-    # Solo aplica si no hay otro tipo más específico detectado
     if any(k in msg for k in ["factura ", "facturas", "facturado", "facturación", "facturacion",
                                " factura", "la factura", "las facturas"]):
-        return "TIPO = 13"
+        return "TIPO = 13" if is_proveedor else "TIPO = 3"   # 3=factura cliente, 13=factura prov
+    if any(k in msg for k in ["movimiento de almacén", "movimiento almacen", "mov almacen"]):
+        return "TIPO = 21"
     return ""
 
 
@@ -135,14 +143,16 @@ class Phase3SqlsMixin:
         # SQL FIJO 0: Resumen general por tipo de documento (SIEMPRE para DOCCAB)
         # Útil para CUALQUIER pregunta — da contexto general del volumen de datos
         # EXCEPCIÓN: si la pregunta es sobre artículos, este SQL es irrelevante y confunde.
+        # TIPOS verificados (2026-06-25): 0=presupuesto_cli,2=albarán_cli,3=factura_cli,
+        #   1=pedido_cli,10=presupuesto_prov,11=pedido_prov,12=albarán_prov,13=factura_prov
         if "DOCCAB" in phase2_data and not _is_article_focused:
             fixed.append({
-                "objetivo": "Resumen general por tipo de documento (N, total y media EUR)",
+                "objetivo": "Distribución completa de tipos de documento (TODOS los tipos existentes)",
                 "sql": (
                     "SELECT TIPO, COUNT(*) AS N, "
                     "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, "
                     "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
-                    "FROM DOCCAB WHERE FECHA IS NOT NULL "
+                    "FROM DOCCAB "
                     "GROUP BY TIPO ORDER BY N DESC"
                 )
             })

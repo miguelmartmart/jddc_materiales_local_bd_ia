@@ -330,7 +330,7 @@ Pregunta: "dime los articulos que tienen mas compras"
     |
     +-- Carga contexto compacto de table_index:
     |     ARTICULO: tabla de articulos, columnas clave: CODART, NOMBRE, FAMILIA
-    |     DOCCAB: cabecera documentos, TIPO=12 son pedidos a proveedor
+    |     DOCCAB: cabecera documentos, TIPO=11=pedido_prov, TIPO=12=albaran_prov
     |     DOCLIN: lineas de documentos, CODART, CANTIDAD, PRECIO
     |
     +-- Calcula tokens: ~800 tokens (dentro del limite)
@@ -422,12 +422,16 @@ bots/interjddcia/backend/core/config/
 |       "producto":    ["ARTICULO"],
 |       "referencia":  ["ARTICULO"],
 |       "stock":       ["ARTICULO", "ALMACEN", "ESTALMACEN"],
-|       "factura":     [{"table": "DOCCAB", "filter": "TIPO=13"}],
-|       "albaran":     [{"table": "DOCCAB", "filter": "TIPO=11"}],
-|       "pedido":      [{"table": "DOCCAB", "filter": "TIPO=12"}],
-|       "presupuesto": [{"table": "DOCCAB", "filter": "TIPO=0"}],
-|       "venta":       [{"table": "DOCCAB", "filter": "TIPO IN (11,13)"}],
-|       "compra":      [{"table": "DOCCAB", "filter": "TIPO=12"}],
+|       "factura":         [{"table": "DOCCAB", "filter": "TIPO=3"}],
+|       "factura_prov":    [{"table": "DOCCAB", "filter": "TIPO=13"}],
+|       "albaran":         [{"table": "DOCCAB", "filter": "TIPO=2"}],
+|       "albaran_prov":    [{"table": "DOCCAB", "filter": "TIPO=12"}],
+|       "pedido":          [{"table": "DOCCAB", "filter": "TIPO=1"}],
+|       "pedido_prov":     [{"table": "DOCCAB", "filter": "TIPO=11"}],
+|       "presupuesto":     [{"table": "DOCCAB", "filter": "TIPO=0"}],
+|       "presupuesto_prov":[{"table": "DOCCAB", "filter": "TIPO=10"}],
+|       "venta":           [{"table": "DOCCAB", "filter": "TIPO IN (2,3)"}],
+|       "compra":          [{"table": "DOCCAB", "filter": "TIPO IN (11,12,13)"}],
 |       "linea":       ["DOCLIN"],
 |       "detalle":     ["DOCLIN"],
 |       "cantidad":    ["DOCLIN"],
@@ -480,16 +484,22 @@ bots/interjddcia/backend/core/config/
 |     "version": "1.0",
 |     "enums": {
 |       "DOCCAB.TIPO": {
-|         "0": "presupuesto",
-|         "2": "orden de trabajo / SAT",
-|         "3": "abono",
-|         "10": "contrato",
-|         "11": "albaran",
-|         "12": "pedido a proveedor",
-|         "13": "factura",
+|         "0":  "presupuesto_cliente",
+|         "1":  "pedido_cliente",
+|         "2":  "albaran_cliente",
+|         "3":  "factura_cliente",
+|         "10": "presupuesto_prov",
+|         "11": "pedido_prov",
+|         "12": "albaran_prov",
+|         "13": "factura_prov",
+|         "21": "movimiento_almacen",
+|         "31": "recuento_almacen",
 |         "51": "certificacion",
-|         "61": "recibo"
+|         "52": "produccion",
+|         "61": "cert_subcontrata"
 |       },
+|       // Verificado 2026-06-25 con el usuario. Todos los tipos pueden tener
+|       // CODCLIENTE (compras de proveedor vinculadas a proyecto de cliente).
 |       "ARTICULO.FAMILIA": {
 |         "values": ["SPLIT", "CASSETTE", "CONDUCTOS", "RECAMBIOS", "GAS", ...],
 |         "top10": [{"val": "SPLIT", "count": 3200}, ...]
@@ -1392,7 +1402,19 @@ if normalized in self._concept_index:
 
 ## 12. Pipeline de Analisis Profundo — Fases
 
-> **Implementado:** 15/06/2026 | **Modulo:** `backend/modules/chat/deep_analysis/`
+> **Implementado:** 15/06/2026 | **Ultima actualizacion:** 25/06/2026 | **Modulo:** `backend/modules/chat/deep_analysis/`
+
+### Historial de cambios
+
+| Fecha | Fichero | Cambio |
+|-------|---------|--------|
+| 15/06/2026 | `phase_verify.py` | Fase 5b — Verificacion de fiabilidad (32 tests) |
+| 25/06/2026 | `phase5.py` | **FIX ORDEN RESPUESTA**: anomalias/advertencias ahora aparecen DESPUES de la respuesta principal, bajo "## 🔎 Evidencias y Aclaraciones". Antes aparecian antes del cuerpo principal. |
+| 25/06/2026 | `phase3.py` | **FIX SQL INCOMPLETO**: comprobacion de parentesis balanceados antes de ejecutar el SQL. SQL con parentesis desbalanceados (IA truncada por max_tokens) se descarta con mensaje limpio en vez de error de SQLite "incomplete input". |
+| 25/06/2026 | `phase3.py` | **FIX TIPO MAPPING**: actualizado mapeo completo de DOCCAB.TIPO (verificado con usuario). Incluye regla anti-alucinacion: "TIPO=0 es PRESUPUESTO, NUNCA llamarlo Albaran". |
+| 25/06/2026 | `phase3_sqls.py` | **FIX `_detect_tipo_filter`**: albaranes→TIPO=2 (era TIPO=11), pedidos proveedor→TIPO=11, facturas cliente→TIPO=3, facturas prov→TIPO=13. Distincion proveedor/cliente por contexto de pregunta. |
+| 25/06/2026 | `phase5.py` | **FIX IA TIPOS TRUNCADOS**: prompt de sintesis ahora incluye etiquetas exactas de los 15 tipos de DOCCAB.TIPO y exige mostrar TODOS los tipos encontrados (no solo top-3). |
+| 25/06/2026 | `backend/core/config/table_index.json` | **FIX SIUO DOCCAB NOTE**: nota DOCCAB corregida. Antes decia "21=Factura, 12=Pedido" (generado por IA con valores erroneos). Ahora contiene el mapeo verificado completo. |
 
 El agente de analisis profundo (`DeepAnalysisAgent`) ejecuta un pipeline multi-fase
 para responder preguntas complejas sobre la base de datos. Cada fase es un Mixin

@@ -71,8 +71,21 @@ class Phase5Mixin:
         )
         reliability_score = analysis_data.get("reliability_score", "?")
         reliability_reason = analysis_data.get("reliability_reason", "")
+
+        # Formatear limitaciones SQL como texto legible (no como dicts Python)
+        def _fmt_limitation(lim) -> str:
+            if isinstance(lim, dict):
+                desc = lim.get("description") or lim.get("details") or lim.get("message") or ""
+                lim_type = lim.get("type", "")
+                if desc:
+                    return desc.strip()
+                if lim_type:
+                    return f"[{lim_type}] {' — '.join(str(v) for k, v in lim.items() if k != 'type' and v)}"
+                return str(lim)
+            return str(lim).strip()
+
         limitations = "\n".join(
-            f"• {l}" for l in analysis_data.get("sql_limitations", [])[:5]
+            f"• {_fmt_limitation(l)}" for l in analysis_data.get("sql_limitations", [])[:5]
         )
         # Extraer nombres de tablas reales (evitar EXTRACT(... FROM ...) y similares)
         # Solo extraer el primer token después de FROM/JOIN que sea un identificador válido
@@ -101,22 +114,16 @@ class Phase5Mixin:
             "</details>"
         )
 
-        # ── Detección de tema principal para mantener el foco ─────────────────
-        # Si la pregunta es sobre artículos/rotación, la IA debe responder sobre
-        # artículos — no sobre instalaciones, presupuestos u otros temas.
-        _art_kw = ["artículo", "articulo", "producto", "item", "referencia"]
-        _art_mov_kw = ["rotación", "rotacion", "vendido", "comprado", "negociar",
-                       "volumen", "candidatos", "frecuencia", "demanda", "popular"]
-        _is_article_topic = (
-            any(k in question.lower() for k in _art_kw) and
-            any(k in question.lower() for k in _art_mov_kw)
-        )
+        # ── Regla de foco temático genérica ──────────────────────────────────
+        # La IA debe responder EXACTAMENTE sobre lo que pregunta el usuario.
+        # No debe desviar la respuesta hacia temas relacionados pero no pedidos.
+        # Esta regla es genérica: aplica a cualquier pregunta, no solo artículos.
         _topic_focus_rule = (
-            f"• FOCO OBLIGATORIO: La pregunta es sobre ARTÍCULOS/PRODUCTOS. "
-            f"Tu respuesta DEBE centrarse en artículos, su rotación y volumen de ventas. "
-            f"NO menciones instalaciones, presupuestos ni otros temas no relacionados. "
-            f"Si los datos de artículos son escasos, indícalo claramente.\n"
-        ) if _is_article_topic else ""
+            "• FOCO OBLIGATORIO: Responde EXACTAMENTE sobre lo que pregunta el usuario. "
+            "No desvíes la respuesta hacia temas relacionados pero no pedidos. "
+            "Si los datos disponibles no responden directamente la pregunta, indícalo claramente "
+            "en lugar de responder sobre un tema diferente.\n"
+        )
 
         # ── System prompt: solo Markdown, sin HTML, sin <details> ─────────────
         # Regla anti-invención: si no hay datos reales, la IA debe decirlo
@@ -150,6 +157,13 @@ class Phase5Mixin:
             "• Para presupuestos: 1 instalación = N presupuestos.\n"
             f"• El año {anio_actual} es el año ACTUAL, no futurista.\n"
             "• Incluir tabla por año/serie si hay datos temporales.\n"
+            "• TIPOS DE DOCUMENTO en DOCCAB.TIPO (etiquetas OBLIGATORIAS y EXACTAS): "
+            "0=Presupuesto cliente | 1=Pedido cliente | 2=Albarán cliente | 3=Factura cliente | "
+            "10=Presupuesto prov | 11=Pedido prov | 12=Albarán prov | 13=Factura prov | "
+            "21=Mov.almacén. "
+            "NUNCA llames 'Albarán' o 'Pedido' a TIPO=0 (es Presupuesto). "
+            "En tablas de distribución de TIPO, muestra TODOS los tipos encontrados, "
+            "no solo los 3 primeros. Usa las etiquetas exactas de esta lista.\n"
             + _topic_focus_rule
             + _no_data_rule
         )
@@ -187,10 +201,10 @@ class Phase5Mixin:
                 # ─────────────────────────────────────────────────────────────
 
                 resp_clean = self._strip_html_from_markdown(resp)
-                final = ""
+                final = resp_clean
                 if warnings_html:
-                    final += warnings_html + "\n\n"
-                final += resp_clean + details_block
+                    final += "\n\n---\n\n## 🔎 Evidencias y Aclaraciones\n\n" + warnings_html
+                final += details_block
                 result.final_answer = final
                 phase.data = result.final_answer
                 phase.sub_phases.extend([
