@@ -63,12 +63,37 @@ class Phase5Mixin:
         has_real_data = len(successful_queries) > 0
 
         # ── Construir bloque <details> en Python (no por la IA) ──────────────
+        def _clean_error(err: str) -> str:
+            """Limpia mensajes de error técnicos internos para presentación al usuario."""
+            if not err:
+                return err
+            err = re.sub(r'^\[SIM\]\s*', '', err)
+            err = re.sub(r'^Error en query:\s*', '', err, flags=re.IGNORECASE)
+            if "incomplete input" in err.lower():
+                return "SQL incompleto (modelo truncó la consulta)"
+            if "no such table" in err.lower():
+                m = re.search(r'no such table:\s*(\S+)', err, re.IGNORECASE)
+                return f"Tabla no encontrada: {m.group(1)}" if m else "Tabla no encontrada"
+            if "no such column" in err.lower():
+                m = re.search(r'no such column:\s*(\S+)', err, re.IGNORECASE)
+                return f"Columna no encontrada: {m.group(1)}" if m else "Columna no encontrada"
+            return err
+
+        ok_queries = [q for q in result.sql_queries[:8] if q.get("sql") and not q.get("error")]
+        err_queries = [q for q in result.sql_queries[:8] if q.get("sql") and q.get("error")]
         sqls_details = "\n\n".join(
             f"**{q['objetivo']}** ({q.get('rows', 0)} filas)\n"
             f"```sql\n{q['sql']}\n```"
-            + (f"\n⚠️ Error: {q['error']}" if q.get('error') else "")
-            for q in result.sql_queries[:8] if q.get("sql")
+            for q in ok_queries
         )
+        if err_queries:
+            sqls_details += (
+                "\n\n**Consultas con error (" + str(len(err_queries)) + "):** "
+                + " | ".join(
+                    f"`{q['objetivo'][:35]}` → {_clean_error(q.get('error', ''))}"
+                    for q in err_queries
+                )
+            )
         reliability_score = analysis_data.get("reliability_score", "?")
         reliability_reason = analysis_data.get("reliability_reason", "")
 
@@ -195,9 +220,12 @@ class Phase5Mixin:
             )
             if resp:
                 # ── Detección de respuesta cortada + continuación ─────────────
-                # Si el modelo alcanzó max_tokens, la respuesta se corta a mitad.
-                # Detectamos esto y pedimos al modelo que continúe desde donde paró.
                 resp = await self._continue_if_truncated(resp, system, question, result)
+
+                # ── Quality gate: reintento si la síntesis es de baja calidad ─
+                resp = await self._retry_if_low_quality(
+                    resp, question, result, successful_queries, fecha_actual, anio_actual
+                )
                 # ─────────────────────────────────────────────────────────────
 
                 resp_clean = self._strip_html_from_markdown(resp)
@@ -228,6 +256,104 @@ class Phase5Mixin:
             phase.error = str(e)
             result.final_answer = self._emergency_fallback(result)
         return phase
+
+    async def _retry_if_low_quality(
+        self,
+        resp: str,
+        question: str,
+        result: "EpicAnalysisResult",
+        successful_queries: list,
+        fecha_actual: str,
+        anio_actual: int,
+    ) -> str:
+        """
+        Detecta síntesis de baja calidad y reintenta con prompt más directo.
+
+        Indicadores de mala calidad:
+        - Respuesta corta (<400 chars)
+        - No contiene ninguna tabla Markdown (sin '|')
+        - Contiene frases de fracaso como "no se pudo ejecutar"
+        - Sección principal dice "no hay datos" cuando SÍ hay consultas exitosas
+        """
+        _FAILURE_PHRASES = [
+            "no se pudo ejecutar",
+            "error en la consulta",
+            "cannot read property",
+            "no pudo procesar",
+            "fallo crítico",
+        ]
+
+        def _is_low_quality(text: str) -> bool:
+            t = text.lower()
+            if len(text.strip()) < 400:
+                return True
+            if "|" not in text and successful_queries:
+                # hay datos pero no hay tabla Markdown
+                return True
+            if any(p in t for p in _FAILURE_PHRASES):
+                return True
+            return False
+
+        if not _is_low_quality(resp):
+            return resp
+
+        logger.warning(
+            f"[DEEP AGENT] ⚠️ Síntesis de baja calidad detectada ({len(resp)} chars). "
+            "Reintentando con prompt directo..."
+        )
+
+        # Construir raw data de las consultas exitosas para forzar tabla concreta
+        raw_data_lines = []
+        for q in successful_queries[:6]:
+            rows_preview = q.get("data", [])[:5]
+            raw_data_lines.append(
+                f"CONSULTA '{q['objetivo']}' ({q.get('rows', 0)} filas):\n"
+                + "\n".join(str(r) for r in rows_preview)
+            )
+        raw_data_text = "\n\n".join(raw_data_lines) if raw_data_lines else "Sin datos disponibles"
+
+        retry_system = (
+            f"Eres un analista de datos experto. HOY ES {fecha_actual} (año {anio_actual}).\n"
+            "TAREA: Genera una respuesta CONCISA y CON TABLA MARKDOWN a partir de los datos brutos.\n\n"
+            "ESTRUCTURA:\n"
+            "## 📊 Respuesta Principal\n"
+            "[TABLA MARKDOWN con los datos reales — columnas claras, valores exactos]\n\n"
+            "## 🔍 Análisis Crítico\n[2-4 párrafos de interpretación]\n\n"
+            "## ⚠️ Advertencias y Objeciones\n[Lista con •]\n\n"
+            "## 💡 Contexto de Negocio\n[1-2 párrafos]\n\n"
+            "## 🚀 Sugerencias y Próximos Pasos\n[Lista numerada]\n\n"
+            "REGLAS:\n"
+            "• USA SOLO los datos que aparecen abajo — CERO INVENCIÓN.\n"
+            "• Si hay números, ponlos en una tabla Markdown bien formateada.\n"
+            "• TIPOS DOCCAB: 0=Presupuesto | 2=Albarán cliente | 3=Factura cliente | "
+            "11=Pedido prov | 12=Albarán prov | 13=Factura prov.\n"
+            "• Solo Markdown puro, sin HTML, sin <details>.\n"
+        )
+        retry_user = (
+            f"PREGUNTA: {question}\n\n"
+            f"DATOS DISPONIBLES:\n{raw_data_text}\n\n"
+            "Genera la respuesta con tabla Markdown real a partir de estos datos."
+        )
+
+        try:
+            retry_resp, _ = await self.orchestrator.execute_with_fallback(
+                system_prompt=retry_system,
+                user_message=retry_user,
+                preferred_model_id="jddcia-qwen3-30b",
+            )
+            if retry_resp and len(retry_resp.strip()) > len(resp.strip()):
+                logger.info(
+                    f"[DEEP AGENT] ✅ Reintento de calidad OK: "
+                    f"{len(resp)} → {len(retry_resp)} chars"
+                )
+                return retry_resp
+            logger.warning(
+                "[DEEP AGENT] Reintento de calidad no mejoró la respuesta — usando original"
+            )
+        except Exception as e:
+            logger.error(f"[DEEP AGENT] Error en reintento de calidad: {e}")
+
+        return resp
 
     async def _continue_if_truncated(
         self,

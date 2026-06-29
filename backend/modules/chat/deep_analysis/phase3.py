@@ -47,6 +47,38 @@ class Phase3Mixin(Phase3SqlsMixin):
               self._fmt_exploration(), self._fmt_investigation()
     """
 
+    @staticmethod
+    def _detect_incomplete_sql(sql: str) -> str:
+        """
+        Detecta SQL claramente incompleto/truncado antes de enviarlo al motor SQLite.
+        Devuelve una cadena descriptiva del problema, o '' si el SQL parece correcto.
+        """
+        import re as _re
+        s = sql.strip()
+        if not s:
+            return "vacío"
+        # Paréntesis desbalanceados
+        if s.count('(') != s.count(')'):
+            return "paréntesis desbalanceados"
+        # String literal no cerrado: número impar de comillas simples sin escapar
+        # (excluir '\'  y '' que son escape/empty en SQL)
+        stripped_escaped = _re.sub(r"''", '', s)  # quitar empty strings ''
+        # contar comillas simples que no van precedidas de \
+        single_quotes = len(_re.findall(r"(?<!\\)'", stripped_escaped))
+        if single_quotes % 2 != 0:
+            return "string no cerrado (comillas impares)"
+        # SQL demasiado corto para ser válido
+        if len(s) < 10:
+            return "SQL demasiado corto"
+        # SELECT sin FROM (excepto SELECT 1, SELECT COUNT sin tabla, etc.)
+        upper = s.upper()
+        if upper.startswith('SELECT') and 'FROM' not in upper and 'VALUES' not in upper:
+            # Permitir SELECT sin FROM si es expresión simple (SELECT 1, SELECT 'a', etc.)
+            # pero rechazar si parece truncado (tiene WHERE, GROUP BY, etc. sin FROM)
+            if any(k in upper for k in ('WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'JOIN')):
+                return "SELECT con cláusulas pero sin FROM"
+        return ""
+
     # ─────────────────────────────────────────────────────────────────────────
     # FASE 3: INVESTIGACIÓN MULTI-ANGULAR
     # ─────────────────────────────────────────────────────────────────────────
@@ -128,14 +160,14 @@ class Phase3Mixin(Phase3SqlsMixin):
             if not sql:
                 continue
 
-            # Detect obviously incomplete SQL (unbalanced parentheses → SQLite "incomplete input")
-            if sql.count('(') != sql.count(')'):
+            # Detectar SQL claramente incompleto antes de enviarlo al motor
+            _sql_incomplete_reason = self._detect_incomplete_sql(sql)
+            if _sql_incomplete_reason:
                 logger.warning(
-                    f"[DEEP AGENT] SQL {i+1} paréntesis desbalanceados "
-                    f"({sql.count('(')} abiertos, {sql.count(')')} cerrados) — omitiendo"
+                    f"[DEEP AGENT] SQL {i+1} incompleto ({_sql_incomplete_reason}) — omitiendo"
                 )
                 entry = {"objetivo": objetivo, "sql": sql, "rows": 0, "data": [],
-                         "error": "SQL incompleto (paréntesis desbalanceados)"}
+                         "error": f"SQL incompleto ({_sql_incomplete_reason})"}
                 result.sql_queries.append(entry)
                 phase.sub_phases.append(SubPhaseResult(
                     f"3.{i+1} {objetivo[:40]}", False, entry
@@ -430,6 +462,18 @@ class Phase3Mixin(Phase3SqlsMixin):
             sql = sql_dict.get("sql", "")
             objetivo = sql_dict.get("objetivo", f"Resolución {i+1}")
             if not sql:
+                continue
+            _sql3b_reason = self._detect_incomplete_sql(sql)
+            if _sql3b_reason:
+                logger.warning(
+                    f"[DEEP AGENT] 3b SQL {i+1} incompleto ({_sql3b_reason}) — omitiendo"
+                )
+                entry = {"objetivo": objetivo, "sql": sql, "rows": 0, "data": [],
+                         "error": f"SQL incompleto ({_sql3b_reason})", "is_resolution": True}
+                result.sql_queries.append(entry)
+                phase.sub_phases.append(SubPhaseResult(
+                    f"3b.{i+1} {objetivo[:40]}", False, entry
+                ))
                 continue
             if self.sql_normalizer:
                 try:
