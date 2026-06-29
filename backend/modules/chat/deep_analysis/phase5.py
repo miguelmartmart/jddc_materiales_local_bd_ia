@@ -384,6 +384,33 @@ class Phase5Mixin:
 
         return resp
 
+    def _needs_extra_investigation(self, result: "EpicAnalysisResult") -> bool:
+        """
+        Evalúa si la síntesis actual tiene calidad insuficiente y necesita más datos.
+
+        Returns True solo cuando la respuesta indica explícitamente ausencia de datos
+        Y hay margen de presupuesto para seguir investigando.
+        """
+        answer = result.final_answer or ""
+        if len(answer.strip()) >= 600:
+            return False  # Respuesta suficientemente larga → no reinvestigar
+
+        _POOR_INDICATORS = [
+            "sin datos suficientes", "datos insuficientes",
+            "no se pudo responder", "sin datos disponibles",
+            "no hay datos", "0 resultados en todas",
+            "no existen registros", "no dispongo de datos",
+            "la consulta no devolvió", "consultas fallidas",
+        ]
+        ans_lower = answer.lower()
+        if not any(p in ans_lower for p in _POOR_INDICATORS):
+            return False  # No indica falta de datos — respuesta válida aunque corta
+
+        if len(result.sql_queries) >= 20:
+            return False  # Demasiadas queries ya ejecutadas — evitar presupuesto excesivo
+
+        return True
+
     async def _continue_if_truncated(
         self,
         resp: str,

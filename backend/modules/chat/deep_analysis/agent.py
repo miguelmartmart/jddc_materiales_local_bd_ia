@@ -184,6 +184,24 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
             phase5 = await self._phase5_synthesize(question, result, cfg)
             result.phases.append(phase5)
 
+            # ── BUCLE DE CALIDAD POST-SÍNTESIS ────────────────────────────────
+            # Cierra el ciclo: evaluación de calidad → si insuficiente → investigación
+            # adicional (máx. 1 ciclo extra) → re-síntesis.
+            if self._needs_extra_investigation(result):
+                logger.info(
+                    "[DEEP AGENT] ⟳ Evaluación post-síntesis: calidad insuficiente "
+                    "→ ciclo extra de investigación"
+                )
+                _extra_cfg = {**cfg, "max_sqls": min(cfg.get("max_sqls", 5), 4)}
+                phase3_extra = await self._phase3_investigate(
+                    question, phase1_data, phase2_data, result, _extra_cfg
+                )
+                result.phases.append(phase3_extra)
+                result.investigation_cycles += 1
+                phase5 = await self._phase5_synthesize(question, result, cfg)
+                result.phases.append(phase5)
+                logger.info("[DEEP AGENT] ✅ Ciclo extra de calidad completado")
+
             # ── FASE 5b: Verificación de resultados ───────────────────────────
             # Verifica que la respuesta IA no contiene datos inventados.
             # Añade sello de fiabilidad al final de la respuesta.

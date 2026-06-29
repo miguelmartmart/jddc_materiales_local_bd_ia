@@ -357,28 +357,64 @@ class Phase3SqlsMixin:
             })
 
         # ── SQLs FIJOS para preguntas de CLIENTES ────────────────────────────────
-        cliente_kw = ["cliente", "clientes", "comprador", "compradores"]
+        # Tipos de documento del lado CLIENTE: 0=presupuesto, 1=pedido, 2=albarán, 3=factura
+        # En el simulador solo existen TIPO 0 y 2 → NO filtrar por TIPO=3 solo;
+        # usar todos los tipos cliente para maximizar datos disponibles.
+        # NOTA: c.NOMBRE no existe → usar NOMBRECOMERCIAL (verificado en esquema real)
+        cliente_kw = [
+            "cliente", "clientes", "comprador", "compradores",
+            "concentración", "concentracion", "riesgo", "dependencia",
+            "ranking", "principales", "mayor", "top",
+        ]
         if any(k in msg for k in cliente_kw):
+            # SQL A: Top 10 clientes con nombre (JOIN con CLIENTE) — todos los tipos cliente
             fixed.append({
-                "objetivo": "Top 10 clientes por importe total facturado",
+                "objetivo": "Top 10 clientes por importe total (todos los documentos cliente)",
                 "sql": (
-                    "SELECT FIRST 10 c.NOMBRE, COUNT(d.CODIGO) AS N_FACTURAS, "
+                    "SELECT FIRST 10 d.CODCLIENTE, c.NOMBRECOMERCIAL, "
+                    "COUNT(d.CODIGO) AS N_DOCS, "
                     "CAST(SUM(d.IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
-                    "FROM CLIENTE c "
-                    "JOIN DOCCAB d ON d.CODCLIENTE = c.CODIGO AND d.TIPO = 13 "
-                    "GROUP BY c.CODIGO, c.NOMBRE "
+                    "FROM DOCCAB d "
+                    "LEFT JOIN CLIENTE c ON d.CODCLIENTE = c.CODIGO "
+                    "WHERE d.CODCLIENTE IS NOT NULL AND d.CODCLIENTE > 0 "
+                    "GROUP BY d.CODCLIENTE, c.NOMBRECOMERCIAL "
                     "ORDER BY TOTAL_EUR DESC"
                 )
             })
+            # SQL B: Total global + nº de clientes (para calcular % por cliente en síntesis)
             fixed.append({
-                "objetivo": "Estadísticas generales de clientes",
+                "objetivo": "Total global y número de clientes distintos (base para % concentración)",
                 "sql": (
                     "SELECT COUNT(DISTINCT CODCLIENTE) AS CLIENTES_DISTINTOS, "
                     "COUNT(*) AS TOTAL_DOCUMENTOS, "
+                    "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_GLOBAL_EUR, "
                     "CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR "
-                    "FROM DOCCAB WHERE TIPO = 13 AND CODCLIENTE IS NOT NULL"
+                    "FROM DOCCAB WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0"
                 )
             })
+            # SQL C (solo si pregunta sobre concentración/Pareto/riesgo): cálculo directo
+            if any(k in msg for k in ["concentración", "concentracion", "riesgo", "dependencia",
+                                       "pareto", "80/20", "top 5", "cinco"]):
+                fixed.append({
+                    "objetivo": "Concentración: importe acumulado top 5 clientes vs total",
+                    "sql": (
+                        "SELECT "
+                        "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_TOP5, "
+                        "CAST((SELECT SUM(IMPORTETOTAL) FROM DOCCAB "
+                        "  WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0) "
+                        "AS NUMERIC(15,2)) AS TOTAL_GLOBAL, "
+                        "CAST(SUM(IMPORTETOTAL) * 100.0 / "
+                        "  NULLIF((SELECT SUM(IMPORTETOTAL) FROM DOCCAB "
+                        "    WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0), 0) "
+                        "AS NUMERIC(8,2)) AS PCT_TOP5 "
+                        "FROM DOCCAB "
+                        "WHERE CODCLIENTE IN ("
+                        "  SELECT FIRST 5 CODCLIENTE FROM DOCCAB "
+                        "  WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0 "
+                        "  GROUP BY CODCLIENTE ORDER BY SUM(IMPORTETOTAL) DESC"
+                        ") AND CODCLIENTE IS NOT NULL AND CODCLIENTE > 0"
+                    )
+                })
 
         # ── SQLs FIJOS para PROYECTOS / ANÁLISIS ECONÓMICO ──────────────────────
         # Activos cuando la pregunta menciona: proyecto, obra, ejecución, presupuesto
