@@ -77,7 +77,13 @@ class Phase5Mixin:
             if "no such column" in err.lower():
                 m = re.search(r'no such column:\s*(\S+)', err, re.IGNORECASE)
                 return f"Columna no encontrada: {m.group(1)}" if m else "Columna no encontrada"
-            return err
+            # Cortar tras "Usa solo:" para no exponer lista técnica de tablas
+            if "Usa solo:" in err:
+                err = err[:err.index("Usa solo:")].rstrip(". ")
+            if "Tablas disponibles:" in err:
+                err = err[:err.index("Tablas disponibles:")].rstrip(". ")
+            # Limitar longitud
+            return err[:200]
 
         ok_queries = [q for q in result.sql_queries[:8] if q.get("sql") and not q.get("error")]
         err_queries = [q for q in result.sql_queries[:8] if q.get("sql") and q.get("error")]
@@ -112,21 +118,29 @@ class Phase5Mixin:
         limitations = "\n".join(
             f"• {_fmt_limitation(l)}" for l in analysis_data.get("sql_limitations", [])[:5]
         )
-        # Extraer nombres de tablas reales (evitar EXTRACT(... FROM ...) y similares)
-        # Solo extraer el primer token después de FROM/JOIN que sea un identificador válido
-        _table_name_re = re.compile(r'[A-Z_][A-Z0-9_]*', re.IGNORECASE)
+        # Extraer nombres de tablas reales (excluir CTEs, keywords SQL y funciones)
         _from_join_re = re.compile(r'\b(?:FROM|JOIN)\s+([A-Z_][A-Z0-9_]*)', re.IGNORECASE)
+        _cte_re = re.compile(r'\bWITH\s+(\w+)\s+AS\s*\(', re.IGNORECASE)
+        _cte_comma_re = re.compile(r',\s*(\w+)\s+AS\s*\(', re.IGNORECASE)
+        _SQL_KW = {
+            'SELECT', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'ON', 'AS',
+            'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'NATURAL',
+            'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'CURRENT_TIME',
+            'FECHA', 'NOMBRE', 'CODIGO', 'TIPO', 'IMPORTE',
+        }
+        # Recopilar nombres de CTEs para excluirlos (no son tablas reales)
+        all_cte_names: set = set()
+        for q in result.sql_queries:
+            if q.get("sql"):
+                all_cte_names.update(m.group(1).upper() for m in _cte_re.finditer(q["sql"]))
+                all_cte_names.update(m.group(1).upper() for m in _cte_comma_re.finditer(q["sql"]))
+
         tables_used = list({
             m.group(1).upper()
             for q in result.sql_queries if q.get("sql")
             for m in _from_join_re.finditer(q["sql"])
-            # Excluir palabras clave SQL y funciones que no son tablas
-            if m.group(1).upper() not in {
-                'SELECT', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'ON', 'AS',
-                'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'NATURAL',
-                'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'CURRENT_TIME',
-                'FECHA', 'NOMBRE', 'CODIGO', 'TIPO', 'IMPORTE',
-            }
+            if m.group(1).upper() not in _SQL_KW
+            and m.group(1).upper() not in all_cte_names
         })
         details_block = (
             "\n\n<details>\n"
@@ -191,6 +205,15 @@ class Phase5Mixin:
             "no solo los 3 primeros. Usa las etiquetas exactas de esta lista.\n"
             + _topic_focus_rule
             + _no_data_rule
+            + "• CRÍTICO: PROHIBIDO mencionar nombres de tablas de la BD (DOCCAB, CLIENTE, etc.) "
+            "como si el usuario las conociera o como si fueran parte de la respuesta. "
+            "Si aparecen errores con nombres de tablas en los datos, NO los repitas ni expandas. "
+            "NUNCA inventes listas de tablas disponibles — el usuario no necesita saber esto.\n"
+            + "• ESTRUCTURA COMPLETA OBLIGATORIA: Tu respuesta DEBE incluir las 5 secciones: "
+            "## 📊 Respuesta Principal, ## 🔍 Análisis Crítico, ## ⚠️ Advertencias y Objeciones, "
+            "## 💡 Contexto de Negocio, ## 🚀 Sugerencias y Próximos Pasos. "
+            "NUNCA dejes una sección sin contenido. Si se queda sin espacio, resume las últimas "
+            "secciones en 2-3 líneas en lugar de cortarlas.\n"
         )
 
         data_summary = self.budget.truncate_to_fit(data_summary_full, system, question)
@@ -277,18 +300,24 @@ class Phase5Mixin:
         """
         _FAILURE_PHRASES = [
             "no se pudo ejecutar",
+            "no se pudo calcular",
             "error en la consulta",
             "cannot read property",
             "no pudo procesar",
             "fallo crítico",
+            "0 resultados** (no se",
+            "no disponible** (no hay",
         ]
+        _REQUIRED_FINAL = ["## 🚀 Sugerencias", "## 💡 Contexto"]
 
         def _is_low_quality(text: str) -> bool:
             t = text.lower()
             if len(text.strip()) < 400:
                 return True
             if "|" not in text and successful_queries:
-                # hay datos pero no hay tabla Markdown
+                return True
+            # Respuesta truncada (le falta alguna sección final)
+            if not all(s in text for s in _REQUIRED_FINAL):
                 return True
             if any(p in t for p in _FAILURE_PHRASES):
                 return True
@@ -390,17 +419,27 @@ class Phase5Mixin:
             text = text.strip()
             if not text:
                 return True
-            # Verificar que contiene al menos una sección obligatoria final
-            has_final_section = any(s in text for s in _REQUIRED_SECTIONS)
-            if not has_final_section:
+            # Todas las secciones finales obligatorias deben estar presentes (no solo alguna)
+            if not all(s in text for s in _REQUIRED_SECTIONS):
                 return True
+            # Verificar que cada sección obligatoria tiene contenido real (no solo el encabezado)
+            for section in _REQUIRED_SECTIONS:
+                idx = text.find(section)
+                if idx != -1:
+                    after = text[idx + len(section):].lstrip()
+                    # Buscar cuánto contenido hay hasta la siguiente sección o fin
+                    next_section_idx = len(after)
+                    for other in _REQUIRED_SECTIONS:
+                        if other in after:
+                            next_section_idx = min(next_section_idx, after.find(other))
+                    section_content = after[:next_section_idx].strip()
+                    if len(section_content) < 30:
+                        return True  # Sección sin contenido real
             # Verificar que no termina en mitad de frase
             last_char = text[-1] if text else ""
             if last_char not in (".", "!", "?", "\n", "*", "-", ">", "|"):
-                # Puede estar cortado en mitad de palabra
                 last_line = text.split("\n")[-1].strip()
                 if last_line and not last_line.endswith((".", "!", "?", "*", "-", "|")):
-                    # Si la última línea es corta y no termina en puntuación → cortado
                     if len(last_line) < 80 and not last_line.startswith("#"):
                         return True
             return False

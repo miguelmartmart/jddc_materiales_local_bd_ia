@@ -34,10 +34,168 @@ class HelpersAgentMixin:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _safe_sql(self, sql: str) -> List[Dict]:
-        """Ejecuta SQL de forma segura. Lanza excepción si falla."""
-        if self.sql_executor:
-            return self.sql_executor(sql)
-        raise RuntimeError("sql_executor no configurado")
+        """
+        Ejecuta SQL de forma segura aplicando normalización previa.
+
+        Flujo de normalización:
+        1. sql_normalizer.normalize() — correcciones semánticas (columnas, tablas, etc.)
+           NOTA: el normalizer convierte LIMIT→FIRST (sintaxis Firebird). Si el executor
+           es el simulador SQLite, el driver ya aplica translate_firebird_sql internamente
+           (FIRST→LIMIT), por lo que el resultado es correcto.
+        2. Si el simulador está activo Y el executor NO es el driver del simulador
+           (caso: executor externo), aplicar translate_firebird_sql explícitamente
+           para garantizar compatibilidad SQLite.
+        """
+        if not self.sql_executor:
+            raise RuntimeError("sql_executor no configurado")
+
+        # Paso 1: Normalización semántica (Firebird-oriented)
+        if self.sql_normalizer:
+            try:
+                sql_norm, changes = self.sql_normalizer.normalize(sql)
+                if changes:
+                    logger.debug(
+                        f"[DEEP AGENT] sql_normalizer aplicó {len(changes)} cambios: "
+                        f"{', '.join(changes[:3])}"
+                    )
+                sql = sql_norm
+            except Exception as norm_err:
+                logger.warning(f"[DEEP AGENT] sql_normalizer falló ({norm_err}), usando SQL original")
+
+        # Paso 2: Si el simulador está activo, garantizar sintaxis SQLite
+        # El driver del simulador aplica translate_firebird_sql internamente,
+        # pero si el executor es un wrapper externo puede no hacerlo.
+        # Aplicamos la traducción aquí como capa de seguridad adicional.
+        try:
+            from backend.modules.db_simulator.manager import simulator_manager as _sm
+            if _sm.is_enabled():
+                from backend.modules.db_simulator.query_translator import translate_firebird_sql
+                sql_sqlite, sqlite_changes = translate_firebird_sql(sql)
+                if sqlite_changes:
+                    logger.debug(
+                        f"[DEEP AGENT] translate_firebird_sql (simulador): "
+                        f"{', '.join(sqlite_changes[:3])}"
+                    )
+                    sql = sql_sqlite
+
+                # Paso 3: Validar tablas contra el esquema del simulador
+                # Si la IA genera SQL con tablas que no existen en el simulador
+                # (ej: DOCVAR, C, REPARA), lanzar error descriptivo en lugar de
+                # dejar que SQLite falle con "no such table: X".
+                # IMPORTANTE: ValueError se propaga — el corrector SQL lo captura
+                # y pide a la IA que reescriba la consulta con tablas válidas.
+                sql = self._validate_and_fix_tables_for_simulator(sql)
+        except ValueError:
+            # Tabla desconocida — propagar para que el corrector SQL actúe
+            raise
+        except Exception as trans_err:
+            logger.debug(f"[DEEP AGENT] translate_firebird_sql no aplicado: {trans_err}")
+
+        return self.sql_executor(sql)
+
+    # ── Tablas conocidas del simulador (sincronizado con schema.py) ───────────
+    # Se usa para validar SQL antes de ejecutar y evitar "no such table: X".
+    _SIMULATOR_TABLES = frozenset({
+        "FAMILIA", "ALMACEN", "RECURSO", "PROVEED", "ARTICULO", "CLIENTE",
+        "DOCCAB", "DOCLIN", "CAJA", "ESTALMACEN", "PROYECTOS", "PROYVAR",
+        "PRESUPROYE", "DOCDESTINO", "AGENTES", "TIPOSIVA", "TARIFAS",
+        "FORMASPAGO", "SERIES", "AVISOS",
+    })
+
+    # Mapa de tablas Firebird-only → equivalente en simulador (o None si no hay)
+    _FIREBIRD_TABLE_ALIASES: Dict[str, Optional[str]] = {
+        "DOCVAR":    None,       # Variables de documento — no existe en simulador
+        "C":         "CLIENTE",  # Alias frecuente de CLIENTE
+        "REPARA":    None,       # Reparaciones — no existe en simulador
+        "REPARACION": None,
+        "PEDIDOS":   "DOCCAB",   # Pedidos son DOCCAB con TIPO específico
+        "FACTURAS":  "DOCCAB",   # Facturas son DOCCAB con TIPO específico
+        "PRESUPUESTOS": "DOCCAB",# Presupuestos son DOCCAB con TIPO específico
+        "ALBARANES": "DOCCAB",   # Albaranes son DOCCAB con TIPO específico
+        "COMPRAS":   "DOCCAB",   # Compras son DOCCAB con TIPO específico
+        "ARTICULOS": "ARTICULO", # Plural → singular
+        "CLIENTES":  "CLIENTE",  # Plural → singular
+        "PROVEEDORES": "PROVEED",# Plural → abreviado
+        "AGENTE":    "AGENTES",  # Singular → plural
+    }
+
+    def _validate_and_fix_tables_for_simulator(self, sql: str) -> str:
+        """
+        Valida las tablas referenciadas en el SQL contra el esquema del simulador.
+
+        Si encuentra tablas desconocidas:
+        1. Intenta sustituirlas por el equivalente conocido (_FIREBIRD_TABLE_ALIASES)
+        2. Si no hay equivalente, lanza ValueError con mensaje descriptivo
+           para que el corrector SQL pueda actuar antes de mostrar error al usuario.
+
+        Principio: el usuario NUNCA debe ver "no such table: X" — el sistema
+        debe detectarlo antes y corregirlo o informar de forma útil.
+        """
+        import re
+        # Extraer nombres de tablas del SQL (FROM y JOIN)
+        _from_join_re = re.compile(
+            r'\b(?:FROM|JOIN)\s+([A-Z_][A-Z0-9_]*)',
+            re.IGNORECASE
+        )
+        # Palabras clave SQL que no son tablas
+        _SQL_KEYWORDS = frozenset({
+            'SELECT', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'ON', 'AS',
+            'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'NATURAL',
+            'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'CURRENT_TIME',
+            'DUAL', 'SYSIBM',
+        })
+
+        # Extraer nombres de CTEs (WITH name AS ...) para no confundirlos con tablas reales
+        _cte_re = re.compile(r'\bWITH\s+(\w+)\s+AS\s*\(', re.IGNORECASE)
+        cte_names = {m.group(1).upper() for m in _cte_re.finditer(sql)}
+        # También detectar CTEs adicionales en la cláusula WITH (coma, nombre AS)
+        _cte_comma_re = re.compile(r',\s*(\w+)\s+AS\s*\(', re.IGNORECASE)
+        cte_names.update(m.group(1).upper() for m in _cte_comma_re.finditer(sql))
+
+        tables_in_sql = [
+            m.group(1).upper()
+            for m in _from_join_re.finditer(sql)
+            if m.group(1).upper() not in _SQL_KEYWORDS
+            and m.group(1).upper() not in cte_names  # excluir CTEs definidas en este SQL
+        ]
+
+        unknown_tables = [
+            t for t in tables_in_sql
+            if t not in self._SIMULATOR_TABLES
+        ]
+
+        if not unknown_tables:
+            return sql  # Todo OK
+
+        # Intentar sustituir tablas desconocidas por equivalentes
+        fixed_sql = sql
+        truly_unknown = []
+        for table in unknown_tables:
+            alias = self._FIREBIRD_TABLE_ALIASES.get(table)
+            if alias is not None:
+                # Sustituir en el SQL (case-insensitive, palabra completa)
+                fixed_sql = re.sub(
+                    rf'\b{re.escape(table)}\b',
+                    alias,
+                    fixed_sql,
+                    flags=re.IGNORECASE
+                )
+                logger.info(
+                    f"[DEEP AGENT] Tabla simulador: {table} → {alias} (alias automático)"
+                )
+            else:
+                truly_unknown.append(table)
+
+        if truly_unknown:
+            # Tablas sin equivalente — lanzar error descriptivo para el corrector
+            # NOTA: no incluir "Tablas disponibles" en el mensaje de error que va al usuario
+            # porque el AI de síntesis las lee y puede inventar más nombres a partir de esa lista
+            raise ValueError(
+                f"Tabla(s) no disponible(s) en el simulador: {', '.join(truly_unknown)}. "
+                f"Usa solo: {', '.join(sorted(self._SIMULATOR_TABLES))}."
+            )
+
+        return fixed_sql
 
     def _parse_json(self, text: str) -> Optional[Any]:
         """Extrae y parsea JSON de una respuesta de texto."""
@@ -117,8 +275,54 @@ class HelpersAgentMixin:
             lines.append(f"• {table}: {total} registros | Cols: {cols}{tipo_str}{null_str}")
         return "\n".join(lines)
 
+    # ── Constante centralizada: nombres de meses en español ──────────────────
+    _MESES_ES = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    }
+
+    @classmethod
+    def _format_row_values(cls, row: Dict) -> Dict:
+        """
+        Formatea valores de una fila de resultados SQL de forma determinista.
+
+        Transformaciones aplicadas:
+          - Columnas MES/MONTH con valor 1-12 → nombre del mes en español
+          - Importes float → formato europeo (1.234,56)
+          - None → '(sin datos)'
+
+        Principio DEVIA: lógica determinista centralizada, sin IA, reutilizable.
+        """
+        formatted = {}
+        for col, val in row.items():
+            col_upper = col.upper()
+            if val is None:
+                formatted[col] = "(sin datos)"
+            elif col_upper in ("MES", "MONTH", "NUMERO_MES", "NUM_MES") and isinstance(val, (int, float)):
+                mes_num = int(val)
+                formatted[col] = cls._MESES_ES.get(mes_num, str(mes_num))
+            elif isinstance(val, float) and any(k in col_upper for k in (
+                "IMPORTE", "TOTAL", "PRECIO", "COSTE", "PROMEDIO", "MEDIA",
+                "EUR", "FACTURA", "SUMA", "MONTO",
+            )):
+                # Formato europeo: 1.234,56
+                formatted[col] = f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            else:
+                formatted[col] = val
+        return formatted
+
     def _fmt_investigation(self, sql_queries: List[Dict]) -> str:
-        """Formatea los resultados de investigación para prompts."""
+        """
+        Formatea los resultados de investigación para prompts.
+
+        Aplica _format_row_values() a cada fila para que la IA reciba
+        los datos ya formateados (meses en español, importes en formato europeo).
+
+        IMPORTANTE: Los datos se formatean como texto legible (col: valor),
+        NO como dicts Python crudos. Esto evita que la IA repita literalmente
+        "{col: val, col2: val2}" en la respuesta al usuario.
+        """
         if not sql_queries:
             return "Sin resultados de investigación."
         lines = []
@@ -131,9 +335,16 @@ class HelpersAgentMixin:
             if error:
                 lines.append(f"• [{objetivo}]{is_res} ERROR: {error}")
             else:
-                lines.append(f"• [{objetivo}]{is_res} {rows} filas")
+                lines.append(f"• [{objetivo}]{is_res} {rows} resultado{'s' if rows != 1 else ''}")
                 for row in data[:3]:
-                    lines.append(f"  {row}")
+                    formatted = self._format_row_values(row)
+                    # Formatear como "col1=val1, col2=val2" en lugar de dict Python
+                    row_str = ", ".join(
+                        f"{k}={v}" for k, v in formatted.items()
+                        if v is not None and str(v) not in ("", "(sin datos)")
+                    )
+                    if row_str:
+                        lines.append(f"  → {row_str}")
         return "\n".join(lines)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -187,67 +398,96 @@ class HelpersAgentMixin:
 
     def _emergency_fallback(self, result) -> str:
         """
-        Respuesta de emergencia si todo falla — siempre devuelve algo útil.
-        Si result.ai_unavailable es True, informa explícitamente al usuario
-        que el servidor de IA no está disponible (no inventa respuestas).
+        Respuesta de emergencia si la síntesis IA falla — siempre devuelve algo útil.
+
+        Lógica de mensajes:
+          - Si hay datos SQL exitosos + IA falló → mostrar datos formateados con nota de síntesis parcial
+          - Si IA completamente inaccesible (ai_unavailable=True) → aviso claro de servidor caído
+          - Si no hay datos ni IA → mensaje de fallo total
+
+        Principio DEVIA: nunca mostrar datos crudos sin contexto; siempre formatear.
         """
+        from datetime import datetime
+        _now = datetime.now().strftime("%d/%m/%Y %H:%M")
         parts = [f"## 📊 {result.question}\n"]
 
-        # ── Aviso principal: IA no disponible ────────────────────────────────
         ai_down = getattr(result, "ai_unavailable", False)
-        if ai_down:
+        successful = [q for q in result.sql_queries if not q.get("error")] if result.sql_queries else []
+        failed = [q for q in result.sql_queries if q.get("error")] if result.sql_queries else []
+
+        # ── Caso 1: Hay datos pero la síntesis IA falló ──────────────────────
+        if successful and not ai_down:
+            parts.append(
+                f"> ℹ️ **Datos obtenidos correctamente** ({len(successful)} consulta"
+                f"{'s' if len(successful) != 1 else ''} exitosa{'s' if len(successful) != 1 else ''})."
+                f" La síntesis automática no pudo completarse — se muestran los datos directos.\n"
+            )
+            for q in successful[:6]:
+                objetivo = q.get("objetivo", "?")
+                rows = q.get("rows", 0)
+                data = q.get("data", [])
+                parts.append(f"\n**{objetivo}** — {rows} resultado{'s' if rows != 1 else ''}")
+                if data:
+                    # Construir tabla Markdown con los datos formateados
+                    first_row = self._format_row_values(data[0])
+                    headers = list(first_row.keys())
+                    parts.append("| " + " | ".join(headers) + " |")
+                    parts.append("| " + " | ".join(["---"] * len(headers)) + " |")
+                    for row in data[:10]:
+                        fmt = self._format_row_values(row)
+                        parts.append("| " + " | ".join(str(fmt.get(h, "")) for h in headers) + " |")
+                parts.append("")
+
+        # ── Caso 2: IA completamente inaccesible ─────────────────────────────
+        elif ai_down:
             parts.append(
                 "> ❌ **El servidor de IA no está disponible en este momento.**\n"
-                "> El asistente no puede generar una respuesta. "
-                "Comprueba que el servidor Qwen3 (192.168.0.36) esté activo e inténtalo de nuevo.\n"
+                "> Comprueba que el servidor Qwen3 esté activo e inténtalo de nuevo.\n"
             )
-
-        # ── Datos directos de BD (si los hay) ───────────────────────────────
-        if result.sql_queries:
-            successful = [q for q in result.sql_queries if not q.get("error")]
-            failed = [q for q in result.sql_queries if q.get("error")]
-
             if successful:
                 parts.append(
-                    f"Se obtuvieron datos directamente de la base de datos "
-                    f"({len(successful)} consulta{'s' if len(successful) != 1 else ''} exitosa{'s' if len(successful) != 1 else ''}):\n"
+                    f"Se obtuvieron **{len(successful)} consulta"
+                    f"{'s' if len(successful) != 1 else ''}** de la base de datos "
+                    f"(sin interpretación IA):\n"
                 )
                 for q in successful[:5]:
                     objetivo = q.get("objetivo", "?")
                     rows = q.get("rows", 0)
-                    parts.append(f"### {objetivo} ({rows} filas)")
-                    for row in q.get("data", [])[:3]:
-                        parts.append(f"- `{row}`")
+                    data = q.get("data", [])
+                    parts.append(f"\n**{objetivo}** — {rows} resultado{'s' if rows != 1 else ''}")
+                    if data:
+                        first_row = self._format_row_values(data[0])
+                        headers = list(first_row.keys())
+                        parts.append("| " + " | ".join(headers) + " |")
+                        parts.append("| " + " | ".join(["---"] * len(headers)) + " |")
+                        for row in data[:5]:
+                            fmt = self._format_row_values(row)
+                            parts.append("| " + " | ".join(str(fmt.get(h, "")) for h in headers) + " |")
                     parts.append("")
 
-            if failed:
-                parts.append(f"**Consultas con error ({len(failed)}):**")
-                for q in failed[:3]:
-                    parts.append(f"- ❌ {q.get('objetivo', '?')}: {q.get('error', '')}")
-                parts.append("")
-
-            if ai_down:
-                parts.append(
-                    "> ⚠️ Los datos anteriores son resultados directos de la BD, "
-                    "sin síntesis ni interpretación — el servidor de IA estaba inaccesible."
-                )
-            else:
-                parts.append(
-                    "> ⚠️ La síntesis automática no pudo completarse. "
-                    "Los datos anteriores son los resultados directos de la base de datos."
-                )
+        # ── Caso 3: Sin datos ni IA ───────────────────────────────────────────
         else:
-            # Sin datos de BD ni IA — fallo total
-            if not ai_down:
-                parts.append(
-                    "No se pudieron ejecutar consultas SQL. "
-                    "Comprueba la conexión a la base de datos."
-                )
+            parts.append(
+                "> ❌ No se pudieron obtener datos ni generar una respuesta.\n"
+                "> Comprueba la conexión a la base de datos e inténtalo de nuevo."
+            )
 
-        if result.warnings:
+        # ── Consultas con error (siempre mostrar si las hay) ─────────────────
+        if failed:
+            parts.append(f"\n**Consultas con error ({len(failed)}):**")
+            for q in failed[:3]:
+                parts.append(f"- ❌ {q.get('objetivo', '?')}: `{q.get('error', '')}`")
+
+        # ── Advertencias relevantes ───────────────────────────────────────────
+        real_warnings = [
+            w for w in result.warnings[:3]
+            if isinstance(w, str) and not w.startswith("⚠️ ANOMALÍA")
+        ]
+        if real_warnings:
             parts.append("\n**⚠️ Advertencias:**")
-            parts.extend(f"- {w}" for w in result.warnings[:3])
+            parts.extend(f"- {w}" for w in real_warnings)
 
+        parts.append(f"\n*Análisis generado: {_now}*")
         return "\n".join(parts)
 
     # ─────────────────────────────────────────────────────────────────────────
