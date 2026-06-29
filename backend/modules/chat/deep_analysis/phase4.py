@@ -80,7 +80,8 @@ class Phase4Mixin:
             '{"warnings":[],"anomalies":[],"data_quality_issues":[],'
             '"structural_issues":[],"business_insights":[],'
             '"sql_limitations":[],"hidden_patterns":[],"hypotheses":[],"suggestions":[],'
-            '"reliability_score":"alto|medio|bajo","reliability_reason":""}'
+            '"reliability_score":"alto","reliability_reason":"motivo en una frase"}\n'
+            'IMPORTANTE: reliability_score DEBE ser exactamente una de estas 3 opciones: "alto", "medio" o "bajo".'
         )
         data_summary = self.budget.truncate_to_fit(
             data_summary_full, system, exploration_summary, question
@@ -103,6 +104,30 @@ class Phase4Mixin:
                 result.business_insights.extend(analysis.get("business_insights", []))
                 result.suggestions.extend(analysis.get("suggestions", []))
                 result.warnings = list(dict.fromkeys(result.warnings))
+                # Normalizar reliability_score si el modelo devolvió valor no esperado
+                rs = analysis.get("reliability_score", "")
+                if rs not in ("alto", "medio", "bajo"):
+                    # Intentar extraer de texto libre ("confiabilidad media" → "medio")
+                    rs_lower = str(rs).lower()
+                    if "alto" in rs_lower or "high" in rs_lower:
+                        analysis["reliability_score"] = "alto"
+                    elif "bajo" in rs_lower or "low" in rs_lower:
+                        analysis["reliability_score"] = "bajo"
+                    else:
+                        # Fallback determinista: calcular por ratio de queries exitosas
+                        total = len(result.sql_queries)
+                        ok = sum(1 for q in result.sql_queries if not q.get("error") and q.get("rows", 0) > 0)
+                        ratio = ok / total if total > 0 else 0
+                        analysis["reliability_score"] = "alto" if ratio >= 0.7 else "medio" if ratio >= 0.4 else "bajo"
+                        analysis["reliability_reason"] = f"Calculado: {ok}/{total} consultas exitosas"
+
+            # ── Detección determinista de anomalías (independiente de la IA) ──────
+            # Detecta resultados sospechosamente bajos comparando consultas del mismo tipo.
+            # Esto garantiza que phase 3b siempre investigue cuando hay datos raros,
+            # incluso si la IA no los detecta como anomalías.
+            self._detect_count_anomalies(result)
+
+            if analysis:
                 phase.data = analysis
                 phase.sub_phases.extend([
                     SubPhaseResult("4.1 Anomalías", True, analysis.get("anomalies", [])),
@@ -128,6 +153,109 @@ class Phase4Mixin:
             phase.success = False
             phase.error = str(e)
         return phase
+
+    def _detect_count_anomalies(self, result: EpicAnalysisResult) -> None:
+        """
+        Detección DETERMINISTA de anomalías en conteos SQL.
+
+        REGLA CLAVE: Solo compara valores del MISMO tipo semántico.
+        - Conteos (N, COUNT, NUMERO_*) se comparan entre sí
+        - Importes (TOTAL_EUR, IMPORTE, SUMA) se comparan entre sí
+        - NUNCA se compara un conteo con un importe (evita falsos positivos)
+
+        Cuando detecta una anomalía real, la añade a result.anomalies y result.warnings
+        para que phase 3b la investigue automáticamente.
+        """
+        if not result.sql_queries:
+            return
+
+        # Palabras clave de CONTEOS (enteros, unidades)
+        _COUNT_KEYS = {'COUNT', 'N_', 'NUMERO_', 'NUM_', 'CANTIDAD', 'TOTAL_DOCS',
+                       'N_FACTURAS', 'N_DOCS', 'N_PRESUPUESTOS', 'NUMERO_FACTURAS',
+                       'NUMERO_DOCS', 'NUMERO_CLIENTES', 'NUMERO_ARTICULOS'}
+        # Palabras clave de IMPORTES (decimales, euros)
+        _AMOUNT_KEYS = {'TOTAL_EUR', 'IMPORTE', 'SUMA', 'TOTAL_IMPORTE', 'PROMEDIO',
+                        'MEDIA', 'PRECIO', 'COSTE', 'FACTURACION', 'TOTAL_FACTURA',
+                        'TOTAL_EUR', 'PROMEDIO_EUR', 'MEDIA_EUR', 'TOTAL_FINAL'}
+
+        def _is_count_col(col: str) -> bool:
+            cu = col.upper()
+            return any(k in cu for k in _COUNT_KEYS)
+
+        def _is_amount_col(col: str) -> bool:
+            cu = col.upper()
+            return any(k in cu for k in _AMOUNT_KEYS)
+
+        # Recopilar conteos y importes por separado
+        counts: List[Dict] = []
+        for q in result.sql_queries:
+            if q.get("error") or not q.get("data"):
+                continue
+            data = q.get("data", [])
+            objetivo = q.get("objetivo", "")
+            rows = q.get("rows", 0)
+
+            for row in data[:3]:
+                for col, val in row.items():
+                    if not isinstance(val, (int, float)) or val < 0:
+                        continue
+                    col_upper = col.upper()
+                    # Solo incluir si es claramente un conteo (no un importe)
+                    if _is_count_col(col) and not _is_amount_col(col):
+                        # Verificar que el valor parece un conteo (entero o casi entero)
+                        if isinstance(val, float) and val > 1000:
+                            continue  # Probablemente un importe, no un conteo
+                        counts.append({
+                            "objetivo": objetivo,
+                            "col": col,
+                            "val": val,
+                            "rows": rows,
+                        })
+
+        if len(counts) < 2:
+            return
+
+        # Encontrar el conteo máximo de referencia (solo entre conteos reales)
+        max_count = max(c["val"] for c in counts if c["val"] > 0) if counts else 0
+        if max_count <= 1:
+            return
+
+        # Detectar conteos sospechosamente bajos (< 5% del máximo)
+        # Solo alertar si la diferencia es significativa Y el valor es pequeño en términos absolutos
+        threshold = max(2, max_count * 0.05)
+        for c in counts:
+            val = c["val"]
+            # Solo alertar si: val es pequeño, max es grande, y la diferencia es real
+            if 0 < val <= threshold and max_count > 10 and (max_count / max(val, 1)) > 5:
+                anomaly_msg = (
+                    f"⚠️ ANOMALÍA: '{c['objetivo']}' devuelve {int(val)} registro(s) "
+                    f"pero el máximo conocido es {int(max_count)}. "
+                    f"Posible filtro de fecha/tipo incorrecto o datos incompletos."
+                )
+                if anomaly_msg not in result.anomalies:
+                    result.anomalies.append(anomaly_msg)
+                    result.warnings.append(anomaly_msg)
+                    logger.warning(
+                        f"[DEEP AGENT] 🔍 Anomalía detectada: {c['objetivo']} → {val} "
+                        f"(máx={max_count}, umbral={threshold:.1f})"
+                    )
+
+        # Detectar si hay consultas con 0 resultados cuando debería haber datos
+        zero_results = [q for q in result.sql_queries if q.get("rows", 0) == 0 and not q.get("error")]
+        if zero_results and max_count > 5:
+            for q in zero_results[:3]:
+                objetivo = q.get("objetivo", "")
+                # Solo alertar si el objetivo sugiere que debería haber datos
+                if any(k in objetivo.lower() for k in [
+                    'factura', 'presupuesto', 'albaran', 'pedido', 'cliente', 'articulo'
+                ]):
+                    anomaly_msg = (
+                        f"⚠️ ANOMALÍA: '{objetivo}' devuelve 0 resultados. "
+                        f"Verificar si el filtro es correcto o si hay datos para ese período."
+                    )
+                    if anomaly_msg not in result.anomalies:
+                        result.anomalies.append(anomaly_msg)
+                        logger.warning(f"[DEEP AGENT] 🔍 Cero resultados: {objetivo}")
 
     def _register_siuo_feedback(
         self, question: str, result: EpicAnalysisResult, analysis: Dict

@@ -67,8 +67,10 @@ class Phase3Mixin(Phase3SqlsMixin):
         single_quotes = len(_re.findall(r"(?<!\\)'", stripped_escaped))
         if single_quotes % 2 != 0:
             return "string no cerrado (comillas impares)"
-        # SQL demasiado corto para ser válido
-        if len(s) < 10:
+        # SQL demasiado corto para ser válido (SELECT mínimo tiene ~15 chars)
+        if len(s) < 15 and not s.upper().startswith('SELECT'):
+            return "SQL demasiado corto"
+        if len(s) < 8:
             return "SQL demasiado corto"
         # SELECT sin FROM (excepto SELECT 1, SELECT COUNT sin tabla, etc.)
         upper = s.upper()

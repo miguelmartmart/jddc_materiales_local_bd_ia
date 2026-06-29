@@ -462,23 +462,30 @@ class Phase5Mixin:
                 )
                 break
 
-            # Construir prompt de continuación
-            # Enviamos los últimos 500 chars para que el modelo sepa dónde paró
-            tail = full_resp[-500:] if len(full_resp) > 500 else full_resp
+            # Construir prompt de continuación con referencia a datos reales
+            # CRÍTICO: sin datos de referencia el modelo inventa cifras distintas a las reales
+            tail = full_resp[-600:] if len(full_resp) > 600 else full_resp
+            ok_refs = [q for q in result.sql_queries if not q.get("error") and q.get("rows", 0) > 0]
+            data_ref = "\n".join(
+                f"• {q['objetivo']}: {q.get('rows', 0)} filas"
+                + (f" → {q.get('data', [{}])[0]}" if q.get("data") else "")
+                for q in ok_refs[:5]
+            )[:600]
             continuation_system = (
                 "Eres un analista de datos experto. Estás completando una respuesta "
                 "que fue cortada por límite de tokens. "
-                "CONTINÚA exactamente desde donde se cortó, sin repetir lo ya escrito. "
-                "Completa las secciones que faltan: "
-                "## ⚠️ Advertencias y Objeciones, ## 💡 Contexto de Negocio, "
-                "## 🚀 Sugerencias y Próximos Pasos. "
-                "Solo Markdown puro, sin HTML, sin <details>."
+                "CONTINÚA desde donde se cortó. REGLAS ESTRICTAS:\n"
+                "• NO repitas secciones ya escritas (## ⚠️ Advertencias, ## 🔍 Análisis, etc.)\n"
+                "• USA SOLO los datos de DATOS REALES proporcionados abajo — CERO INVENCIÓN de cifras\n"
+                "• Completa SOLO las secciones que faltan del texto ya generado\n"
+                "• Solo Markdown puro, sin HTML, sin <details>"
             )
             continuation_user = (
                 f"PREGUNTA ORIGINAL: {question}\n\n"
-                f"TEXTO YA GENERADO (últimas líneas):\n...{tail}\n\n"
-                f"CONTINÚA desde aquí, completando las secciones que faltan. "
-                f"NO repitas lo ya escrito. Empieza directamente con la continuación."
+                + (f"DATOS REALES (referencia para no inventar):\n{data_ref}\n\n" if data_ref else "")
+                + f"TEXTO YA GENERADO (últimas líneas):\n...{tail}\n\n"
+                f"CONTINÚA desde aquí. NO repitas secciones ya presentes. "
+                f"Empieza directamente con la continuación."
             )
 
             try:
