@@ -161,15 +161,18 @@ class TokenBudget:
 
     def truncate_to_fit(self, text: str, *reserved_texts: str) -> str:
         """Trunca text para que quepa junto con los textos reservados."""
+        _SUFFIX = "\n...[TRUNCADO POR LÍMITE DE CONTEXTO]"
         max_chars = self.remaining_chars(*reserved_texts)
         if len(text) <= max_chars:
             return text
-        truncated = text[:max_chars]
+        # Dejar espacio para el sufijo de truncado
+        effective_max = max(0, max_chars - len(_SUFFIX))
+        truncated = text[:effective_max]
         logger.warning(
-            f"[TOKEN BUDGET] Texto truncado: {len(text)} → {max_chars} chars "
+            f"[TOKEN BUDGET] Texto truncado: {len(text)} → {effective_max} chars "
             f"({self.count(text)} → {self.count(truncated)} tokens)"
         )
-        return truncated + "\n...[TRUNCADO POR LÍMITE DE CONTEXTO]"
+        return truncated + _SUFFIX
 
     def usage_pct(self, *texts: str) -> float:
         """Porcentaje de uso del presupuesto (0.0 = vacío, 1.0 = lleno)."""

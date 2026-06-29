@@ -11,6 +11,7 @@ Principio: SQLs deterministas, sin llamadas a IA, ultra-resilientes.
 """
 
 import logging
+import re
 from typing import Dict, List
 
 try:
@@ -75,8 +76,9 @@ def _detect_month_number(msg: str) -> int:
         "sep": 9, "oct": 10, "nov": 11, "dic": 12,
     }
     msg_lower = msg.lower()
+    # Usar límite de palabra para evitar falsos positivos como "ene" en "general"
     for name, num in _MONTHS.items():
-        if name in msg_lower:
+        if re.search(r'\b' + re.escape(name) + r'\b', msg_lower):
             return num
     return 0
 
