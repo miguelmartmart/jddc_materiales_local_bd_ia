@@ -23,7 +23,7 @@ import os
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 
-from backend.core.config.model_manager import ModelManager
+from backend.core.config.model_manager import ModelManager, model_manager as _model_manager_singleton
 from backend.core.factory.ai_factory import AIFactory
 from backend.core.abstract.ai import AIConfig
 from backend.core.utils.constants import (
@@ -122,8 +122,8 @@ class ModelFallbackOrchestrator:
     """
 
     def __init__(self):
-        """Inicializa el orchestrator con configuración de modelos."""
-        self.model_manager = ModelManager()
+        """Inicializa el orchestrator reutilizando el singleton ModelManager."""
+        self.model_manager = _model_manager_singleton  # singleton — no crear instancia nueva
         self.retry_delay = ModelFallbackConfig.RETRY_DELAY_SECONDS
         self.max_retries_per_model = ModelFallbackConfig.MAX_RETRIES_PER_MODEL
 
@@ -197,10 +197,15 @@ class ModelFallbackOrchestrator:
                 logger.error(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} No API key para {model_name}")
                 return None
 
-            # Crear configuración
+            # Crear configuración — pasar model_config completa via extra_params
+            # El provider (OpenAICompatibleProvider) la usa para context_limit, max_tokens, timeout_s, etc.
             ai_config_params = {
                 'api_key': api_key,
-                'model': model_config['model_id']
+                'model': model_config['model_id'],
+                # Extra params para providers que los soporten (ej: OpenAICompatibleProvider)
+                'context_limit': model_config.get('context_limit', 8192),
+                'parameters': model_config.get('parameters', {}),
+                'model_id_logical': model_config.get('id', ''),
             }
             if model_config.get('base_url'):
                 ai_config_params['base_url'] = model_config['base_url']
@@ -283,6 +288,10 @@ class ModelFallbackOrchestrator:
             f"(config.json → lan_max_retries)"
         )
 
+        # Modelos que fallaron permanentemente en esta sesión (405, context exceeded, etc.)
+        # No se reintentarán en rondas posteriores — ahorran tiempo cuando el servidor está caído
+        _permanently_failed: set = set()
+
         attempt_global = 0
         while True:
             attempt_global += 1
@@ -294,12 +303,21 @@ class ModelFallbackOrchestrator:
             else:
                 backoff = 10
 
+            # Filtrar modelos que ya fallaron permanentemente
+            active_models = [m for m in local_models if m.get('id', '') not in _permanently_failed]
+            if not active_models:
+                logger.error(
+                    f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ❌ Todos los modelos LAN fallaron permanentemente. "
+                    f"No hay modelos disponibles para reintentar."
+                )
+                break
+
             logger.info(
                 f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Ronda {attempt_global}/{max_retries} — "
-                f"probando {len(local_models)} modelos LAN..."
+                f"probando {len(active_models)} modelos LAN..."
             )
 
-            for model_config in local_models:
+            for model_config in active_models:
                 model_name = model_config.get('name', 'Unknown')
                 model_id = model_config.get('id', '')
 
@@ -324,12 +342,43 @@ class ModelFallbackOrchestrator:
                     )
                     response = None
 
+                    # Detectar fallos permanentes: no reintentar en rondas siguientes
+                    err_str = str(e).lower()
+                    err_type = type(e).__name__
+                    is_permanent = (
+                        "405" in err_str or
+                        "not allowed" in err_str or
+                        "context size" in err_str or
+                        "context_size" in err_str or
+                        "badrequesterror" in err_type.lower() or
+                        "context" in err_str and "exceeded" in err_str
+                    )
+                    if is_permanent:
+                        _permanently_failed.add(model_id)
+                        logger.warning(
+                            f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⛔ {model_name} marcado como "
+                            f"fallo permanente ({err_type}) — no se reintentará en esta sesión"
+                        )
+
                 if response:
                     logger.info(
                         f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ✅ Respuesta de {model_name} "
                         f"en ronda {attempt_global}"
                     )
                     return response, model_id
+
+                # Detectar fallo permanente desde _try_model (captura interna)
+                # _try_model devuelve None tanto para errores transitorios como permanentes
+                # Verificar el último error reportado al model_manager
+                last_err = self.model_manager.get_last_error(model_id) if hasattr(self.model_manager, 'get_last_error') else None
+                if last_err:
+                    err_lower = str(last_err).lower()
+                    if "405" in err_lower or "not allowed" in err_lower or "context size" in err_lower or ("context" in err_lower and "exceeded" in err_lower):
+                        _permanently_failed.add(model_id)
+                        logger.warning(
+                            f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ⛔ {model_name} marcado como "
+                            f"fallo permanente (via model_manager) — no se reintentará"
+                        )
 
             # Todos los modelos LAN fallaron en esta ronda
             # Comprobar si se han agotado las rondas

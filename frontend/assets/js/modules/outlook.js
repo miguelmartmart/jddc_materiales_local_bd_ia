@@ -226,11 +226,16 @@ export class OutlookModule {
             if (email) payload.email = email;
             if (password) payload.password = password;
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s max
+
             const response = await fetch(`${this.apiBase}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal,
             });
+            clearTimeout(timeoutId);
 
             const data = await response.json();
 
@@ -239,7 +244,7 @@ export class OutlookModule {
             }
 
             this.emails = data.messages;
-            this.currentSource = data.source; // Store source for rendering
+            this.currentSource = data.source;
 
             if (this.emails.length > 0) {
                 this.lastEmailId = this.emails[0].id;
@@ -250,8 +255,19 @@ export class OutlookModule {
             this.renderEmails();
 
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Outlook fetch error:', error);
             this.updateStatusBadge('error');
+            // Si es error de autenticación, parar el polling automático para no saturar el servidor
+            const errMsg = (error.message || '').toLowerCase();
+            if (isAuto && (errMsg.includes('autenticación') || errMsg.includes('authenticate') ||
+                           errMsg.includes('password') || errMsg.includes('login') ||
+                           errMsg.includes('aborted') || error.name === 'AbortError')) {
+                if (this.pollingInterval) {
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                    console.warn('[Outlook] Polling detenido — credenciales IMAP no válidas o timeout');
+                }
+            }
             if (!isAuto) alert('Error: ' + error.message);
         } finally {
             if (btnFetch) {

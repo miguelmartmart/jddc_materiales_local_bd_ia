@@ -133,8 +133,8 @@ class OutlookService:
     def fetch_recent_emails(self, email_address: str, password: str, limit: int = 5, imap_server: str = "outlook.office365.com", full_content: bool = False, date_filter: str = "all") -> List[Dict]:
         """Connects to IMAP Server and fetches recent emails."""
         try:
-            # Connect to IMAP
-            mail = imaplib.IMAP4_SSL(imap_server, self.imap_port)
+            # Timeout de 8 segundos para evitar bloqueos largos en el arranque
+            mail = imaplib.IMAP4_SSL(imap_server, self.imap_port, timeout=8)
             mail.login(email_address, password)
             mail.select("inbox")
 

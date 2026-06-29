@@ -8,7 +8,9 @@ from backend.core.config.settings import settings
 
 class ModelManager:
     """Manages AI model configurations, scoring, and quota logic."""
-    
+
+    _key_status_logged: bool = False  # clase-nivel: solo imprimir una vez en todo el proceso
+
     TIER_PRIORITY = {
         "elite": 4,
         "high": 3,
@@ -31,6 +33,36 @@ class ModelManager:
         self.providers = self._load_providers()
         self.models = self._load_models()
         self._log_key_status()
+        # mtime tracking for hot-reload (models/*.json files)
+        self._models_dir_mtimes: Dict[str, float] = self._get_models_mtimes()
+
+    def _get_models_mtimes(self) -> Dict[str, float]:
+        """Returns a dict of {filepath: mtime} for all model JSON files."""
+        mtimes = {}
+        models_dir = Path(__file__).parent / "models"
+        if models_dir.exists():
+            for f in models_dir.glob("*.json"):
+                try:
+                    mtimes[str(f)] = f.stat().st_mtime
+                except Exception:
+                    pass
+        if self.config_path.exists():
+            try:
+                mtimes[str(self.config_path)] = self.config_path.stat().st_mtime
+            except Exception:
+                pass
+        return mtimes
+
+    def _check_and_reload_if_changed(self):
+        """Hot-reload: if any model JSON file changed on disk, reload all models."""
+        current_mtimes = self._get_models_mtimes()
+        if current_mtimes != self._models_dir_mtimes:
+            import logging
+            logging.getLogger(__name__).info(
+                "[ModelManager] 🔄 Cambio detectado en archivos de modelos — recargando..."
+            )
+            self.models = self._load_models()
+            self._models_dir_mtimes = current_mtimes
 
     def _load_providers(self) -> Dict[str, Dict[str, Any]]:
         try:
@@ -53,7 +85,10 @@ class ModelManager:
         return getattr(settings, env_var_name, None) if env_var_name else None
 
     def _log_key_status(self):
-        """Log status of expected API Keys to console on startup."""
+        """Log status de API keys — solo una vez por proceso (no repetir en cada instancia)."""
+        if ModelManager._key_status_logged:
+            return
+        ModelManager._key_status_logged = True
         try:
             print("\n--- [API Key Status Check] ---")
             for prov_name, conf in self.providers.items():
@@ -184,7 +219,8 @@ class ModelManager:
             print(f"Error saving models: {e}")
 
     def list_models(self, enabled_only: bool = False, capability: str = None) -> List[Dict[str, Any]]:
-        """Smart list: Sorted by Availability -> Tier -> Score."""
+        """Smart list: Sorted by Availability -> Tier -> Score. Auto-reloads if JSON changed."""
+        self._check_and_reload_if_changed()
         candidates = self.models
         if enabled_only:
             candidates = [m for m in candidates if m.get('enabled', True)]
