@@ -105,29 +105,71 @@ class FirebirdToSQLiteTranslator:
         """
         SELECT [DISTINCT] FIRST N … → SELECT [DISTINCT] … LIMIT N
 
-        Firebird coloca FIRST después de SELECT; SQLite usa LIMIT al final.
+        Firebird coloca FIRST después de SELECT; SQLite usa LIMIT al final
+        del bloque SELECT correspondiente.
+
+        Estrategia correcta para subqueries:
+        - Procesar ocurrencias de derecha a izquierda (para no mover posiciones)
+        - Para cada SELECT FIRST N: eliminar FIRST N y calcular dónde termina
+          ese SELECT contando paréntesis desde el punto de la match
+        - Si el SELECT está dentro de un ( ... ), LIMIT N va antes del )
+          que cierra esos paréntesis
+        - Si es el SELECT más externo (no hay ) cerrante), LIMIT N va al final
         """
         pattern = re.compile(
             r'\bSELECT\s+(DISTINCT\s+)?FIRST\s+(\d+)\s+',
             re.IGNORECASE
         )
-        match = pattern.search(sql)
-        if not match:
+
+        if not pattern.search(sql):
             return sql, []
 
-        n           = match.group(2)
-        distinct    = (match.group(1) or "").strip()
-        replacement = f"SELECT {distinct + ' ' if distinct else ''}"
-        sql = pattern.sub(replacement, sql, count=1)
+        changes: List[str] = []
+        matches = list(pattern.finditer(sql))
 
-        # Añadir LIMIT al final (antes de ';' si existe)
-        sql = sql.rstrip()
-        if sql.endswith(";"):
-            sql = sql[:-1].rstrip() + f" LIMIT {n};"
-        else:
-            sql = sql + f" LIMIT {n}"
+        # Procesar de derecha a izquierda para que las modificaciones
+        # posteriores no afecten las posiciones de las anteriores
+        for match in reversed(matches):
+            n_val = match.group(2)
+            distinct_kw = (match.group(1) or "").strip()
+            replacement = f"SELECT {distinct_kw + ' ' if distinct_kw else ''}"
 
-        return sql, [f"FIRST {n} → LIMIT {n}"]
+            # Buscar dónde termina el ámbito de este SELECT:
+            # recorrer hacia adelante desde el fin del match contando paréntesis.
+            # Si depth baja a -1 encontramos el ) que cierra el ( antes del SELECT.
+            # Si llegamos al fin del SQL sin encontrarlo, el LIMIT va al final.
+            search_start = match.end()
+            depth = 0
+            limit_pos = len(sql)  # por defecto: final del SQL (SELECT más externo)
+
+            for i in range(search_start, len(sql)):
+                c = sql[i]
+                if c == '(':
+                    depth += 1
+                elif c == ')':
+                    if depth == 0:
+                        # Este ) cierra el ( que rodea nuestro SELECT FIRST N
+                        limit_pos = i
+                        break
+                    depth -= 1
+
+            # Construir nuevo SQL: [antes del match] + SELECT + [hasta limit_pos] + LIMIT N + [resto]
+            before = sql[:match.start()]
+            middle = sql[match.end():limit_pos].rstrip()
+            after = sql[limit_pos:]
+
+            if limit_pos == len(sql):
+                # SELECT más externo — manejar ; final
+                if middle.endswith(";"):
+                    middle = middle[:-1].rstrip()
+                    after = ";"
+                sql = before + replacement + middle + f" LIMIT {n_val}" + after
+            else:
+                sql = before + replacement + middle + f" LIMIT {n_val}" + after
+
+            changes.append(f"FIRST {n_val} → LIMIT {n_val}")
+
+        return sql, changes
 
     # ── EXTRACT(PART FROM col) → CAST(strftime('%X', col) AS INTEGER) ─────────
 

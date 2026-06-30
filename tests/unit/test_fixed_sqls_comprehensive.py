@@ -291,10 +291,12 @@ def test_fixed_sqls_no_invented_tables():
     import re
     _from_join_re = re.compile(r'\b(?:FROM|JOIN)\s+([A-Z_][A-Z0-9_]*)', re.IGNORECASE)
     # Incluir nombres de columna que aparecen tras FROM en EXTRACT(PART FROM col)
+    # y funciones SQLite que actúan como tabla (pragma_table_info)
     _SQL_KEYWORDS = frozenset({'SELECT', 'WHERE', 'AND', 'OR', 'ON', 'AS',
                                'INNER', 'LEFT', 'RIGHT', 'OUTER', 'NATURAL',
                                'CURRENT_DATE', 'DUAL', 'FECHA', 'DATE', 'NOW',
-                               'YEAR', 'MONTH', 'DAY', 'CURRENT'})
+                               'YEAR', 'MONTH', 'DAY', 'CURRENT',
+                               'PRAGMA_TABLE_INFO'})
 
     questions = [
         "top 5 clientes por facturación con concentración",

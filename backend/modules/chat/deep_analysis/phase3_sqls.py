@@ -285,13 +285,12 @@ class Phase3SqlsMixin:
                 {
                     "objetivo": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
                     "sql": (
-                        "SELECT FIRST 20 RDB$FIELD_NAME FROM RDB$RELATION_FIELDS "
-                        "WHERE RDB$RELATION_NAME = 'DOCCAB' "
-                        "AND (UPPER(RDB$FIELD_NAME) LIKE '%ESTADO%' "
-                        "OR UPPER(RDB$FIELD_NAME) LIKE '%ACEPTA%' "
-                        "OR UPPER(RDB$FIELD_NAME) LIKE '%SEGUIM%' "
-                        "OR UPPER(RDB$FIELD_NAME) LIKE '%RESULT%') "
-                        "ORDER BY RDB$FIELD_POSITION"
+                        "SELECT name AS CAMPO FROM pragma_table_info('DOCCAB') "
+                        "WHERE (UPPER(name) LIKE '%ESTADO%' "
+                        "OR UPPER(name) LIKE '%ACEPTA%' "
+                        "OR UPPER(name) LIKE '%SEGUIM%' "
+                        "OR UPPER(name) LIKE '%RESULT%') "
+                        "ORDER BY cid LIMIT 20"
                     )
                 },
                 {
@@ -369,21 +368,23 @@ class Phase3SqlsMixin:
             "ranking", "principales", "mayor", "top",
         ]
         if any(k in msg for k in cliente_kw):
-            # SQL A: Top 10 clientes con nombre (JOIN con CLIENTE) — todos los tipos cliente
+            # SQL A: Top 10 clientes con nombre (JOIN con CLIENTE)
+            # GROUP BY solo por CODCLIENTE — NOMBRECOMERCIAL se obtiene con MAX() para evitar
+            # que clientes sin entrada en CLIENTE (nombre NULL) generen grupos duplicados
             fixed.append({
                 "objetivo": "Top 10 clientes por importe total (todos los documentos cliente)",
                 "sql": (
-                    "SELECT FIRST 10 d.CODCLIENTE, c.NOMBRECOMERCIAL, "
+                    "SELECT FIRST 10 d.CODCLIENTE, MAX(c.NOMBRECOMERCIAL) AS NOMBRECOMERCIAL, "
                     "COUNT(d.CODIGO) AS N_DOCS, "
                     "CAST(SUM(d.IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR "
                     "FROM DOCCAB d "
                     "LEFT JOIN CLIENTE c ON d.CODCLIENTE = c.CODIGO "
                     "WHERE d.CODCLIENTE IS NOT NULL AND d.CODCLIENTE > 0 "
-                    "GROUP BY d.CODCLIENTE, c.NOMBRECOMERCIAL "
+                    "GROUP BY d.CODCLIENTE "
                     "ORDER BY TOTAL_EUR DESC"
                 )
             })
-            # SQL B: Total global + nº de clientes (para calcular % por cliente en síntesis)
+            # SQL B: Total global + nº de clientes (mismos filtros que top 10 para comparar)
             fixed.append({
                 "objetivo": "Total global y número de clientes distintos (base para % concentración)",
                 "sql": (
@@ -394,27 +395,30 @@ class Phase3SqlsMixin:
                     "FROM DOCCAB WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0"
                 )
             })
-            # SQL C (solo si pregunta sobre concentración/Pareto/riesgo): cálculo directo
+            # SQL C (solo si pregunta sobre concentración/Pareto/riesgo): cálculo directo top-5
+            # Usa derived table en FROM (no WHERE IN con subquery) para que el traductor
+            # coloque correctamente el LIMIT 5 dentro del subquery derivado
             if any(k in msg for k in ["concentración", "concentracion", "riesgo", "dependencia",
                                        "pareto", "80/20", "top 5", "cinco"]):
                 fixed.append({
                     "objetivo": "Concentración: importe acumulado top 5 clientes vs total",
                     "sql": (
                         "SELECT "
-                        "CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_TOP5, "
-                        "CAST((SELECT SUM(IMPORTETOTAL) FROM DOCCAB "
-                        "  WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0) "
-                        "AS NUMERIC(15,2)) AS TOTAL_GLOBAL, "
-                        "CAST(SUM(IMPORTETOTAL) * 100.0 / "
-                        "  NULLIF((SELECT SUM(IMPORTETOTAL) FROM DOCCAB "
-                        "    WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0), 0) "
-                        "AS NUMERIC(8,2)) AS PCT_TOP5 "
-                        "FROM DOCCAB "
-                        "WHERE CODCLIENTE IN ("
-                        "  SELECT FIRST 5 CODCLIENTE FROM DOCCAB "
+                        "CAST(SUM(top5.TOTAL_CLI) AS NUMERIC(15,2)) AS TOTAL_TOP5, "
+                        "CAST(base.TOTAL_GLOBAL AS NUMERIC(15,2)) AS TOTAL_GLOBAL, "
+                        "CAST(SUM(top5.TOTAL_CLI) * 100.0 / NULLIF(base.TOTAL_GLOBAL, 0) "
+                        "  AS NUMERIC(8,2)) AS PCT_TOP5 "
+                        "FROM ("
+                        "  SELECT FIRST 5 CODCLIENTE, "
+                        "  CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_CLI "
+                        "  FROM DOCCAB "
                         "  WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0 "
-                        "  GROUP BY CODCLIENTE ORDER BY SUM(IMPORTETOTAL) DESC"
-                        ") AND CODCLIENTE IS NOT NULL AND CODCLIENTE > 0"
+                        "  GROUP BY CODCLIENTE ORDER BY TOTAL_CLI DESC"
+                        ") top5, ("
+                        "  SELECT CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_GLOBAL "
+                        "  FROM DOCCAB "
+                        "  WHERE CODCLIENTE IS NOT NULL AND CODCLIENTE > 0"
+                        ") base"
                     )
                 })
 
@@ -648,12 +652,11 @@ class Phase3SqlsMixin:
             sqls.append({
                 "objetivo": "Columnas de tiempo/horas en DOCCAB (metadatos BD)",
                 "sql": (
-                    "SELECT FIRST 20 TRIM(RDB$FIELD_NAME) AS CAMPO FROM RDB$RELATION_FIELDS "
-                    "WHERE RDB$RELATION_NAME = 'DOCCAB' "
-                    "AND (UPPER(RDB$FIELD_NAME) LIKE '%HORA%' "
-                    "OR UPPER(RDB$FIELD_NAME) LIKE '%TIEMPO%' "
-                    "OR UPPER(RDB$FIELD_NAME) LIKE '%DURACION%') "
-                    "ORDER BY RDB$FIELD_POSITION"
+                    "SELECT name AS CAMPO FROM pragma_table_info('DOCCAB') "
+                    "WHERE (UPPER(name) LIKE '%HORA%' "
+                    "OR UPPER(name) LIKE '%TIEMPO%' "
+                    "OR UPPER(name) LIKE '%DURACION%') "
+                    "ORDER BY cid LIMIT 20"
                 )
             })
 

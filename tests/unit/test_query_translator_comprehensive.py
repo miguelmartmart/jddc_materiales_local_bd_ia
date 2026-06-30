@@ -379,3 +379,71 @@ def test_translator_idempotent_sqlite():
     result1, _ = _translate(sql)
     result2, _ = _translate(result1)
     assert result1 == result2, "La traducción no es idempotente para SQL SQLite"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIRST N en subqueries — bug crítico corregido (regresión)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize("sql_in,expected_inside,expected_outside", [
+    # WHERE IN subquery: LIMIT debe estar DENTRO del ( ), no al final
+    (
+        "SELECT SUM(X) FROM T WHERE COD IN (SELECT FIRST 5 COD FROM T GROUP BY COD ORDER BY SUM(X) DESC) AND COD > 0",
+        True,   # LIMIT debe estar dentro del subquery (antes del ) final de AND)
+        False,  # NO debe haber LIMIT después del último )
+    ),
+    # FROM subquery: LIMIT debe estar DENTRO del subquery derivado
+    (
+        "SELECT COUNT(*) FROM (SELECT FIRST 3 CODIGO FROM DOCCAB ORDER BY FECHA DESC) sub",
+        True,
+        False,
+    ),
+    # Múltiples FIRST: cada uno en su ámbito correcto
+    (
+        "SELECT FIRST 10 p.COD FROM P LEFT JOIN (SELECT FIRST 5 COD FROM DOCCAB ORDER BY FECHA) s ON s.COD = p.COD",
+        True,
+        True,  # El LIMIT del outer SELECT va al final
+    ),
+])
+def test_first_in_subquery_limit_position(sql_in, expected_inside, expected_outside):
+    """FIRST N dentro de subquery pone LIMIT N dentro del subquery (no al final del SQL)."""
+    result, changes = _translate(sql_in)
+    assert "FIRST" not in result.upper(), f"FIRST residual en: {result!r}"
+    assert "LIMIT" in result.upper(), f"Sin LIMIT en: {result!r}"
+
+    last_paren = result.rfind(")")
+    last_limit = result.rfind("LIMIT")
+
+    if expected_inside and not expected_outside:
+        # LIMIT debe estar ANTES del ) final (dentro del subquery)
+        assert last_limit < last_paren, (
+            f"BUG: LIMIT ({last_limit}) está después del ) ({last_paren})\n"
+            f"SQL: {result}"
+        )
+    # Si expected_outside=True el LIMIT al final es correcto (outer SELECT)
+
+
+_SUBQUERY_CONCENTRATION_CASES = [
+    # SQL de concentración real del sistema (el que causaba 100% por bug)
+    "SELECT CAST(SUM(top5.TOTAL_CLI) AS NUMERIC(15,2)) AS TOTAL_TOP5 "
+    "FROM (SELECT FIRST 5 CODCLIENTE, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_CLI "
+    "FROM DOCCAB WHERE CODCLIENTE IS NOT NULL "
+    "GROUP BY CODCLIENTE ORDER BY TOTAL_CLI DESC) top5",
+    # WHERE IN con FIRST en subquery
+    "SELECT COUNT(*) FROM DOCCAB WHERE CODCLIENTE IN "
+    "(SELECT FIRST 10 CODIGO FROM CLIENTE ORDER BY NOMBRECOMERCIAL)",
+    # Subquery en HAVING
+    "SELECT CODCLIENTE, COUNT(*) N FROM DOCCAB GROUP BY CODCLIENTE "
+    "HAVING CODCLIENTE IN (SELECT FIRST 5 CODIGO FROM CLIENTE ORDER BY CODIGO)",
+]
+
+
+@pytest.mark.parametrize("sql_in", _SUBQUERY_CONCENTRATION_CASES)
+def test_first_in_subquery_no_residual(sql_in):
+    """FIRST N en cualquier posición de subquery se elimina por completo."""
+    result, changes = _translate(sql_in)
+    assert "FIRST" not in result.upper(), (
+        f"FIRST residual tras traducción:\nIN:  {sql_in}\nOUT: {result}"
+    )
+    assert len(changes) > 0, "No se aplicó ninguna traducción"
+    assert "LIMIT" in result.upper(), f"Sin LIMIT en resultado: {result}"
