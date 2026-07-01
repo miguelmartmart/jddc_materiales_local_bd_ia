@@ -613,10 +613,18 @@ class ChatService:
                 except Exception:
                     db_context = get_semantic_schema()
 
+                _deep_db_params = context.get('db_params')
+
+                async def _async_sql_executor(q: str) -> list:
+                    loop = asyncio.get_running_loop()
+                    return await loop.run_in_executor(
+                        None, self._execute_sql, q, _deep_db_params
+                    )
+
                 agent = DeepAnalysisAgent(
                     orchestrator=self.model_orchestrator,
                     db_context=db_context,
-                    sql_executor=lambda q: self._execute_sql(q, context.get('db_params')),
+                    sql_executor=_async_sql_executor,
                     sql_normalizer=self.sql_normalizer,
                 )
                 # Limpiar prefijo /deep del mensaje

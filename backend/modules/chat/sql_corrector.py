@@ -20,6 +20,7 @@ DEVIA: backend/modules/chat/DEVIA_ROBUSTNESS.md
 """
 
 from typing import Dict, Any, List, Optional, Tuple
+import asyncio
 import logging
 import re
 import json
@@ -564,13 +565,14 @@ CONSULTA SQL CORREGIDA:"""
         real_columns_by_table: Dict[str, List[str]] = {}
         sample_data_by_table: Dict[str, List[Dict]] = {}
 
+        _loop = asyncio.get_running_loop()
         for table in tables_in_sql:
             if table.startswith("RDB$"):
                 continue
-            cols = self._get_real_table_columns(table, execute_func)
+            cols = await _loop.run_in_executor(None, self._get_real_table_columns, table, execute_func)
             if cols:
                 real_columns_by_table[table] = cols
-            sample = self._get_real_table_sample(table, execute_func, limit=3)
+            sample = await _loop.run_in_executor(None, self._get_real_table_sample, table, execute_func, 3)
             if sample:
                 sample_data_by_table[table] = sample
 
@@ -732,7 +734,8 @@ SQL CORREGIDO:"""
                 )
 
         try:
-            results = execute_func(sql_query)
+            _loop = asyncio.get_running_loop()
+            results = await _loop.run_in_executor(None, execute_func, sql_query)
             return results
 
         except Exception as e:
@@ -800,6 +803,7 @@ SQL CORREGIDO:"""
             real_columns_by_table: Dict[str, List[str]] = {}
             sample_data_by_table: Dict[str, List[Dict]] = {}
             low_record_warnings: List[str] = []
+            _exec_loop = asyncio.get_running_loop()
 
             for table in tables_in_sql:
                 # Excluir tablas de sistema Firebird
@@ -807,7 +811,7 @@ SQL CORREGIDO:"""
                     continue
 
                 # Columnas reales
-                cols = self._get_real_table_columns(table, execute_func)
+                cols = await _exec_loop.run_in_executor(None, self._get_real_table_columns, table, execute_func)
                 if cols:
                     real_columns_by_table[table] = cols
 
@@ -815,7 +819,7 @@ SQL CORREGIDO:"""
                     self._update_metadata_learning(table, cols)
 
                 # Muestra de datos reales (solo si la tabla tiene datos)
-                sample = self._get_real_table_sample(table, execute_func, limit=3)
+                sample = await _exec_loop.run_in_executor(None, self._get_real_table_sample, table, execute_func, 3)
                 if sample:
                     sample_data_by_table[table] = sample
 
@@ -838,7 +842,9 @@ SQL CORREGIDO:"""
                     f"[SQL CORRECTOR] 🔎 Tabla desconocida '{unknown_tbl}' — "
                     f"buscando alternativas en RDB$RELATIONS..."
                 )
-                similar_tables = self._find_similar_tables_in_db(unknown_tbl, execute_func)
+                similar_tables = await _exec_loop.run_in_executor(
+                    None, self._find_similar_tables_in_db, unknown_tbl, execute_func
+                )
 
                 if similar_tables:
                     similar_tables_section = (
@@ -859,11 +865,11 @@ SQL CORREGIDO:"""
                     for candidate in similar_tables[:3]:
                         tname = candidate["table"]
                         if tname not in real_columns_by_table:
-                            cols = self._get_real_table_columns(tname, execute_func)
+                            cols = await _exec_loop.run_in_executor(None, self._get_real_table_columns, tname, execute_func)
                             if cols:
                                 real_columns_by_table[tname] = cols
                                 self._update_metadata_learning(tname, cols)
-                            sample = self._get_real_table_sample(tname, execute_func, limit=2)
+                            sample = await _exec_loop.run_in_executor(None, self._get_real_table_sample, tname, execute_func, 2)
                             if sample:
                                 sample_data_by_table[tname] = sample
 

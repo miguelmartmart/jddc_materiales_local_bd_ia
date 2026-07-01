@@ -188,9 +188,9 @@ class TestPhase1Fallback:
 # ─── Tests: Fase 2 exploración ───────────────────────────────────────────────
 
 class TestPhase2Exploration:
-    def test_explore_table_count(self):
+    async def test_explore_table_count(self):
         """_explore_table debe obtener el conteo de registros."""
-        executor = MagicMock(return_value=[{"TOTAL": 5000}])
+        executor = AsyncMock(return_value=[{"TOTAL": 5000}])
         agent = make_agent(sql_rows=[{"TOTAL": 5000}])
         agent.sql_executor = executor
 
@@ -202,14 +202,14 @@ class TestPhase2Exploration:
             "backend.modules.chat.deep_analysis.phase2_explore.get_knowledge_store",
             return_value=mock_store
         ):
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
         assert info["total"] == 5000
 
-    def test_explore_table_columns(self):
+    async def test_explore_table_columns(self):
         """_explore_table debe obtener columnas desde RDB$RELATION_FIELDS."""
         call_count = [0]
 
-        def executor(sql):
+        async def executor(sql):
             call_count[0] += 1
             if "RDB$RELATION_FIELDS" in sql:
                 return [{"COL": "TIPO"}, {"COL": "FECHA"}, {"COL": "IMPORTETOTAL"}]
@@ -220,15 +220,15 @@ class TestPhase2Exploration:
         agent = make_agent()
         agent.sql_executor = executor
         cfg = {"max_sqls": 12, "explore_tables": 4}
-        info = agent._explore_table("DOCCAB", cfg)
+        info = await agent._explore_table("DOCCAB", cfg)
         assert "TIPO" in info["columns"]
         assert info["has_tipo"] is True
         assert info["has_fecha"] is True
 
-    def test_explore_table_sql_error(self):
+    async def test_explore_table_sql_error(self):
         """Si el SQL falla, _explore_table no lanza excepción."""
         agent = make_agent()
-        agent.sql_executor = MagicMock(side_effect=Exception("Firebird error"))
+        agent.sql_executor = AsyncMock(side_effect=Exception("Firebird error"))
 
         mock_store = MagicMock()
         mock_store.get_table.return_value = {}  # Cache vacío → fuerza exploración real
@@ -238,7 +238,7 @@ class TestPhase2Exploration:
             "backend.modules.chat.deep_analysis.phase2_explore.get_knowledge_store",
             return_value=mock_store
         ):
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
         assert "ERROR" in str(info.get("total", ""))
 
 

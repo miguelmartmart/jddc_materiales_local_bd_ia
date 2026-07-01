@@ -353,7 +353,7 @@ class Phase3Mixin(Phase3SqlsMixin):
         last_error = None
         for attempt in range(2):
             try:
-                return self._safe_sql(sql), None
+                return await self._safe_sql(sql), None
             except Exception as e:
                 last_error = str(e)
                 if attempt == 0 and self.sql_corrector:

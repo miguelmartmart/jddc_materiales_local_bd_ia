@@ -432,6 +432,14 @@ class TestServiceDeepAnalysisIntegration:
         mock_instance.analyze = mock_analyze
 
         # El import lazy está en deep_analysis_agent.py, parcheamos ahí
+        # También parcheamos el intent_classifier para evitar llamadas al modelo IA
+        mock_intent = MagicMock()
+        mock_intent.is_conversational.return_value = False
+        mock_intent.is_clarification.return_value = False
+        mock_intent.is_deep_analysis.return_value = True
+        mock_intent.confidence = 0.9
+        mock_intent.reasoning = "test"
+
         with patch("backend.modules.chat.deep_analysis_agent.DeepAnalysisAgent",
                    return_value=mock_instance) as MockAgent:
             with patch.object(service, "_execute_sql", return_value=[{"TOTAL": 1}]):
@@ -439,13 +447,20 @@ class TestServiceDeepAnalysisIntegration:
                     mock_cr.return_value.get_context.return_value = (
                         "ESQUEMA", {"tables_used": [], "source": "test"}
                     )
+                    with patch.object(service, "_intent_classifier") as mock_clf:
+                        mock_clf.classify = AsyncMock(return_value=mock_intent)
 
-                    result = asyncio.get_event_loop().run_until_complete(
-                        service.process_message(
-                            "¿cuántos presupuestos hay?",
-                            context={"deep_analysis": True, "conversation_history": []}
+                        result = asyncio.get_event_loop().run_until_complete(
+                            service.process_message(
+                                "¿cuántos presupuestos hay?",
+                                context={
+                                    "deep_analysis": True,
+                                    "conversation_history": [],
+                                    # db_params mínimos para evitar early-exit a _chat_no_db
+                                    "db_params": {"host": "test", "database": "test.fdb"},
+                                }
+                            )
                         )
-                    )
 
         # El agente debe haberse llamado O el resultado es el mock
         assert len(agent_called) > 0 or result == "Análisis profundo mock", (

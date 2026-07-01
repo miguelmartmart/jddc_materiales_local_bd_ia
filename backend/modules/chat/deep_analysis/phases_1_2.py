@@ -249,7 +249,7 @@ class Phases12Mixin(Phase2ExploreMixin):
         exploration: Dict = {}
 
         for table in tables:
-            exploration[table] = self._explore_table(table, cfg)
+            exploration[table] = await self._explore_table(table, cfg)
 
         # Expansión dinámica (solo DEEP/EPIC)
         if cfg["max_sqls"] >= 8:
@@ -257,7 +257,7 @@ class Phases12Mixin(Phase2ExploreMixin):
             for extra_table in extra_tables:
                 if extra_table not in exploration:
                     logger.info(f"[DEEP AGENT] Explorando tabla adicional: {extra_table}")
-                    exploration[extra_table] = self._explore_table(extra_table, cfg)
+                    exploration[extra_table] = await self._explore_table(extra_table, cfg)
                     cfg["explore_tables"] = len(exploration)
 
         phase.data = exploration

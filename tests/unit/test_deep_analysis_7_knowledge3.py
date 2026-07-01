@@ -65,11 +65,11 @@ class TestPhase2KnowledgeStorePersistence:
     tras explorar una tabla desde la BD.
     """
 
-    def test_persists_columns_after_real_exploration(self):
+    async def test_persists_columns_after_real_exploration(self):
         """Tras exploración real, persiste columnas en KnowledgeStore."""
         agent = make_agent()
 
-        def executor(sql):
+        async def executor(sql):
             if "COUNT(*)" in sql and "NULOS" not in sql:
                 return [{"TOTAL": 1000}]
             if "RDB$RELATION_FIELDS" in sql:
@@ -86,17 +86,17 @@ class TestPhase2KnowledgeStorePersistence:
             return_value=mock_store
         ):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            agent._explore_table("DOCCAB", cfg)
+            await agent._explore_table("DOCCAB", cfg)
 
         # Verificar que se llamó update_table con columns_real
         calls = mock_store.update_table.call_args_list
         assert any("columns_real" in str(c) for c in calls)
 
-    def test_persists_record_count_after_real_exploration(self):
+    async def test_persists_record_count_after_real_exploration(self):
         """Tras exploración real, persiste el conteo en KnowledgeStore."""
         agent = make_agent()
 
-        def executor(sql):
+        async def executor(sql):
             if "COUNT(*)" in sql and "NULOS" not in sql:
                 return [{"TOTAL": 74034}]
             if "RDB$RELATION_FIELDS" in sql:
@@ -113,17 +113,17 @@ class TestPhase2KnowledgeStorePersistence:
             return_value=mock_store
         ):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            agent._explore_table("DOCCAB", cfg)
+            await agent._explore_table("DOCCAB", cfg)
 
         calls = mock_store.update_table.call_args_list
         assert any("record_count_real" in str(c) for c in calls)
 
-    def test_does_not_persist_siuo_columns(self):
+    async def test_does_not_persist_siuo_columns(self):
         """NO persiste columnas obtenidas de SIUO (solo de BD real)."""
         from unittest.mock import patch as mock_patch
         agent = make_agent()
         # BD falla → columnas de SIUO
-        agent.sql_executor = MagicMock(side_effect=Exception("BD no disponible"))
+        agent.sql_executor = AsyncMock(side_effect=Exception("BD no disponible"))
 
         mock_store = MagicMock()
         mock_store.get_table.return_value = {}
@@ -134,17 +134,17 @@ class TestPhase2KnowledgeStorePersistence:
         ):
             with patch.object(agent, "_get_siuo_columns", return_value=["TIPO", "FECHA"]):
                 cfg = {"max_sqls": 4, "explore_tables": 2}
-                agent._explore_table("DOCCAB", cfg)
+                await agent._explore_table("DOCCAB", cfg)
 
         # NO debe persistir columns_real (fuente no es firebird_rdb)
         calls = mock_store.update_table.call_args_list
         assert not any("columns_real" in str(c) for c in calls)
 
-    def test_no_crash_on_persistence_error(self):
+    async def test_no_crash_on_persistence_error(self):
         """Si la persistencia falla, la exploración continúa sin excepción."""
         agent = make_agent()
 
-        def executor(sql):
+        async def executor(sql):
             if "COUNT(*)" in sql and "NULOS" not in sql:
                 return [{"TOTAL": 100}]
             if "RDB$RELATION_FIELDS" in sql:
@@ -162,7 +162,7 @@ class TestPhase2KnowledgeStorePersistence:
             return_value=mock_store
         ):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
 
         # No debe lanzar excepción
         assert isinstance(info, dict)

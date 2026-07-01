@@ -245,7 +245,7 @@ class TestSIUOMetadataHelpers:
 
     # ── Flujo real: BD falla → SIUO JSON → db_context ────────────────────────
 
-    def test_explore_table_fallback_to_siuo_json(self, tmp_path):
+    async def test_explore_table_fallback_to_siuo_json(self, tmp_path):
         """
         Flujo real: BD Firebird falla → columnas obtenidas desde SIUO JSON.
         Verifica que _explore_table usa _get_siuo_columns como fallback.
@@ -256,7 +256,7 @@ class TestSIUOMetadataHelpers:
 
         # BD falla para todo
         agent = make_agent()
-        agent.sql_executor = MagicMock(side_effect=Exception("Firebird no disponible"))
+        agent.sql_executor = AsyncMock(side_effect=Exception("Firebird no disponible"))
 
         # Mockear KnowledgeStore para que devuelva cache vacío (sin datos de DOCCAB)
         mock_store = MagicMock()
@@ -266,7 +266,7 @@ class TestSIUOMetadataHelpers:
              patch("backend.modules.chat.deep_analysis.phase2_explore.get_knowledge_store",
                    return_value=mock_store):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
 
         # Columnas obtenidas desde SIUO JSON
         assert "TIPO" in info.get("columns", [])
@@ -274,12 +274,12 @@ class TestSIUOMetadataHelpers:
         assert info.get("has_tipo") is True
         assert info.get("has_serie") is True
 
-    def test_explore_table_fallback_to_db_context(self):
+    async def test_explore_table_fallback_to_db_context(self):
         """
         Flujo real: BD falla + SIUO JSON vacío → columnas desde db_context texto.
         """
         agent = make_agent(db_context="DOCCAB | Cols: TIPO, FECHA, IMPORTETOTAL")
-        agent.sql_executor = MagicMock(side_effect=Exception("Firebird no disponible"))
+        agent.sql_executor = AsyncMock(side_effect=Exception("Firebird no disponible"))
 
         mock_store = MagicMock()
         mock_store.get_table.return_value = {}  # Cache vacío
@@ -289,19 +289,19 @@ class TestSIUOMetadataHelpers:
              patch("backend.modules.chat.deep_analysis.phase2_explore.get_knowledge_store",
                    return_value=mock_store):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
 
         # Columnas obtenidas desde db_context
         assert "TIPO" in info.get("columns", [])
         assert info.get("columns_source") == "db_context_text"
 
-    def test_explore_table_all_sources_fail_no_exception(self):
+    async def test_explore_table_all_sources_fail_no_exception(self):
         """
         Flujo real: BD falla + SIUO JSON vacío + db_context sin info.
         El agente continúa sin excepción con columnas vacías.
         """
         agent = make_agent(db_context="Sin información de tablas aquí.")
-        agent.sql_executor = MagicMock(side_effect=Exception("Firebird no disponible"))
+        agent.sql_executor = AsyncMock(side_effect=Exception("Firebird no disponible"))
 
         mock_store = MagicMock()
         mock_store.get_table.return_value = {}  # Cache vacío
@@ -310,7 +310,7 @@ class TestSIUOMetadataHelpers:
              patch("backend.modules.chat.deep_analysis.phase2_explore.get_knowledge_store",
                    return_value=mock_store):
             cfg = {"max_sqls": 4, "explore_tables": 2}
-            info = agent._explore_table("DOCCAB", cfg)
+            info = await agent._explore_table("DOCCAB", cfg)
 
         # No lanza excepción, devuelve info con columnas vacías
         assert isinstance(info, dict)

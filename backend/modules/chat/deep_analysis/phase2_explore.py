@@ -33,7 +33,7 @@ class Phase2ExploreMixin:
               self.orchestrator, self._parse_json()
     """
 
-    def _explore_table(self, table: str, cfg: Dict) -> Dict:
+    async def _explore_table(self, table: str, cfg: Dict) -> Dict:
         """
         Explora una tabla: conteo, columnas, muestreo, distribución TIPO, nulos.
 
@@ -101,7 +101,7 @@ class Phase2ExploreMixin:
 
         # Conteo de registros
         try:
-            r = self._safe_sql(f"SELECT COUNT(*) AS TOTAL FROM {table}")
+            r = await self._safe_sql(f"SELECT COUNT(*) AS TOTAL FROM {table}")
             info["total"] = r[0].get("TOTAL", 0) if r else 0
         except Exception as e:
             info["total"] = f"ERROR: {e}"
@@ -116,7 +116,7 @@ class Phase2ExploreMixin:
         # Columnas — Fuente 1: RDB$RELATION_FIELDS
         columns_from_db = []
         try:
-            r = self._safe_sql(
+            r = await self._safe_sql(
                 f"SELECT TRIM(RDB$FIELD_NAME) AS COL FROM RDB$RELATION_FIELDS "
                 f"WHERE TRIM(RDB$RELATION_NAME)='{table}' ORDER BY RDB$FIELD_POSITION"
             )
@@ -156,7 +156,7 @@ class Phase2ExploreMixin:
         if cfg["max_sqls"] >= 8:
             try:
                 cols_sample = ", ".join(info["columns"][:6]) if info["columns"] else "*"
-                r = self._safe_sql(f"SELECT FIRST 3 {cols_sample} FROM {table}")
+                r = await self._safe_sql(f"SELECT FIRST 3 {cols_sample} FROM {table}")
                 info["sample"] = r[:3] if r else []
             except Exception:
                 info["sample"] = []
@@ -164,7 +164,7 @@ class Phase2ExploreMixin:
         # Distribución por TIPO (solo DOCCAB)
         if info.get("has_tipo") and table == "DOCCAB":
             try:
-                r = self._safe_sql("SELECT TIPO, COUNT(*) AS N FROM DOCCAB GROUP BY TIPO ORDER BY N DESC")
+                r = await self._safe_sql("SELECT TIPO, COUNT(*) AS N FROM DOCCAB GROUP BY TIPO ORDER BY N DESC")
                 info["tipo_distribution"] = r[:10] if r else []
             except Exception:
                 info["tipo_distribution"] = []
@@ -172,7 +172,7 @@ class Phase2ExploreMixin:
         # Nulos en CODCLIENTE
         if info.get("has_codcliente") and cfg["max_sqls"] >= 6:
             try:
-                r = self._safe_sql(f"SELECT COUNT(*) AS NULOS FROM {table} WHERE CODCLIENTE IS NULL")
+                r = await self._safe_sql(f"SELECT COUNT(*) AS NULOS FROM {table} WHERE CODCLIENTE IS NULL")
                 info["null_codcliente"] = r[0].get("NULOS", 0) if r else 0
             except Exception:
                 info["null_codcliente"] = "?"

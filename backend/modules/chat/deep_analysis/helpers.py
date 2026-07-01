@@ -33,7 +33,7 @@ class HelpersAgentMixin:
     # SQL + JSON
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _safe_sql(self, sql: str) -> List[Dict]:
+    async def _safe_sql(self, sql: str) -> List[Dict]:
         """
         Ejecuta SQL de forma segura aplicando normalización previa.
 
@@ -45,6 +45,9 @@ class HelpersAgentMixin:
         2. Si el simulador está activo Y el executor NO es el driver del simulador
            (caso: executor externo), aplicar translate_firebird_sql explícitamente
            para garantizar compatibilidad SQLite.
+
+        IMPORTANTE: sql_executor debe ser una coroutine async para no bloquear
+        el event loop de asyncio durante queries a Firebird (I/O sincrónico).
         """
         if not self.sql_executor:
             raise RuntimeError("sql_executor no configurado")
@@ -91,7 +94,7 @@ class HelpersAgentMixin:
         except Exception as trans_err:
             logger.debug(f"[DEEP AGENT] translate_firebird_sql no aplicado: {trans_err}")
 
-        return self.sql_executor(sql)
+        return await self.sql_executor(sql)
 
     # ── Tablas conocidas del simulador (sincronizado con schema.py) ───────────
     # Se usa para validar SQL antes de ejecutar y evitar "no such table: X".
