@@ -35,7 +35,7 @@
       },
       "stats": {
         "success": 9,
-        "failure": 532
+        "failure": 576
       },
       "base_url": "http://192.168.0.36/api/vlm/v1",
       "headers": {
@@ -76,8 +76,8 @@
         "avg_reset_time": 60
       },
       "stats": {
-        "success": 530,
-        "failure": 548
+        "success": 545,
+        "failure": 593
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
       "headers": {
@@ -126,7 +126,7 @@
       },
       "stats": {
         "success": 45,
-        "failure": 189
+        "failure": 233
       },
       "base_url": "http://172.19.64.1:1234/v1",
       "headers": {}
@@ -173,7 +173,7 @@
       },
       "stats": {
         "success": 0,
-        "failure": 188
+        "failure": 231
       },
       "base_url": "http://jddcia.local:1234/v1",
       "headers": {}

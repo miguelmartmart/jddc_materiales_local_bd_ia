@@ -161,6 +161,9 @@ app.include_router(metadata_builder_router, prefix="/api/metadata-builder", tags
 from backend.modules.db_explorer.siuo_router import router as siuo_router
 app.include_router(siuo_router, prefix="/api/siuo", tags=["SIUO — Indices IA"])
 
+from backend.modules.db_simulator.router import router as db_simulator_router
+app.include_router(db_simulator_router, prefix="/api/db-simulator", tags=["DB Simulator"])
+
 # Pre-cargar ContextRetriever al arrancar (indices en memoria desde el inicio)
 from backend.modules.db_explorer.context_retriever import get_context_retriever as _load_retriever
 _load_retriever()
