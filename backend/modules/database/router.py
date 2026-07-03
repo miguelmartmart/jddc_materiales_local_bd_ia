@@ -32,7 +32,10 @@ async def get_tables(request: DBRequest):
         tables = service.get_tables(request.db_params)
         return {"tables": tables}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Degradación elegante: BD no disponible → 200 con lista vacía
+        import logging
+        logging.getLogger(__name__).warning(f"BD no disponible (graceful): {e}")
+        return {"tables": [], "warning": "BD no accesible — posiblemente fuera de la red de oficina", "error": str(e)}
 
 @router.post("/analyze/{table_name}")
 async def analyze_table(table_name: str, request: DBRequest):

@@ -431,6 +431,18 @@ class JDDCIAProvider(AIProvider):
                 # Prioridad 3: 50% del contexto (mínimo 512, máximo 8192)
                 self._max_tokens = max(512, min(8192, context_limit // 2))
 
+        # ── Safety clamp: max_tokens nunca puede >= context_limit ─────────────
+        # Si max_tokens >= context_limit, el modelo devuelve error 400 porque
+        # no quedan tokens para el input. Dejamos al menos 500 tokens de margen.
+        _safe_max = max(256, context_limit - 500)
+        if self._max_tokens >= context_limit:
+            logger.warning(
+                f"[JDDCIA] ⚠️ Safety clamp: max_tokens={self._max_tokens} >= "
+                f"context_limit={context_limit}. Reduciendo a {_safe_max} "
+                f"(context_limit - 500) para evitar error 400."
+            )
+            self._max_tokens = _safe_max
+
         # ── ContextManager para gestión inteligente de tokens ─────────────────
         from backend.core.context.context_manager import ContextManager, ContextManagerConfig
         ctx_cfg = ContextManagerConfig(
