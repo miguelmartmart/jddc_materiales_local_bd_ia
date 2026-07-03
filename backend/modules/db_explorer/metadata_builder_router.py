@@ -81,13 +81,30 @@ def get_tables():
     try:
         result = _service.get_all_tables()
         if not result["success"]:
-            raise HTTPException(status_code=500, detail=result["error"])
+            # Degradación elegante: BD no disponible → 200 con lista vacía
+            logger.warning(f"[METADATA_BUILDER][GET_TABLES] BD no disponible: {result.get('error', '')}")
+            return {
+                "success": False,
+                "tables": [],
+                "total": 0,
+                "with_metadata": 0,
+                "warning": "BD Firebird no accesible — posiblemente fuera de la red de oficina",
+                "error": result.get("error", ""),
+            }
         return result
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"[METADATA_BUILDER][GET_TABLES] ERROR: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.warning(f"[METADATA_BUILDER][GET_TABLES] BD no disponible: {exc}")
+        # Degradación elegante: no lanzar 500, devolver lista vacía con aviso
+        return {
+            "success": False,
+            "tables": [],
+            "total": 0,
+            "with_metadata": 0,
+            "warning": "BD Firebird no accesible — posiblemente fuera de la red de oficina",
+            "error": str(exc),
+        }
 
 
 @router.get(

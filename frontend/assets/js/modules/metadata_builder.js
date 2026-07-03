@@ -77,8 +77,17 @@ async function mbLoadTables() {
     mbState.filtered = [...mbState.tables];
     mbRenderTableList(mbState.filtered);
     mbRenderTableStats(data.total, data.with_metadata);
+    // BD no disponible pero respuesta 200 — mostrar aviso suave
+    if (data.success === false && data.warning) {
+      mbShowToast("⚠️ " + data.warning, "warning");
+    }
   } catch (e) {
-    mbShowError("Error cargando tablas: " + e.message);
+    // Solo mostrar error si es un fallo real de red (no de BD)
+    console.warn("[mbLoadTables] Error:", e.message);
+    mbState.tables = [];
+    mbState.filtered = [];
+    mbRenderTableList([]);
+    mbShowToast("⚠️ BD no accesible — Constructor BD no disponible fuera de la red de oficina", "warning");
   } finally {
     mbShowTableListLoading(false);
   }
