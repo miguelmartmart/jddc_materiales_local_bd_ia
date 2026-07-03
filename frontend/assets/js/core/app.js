@@ -5,6 +5,7 @@ import { ModelsModule } from "../modules/models.js";
 import { DatabaseConfigModule } from "../modules/database_config.js";
 import { OutlookModule } from "../modules/outlook.js";
 import { AnonymizerModule } from "../modules/anonymizer.js";
+import { SimulatorModule } from "../modules/db_simulator.js";
 
 class App {
   constructor() {
@@ -17,6 +18,7 @@ class App {
       databaseConfig: new DatabaseConfigModule(),
       outlook: new OutlookModule(),
       anonymizer: new AnonymizerModule(),
+      simulator: new SimulatorModule(),
     };
     this._metadataBuilderInited = false;
     this._siuoInited = false;
@@ -32,6 +34,7 @@ class App {
     this.modules.databaseConfig.init();
     this.modules.outlook.init();
     this.modules.anonymizer.init();
+    this.modules.simulator.init();
   }
 
   setupNavigation() {
@@ -49,9 +52,12 @@ class App {
     document
       .querySelectorAll("nav li")
       .forEach((li) => li.classList.remove("active"));
-    document
-      .querySelector(`nav li[data-view="${viewName}"]`)
-      .classList.add("active");
+    const navEl = document.querySelector(`nav li[data-view="${viewName}"]`);
+    if (navEl) {
+      navEl.classList.add("active");
+    } else {
+      console.warn(`[App.navigate] No nav item found for view="${viewName}"`);
+    }
 
     // Update View
     document
@@ -60,6 +66,8 @@ class App {
     const viewEl = document.getElementById(`view-${viewName}`);
     if (viewEl) {
       viewEl.style.display = "block";
+    } else {
+      console.error(`[App.navigate] No view element found: #view-${viewName}`);
     }
 
     // Update Header
@@ -73,6 +81,7 @@ class App {
       outlook: "Lector de Correos",
       anonymizer: "Anonimizador de Datos",
       "metadata-builder": "Constructor de Metadatos BD",
+      "db-simulator": "🎭 BD Simulada — Simulador SQLite",
       siuo: "🧠 Índices SIUO — Sistema de Índices Ultra-Optimizado",
     };
     document.getElementById("page-title").textContent =
@@ -87,6 +96,7 @@ class App {
       ) {
         window.MetadataBuilder.init("mb-root");
       } else {
+        console.error("[App.navigate] MetadataBuilder module not available");
         document.getElementById("mb-root").innerHTML =
           '<div style="padding:30px; color:#dc2626; background:#fef2f2; border-radius:8px; margin:20px;">' +
           "<strong>⚠️ Error:</strong> El módulo MetadataBuilder no está disponible.<br>" +
@@ -95,11 +105,30 @@ class App {
       }
     }
 
+    // Inicializar BD Simulada (lazy-init, se recarga en cada visita)
+    if (viewName === "db-simulator") {
+      try {
+        this.modules.simulator.onEnter();
+      } catch (err) {
+        console.error("[App.navigate] SimulatorModule.onEnter() failed:", err);
+        const root = document.getElementById("sim-root");
+        if (root) {
+          root.innerHTML =
+            '<div style="padding:30px; color:#dc2626; background:#fef2f2; border-radius:8px; margin:20px;">' +
+            "<strong>⚠️ Error al cargar BD Simulada:</strong> " +
+            (err?.message || String(err)) +
+            "<br><small>Revisa la consola del navegador para más detalles.</small>" +
+            "</div>";
+        }
+      }
+    }
+
     // Inicializar SIUO la primera vez que se navega a él (lazy-init)
     if (viewName === "siuo") {
       if (window.SIUOModule && typeof window.SIUOModule.init === "function") {
         window.SIUOModule.init();
       } else {
+        console.error("[App.navigate] SIUOModule not available");
         document.getElementById("siuo-root").innerHTML =
           '<div style="padding:30px; color:#dc2626; background:#fef2f2; border-radius:8px; margin:20px;">' +
           "<strong>⚠️ Error:</strong> El módulo SIUO no está disponible.<br>" +
