@@ -86,8 +86,11 @@ export class DatabaseConfigModule {
                 this.tableSelector.appendChild(option);
             });
         } catch (error) {
-            console.error('Error loading tables:', error);
-            showNotification('Error cargando tablas: ' + error.message, 'error');
+            console.warn('BD Firebird no disponible (posiblemente fuera de la red de oficina):', error.message);
+            // Degradación elegante: mostrar aviso en el selector sin bloquear la UI
+            this.tableSelector.innerHTML = '<option value="">⚠️ BD no disponible (red de oficina)</option>';
+            // Mostrar aviso suave (warning, no error) solo una vez
+            showNotification('BD Firebird no accesible — el resto de la app funciona con normalidad', 'warning');
         }
     }
 
