@@ -2,7 +2,7 @@
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
 > **Ultima actualizacion:** 03/07/2026
-> **Version:** 2.8.0
+> **Version:** 2.9.0
 > **Ruta:** `bots/interjddcia/`
 > **Tests:** ✅ 10.139 passed · 162 skipped · 70 xfailed · 7 failed (aislamiento)
 
@@ -1761,6 +1761,32 @@ python -m pytest tests/unit/test_analista_bd_catalog.py -v
 ---
 
 ## 15. Historial de cambios
+
+### v2.9.0 (03/07/2026) — Selector modo BD + UX responsiva + degradacion graceful
+
+**Commits:** `b7b9635`, `51d0234`, `d08370b`, `2d1db83`
+
+**Frontend (index.html + chat.js):**
+- Selector `#chat-db-mode` (🔥 BD Real / 🎭 Simulada / 💬 Sin BD) siempre visible en toolbar del chat
+- Badge `#chat-db-mode-badge` con color dinamico (verde/ambar/gris) segun modo activo
+- Layout responsivo: `#chat-outer` flex-col, `#chat-main` ocupa espacio restante
+- Sidebar colapsable con clase `.collapsed` (CSS transition suave)
+- Boton ⛶ fullscreen (`position:fixed; inset:0`) + ESC para salir
+- Mobile breakpoint 640px: sidebar y labels ocultos automaticamente
+- `marked.min.js` servido localmente (CDN bloqueado por Tracking Prevention)
+
+**Backend (router.py + service.py):**
+- `ChatRequest` acepta `db_mode` ("real"|"simulator"|"no_db"), `use_simulator`, `no_db`, `preferred_model_id`
+- `process_message` resuelve cadena de fallback: selector > `use_simulator` > `no_db` > auto-detect
+- Simulador solo se usa si tiene datos reales (`simulator_has_data`)
+- `/api/database/tables` devuelve HTTP 200 + `{tables:[], warning:"..."}` cuando Firebird no disponible (antes 500)
+- `jddcia_provider.py`: clamp de `max_tokens` para evitar error 400 del modelo
+- `config.json`: `lan_model_max_tokens=2048`, `lan_model_context_limit=4096`
+
+**Resultado:**
+```
+Sin cambios en tests (mejoras de UX y robustez, no de logica de tests)
+```
 
 ### v2.8.0 (03/07/2026) — Correccion masiva de tests
 

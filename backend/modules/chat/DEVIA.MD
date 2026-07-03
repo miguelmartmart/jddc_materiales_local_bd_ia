@@ -5,6 +5,10 @@
 
 | Sesión | Archivo | Contenido |
 |--------|---------|-----------|
+| 03/07/2026 | `DEVIA.MD` | **FEAT: Selector modo BD** (`db_mode`): `ChatRequest` acepta `db_mode` ("real"\|"simulator"\|"no_db"). `process_message` resuelve la cadena de fallback: selector explícito > flag `use_simulator` > flag `no_db` > auto-detect. El simulador solo se usa si tiene datos reales (`simulator_has_data`). Commit `b7b9635`. |
+| 03/07/2026 | `DEVIA.MD` | **FEAT: `preferred_model_id` propagado en todos los paths**: `process_message` lo pasa al orchestrator en SQL, no_db y deep_analysis. Commit `b7b9635`. |
+| 03/07/2026 | `DEVIA.MD` | **FIX error 400 chat IA**: `jddcia_provider.py` — clamp de `max_tokens` para que nunca supere `context_limit - prompt_tokens`. `config.json`: `lan_model_max_tokens=2048`, `lan_model_context_limit=4096`. Commit `51d0234`. |
+| 03/07/2026 | `DEVIA.MD` | **FIX degradación graceful BD**: `router.py` `/api/database/tables` devuelve HTTP 200 + `{tables:[], warning:"..."}` cuando Firebird no está disponible (antes devolvía 500). Commit `51d0234`. |
 | 25/06/2026 | `DEVIA.MD` | **FIX ORDEN RESPUESTA deep_analysis**: `phase5.py` — las anomalías y advertencias ahora aparecen DESPUES del cuerpo principal, bajo sección "## 🔎 Evidencias y Aclaraciones". Antes preprendían al principio. |
 | 25/06/2026 | `DEVIA.MD` | **FIX SQL INCOMPLETO**: `phase3.py` — comprobación de paréntesis balanceados antes de ejecutar SQL. SQL con paréntesis desbalanceados (IA truncada) se descarta con mensaje limpio. |
 | 25/06/2026 | `DEVIA.MD` | **FIX TIPO MAPPING** (deep_analysis): Mapeo DOCCAB.TIPO verificado con usuario el 25/06/2026. `_detect_tipo_filter` en `phase3_sqls.py` ahora usa TIPO=2 para albarán cliente (era 11), TIPO=1 para pedido cliente (era 12), TIPO=11 para pedido proveedor, TIPO=3 para factura cliente, TIPO=13 para factura proveedor. Distinción proveedor/cliente por contexto. |
@@ -264,7 +268,7 @@ Al añadir los IDs 8B aquí, el orchestrator los incluye automáticamente sin m�
     "integration_status": "IntentClassifier creado y disponible. Integracion gradual en process_message en curso.",
     "commit": "a6deed5 (01/06/2026)"
   },
-  "last_updated": "10/06/2026",
+  "last_updated": "03/07/2026",
   "related_devia": [
     "bots/interjddcia/DEVIA.MD (documentación principal)",
     "backend/modules/chat/DEVIA_ROBUSTNESS.md (Model Fallback & Self-Healing)",
