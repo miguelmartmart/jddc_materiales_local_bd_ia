@@ -3,18 +3,28 @@
 Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatización).  
 Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
+> **Última actualización:** 03/07/2026  
+> **Versión:** 2.8.0  
+> **Estado tests:** ✅ 10.139 passed · 162 skipped · 70 xfailed · **7 failures** (aislamiento)
+
+---
+
 ## 🚀 Características
 
 - **Chat IA**: Consulta la BD Firebird en lenguaje natural (Qwen3 VL 30B local LAN)
-- **SIUO**: Sistema de Índices Ultra-Optimizado — indexa las 437 tablas de la BD para contexto preciso
+- **SIUO**: Sistema de Índices Ultra-Optimizado — indexa las 443 tablas de la BD para contexto preciso
 - **Múltiples Modelos IA**: Qwen3 LAN (principal), Groq, Gemini, OpenAI, Anthropic (fallback)
 - **Gestión de Artículos**: CRUD completo con análisis de IA
+- **Analista BD**: Módulo de análisis profundo con 70+ consultas SQL predefinidas por categoría
 - **Constructor BD**: Análisis manual tabla a tabla con Qwen3 LAN
+- **DB Simulator**: Simulador SQLite con datos sintéticos para tests sin BD real
 - **Anonimizador**: Anonimización de datos sensibles (RGPD)
 - **Outlook**: Bandeja de entrada unificada
 - **Seguridad**: API keys en `.env`, datos de BD solo a IA local LAN (nunca a internet)
 - **Análisis Profundo**: Pipeline multi-fase con verificación de fiabilidad (anti-alucinación)
-- **Tests automatizados**: Suite pytest con 1.762+ tests (1.652 passing, 71 skipped)
+- **Tests automatizados**: Suite pytest con 10.300+ tests (10.139 passing, 70 xfailed)
+
+---
 
 ## 📋 Requisitos
 
@@ -22,12 +32,14 @@ Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prom
 - Firebird 2.5+ (o compatible)
 - API Keys para los modelos de IA que desees usar
 
+---
+
 ## 🔧 Instalación
 
 ### 1. Clona el repositorio:
 ```bash
 git clone https://github.com/miguelmartmart/jddc_materiales_local_bd_ia.git
-cd jddc_materiales_local_bd_ia
+cd jddc_materiales_local_bd_ia/bots/interjddcia
 ```
 
 ### 2. Instala las dependencias:
@@ -53,38 +65,34 @@ GEMINI_API_KEY=tu_api_key_de_gemini
 OPENAI_API_KEY=tu_api_key_de_openai
 
 # Database Configuration
-DB_HOST=localhost
+DB_HOST=192.168.0.254
 DB_PORT=3050
-DB_NAME=ruta/a/tu/base.fdb
+DB_NAME=C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb
 DB_USER=SYSDBA
 DB_PASSWORD=masterkey
 ```
 
-### 4. Configura la conexión a tu base de datos:
+### 4. Arranca el sistema:
 
-Edita `frontend/assets/js/core/constants.js` y actualiza `DB_CONFIG`:
-
-```javascript
-export const DB_CONFIG = {
-    HOST: 'tu_host',
-    PORT: 3050,
-    DATABASE: 'C:\\ruta\\a\\tu\\database.fdb',
-    USERNAME: 'SYSDBA',
-    PASSWORD: 'masterkey'
-};
+**Windows (recomendado):**
+```
+ARRANCAR_DEVIA.bat   ← doble clic
 ```
 
-### 5. (Opcional) Genera metadatos de tu base de datos:
-
+**Manual:**
 ```bash
-python backend/scripts/extract_db_metadata.py
+python start_backend.py
+# o
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-Esto creará archivos JSON optimizados con la estructura de tu BD.
+Accede a:
+- **Frontend**: http://localhost:8001
+- **API Docs**: http://localhost:8001/docs
+
+---
 
 ## 🗄️ Base de Datos Firebird — Configuración Real
-
-### Archivo `.fdb` de la empresa
 
 | Parámetro | Valor real |
 |-----------|-----------|
@@ -98,142 +106,105 @@ Esto creará archivos JSON optimizados con la estructura de tu BD.
 > ⚠️ El hostname `HOST1.JDDC.local` **NO funciona** en Python/firebirdsql en Windows.
 > Siempre usar la IP directa `192.168.0.254`.
 
-### Cómo el programa obtiene la ruta del .fdb — cadena completa
-
-```
-bots/interjddcia/.env
-  └── DB_NAME=C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb
-      DB_HOST=192.168.0.254
-      DB_PORT=3050
-      DB_USER=SYSDBA
-      DB_PASSWORD=masterkey
-          │
-          ▼
-backend/core/config/settings.py  (línea 8)
-  └── _ENV_FILE = Path(__file__).parent.parent.parent.parent / ".env"
-      # Resuelve a: bots/interjddcia/.env  (4 niveles arriba del settings.py)
-      class Settings(BaseSettings):
-          DB_NAME: str = ""   ← se rellena desde .env
-          DB_HOST: str = "localhost"
-          ...
-      settings = Settings()  ← singleton global importado por todo el backend
-          │
-          ▼
-Cualquier servicio (employees, chat, articles, db_explorer...):
-  └── from backend.core.config.settings import settings
-      config = DBConfig(
-          host=settings.DB_HOST,       # "192.168.0.254"
-          port=settings.DB_PORT,       # 3050
-          database=settings.DB_NAME,   # "C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb"
-          user=settings.DB_USER,       # "SYSDBA"
-          password=settings.DB_PASSWORD # "masterkey"
-      )
-          │
-          ▼
-backend/drivers/db/firebird_driver.py → FirebirdDriver.connect(config)
-  └── firebirdsql.connect(
-          host="192.168.0.254",
-          port=3050,
-          database="C:\\Distrito\\OBRAS\\Database\\JUANDEDI\\2021.fdb",
-          user="SYSDBA",
-          password="masterkey",
-          charset="latin1"
-      )
-      → CONEXIÓN ESTABLECIDA con el .fdb real de la empresa
-```
-
-### Caso especial: Chat IA sin db_params del frontend
-
-Cuando el cliente (gafas Meta, API directa) no envía parámetros de BD,
-`chat_db_executor.py` usa automáticamente el fallback del `.env`:
-
-```python
-# backend/modules/chat/chat_db_executor.py → _get_fallback_db_params()
-return {
-    "host":     settings.DB_HOST,      # "192.168.0.254"
-    "port":     settings.DB_PORT,      # 3050
-    "database": settings.DB_NAME,      # "C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb"
-    "user":     settings.DB_USER,      # "SYSDBA"
-    "password": settings.DB_PASSWORD,  # "masterkey"
-}
-```
-
 ### Cambiar el archivo .fdb (ej: nuevo año)
 
 ```bash
 # Editar bots/interjddcia/.env:
 DB_NAME=C:\Distrito\OBRAS\Database\JUANDEDI\2022.fdb
 
-# Reiniciar el backend para que settings.py recargue el .env:
+# Reiniciar el backend:
 ARRANCAR_DEVIA.bat
 ```
 
 ---
 
-## 🎯 Uso
-
-### Iniciar el sistema:
-
-**Windows:**
-```bash
-.\start_system.bat
-```
-
-**Manual:**
-```bash
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
-```
-
-Accede a:
-- **Frontend**: http://localhost:8001
-- **API Docs**: http://localhost:8001/docs
-
 ## 🏗️ Arquitectura
 
 ```
-backend/
-├── core/
-│   ├── abstract/      # Interfaces y clases base
-│   ├── config/        # Configuración y metadatos
-│   ├── factory/       # Factories para DB e IA
-│   └── utils/         # Utilidades (constants, encoding)
-├── drivers/
-│   ├── ai/            # Drivers de IA (Gemini, OpenAI-compatible)
-│   └── db/            # Drivers de BD (Firebird, etc.)
-├── modules/
-│   ├── articles/      # Gestión de artículos
-│   ├── chat/          # Chat con IA
-│   ├── models/        # Gestión de modelos IA
-│   └── prompts/       # Gestión de prompts
-└── main.py            # Punto de entrada
-
-frontend/
-├── assets/
-│   ├── css/           # Estilos
-│   └── js/
-│       ├── core/      # Framework (app.js, constants.js)
-│       └── modules/   # Módulos por pantalla
-└── index.html         # SPA
+bots/interjddcia/
+├── backend/
+│   ├── core/
+│   │   ├── config/        # Settings, concept_index.json, table_index.json (SIUO)
+│   │   ├── context/       # ContextManager (historial multi-turno)
+│   │   └── utils/         # Constantes, encoding, network audit
+│   ├── drivers/
+│   │   ├── ai/            # JDDCIAProvider (Qwen3 LAN), OpenAI-compatible
+│   │   └── db/            # FirebirdDriver
+│   └── modules/
+│       ├── chat/          # Pipeline chat: safety → SQL → corrección → formato
+│       │   ├── pipeline/  # Fases 0-4 del pipeline
+│       │   └── deep_analysis/  # Análisis profundo multi-fase
+│       ├── db_analyst/    # Analista BD: 70+ consultas por categoría
+│       ├── db_explorer/   # SIUO: indexación + ContextRetriever
+│       ├── db_simulator/  # Simulador SQLite para tests
+│       │   ├── schema.py          # DDL de todas las tablas
+│       │   ├── synthetic_seeder.py # Datos sintéticos realistas
+│       │   ├── driver.py          # Driver SQLite compatible Firebird
+│       │   └── data/simulator.db  # BD SQLite con datos de prueba
+│       └── models/        # Gestión de modelos IA
+├── frontend/
+│   ├── index.html         # SPA
+│   └── assets/
+│       ├── css/           # Estilos
+│       └── js/modules/    # chat.js, db_analyst.js, chat-recovery.js...
+├── tests/
+│   ├── unit/              # Tests unitarios (sin BD real ni IA)
+│   ├── integration/       # Tests de integración SIUO
+│   └── e2e/               # Tests end-to-end
+├── DEVIA.MD               # Documentación técnica completa
+├── pytest.ini             # Configuración pytest
+└── conftest.py            # Fixtures globales
 ```
+
+---
+
+## 🧠 SIUO — Sistema de Índices Ultra-Optimizado
+
+El SIUO indexa las **443 tablas** de la BD Firebird para que el ContextRetriever
+seleccione automáticamente las tablas relevantes para cada pregunta del usuario.
+
+### Ficheros del SIUO
+
+| Fichero | Descripción |
+|---------|-------------|
+| `backend/core/config/table_index.json` | Índice de tablas con columnas, n_records, descripción |
+| `backend/core/config/concept_index.json` | Mapa keyword → tablas (2.113 conceptos) |
+| `backend/core/config/graph_index.json` | Grafo de relaciones entre tablas (383 aristas) |
+| `backend/core/config/siuo_query_log.json` | Log de consultas para autoaprendizaje |
+
+### Cómo funciona
+
+```
+Pregunta usuario: "dame las últimas facturas"
+        ↓
+ContextRetriever.get_context(pregunta)
+        ↓
+1. Normaliza texto → keywords: ["ultima", "facturas"]
+2. concept_index: "facturas" → DOCCAB (TIPO=13), DOCLIN, SERIE...
+3. Grafo: expande tablas relacionadas
+4. Selecciona top-8 tablas por relevancia
+5. Devuelve contexto DDL + filtros sugeridos (~1500 tokens)
+        ↓
+LLM genera SQL con el contexto correcto
+```
+
+---
 
 ## 🔑 Sistema de Proveedores de IA
 
-El sistema separa **proveedores reales** de **esquemas de API**:
+| Proveedor | Uso | Configuración |
+|-----------|-----|---------------|
+| **Qwen3 VL 30B (LAN)** | Principal — datos reales de BD | `192.168.0.36` (LMStudio) |
+| **Groq** | Fallback rápido | `GROQ_API_KEY` en `.env` |
+| **OpenRouter** | Fallback multi-modelo | `OPENROUTER_API_KEY` en `.env` |
+| **Google Gemini** | Fallback | `GEMINI_API_KEY` en `.env` |
+| **OpenAI** | Fallback | `OPENAI_API_KEY` en `.env` |
 
-- **Groq**: Modelos Llama y Mixtral ultra-rápidos
-- **OpenRouter**: Acceso a Claude, GPT-4, DeepSeek, Qwen, etc.
-- **Google Gemini**: Modelos nativos de Google
-- **OpenAI**: GPT models directos
+> ⚠️ **Seguridad**: Los datos reales de la BD **nunca** se envían a proveedores externos.
+> Solo el modelo LAN (Qwen3) recibe datos reales. Los modelos externos solo reciben
+> el esquema de tablas (sin datos).
 
-Configuración en `backend/core/config/ai_providers_config.json`
-
-## 📊 Sistema de Metadatos
-
-- **Extracción automática**: Script que analiza tu BD Firebird
-- **Optimización para IA**: Solo envía información relevante
-- **Categorización inteligente**: Clasifica tablas automáticamente
-- **Ahorro de tokens**: ~90% menos tokens enviados a la IA
+---
 
 ## 🛡️ Seguridad
 
@@ -241,94 +212,104 @@ Configuración en `backend/core/config/ai_providers_config.json`
 - ✅ `.gitignore` configurado para secretos
 - ✅ Validación de consultas SQL (solo SELECT)
 - ✅ Límites automáticos en consultas (FIRST 100)
+- ✅ `AI_LOCAL_ONLY` mode: bloquea todos los modelos externos
+- ✅ Network audit: registra todas las llamadas de red
+
+---
 
 ## 🧪 Tests
 
-El proyecto incluye una suite de tests automatizados con **pytest**.
+### Estado actual (03/07/2026)
+
+```
+tests/                          10.139 passed
+                                   162 skipped
+                                    70 xfailed  (vacíos en simulador — esperado)
+                                     7 failed   (aislamiento de tests — pasan solos)
+```
 
 ### Ejecutar tests
 
 ```bash
-# Desde la raíz del proyecto interjddcia
-pushd "C:\...\interjddcia"
-.venv\Scripts\python.exe -m pytest backend/tests --rootdir=. -v
-```
+# Todos los tests (desde bots/interjddcia/)
+python -m pytest tests/ --tb=no -q
 
-### Resultado actual
+# Solo tests unitarios (rápido, sin BD real)
+python -m pytest tests/unit/ --tb=short -q
 
-```
-38 passed, 1 warning in 1.13s
+# Tests de integración SIUO
+python -m pytest tests/integration/ --tb=short -q
+
+# Un fichero específico
+python -m pytest tests/unit/test_simulator_sql_comprehensive.py -v
 ```
 
 ### Estructura de tests
 
 ```
-backend/tests/
-├── __init__.py
-└── modules/
-    └── employees/
-        ├── test_service.py   # 25 tests: _map_row_to_employee + EmployeesService
-        └── test_router.py    # 13 tests: GET /api/employees-real
+tests/
+├── unit/
+│   ├── test_simulator_sql_comprehensive.py  # 156 tests SQL en simulador
+│   ├── test_analista_bd_catalog.py          # 70 tests analista BD
+│   ├── test_db_simulator_queries.py         # 57 tests queries simulador
+│   ├── test_db_simulator_core.py            # Tests core simulador
+│   ├── test_knowledge_and_helpers_comprehensive.py  # 1200+ tests helpers
+│   ├── test_context_and_multiturn_chat.py   # Tests chat multi-turno
+│   ├── test_ultra_resilience.py             # Tests resiliencia SQL
+│   ├── test_deep_analysis_*.py              # Tests análisis profundo
+│   └── ...
+├── integration/
+│   ├── test_siuo_retriever.py               # 16 tests SIUO retriever
+│   └── test_sistemas_ia.py                  # Tests sistemas IA
+└── test_context_retriever_questions.py      # 44 tests preguntas reales
 ```
 
-### Configuración
+### DB Simulator
 
-- **`pytest.ini`**: testpaths, pythonpath, verbosidad
-- **`conftest.py`**: sys.path + env vars mínimas para entornos sin `.env`
+El **DB Simulator** permite ejecutar tests SQL sin necesidad de la BD Firebird real.
+Usa SQLite con datos sintéticos que replican la estructura de la BD JDDC.
 
----
-
-## 🔌 API Empleados
-
-### `GET /api/employees-real`
-
-Expone la tabla `RECURSO` de Firebird con jerarquía departamental.
-
-**Respuesta:**
-```json
-{
-  "employees": [
-    {
-      "code": 14,
-      "fullName": "GARCIA GIL, ADRIAN",
-      "nif": "48510320P",
-      "nss": "301056457317",
-      "email": null,
-      "phone": "601107251",
-      "position": null,
-      "parentCode": 2,
-      "departmentOrder": 14
-    }
-  ]
-}
-```
-
-| Campo             | Origen Firebird | Descripción                        |
-|-------------------|-----------------|------------------------------------|
-| `code`            | `CODIGO`        | ID único del registro              |
-| `fullName`        | `DESCRIPCION`   | Nombre del empleado/departamento   |
-| `parentCode`      | `CODPADRE`      | Código del departamento padre      |
-| `departmentOrder` | `ORDEN`         | Orden de visualización             |
-
-Integración con el Portal de Empleados (NestJS):
-```bash
-RESOURCES_SERVICE_URL=http://localhost:8001/api
+```python
+# Usar el simulador en tests
+from backend.modules.db_simulator.driver import SimulatorDriver
+db = SimulatorDriver()
+rows = db.execute_query("SELECT * FROM ARTICULO LIMIT 5")
 ```
 
 ---
 
-## 📚 Documentación
+## 📊 Módulo Analista BD
 
-Consulta [DEVIA.MD](DEVIA.MD) para documentación técnica completa:
-- Arquitectura detallada
-- Patrones de diseño
-- Guías de desarrollo
-- Sistema de metadatos
-- Extensibilidad
+El módulo `db_analyst` proporciona **70+ consultas SQL predefinidas** organizadas por categoría:
+
+| Categoría | Descripción |
+|-----------|-------------|
+| **Gerencia** | KPIs globales, facturación, proyectos |
+| **Contabilidad** | IVA, recibos, aging, variación precios |
+| **Almacén** | Stock, roturas, valor inventario, ubicaciones |
+| **Comercial** | Ranking clientes, estacionalidad, ciclo vida |
+| **Predicciones** | Tendencias, RFM, proyecciones |
+| **Alertas** | Duplicados, anomalías, incoherencias |
+| **Reporting** | Cuadro mando, dashboards, KPIs financieros |
+
+Acceso desde el frontend: pestaña **"Analista BD"**.
+
+---
+
+## 📚 Documentación adicional
+
+| Fichero | Contenido |
+|---------|-----------|
+| [DEVIA.MD](DEVIA.MD) | Documentación técnica completa del sistema |
+| [SIUO_SISTEMA_COMPLETO.md](SIUO_SISTEMA_COMPLETO.md) | Documentación del SIUO |
+| [PLAN_OPTIMIZACION_SIUO_v2.md](PLAN_OPTIMIZACION_SIUO_v2.md) | Plan de mejoras SIUO |
+| [PENDIENTE_REFACTORIZACION.md](PENDIENTE_REFACTORIZACION.md) | Tareas pendientes |
+| [PENDIENTES_QUERY_LIBRARY.md](PENDIENTES_QUERY_LIBRARY.md) | Mejoras query library |
+| [README2_DB_EXPLORER_SIUO.md](README2_DB_EXPLORER_SIUO.md) | DB Explorer detallado |
+
+---
 
 ## 🤝 Contribuir
-
-Las contribuciones son bienvenidas:
 
 1. Fork el proyecto
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
@@ -343,10 +324,3 @@ Este proyecto está bajo licencia MIT.
 ## 👤 Autor
 
 Miguel Martínez - [@miguelmartmart](https://github.com/miguelmartmart)
-
-## 🙏 Agradecimientos
-
-- Google Gemini por el modelo de IA
-- Groq por la inferencia ultra-rápida
-- OpenRouter por el acceso a múltiples modelos
-- Firebird por la base de datos robusta
