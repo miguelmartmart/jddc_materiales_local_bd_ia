@@ -118,12 +118,54 @@ class ModelDiscoveryService:
             logger.error(f"Groq discovery error: {e}")
             return []
 
+    async def discover_lmstudio(self, base_url: str) -> List[Dict[str, Any]]:
+        """
+        Descubre modelos disponibles en un servidor LM Studio via GET /v1/models.
+        Devuelve [] si LM Studio no está disponible (timeout, error de conexión, etc.).
+        """
+        url = base_url.rstrip("/") + "/v1/models"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        models = []
+                        for m in data.get("data", []):
+                            model_id = m.get("id", "")
+                            family = "qwen" if "qwen" in model_id.lower() else "other"
+                            logical_id = f"jddcia-lmstudio-{model_id.replace('/', '-')}"
+                            models.append({
+                                "id": logical_id,
+                                "model_id": model_id,
+                                "base_url": base_url.rstrip("/") + "/v1",
+                                "schema": "openai_compatible",
+                                "api_key": "lm-studio",
+                                "provider": "jddcia",
+                                "family": family,
+                            })
+                        return models
+                    return []
+        except Exception as e:
+            logger.debug(f"[LMStudio] No disponible en {base_url}: {e}")
+            return []
+
     async def discover_all(self):
         results = {}
         results['gemini'] = await self.discover_google()
         results['openai'] = await self.discover_openai()
         results['anthropic'] = await self.discover_anthropic()
         results['groq'] = await self.discover_groq()
+
+        # Descubrir LM Studio en IP y mDNS, deduplicar por model_id
+        lmstudio_ip   = await self.discover_lmstudio("http://172.19.64.1:1234")
+        lmstudio_mdns = await self.discover_lmstudio("http://jddcia.local:1234")
+        seen_model_ids: set = set()
+        lmstudio_models: List[Dict[str, Any]] = []
+        for model in lmstudio_ip + lmstudio_mdns:
+            if model["model_id"] not in seen_model_ids:
+                seen_model_ids.add(model["model_id"])
+                lmstudio_models.append(model)
+        results["lmstudio"] = lmstudio_models
         return results
 
 discovery_service = ModelDiscoveryService()

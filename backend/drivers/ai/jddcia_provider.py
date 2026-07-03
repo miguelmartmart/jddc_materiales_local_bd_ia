@@ -407,6 +407,38 @@ class JDDCIAProvider(AIProvider):
             "Content-Type": "application/json",
         }
 
+        # ── max_tokens con prioridad: JSON modelo → config.json → auto(50%) ──
+        extra = getattr(config, "extra_params", {})
+        context_limit = int(extra.get("context_limit", 4096))
+        parameters = extra.get("parameters") or {}
+
+        # Prioridad 1: parameters.max_tokens del JSON del modelo
+        if parameters.get("max_tokens"):
+            self._max_tokens = int(parameters["max_tokens"])
+        else:
+            # Prioridad 2: lan_model_max_tokens de config.json
+            global_override = None
+            try:
+                if os.path.exists(_CONFIG_JSON_PATH):
+                    with open(_CONFIG_JSON_PATH, "r") as f:
+                        cfg_json = json.load(f)
+                    global_override = cfg_json.get("lan_model_max_tokens")
+            except Exception:
+                pass
+            if global_override:
+                self._max_tokens = int(global_override)
+            else:
+                # Prioridad 3: 50% del contexto (mínimo 512, máximo 8192)
+                self._max_tokens = max(512, min(8192, context_limit // 2))
+
+        # ── ContextManager para gestión inteligente de tokens ─────────────────
+        from backend.core.context.context_manager import ContextManager, ContextManagerConfig
+        ctx_cfg = ContextManagerConfig(
+            model_context_limit=context_limit,
+            max_tokens_response=self._max_tokens,
+        )
+        self._context_manager = ContextManager(ctx_cfg)
+
     async def _get_working_base_url(self) -> str:
         """
         Devuelve la base_url que funciona actualmente.
@@ -512,7 +544,7 @@ class JDDCIAProvider(AIProvider):
         payload = {
             "model": self.model_name,
             "messages": messages,
-            "max_tokens": 2048,
+            "max_tokens": getattr(self, "_max_tokens", 2048),
             "temperature": 0.1,
         }
 

@@ -17,11 +17,7 @@ MÓDULOS:
 
 Este fichero importa y re-exporta todos los tests para compatibilidad.
 """
-# Re-exportar todos los tests de los módulos divididos
-from tests.unit.test_siuo_carga_indices import *           # noqa: F401,F403
-from tests.unit.test_siuo_get_context import *             # noqa: F401,F403
-from tests.unit.test_siuo_normalizacion import *           # noqa: F401,F403
-from tests.unit.test_siuo_grafo import *                   # noqa: F401,F403
-from tests.unit.test_siuo_autoaprendizaje import *         # noqa: F401,F403
-from tests.unit.test_siuo_fallback_errores import *        # noqa: F401,F403
-from tests.unit.test_siuo_diagnostico_presupuestos import * # noqa: F401,F403
+# Los sub-módulos SIUO pendientes de creación no existen aún.
+# pytest descubre test_siuo_context_ask.py y test_siuo_diagnostico_presupuestos.py
+# directamente, por lo que este fichero solo re-exporta lo que ya existe.
+from tests.unit.test_siuo_diagnostico_presupuestos import *  # noqa: F401,F403

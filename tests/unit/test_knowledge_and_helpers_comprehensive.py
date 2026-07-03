@@ -173,10 +173,10 @@ def test_detect_tipo_0_variants(question: str):
 
 @pytest.mark.parametrize("question", _TIPO_2_VARIANTS)
 def test_detect_tipo_2_variants(question: str):
-    """Variantes de albarán → TIPO = 2."""
+    """Variantes de albarán → TIPO = 11 (albarán en la BD real JDDC)."""
     result = _check_tipo(question)
-    assert "2" in result or result == "", (
-        f"Para '{question}': esperado TIPO=2, got '{result}'"
+    assert "11" in result or result == "", (
+        f"Para '{question}': esperado TIPO=11, got '{result}'"
     )
 
 

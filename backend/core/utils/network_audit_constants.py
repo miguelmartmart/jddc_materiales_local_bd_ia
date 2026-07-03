@@ -91,12 +91,16 @@ class LocalModelIds:
     El orchestrator y todos los tests lo recogerán automáticamente.
     """
     # Modelo Qwen3 VL 30B accedido por mDNS (jddcia.local)
-    QWEN3_MDNS = "jddcia-qwen3-30b"
+    QWEN3_MDNS    = "jddcia-qwen3-30b"
     # Modelo Qwen3 VL 30B accedido por IP directa (192.168.0.36)
-    QWEN3_IP   = "jddcia-qwen3-30b-ip"
+    QWEN3_IP      = "jddcia-qwen3-30b-ip"
+    # Modelo Qwen3 VL 8B en LM Studio, accedido por mDNS (jddcia.local:1234)
+    QWEN3_8B_MDNS = "jddcia-qwen3-8b"
+    # Modelo Qwen3 VL 8B en LM Studio, accedido por IP directa (172.19.64.1:1234)
+    QWEN3_8B_IP   = "jddcia-qwen3-8b-ip"
 
     # Set completo para búsquedas O(1)
-    ALL: frozenset = frozenset({QWEN3_MDNS, QWEN3_IP})
+    ALL: frozenset = frozenset({QWEN3_MDNS, QWEN3_IP, QWEN3_8B_MDNS, QWEN3_8B_IP})
 
 
 # ─── IDs de modelos IA externos (internet) ───────────────────────────────────

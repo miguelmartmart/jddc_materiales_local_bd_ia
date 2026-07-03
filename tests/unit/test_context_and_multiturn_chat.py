@@ -832,6 +832,9 @@ class TestContextSentToAI:
             captured_system_prompts.append(system_prompt)
             return "No hay SQL aquí, solo texto.", "test-model"
 
+        # db_params con host/database para que el servicio no entre en modo "Sin BD"
+        fake_db_params = {"host": "localhost", "database": "test.fdb", "user": "SYSDBA", "password": "masterkey"}
+
         with patch.object(service.model_orchestrator, 'execute_with_fallback',
                           side_effect=mock_execute_with_fallback):
             with patch('backend.modules.chat.service.get_context_retriever') as mock_r:
@@ -852,10 +855,13 @@ class TestContextSentToAI:
                 )
                 mock_r.return_value = mock_retriever
 
-                await service.process_message(
-                    "artículos más caros",
-                    {"model_id": "test-model", "confirm_data_sending": True, "db_params": None}
-                )
+                # Mockear la ejecución SQL para evitar conexión real a Firebird
+                with patch.object(service, '_execute_sql', return_value=[]) as _mock_sql:
+                    await service.process_message(
+                        "artículos más caros",
+                        {"model_id": "test-model", "confirm_data_sending": True,
+                         "db_params": fake_db_params}
+                    )
 
         assert len(captured_system_prompts) > 0, "Debe haberse llamado al orchestrator"
         # Verificar en TODOS los prompts capturados (puede haber llamada de clasificación previa
@@ -921,6 +927,9 @@ class TestContextSentToAI:
         async def mock_execute_with_fallback(system_prompt, user_message, **kwargs):
             return "Respuesta.", "test-model"
 
+        # db_params con host/database para que el servicio no entre en modo "Sin BD"
+        fake_db_params = {"host": "localhost", "database": "test.fdb", "user": "SYSDBA", "password": "masterkey"}
+
         with patch.object(service.model_orchestrator, 'execute_with_fallback',
                           side_effect=mock_execute_with_fallback):
             with patch('backend.modules.chat.service.get_context_retriever') as mock_r:
@@ -938,10 +947,13 @@ class TestContextSentToAI:
                 with patch('backend.modules.chat.service.get_semantic_schema') as mock_fallback:
                     mock_fallback.side_effect = lambda: (fallback_called.__setitem__(0, True) or "FALLBACK")
 
-                    await service.process_message(
-                        "artículos más vendidos",
-                        {"model_id": "test-model", "confirm_data_sending": True, "db_params": None}
-                    )
+                    # Mockear la ejecución SQL para evitar conexión real a Firebird
+                    with patch.object(service, '_execute_sql', return_value=[]) as _mock_sql:
+                        await service.process_message(
+                            "artículos más vendidos",
+                            {"model_id": "test-model", "confirm_data_sending": True,
+                             "db_params": fake_db_params}
+                        )
 
         assert retriever_called[0], "El ContextRetriever SIUO debe haberse llamado"
         assert not fallback_called[0], \

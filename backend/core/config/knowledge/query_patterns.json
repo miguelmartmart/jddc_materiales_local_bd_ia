@@ -22,9 +22,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 11,
+      "uses": 13,
       "discovered_at": "2026-03-17T12:19:57.323093",
-      "last_used": "2026-04-14T11:53:07.544408"
+      "last_used": "2026-07-01T12:30:42.234950"
     },
     {
       "intent": "Distribución de ESTADOPEND en presupuestos (estado real)",
@@ -34,9 +34,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 11,
+      "uses": 13,
       "discovered_at": "2026-03-17T12:19:57.347923",
-      "last_used": "2026-04-14T11:53:07.577420"
+      "last_used": "2026-07-01T12:30:42.265964"
     },
     {
       "intent": "Presupuestos aceptados por tipo de documento destino (factura/pedido)",
@@ -47,9 +47,9 @@
       ],
       "rows_returned": 4,
       "reliability": "medio",
-      "uses": 11,
+      "uses": 13,
       "discovered_at": "2026-03-17T12:19:57.374037",
-      "last_used": "2026-04-14T11:53:07.594849"
+      "last_used": "2026-07-01T12:30:42.280231"
     },
     {
       "intent": "Total presupuestos con cualquier documento destino vinculado",
@@ -60,9 +60,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 11,
+      "uses": 13,
       "discovered_at": "2026-03-17T12:19:57.398695",
-      "last_used": "2026-04-14T11:53:07.605420"
+      "last_used": "2026-07-01T12:30:42.294142"
     },
     {
       "intent": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
@@ -84,9 +84,9 @@
       ],
       "rows_returned": 1,
       "reliability": "alto",
-      "uses": 5,
+      "uses": 6,
       "discovered_at": "2026-03-17T15:05:57.260516",
-      "last_used": "2026-04-14T11:53:07.525419"
+      "last_used": "2026-07-01T12:30:41.772691"
     },
     {
       "intent": "Distribución por año",
@@ -97,9 +97,9 @@
       ],
       "rows_returned": 1,
       "reliability": "medio",
-      "uses": 10,
+      "uses": 12,
       "discovered_at": "2026-03-17T15:05:57.537099",
-      "last_used": "2026-04-14T11:53:07.533826"
+      "last_used": "2026-07-01T12:30:42.197836"
     },
     {
       "intent": "Identificar TIPO correcto para SAT/garantía (distribución real)",
@@ -288,8 +288,75 @@
       "uses": 2,
       "discovered_at": "2026-03-18T15:54:48.685014",
       "last_used": "2026-04-14T11:53:07.646043"
+    },
+    {
+      "intent": "Distribución completa de tipos de documento (TODOS los tipos existentes)",
+      "sql": "SELECT TIPO, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR, CAST(AVG(IMPORTETOTAL) AS NUMERIC(15,2)) AS MEDIA_EUR FROM DOCCAB GROUP BY TIPO ORDER BY N DESC",
+      "tables": [
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 3,
+      "discovered_at": "2026-07-01T12:30:41.789477",
+      "last_used": "2026-07-01T12:30:42.439959"
+    },
+    {
+      "intent": "Distribución por mes del año actual (TIPO = 0)",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, EXTRACT(MONTH FROM FECHA) AS MES, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE TIPO = 0 AND FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY EXTRACT(YEAR FROM FECHA), EXTRACT(MONTH FROM FECHA) ORDER BY ANO DESC, MES DESC",
+      "tables": [
+        "FECHA),",
+        "FECHA)",
+        "DOCCAB",
+        "CURRENT_DATE)"
+      ],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 2,
+      "discovered_at": "2026-07-01T12:30:41.822177",
+      "last_used": "2026-07-01T12:30:42.218422"
+    },
+    {
+      "intent": "Columnas de DOCCAB que contienen ESTADO o ACEPTA (metadatos BD)",
+      "sql": "SELECT name AS CAMPO FROM pragma_table_info('DOCCAB') WHERE (UPPER(name) LIKE '%ESTADO%' OR UPPER(name) LIKE '%ACEPTA%' OR UPPER(name) LIKE '%SEGUIM%' OR UPPER(name) LIKE '%RESULT%') ORDER BY cid LIMIT 20",
+      "tables": [
+        "PRAGMA_TABLE_INFO('DOCCAB')"
+      ],
+      "rows_returned": 1,
+      "reliability": "alto",
+      "uses": 1,
+      "discovered_at": "2026-07-01T12:30:42.315145",
+      "last_used": "2026-07-01T12:30:42.315145"
+    },
+    {
+      "intent": "Distribución por año (todos los tipos)",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE FECHA IS NOT NULL GROUP BY EXTRACT(YEAR FROM FECHA) ORDER BY ANO DESC",
+      "tables": [
+        "FECHA)",
+        "DOCCAB"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 1,
+      "discovered_at": "2026-07-01T12:30:42.468791",
+      "last_used": "2026-07-01T12:30:42.468791"
+    },
+    {
+      "intent": "Distribución por mes del año actual (todos los tipos)",
+      "sql": "SELECT EXTRACT(YEAR FROM FECHA) AS ANO, EXTRACT(MONTH FROM FECHA) AS MES, COUNT(*) AS N, CAST(SUM(IMPORTETOTAL) AS NUMERIC(15,2)) AS TOTAL_EUR FROM DOCCAB WHERE FECHA IS NOT NULL AND EXTRACT(YEAR FROM FECHA) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY EXTRACT(YEAR FROM FECHA), EXTRACT(MONTH FROM FECHA) ORDER BY ANO DESC, MES DESC",
+      "tables": [
+        "FECHA),",
+        "FECHA)",
+        "DOCCAB",
+        "CURRENT_DATE)"
+      ],
+      "rows_returned": 1,
+      "reliability": "medio",
+      "uses": 1,
+      "discovered_at": "2026-07-01T12:30:42.481672",
+      "last_used": "2026-07-01T12:30:42.481672"
     }
   ],
-  "_count": 23,
-  "_updated_at": "2026-03-18T15:54:48.685014"
+  "_count": 28,
+  "_updated_at": "2026-07-01T12:30:42.481672"
 }

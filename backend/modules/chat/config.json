@@ -8,5 +8,9 @@
     "lan_max_retries": 10,
     "_lan_max_retries_comment": "Número máximo de rondas de reintento en modo LAN_ONLY antes de devolver error. Cada ronda prueba todos los modelos LAN. Rango recomendado: 5-15.",
     "lan_read_timeout_s": 180,
-    "_lan_read_timeout_s_comment": "Timeout de lectura en segundos para inferencia LAN (Qwen3 30B puede tardar 30-60s en la primera petición; prompts grandes de DeepAnalysis pueden tardar 120-180s). El connect timeout se mantiene en 3s."
+    "_lan_read_timeout_s_comment": "Timeout de lectura en segundos para inferencia LAN (Qwen3 30B puede tardar 30-60s en la primera petición; prompts grandes de DeepAnalysis pueden tardar 120-180s). El connect timeout se mantiene en 3s.",
+    "lan_model_max_tokens": 4096,
+    "_lan_model_max_tokens_comment": "Máximo de tokens a generar por respuesta en modo LAN (Qwen3 30B). Valor 512 causaba respuestas cortadas. Mínimo recomendado: 2048. Puede subirse hasta 8192.",
+    "lan_model_context_limit": 32768,
+    "_lan_model_context_limit_comment": "Límite de contexto total del modelo Qwen3 30B en tokens. Usado para calcular el presupuesto de tokens disponible para el prompt de entrada."
 }

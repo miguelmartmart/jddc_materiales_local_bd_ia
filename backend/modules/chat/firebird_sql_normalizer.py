@@ -676,6 +676,14 @@ class FirebirdSQLNormalizer:
             changes.append("ISNULL(a,b) → COALESCE(a,b) [Firebird 2.5]")
             s = new_s
 
+        # ── CAST(x AS TEXT) → CAST(x AS VARCHAR(100)) ────────────────────────
+        # Firebird 2.5 no tiene tipo TEXT. VARCHAR(100) es equivalente seguro.
+        import re as _re
+        new_s = _re.sub(r'\bAS\s+TEXT\b', 'AS VARCHAR(100)', s, flags=_re.IGNORECASE)
+        if new_s != s:
+            changes.append("CAST(x AS TEXT) → CAST(x AS VARCHAR(100)) [Firebird 2.5 no tiene TEXT]")
+            s = new_s
+
         if changes:
             logger.info(f"[SQL NORMALIZER paso 21] Funciones no soportadas corregidas: {changes}")
 

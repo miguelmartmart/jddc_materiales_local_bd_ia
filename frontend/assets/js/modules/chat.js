@@ -626,6 +626,10 @@ export class ChatModule {
       const noDbToggle = document.getElementById("no-db-toggle");
       const noDbMode = noDbToggle ? noDbToggle.checked : false;
 
+      // Leer selector de motor LAN (30B vs 8B)
+      const lanSelector = document.getElementById("chat-lan-model-selector");
+      const preferred_model_id = lanSelector ? lanSelector.value : null;
+
       const response = await fetch(`${this.apiBase}/send`, {
         method: HTTP_METHODS.POST,
         headers: { "Content-Type": API.HEADERS.CONTENT_TYPE },
@@ -633,6 +637,7 @@ export class ChatModule {
           message: message,
           db_params: noDbMode ? null : dbParams, // Sin BD → no enviar params
           model_id: selectedModel,
+          preferred_model_id: preferred_model_id, // Motor LAN preferido (30B / 8B)
           conversation_history: this.conversationHistory,
           images: imagesToSend,
           session_id: this.currentSessionId, // Send current session ID

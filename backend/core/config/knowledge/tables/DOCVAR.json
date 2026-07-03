@@ -1,0 +1,61 @@
+{
+  "columns_real": [
+    "BIC",
+    "CODDOCUMENTO",
+    "CODPAIS",
+    "CP",
+    "DIR",
+    "DIRCODPAIS",
+    "DIRLETRA",
+    "DIRNUM",
+    "DIRPISO",
+    "DIRSIGLA",
+    "EMAIL",
+    "FAX",
+    "IBAN",
+    "MOVIL",
+    "NIF",
+    "OBSERVACIONES",
+    "PAIS",
+    "POB",
+    "RAZONSOCIAL",
+    "TELEFONO",
+    "TIPO",
+    "TIPOIDFISCAL",
+    "TIPOPERSONA",
+    "TIPORESIDENCIA",
+    "WEB"
+  ],
+  "columns_count": 25,
+  "record_count_real": 2612,
+  "record_count_source": "firebird_count",
+  "_table": "DOCVAR",
+  "_updated_at": "2026-06-24T15:58:37.123318",
+  "columns_source": "firebird_rdb",
+  "sample": [
+    {
+      "TIPO": 0,
+      "CODDOCUMENTO": 100,
+      "RAZONSOCIAL": "MARPE IBERICA",
+      "CODPAIS": "ES",
+      "NIF": "",
+      "TIPOIDFISCAL": 1
+    },
+    {
+      "TIPO": 0,
+      "CODDOCUMENTO": 111,
+      "RAZONSOCIAL": "SUR 89",
+      "CODPAIS": "ES",
+      "NIF": "",
+      "TIPOIDFISCAL": 1
+    },
+    {
+      "TIPO": 0,
+      "CODDOCUMENTO": 994,
+      "RAZONSOCIAL": "JESUS BELMONTE",
+      "CODPAIS": "ES",
+      "NIF": "",
+      "TIPOIDFISCAL": 1
+    }
+  ]
+}

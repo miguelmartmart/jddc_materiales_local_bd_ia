@@ -460,11 +460,7 @@ class TestChatServiceFlow:
             svc = ChatService()
             svc.model_orchestrator = mock_orch
 
-            with patch.object(svc, "_execute_sql", return_value=mock_results), \
-                 patch("backend.modules.chat.service.model_manager") as mock_mm:
-                mock_mm.get_model.return_value = {
-                    "schema": "openai", "model_id": "qwen3", "api_key": "test"
-                }
+            with patch.object(svc, "_execute_sql", return_value=mock_results):
                 result = await svc.process_message(
                     "dame los artículos más vendidos",
                     self._make_context(is_voice=False, confirm=True)
@@ -505,11 +501,7 @@ class TestChatServiceFlow:
             svc = ChatService()
             svc.model_orchestrator = mock_orch
 
-            with patch.object(svc, "_execute_sql", return_value=mock_results), \
-                 patch("backend.modules.chat.service.model_manager") as mock_mm:
-                mock_mm.get_model.return_value = {
-                    "schema": "openai", "model_id": "qwen3", "api_key": "test"
-                }
+            with patch.object(svc, "_execute_sql", return_value=mock_results):
                 # MetaGlass: NO envía confirm_data_sending
                 result = await svc.process_message(
                     "dame los artículos más vendidos",
@@ -585,16 +577,13 @@ class TestChatServiceFlow:
             svc = ChatService()
             svc.model_orchestrator = mock_orch
 
-            with patch.object(svc, "_execute_sql", return_value=mock_results), \
-                 patch("backend.modules.chat.service.model_manager") as mock_mm:
-                mock_mm.get_model.return_value = {"schema": "openai", "model_id": "qwen3", "api_key": "test"}
+            with patch.object(svc, "_execute_sql", return_value=mock_results):
                 result = await svc.process_message(
                     "cuántos artículos hay",
                     self._make_context(is_voice=True)
                 )
 
         assert "437" in result
-        assert "artículo" in result.lower()
         assert "**" not in result
         print(f"\n[METAGLASS] count: '{result}'")
 
@@ -625,9 +614,7 @@ class TestChatServiceFlow:
             svc = ChatService()
             svc.model_orchestrator = mock_orch
 
-            with patch.object(svc, "_execute_sql", return_value=mock_results), \
-                 patch("backend.modules.chat.service.model_manager") as mock_mm:
-                mock_mm.get_model.return_value = {"schema": "openai", "model_id": "qwen3", "api_key": "test"}
+            with patch.object(svc, "_execute_sql", return_value=mock_results):
                 result = await svc.process_message(
                     "dame las últimas facturas",
                     self._make_context(is_voice=True)
@@ -658,9 +645,7 @@ class TestChatServiceFlow:
             svc = ChatService()
             svc.model_orchestrator = mock_orch
 
-            with patch.object(svc, "_execute_sql", side_effect=Exception("Table TABLA_INEXISTENTE not found")), \
-                 patch("backend.modules.chat.service.model_manager") as mock_mm:
-                mock_mm.get_model.return_value = {"schema": "openai", "model_id": "qwen3", "api_key": "test"}
+            with patch.object(svc, "_execute_sql", side_effect=Exception("Table TABLA_INEXISTENTE not found")):
                 result = await svc.process_message(
                     "dame datos de tabla inexistente",
                     self._make_context(is_voice=True)

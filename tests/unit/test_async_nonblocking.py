@@ -74,9 +74,8 @@ class TestServiceAsyncSqlExecutor:
         import ast
         import pathlib
 
-        service_path = pathlib.Path(
-            "backend/modules/chat/service.py"
-        ).resolve()
+        # Ruta relativa al paquete bots/interjddcia (donde está pytest.ini)
+        service_path = pathlib.Path(__file__).parent.parent.parent / "backend/modules/chat/service.py"
         source = service_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
 
@@ -89,7 +88,8 @@ class TestServiceAsyncSqlExecutor:
     def test_service_uses_run_in_executor(self):
         """service.py debe usar run_in_executor para delegar a ThreadPoolExecutor."""
         import pathlib
-        source = pathlib.Path("backend/modules/chat/service.py").resolve().read_text(encoding="utf-8")
+        service_path = pathlib.Path(__file__).parent.parent.parent / "backend/modules/chat/service.py"
+        source = service_path.read_text(encoding="utf-8")
         assert "run_in_executor" in source, (
             "service.py debe usar asyncio.run_in_executor para ejecutar "
             "el I/O sincrónico de Firebird en un ThreadPoolExecutor"
@@ -98,7 +98,8 @@ class TestServiceAsyncSqlExecutor:
     def test_sql_corrector_uses_run_in_executor(self):
         """sql_corrector.py debe usar run_in_executor para execute_func."""
         import pathlib
-        source = pathlib.Path("backend/modules/chat/sql_corrector.py").resolve().read_text(encoding="utf-8")
+        corrector_path = pathlib.Path(__file__).parent.parent.parent / "backend/modules/chat/sql_corrector.py"
+        source = corrector_path.read_text(encoding="utf-8")
         assert "run_in_executor" in source, (
             "sql_corrector.py debe usar run_in_executor para no bloquear el event loop"
         )

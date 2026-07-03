@@ -727,6 +727,15 @@
                                     style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                     <option value="">Cargando modelos...</option>
                                 </select>
+                                <label style="font-weight: 500; margin-left: 4px;">Motor LAN:</label>
+                                <select id="chat-lan-model-selector"
+                                    style="padding: 8px; border: 1px solid #93c5fd; border-radius: 4px; background: #eff6ff; color: #1e40af; font-size: 0.88em;"
+                                    title="Seleccionar motor de IA local (LAN JDDC)">
+                                    <option value="jddcia-qwen3-30b-ip">🏠 Qwen3 30B (IP)</option>
+                                    <option value="jddcia-qwen3-30b">🏠 Qwen3 30B (mDNS)</option>
+                                    <option value="jddcia-qwen3-8b-ip">⚡ Qwen3 8B (IP)</option>
+                                    <option value="jddcia-qwen3-8b">⚡ Qwen3 8B (mDNS)</option>
+                                </select>
                                 <button id="btn-chat-config" class="btn secondary" style="padding: 5px 10px;"
                                     title="Configuración Chat">⚙️</button>
                                 <button id="btn-chat-full-history" class="btn secondary" style="padding: 5px 10px;"

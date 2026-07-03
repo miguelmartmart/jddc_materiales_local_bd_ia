@@ -2,7 +2,9 @@
 schema.py — Esquemas SQLite de las tablas principales de la BD JDDC.
 
 Define las sentencias CREATE TABLE para SQLite que replican fielmente
-la estructura de la BD Firebird, usando nombres de columna idénticos.
+la estructura de la BD Firebird, usando nombres de columna idénticos
+a los de la BD real (verificados contra simulator.db / snapshot real).
+
 Importado por driver.py y snapshot_service.py.
 
 Notas de compatibilidad:
@@ -48,106 +50,120 @@ TABLE_SCHEMAS: Dict[str, str] = {
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
     "PROVEED": """
         CREATE TABLE IF NOT EXISTS PROVEED (
-            CODIGO    INTEGER PRIMARY KEY,
-            NOMBRE    TEXT    NOT NULL,
-            CIF       TEXT,
-            DIRECCION TEXT,
-            TELEFONO  TEXT,
-            EMAIL     TEXT
+            CODIGO          INTEGER PRIMARY KEY,
+            NOMBRECOMERCIAL TEXT,
+            RAZONSOCIAL     TEXT,
+            TEL             TEXT,
+            CP              TEXT,
+            NIF             TEXT,
+            CODFORMAPAGO    TEXT,
+            CODAGENTE       INTEGER DEFAULT 0,
+            BAJA            INTEGER DEFAULT 0
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
     "ARTICULO": """
         CREATE TABLE IF NOT EXISTS ARTICULO (
             CODIGO           INTEGER PRIMARY KEY,
+            CODFAMILIA       INTEGER DEFAULT 0,
             NOMBRE           TEXT    NOT NULL,
             DESCRIPCION      TEXT,
             DESCRIPCIONCORTA TEXT,
             REFERENCIA       TEXT,
-            PRECIO           REAL    DEFAULT 0.0,
-            IVA              REAL    DEFAULT 21.0,
-            CODFAMILIA       INTEGER DEFAULT 0,
-            CODPROVEEDOR     INTEGER DEFAULT 0,
+            PRECIOCOSTE      REAL    DEFAULT 0.0,
+            PRECIOVENTA      REAL    DEFAULT 0.0,
+            TIPOIVA          REAL    DEFAULT 21.0,
+            CONTROLSTOCK     INTEGER DEFAULT 0,
+            BAJA             INTEGER DEFAULT 0,
+            UNIDAD           TEXT    DEFAULT 'UD',
             STOCKARTICULO    REAL    DEFAULT 0.0,
-            UNIDAD           TEXT    DEFAULT 'UD'
+            PROVEEDDEFECTO   INTEGER DEFAULT 0
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
     "CLIENTE": """
         CREATE TABLE IF NOT EXISTS CLIENTE (
-            CODIGO     INTEGER PRIMARY KEY,
-            NOMBRE     TEXT    NOT NULL,
-            CIF        TEXT,
-            DIRECCION  TEXT,
-            POBLACION  TEXT,
-            CODPOSTAL  TEXT,
-            PROVINCIA  TEXT,
-            TELEFONO   TEXT,
-            EMAIL      TEXT,
-            CODAGENTE  INTEGER DEFAULT 0,
-            FORMAPAGO  TEXT    DEFAULT 'CONTADO'
+            CODIGO          INTEGER PRIMARY KEY,
+            NOMBRECOMERCIAL TEXT,
+            RAZONSOCIAL     TEXT,
+            TEL             TEXT,
+            CP              TEXT,
+            NIF             TEXT,
+            CODFORMAPAGO    TEXT    DEFAULT 'CONTADO',
+            CODAGENTE       INTEGER DEFAULT 0,
+            BAJA            INTEGER DEFAULT 0
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
+    # IMPORTEBASE = base imponible, IMPORTEIVA = cuota IVA, IMPORTETOTAL = total
     "DOCCAB": """
         CREATE TABLE IF NOT EXISTS DOCCAB (
-            CODIGO         INTEGER PRIMARY KEY,
-            TIPO           INTEGER NOT NULL DEFAULT 13,
-            NUMERO         INTEGER DEFAULT 0,
-            FECHA          TEXT    NOT NULL,
-            SERIE          TEXT    DEFAULT 'A',
-            CODCLIENTE     INTEGER DEFAULT 0,
-            CODAGENTE      INTEGER DEFAULT 0,
-            CODALMACEN     INTEGER DEFAULT 1,
-            BASEIMPONIBLE  REAL    DEFAULT 0.0,
-            IVA            REAL    DEFAULT 21.0,
-            IMPORTETOTAL   REAL    DEFAULT 0.0,
-            ESTADO         INTEGER DEFAULT 0,
-            ESTADOPEND        INTEGER DEFAULT 0,
-            ESTADOPENDVENCOM  INTEGER DEFAULT 0,
+            CODIGO            INTEGER PRIMARY KEY,
+            TIPO              INTEGER NOT NULL DEFAULT 13,
+            SERIE             TEXT    DEFAULT 'A',
+            NUMERO            INTEGER DEFAULT 0,
+            FECHA             TEXT    NOT NULL,
+            CODCLIENTE        INTEGER DEFAULT 0,
+            CODAGENTE         INTEGER DEFAULT 0,
+            CODALMACEN        INTEGER DEFAULT 1,
+            CODFORMAPAGO      TEXT,
             DESCRIPCION       TEXT,
             OBSERVACIONES     TEXT,
+            IMPORTEBASE       REAL    DEFAULT 0.0,
+            IMPORTEIVA        REAL    DEFAULT 0.0,
+            IMPORTETOTAL      REAL    DEFAULT 0.0,
+            ESTADO            INTEGER DEFAULT 0,
+            ESTADOPEND        INTEGER DEFAULT 0,
+            ESTADOPENDVENCOM  INTEGER DEFAULT 0,
             CODPROYECTO       TEXT    DEFAULT NULL
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
+    # DESCUENTOS (no DESCUENTO), sin columna IMPORTE directa
     "DOCLIN": """
         CREATE TABLE IF NOT EXISTS DOCLIN (
-            CODIGO      INTEGER NOT NULL,
-            NUMLINIA    INTEGER NOT NULL,
-            CODART      TEXT,
-            DESCRIPCION TEXT,
-            CANTIDAD    REAL    DEFAULT 1.0,
-            PRECIO      REAL    DEFAULT 0.0,
-            DESCUENTO   REAL    DEFAULT 0.0,
-            IMPORTE     REAL    DEFAULT 0.0,
-            PRIMARY KEY (CODIGO, NUMLINIA)
+            CODDOCUMENTO INTEGER NOT NULL,
+            CODIGO       INTEGER NOT NULL,
+            CODARTICULO  TEXT,
+            DESCRIPCION  TEXT,
+            CANTIDAD     REAL    DEFAULT 1.0,
+            PRECIO       REAL    DEFAULT 0.0,
+            COSTE        REAL    DEFAULT 0.0,
+            DESCUENTOS   REAL    DEFAULT 0.0,
+            PRIMARY KEY (CODDOCUMENTO, CODIGO)
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
+    # CODAPUNTE es la PK, CONCEPTO es el texto libre
     "CAJA": """
         CREATE TABLE IF NOT EXISTS CAJA (
-            CODIGO     INTEGER PRIMARY KEY,
             FECHA      TEXT    NOT NULL,
-            CONCEPTO   TEXT,
-            IMPORTE    REAL    DEFAULT 0.0,
+            CODAPUNTE  INTEGER PRIMARY KEY,
             TIPO       INTEGER DEFAULT 1,
+            IMPORTE    REAL    DEFAULT 0.0,
+            CONCEPTO   TEXT,
             CODCLIENTE INTEGER DEFAULT 0,
-            CODAGENTE  INTEGER DEFAULT 0
+            CODUSUARIO INTEGER DEFAULT 0
         )
     """,
 
+    # Columnas verificadas contra BD real Firebird (simulator.db snapshot)
+    # ESTALMACEN: estadísticas de almacén por período (CODIGO=período, no artículo)
+    # No tiene CODARTICULO ni CODALMACEN — es una tabla de totales por período
     "ESTALMACEN": """
         CREATE TABLE IF NOT EXISTS ESTALMACEN (
-            CODIGO      INTEGER PRIMARY KEY,
-            CODART      INTEGER NOT NULL,
-            CODALMACEN  INTEGER DEFAULT 1,
-            FECHA       TEXT    NOT NULL,
-            CANTIDAD    REAL    DEFAULT 0.0,
-            COSTE       REAL    DEFAULT 0.0,
-            VENTA       REAL    DEFAULT 0.0
+            CODIGO   INTEGER PRIMARY KEY,
+            FECHA    TEXT    NOT NULL,
+            IMPCOSTE REAL    DEFAULT 0.0,
+            IMPVENTA REAL    DEFAULT 0.0
         )
     """,
 
@@ -315,15 +331,14 @@ TABLE_INDEXES: Dict[str, List[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_docdestino_dst  ON DOCDESTINO (CODDOCUMENTODESTINO)",
     ],
     "DOCLIN": [
-        "CREATE INDEX IF NOT EXISTS idx_doclin_codigo ON DOCLIN (CODIGO)",
-        "CREATE INDEX IF NOT EXISTS idx_doclin_art    ON DOCLIN (CODART)",
+        "CREATE INDEX IF NOT EXISTS idx_doclin_coddoc ON DOCLIN (CODDOCUMENTO)",
+        "CREATE INDEX IF NOT EXISTS idx_doclin_art    ON DOCLIN (CODARTICULO)",
     ],
     "ARTICULO": [
         "CREATE INDEX IF NOT EXISTS idx_art_familia ON ARTICULO (CODFAMILIA)",
         "CREATE INDEX IF NOT EXISTS idx_art_ref     ON ARTICULO (REFERENCIA)",
     ],
     "ESTALMACEN": [
-        "CREATE INDEX IF NOT EXISTS idx_est_art   ON ESTALMACEN (CODART)",
         "CREATE INDEX IF NOT EXISTS idx_est_fecha ON ESTALMACEN (FECHA)",
     ],
     "CAJA": [
@@ -332,28 +347,32 @@ TABLE_INDEXES: Dict[str, List[str]] = {
 }
 
 # ─── Mapeo columnas por tabla (para system queries RDB$) ─────────────────────
+# Columnas verificadas contra BD real Firebird (simulator.db snapshot)
 
 TABLE_COLUMNS: Dict[str, List[str]] = {
     "FAMILIA":    ["CODIGO", "NOMBRE", "DESCRIPCION"],
     "ALMACEN":    ["CODIGO", "NOMBRE", "DIRECCION"],
     "RECURSO":    ["CODIGO", "DESCRIPCION", "CODPADRE", "ORDEN", "NIF", "NSS", "TELEFONO", "EMAIL"],
-    "PROVEED":    ["CODIGO", "NOMBRE", "CIF", "DIRECCION", "TELEFONO", "EMAIL"],
-    "ARTICULO":   ["CODIGO", "NOMBRE", "DESCRIPCION", "DESCRIPCIONCORTA", "REFERENCIA",
-                   "PRECIO", "IVA", "CODFAMILIA", "CODPROVEEDOR", "STOCKARTICULO", "UNIDAD"],
+    "PROVEED":    ["CODIGO", "NOMBRECOMERCIAL", "RAZONSOCIAL", "TEL", "CP", "NIF",
+                   "CODFORMAPAGO", "CODAGENTE", "BAJA"],
+    "ARTICULO":   ["CODIGO", "CODFAMILIA", "NOMBRE", "DESCRIPCION", "DESCRIPCIONCORTA",
+                   "REFERENCIA", "PRECIOCOSTE", "PRECIOVENTA", "TIPOIVA", "CONTROLSTOCK",
+                   "BAJA", "UNIDAD", "STOCKARTICULO", "PROVEEDDEFECTO"],
     "PROYECTOS":  ["CODIGO", "NOMBRE", "CLIENTE", "FECHAINICIO", "FECHAINICIOPREV",
                    "FECHAFIN", "TIPOOBRA", "TIPORETENCION", "PORCRETENCION", "ESGASTOSGENERALES"],
     "PROYVAR":    ["CODPROYECTO", "TIPOIDFISCAL", "TIPOPERSONA", "TIPORESIDENCIA", "RAZONSOCIAL"],
     "PRESUPROYE": ["CODPROYECTO", "CODPRESUPUESTO", "CODPROYSUBCONTRATA"],
-    "CLIENTE":    ["CODIGO", "NOMBRE", "CIF", "DIRECCION", "POBLACION", "CODPOSTAL",
-                   "PROVINCIA", "TELEFONO", "EMAIL", "CODAGENTE", "FORMAPAGO"],
-    "DOCCAB":     ["CODIGO", "TIPO", "NUMERO", "FECHA", "SERIE", "CODCLIENTE", "CODAGENTE",
-                   "CODALMACEN", "BASEIMPONIBLE", "IVA", "IMPORTETOTAL", "ESTADO",
-                   "ESTADOPEND", "ESTADOPENDVENCOM", "DESCRIPCION", "OBSERVACIONES", "CODPROYECTO"],
+    "CLIENTE":    ["CODIGO", "NOMBRECOMERCIAL", "RAZONSOCIAL", "TEL", "CP", "NIF",
+                   "CODFORMAPAGO", "CODAGENTE", "BAJA"],
+    "DOCCAB":     ["CODIGO", "TIPO", "SERIE", "NUMERO", "FECHA", "CODCLIENTE", "CODAGENTE",
+                   "CODALMACEN", "CODFORMAPAGO", "DESCRIPCION", "OBSERVACIONES",
+                   "IMPORTEBASE", "IMPORTEIVA", "IMPORTETOTAL", "ESTADO",
+                   "ESTADOPEND", "ESTADOPENDVENCOM", "CODPROYECTO"],
     "DOCDESTINO": ["CODDOCUMENTO", "CODDOCUMENTODESTINO", "ORDENENVIO", "ORDENRECEPCION"],
-    "DOCLIN":     ["CODIGO", "NUMLINIA", "CODART", "DESCRIPCION",
-                   "CANTIDAD", "PRECIO", "DESCUENTO", "IMPORTE"],
-    "CAJA":       ["CODIGO", "FECHA", "CONCEPTO", "IMPORTE", "TIPO", "CODCLIENTE", "CODAGENTE"],
-    "ESTALMACEN": ["CODIGO", "CODART", "CODALMACEN", "FECHA", "CANTIDAD", "COSTE", "VENTA"],
+    "DOCLIN":     ["CODDOCUMENTO", "CODIGO", "CODARTICULO", "DESCRIPCION",
+                   "CANTIDAD", "PRECIO", "COSTE", "DESCUENTOS"],
+    "CAJA":       ["FECHA", "CODAPUNTE", "TIPO", "IMPORTE", "CONCEPTO", "CODCLIENTE", "CODUSUARIO"],
+    "ESTALMACEN": ["CODIGO", "FECHA", "IMPCOSTE", "IMPVENTA"],
     # Auxiliares
     "AGENTES":    ["CODIGO", "NOMBRE", "NIF", "TELEFONO", "EMAIL", "COMISION"],
     "TIPOSIVA":   ["CODIGO", "NOMBRE", "PORCENTAJE", "PORCENTAJE2"],

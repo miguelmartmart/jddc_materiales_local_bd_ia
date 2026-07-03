@@ -1,0 +1,30 @@
+{
+  "columns_real": [
+    "CODIGO",
+    "FECHA",
+    "IMPCOSTE",
+    "IMPCOSTE02",
+    "IMPCOSTE03",
+    "IMPCOSTE04",
+    "IMPCOSTE05",
+    "IMPCOSTE06",
+    "IMPCOSTE07",
+    "IMPCOSTE08",
+    "IMPCOSTE09",
+    "IMPVENTA",
+    "IMPVENTA02",
+    "IMPVENTA03",
+    "IMPVENTA04",
+    "IMPVENTA05",
+    "IMPVENTA06",
+    "IMPVENTA07",
+    "IMPVENTA08",
+    "IMPVENTA09"
+  ],
+  "columns_count": 20,
+  "columns_source": "firebird_rdb",
+  "record_count_real": 27913,
+  "record_count_source": "firebird_count",
+  "_table": "ESTCLIENTE",
+  "_updated_at": "2026-06-24T16:12:22.862955"
+}

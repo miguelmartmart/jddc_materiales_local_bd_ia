@@ -35,7 +35,7 @@
       },
       "stats": {
         "success": 9,
-        "failure": 501
+        "failure": 521
       },
       "base_url": "http://192.168.0.36/api/vlm/v1",
       "headers": {
@@ -77,7 +77,7 @@
       },
       "stats": {
         "success": 530,
-        "failure": 517
+        "failure": 537
       },
       "base_url": "http://jddcia.local/api/vlm/v1",
       "headers": {

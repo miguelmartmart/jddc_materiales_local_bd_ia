@@ -15,11 +15,27 @@
       "context": "Tipo detectado: unknown. Error completo: Error después de 3 intentos: Dynamic SQL Error\nSQL error code = -104\nUnexpected end of command - line 1, column 1\n",
       "extra": {},
       "resolution": null
+    },
+    {
+      "hash": "b61e15dad92f8237",
+      "status": "pending",
+      "category": "unknown_error",
+      "category_desc": "❓ Error desconocido — no clasificado por el sistema",
+      "first_seen": "2026-07-03T08:43:40.564847+00:00",
+      "last_seen": "2026-07-03T09:05:21.153556+00:00",
+      "occurrences": 5,
+      "attempts": 1,
+      "question": "dame datos de tabla inexistente",
+      "sql_failed": "SELECT FIRST 100 * FROM TABLA_INEXISTENTE",
+      "error_message": "Table TABLA_INEXISTENTE not found",
+      "context": "Tipo detectado: unknown. Error completo: Table TABLA_INEXISTENTE not found",
+      "extra": {},
+      "resolution": null
     }
   ],
   "_meta": {
     "version": "1.0",
-    "total_registered": 1,
-    "last_updated": "2026-03-16T11:46:12.569870+00:00"
+    "total_registered": 2,
+    "last_updated": "2026-07-03T08:43:40.564847+00:00"
   }
 }

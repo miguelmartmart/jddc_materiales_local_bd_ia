@@ -27,35 +27,35 @@ logger = logging.getLogger(__name__)
 def _detect_tipo_filter(msg: str) -> str:
     """
     Detecta el filtro TIPO adecuado según las palabras clave de la pregunta.
-    Devuelve la cláusula SQL (ej: 'TIPO = 2') o '' si no se detecta tipo específico.
+    Devuelve la cláusula SQL (ej: 'TIPO = 13') o '' si no se detecta tipo específico.
 
-    MAPEO VERIFICADO (2026-06-25 — confirmado por usuario):
-      0=presupuesto_cliente  1=pedido_cliente   2=albarán_cliente   3=factura_cliente
-      10=presupuesto_prov   11=pedido_prov      12=albarán_prov     13=factura_prov
-      21=mov.almacén   31=recuento   51=certificación   52=producción   61=cert.subcontrata
+    MAPEO REAL BD (confirmado inspeccionando DOCCAB):
+      0  = presupuesto cliente
+      2  = SAT / presupuesto servicio técnico
+      11 = albarán cliente
+      12 = pedido cliente
+      13 = factura cliente
+      21 = movimiento de almacén
 
     ORDEN IMPORTANTE: los tipos más específicos se comprueban antes que los más generales.
-    "albaranes sin facturar" → TIPO=2 (albarán de cliente), el verbo "facturar" no cambia esto.
+    "albaranes sin facturar" → TIPO=11 (albarán de cliente), el verbo "facturar" no cambia esto.
     """
     msg = msg.lower()
-    # Proveedor context: distinguir albarán/pedido/factura de proveedor vs cliente
-    is_proveedor = any(k in msg for k in ["proveedor", "proveedores", "compra", "compras"])
 
     # Albarán ANTES que factura (evita que "albaranes sin facturar" → TIPO=13)
     if any(k in msg for k in ["albarán", "albaran", "albaranes"]):
-        return "TIPO = 12" if is_proveedor else "TIPO = 2"   # 2=albarán cliente, 12=albarán prov
+        return "TIPO = 11"
     if any(k in msg for k in ["presupuesto", "presupuestos"]):
-        return "TIPO = 10" if is_proveedor else "TIPO = 0"
+        return "TIPO = 0"
     if any(k in msg for k in ["pedido", "pedidos"]):
-        return "TIPO = 11" if is_proveedor else "TIPO = 1"   # 11=pedido prov, 1=pedido cliente
-    if any(k in msg for k in ["abono", "abonos"]):
-        return "TIPO = 3"
-    if any(k in msg for k in ["sat", "servicio técnico", "servicio tecnico", "orden de trabajo"]):
-        return ""   # SAT no tiene TIPO fijo verificado — no filtrar por TIPO
+        return "TIPO = 12"
+    if any(k in msg for k in ["sat", "servicio técnico", "servicio tecnico",
+                               "orden de trabajo", "órdenes de trabajo", "ordenes de trabajo"]):
+        return "TIPO = 2"
     # Factura al final — es el más genérico y puede aparecer como verbo ("sin facturar")
     if any(k in msg for k in ["factura ", "facturas", "facturado", "facturación", "facturacion",
                                " factura", "la factura", "las facturas"]):
-        return "TIPO = 13" if is_proveedor else "TIPO = 3"   # 3=factura cliente, 13=factura prov
+        return "TIPO = 13"
     if any(k in msg for k in ["movimiento de almacén", "movimiento almacen", "mov almacen"]):
         return "TIPO = 21"
     return ""

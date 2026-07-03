@@ -1,0 +1,9 @@
+{
+  "simulator_enabled": false,
+  "show_disclaimer": true,
+  "test_mode": {
+    "use_real_db": true,
+    "use_ai_network": false,
+    "description": "Modo prueba: BD real Firebird activa, modelo IA de red desactivado. Usar modelo local JDDC IA Gateway (jddcia.local) si se necesita IA."
+  }
+}

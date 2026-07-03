@@ -1,6 +1,30 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import json
 from backend.core.abstract.ai import AIProvider, AIConfig
+
+_CHARS_PER_TOKEN: float = 4.0
+_SAFETY_MARGIN_TOKENS: int = 100
+
+
+def _estimate_tokens(text: str) -> int:
+    """Estima el número de tokens de un texto (1 token ≈ 4 chars, mínimo 1)."""
+    return max(1, int(len(text) / _CHARS_PER_TOKEN))
+
+
+def _truncate_to_token_budget(text: str, max_tokens: int) -> Tuple[str, bool]:
+    """
+    Trunca el texto para que quepa en max_tokens, preservando el FINAL.
+    El final del texto tiende a ser la pregunta/tarea más relevante.
+    Devuelve (texto_truncado, fue_truncado).
+    """
+    max_chars = max_tokens * int(_CHARS_PER_TOKEN)
+    marker = "\n[TRUNCADO]\n"
+    if len(text) <= max_chars:
+        return text, False
+    effective_chars = max_chars - len(marker)
+    truncated = marker + text[-effective_chars:]
+    return truncated, True
+
 
 class OpenAICompatibleProvider(AIProvider):
     """Provider for OpenAI-compatible APIs (Groq, DeepSeek, Qwen, etc.)."""
@@ -8,13 +32,17 @@ class OpenAICompatibleProvider(AIProvider):
     def __init__(self):
         self.client = None
         self.model_name = None
-    
+        self._context_limit: int = 8192
+        self._max_tokens: int = 512
+        self._timeout_s: int = 120
+        self._enable_thinking: bool = True
+
     def configure(self, config: AIConfig):
         try:
             from openai import OpenAI
         except ImportError:
             raise ImportError("openai package not installed. Run: pip install openai")
-        
+
         # Create client with custom base_url if provided
         kwargs = {"api_key": config.api_key}
         if hasattr(config, 'base_url') and config.base_url:
@@ -22,9 +50,48 @@ class OpenAICompatibleProvider(AIProvider):
             if base_url.endswith("/chat/completions"):
                 base_url = base_url.replace("/chat/completions", "")
             kwargs["base_url"] = base_url
-        
+
         self.client = OpenAI(**kwargs)
         self.model_name = config.model
+
+        # ── Leer parámetros extendidos desde extra_params ────────────────────
+        extra = getattr(config, "extra_params", {})
+        params = extra.get("parameters") or {}
+        self._context_limit = int(extra.get("context_limit", 8192))
+        self._max_tokens = int(params.get("max_tokens", 512))
+        self._timeout_s = int(params.get("timeout_s", 120))
+
+        # enable_thinking: explícito > auto-detección (Qwen3 → False)
+        if "enable_thinking" in params:
+            self._enable_thinking = bool(params["enable_thinking"])
+        elif "qwen3" in (self.model_name or "").lower():
+            self._enable_thinking = False
+        else:
+            self._enable_thinking = True
+
+    def _build_extra_body(self) -> Optional[Dict]:
+        """Devuelve extra_body para la petición (enable_thinking para Qwen3)."""
+        if not self._enable_thinking:
+            return {"enable_thinking": False}
+        return None
+
+    def _build_messages(self, prompt: str, system_instruction: Optional[str] = None) -> list:
+        """Construye la lista de mensajes, truncando el prompt si supera el presupuesto."""
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+            sys_tokens = _estimate_tokens(system_instruction)
+        else:
+            sys_tokens = 0
+
+        budget_tokens = self._context_limit - self._max_tokens - _SAFETY_MARGIN_TOKENS - sys_tokens
+        prompt_tokens = _estimate_tokens(prompt)
+
+        if prompt_tokens > budget_tokens > 0:
+            prompt, _ = _truncate_to_token_budget(prompt, budget_tokens)
+
+        messages.append({"role": "user", "content": prompt})
+        return messages
     
     async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, images: list = None, audios: list = None, videos: list = None) -> str:
         if not self.client:

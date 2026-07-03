@@ -335,12 +335,17 @@ class TestFixedSQLsEstadoPend:
         assert any("DOCDESTINO" in s for s in sqls)
 
     def test_rdb_columns_sql_included_for_aceptado(self):
-        """SQL de RDB$RELATION_FIELDS se incluye para preguntas sobre aceptados."""
+        """Para preguntas sobre aceptados, se incluyen SQLs de ESTADOPEND (columna real BD)."""
         agent = make_agent()
         phase2_data = {"DOCCAB": {"has_serie": False, "has_codigoobra": False}}
         fixed = agent._build_fixed_sqls("¿cuántos presupuestos aceptados hay?", phase2_data)
         sqls = [f["sql"] for f in fixed]
-        assert any("RDB$RELATION_FIELDS" in s for s in sqls)
+        # El agente usa ESTADOPEND (columna real de DOCCAB en Firebird) para determinar
+        # el estado de los presupuestos — no RDB$RELATION_FIELDS que es una query de metadatos
+        assert any("ESTADOPEND" in s for s in sqls), (
+            "Para preguntas sobre presupuestos aceptados, debe incluirse SQL con ESTADOPEND "
+            "(columna real de DOCCAB que indica el estado del presupuesto)"
+        )
 
     def test_no_estado_sqls_for_unrelated_question(self):
         """SQLs de estado NO se incluyen para preguntas no relacionadas."""

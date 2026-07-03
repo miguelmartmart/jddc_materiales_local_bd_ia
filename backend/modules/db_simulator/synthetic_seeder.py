@@ -12,6 +12,8 @@ Genera aproximadamente:
   - 220 documentos del último mes (facturas, presupuestos, SATs…)
   - ~660 líneas de documento, 90 movimientos de caja, 180 de stock
 
+Columnas verificadas contra BD real Firebird (simulator.db snapshot).
+
 DEVIA: backend/modules/db_simulator/DEVIA.md
 """
 
@@ -52,6 +54,7 @@ class SyntheticSeeder:
     """
     Inserta datos sintéticos realistas en la BD SQLite del simulador.
     Limpia las tablas antes de insertar (idempotente).
+    Usa nombres de columna idénticos a la BD real Firebird.
     """
 
     def __init__(self, conn: sqlite3.Connection):
@@ -127,40 +130,44 @@ class SyntheticSeeder:
         return len(rows)
 
     def _seed_proveedores(self) -> int:
-        rows = [(p[0], p[1], p[2], p[3]) for p in PROVEEDORES]
+        # PROVEED real: CODIGO, NOMBRECOMERCIAL, RAZONSOCIAL, TEL, NIF
+        rows = [(p[0], p[1], p[1], p[3], p[2]) for p in PROVEEDORES]
         self._cur.executemany(
-            "INSERT INTO PROVEED (CODIGO,NOMBRE,CIF,TELEFONO) VALUES (?,?,?,?)",
+            "INSERT INTO PROVEED (CODIGO,NOMBRECOMERCIAL,RAZONSOCIAL,TEL,NIF) "
+            "VALUES (?,?,?,?,?)",
             rows
         )
         return len(rows)
 
     def _seed_articulos(self) -> int:
+        # ARTICULO real: CODIGO, CODFAMILIA, NOMBRE, DESCRIPCION, DESCRIPCIONCORTA,
+        #                REFERENCIA, PRECIOVENTA, TIPOIVA, PROVEEDDEFECTO, STOCKARTICULO, UNIDAD
         rows = []
         for idx, art in enumerate(ARTICULOS_DATA, start=1):
             ref, nombre, desc_corta, precio, cod_fam, cod_prov, stock = art
             rows.append((
-                idx, nombre, nombre, desc_corta, ref,
-                precio, Cfg.IVA_GENERAL, cod_fam, cod_prov, stock, "UD"
+                idx, cod_fam, nombre, nombre, desc_corta, ref,
+                precio, Cfg.IVA_GENERAL, cod_prov, stock, "UD"
             ))
         self._cur.executemany(
             "INSERT INTO ARTICULO "
-            "(CODIGO,NOMBRE,DESCRIPCION,DESCRIPCIONCORTA,REFERENCIA,"
-            "PRECIO,IVA,CODFAMILIA,CODPROVEEDOR,STOCKARTICULO,UNIDAD) "
+            "(CODIGO,CODFAMILIA,NOMBRE,DESCRIPCION,DESCRIPCIONCORTA,REFERENCIA,"
+            "PRECIOVENTA,TIPOIVA,PROVEEDDEFECTO,STOCKARTICULO,UNIDAD) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             rows
         )
         return len(rows)
 
     def _seed_clientes(self) -> int:
+        # CLIENTE real: CODIGO, NOMBRECOMERCIAL, RAZONSOCIAL, TEL, NIF, CODFORMAPAGO, CODAGENTE
         rows = []
         for idx, c in enumerate(CLIENTES_DATA, start=1):
             nombre, cif, pob, cp, prov, tel, email, agente = c
-            rows.append((idx, nombre, cif, "", pob, cp, prov, tel, email, agente, "30 DÍAS"))
+            rows.append((idx, nombre, nombre, tel, cif, "CONTADO", agente))
         self._cur.executemany(
             "INSERT INTO CLIENTE "
-            "(CODIGO,NOMBRE,CIF,DIRECCION,POBLACION,CODPOSTAL,PROVINCIA,"
-            "TELEFONO,EMAIL,CODAGENTE,FORMAPAGO) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "(CODIGO,NOMBRECOMERCIAL,RAZONSOCIAL,TEL,NIF,CODFORMAPAGO,CODAGENTE) "
+            "VALUES (?,?,?,?,?,?,?)",
             rows
         )
         return len(rows)
@@ -216,35 +223,41 @@ class SyntheticSeeder:
                 descuento = round(random.choice([0.0, 0.0, 5.0, 10.0, 15.0]), 2)
                 importe   = round(precio * cantidad * (1 - descuento / 100), 2)
                 base     += importe
+                # DOCLIN real: CODDOCUMENTO, CODIGO, CODARTICULO, DESCRIPCION,
+                #              CANTIDAD, PRECIO, COSTE, DESCUENTOS
                 doclin_rows.append((
                     doc_id, linia_num,
                     str(art_id),
                     art_nombres.get(art_id, ""),
-                    cantidad, precio, descuento, importe,
+                    cantidad, precio,
+                    round(precio * 0.65, 2),  # COSTE ≈ 65% del precio
+                    descuento,
                 ))
 
             iva_total = round(base * Cfg.IVA_GENERAL / 100, 2)
             total     = round(base + iva_total, 2)
+            # DOCCAB real: CODIGO, TIPO, SERIE, NUMERO, FECHA, CODCLIENTE, CODAGENTE,
+            #              CODALMACEN, DESCRIPCION, OBSERVACIONES,
+            #              IMPORTEBASE, IMPORTEIVA, IMPORTETOTAL, ESTADO
             doccab_rows.append((
-                doc_id, tipo, numero, fecha,
+                doc_id, tipo, "A", numero, fecha,
                 cod_cli, cod_agente, 1,
-                round(base, 2), Cfg.IVA_GENERAL, total,
-                estado,
                 JDDCDocTipos.LABELS.get(tipo, ""),
                 "",
-                "A",
+                round(base, 2), iva_total, total,
+                estado,
             ))
 
         self._cur.executemany(
             "INSERT INTO DOCCAB "
-            "(CODIGO,TIPO,NUMERO,FECHA,CODCLIENTE,CODAGENTE,CODALMACEN,"
-            "BASEIMPONIBLE,IVA,IMPORTETOTAL,ESTADO,DESCRIPCION,OBSERVACIONES,SERIE) "
+            "(CODIGO,TIPO,SERIE,NUMERO,FECHA,CODCLIENTE,CODAGENTE,CODALMACEN,"
+            "DESCRIPCION,OBSERVACIONES,IMPORTEBASE,IMPORTEIVA,IMPORTETOTAL,ESTADO) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             doccab_rows
         )
         self._cur.executemany(
             "INSERT INTO DOCLIN "
-            "(CODIGO,NUMLINIA,CODART,DESCRIPCION,CANTIDAD,PRECIO,DESCUENTO,IMPORTE) "
+            "(CODDOCUMENTO,CODIGO,CODARTICULO,DESCRIPCION,CANTIDAD,PRECIO,COSTE,DESCUENTOS) "
             "VALUES (?,?,?,?,?,?,?,?)",
             doclin_rows
         )
@@ -253,24 +266,23 @@ class SyntheticSeeder:
     # ─── Caja ─────────────────────────────────────────────────────────────────
 
     def _seed_caja(self) -> int:
+        # CAJA real: FECHA, CODAPUNTE, TIPO, IMPORTE, CONCEPTO, CODCLIENTE
         n = Cfg.SYNTHETIC_CAJA
         n_clientes = len(CLIENTES_DATA)
-        agente_ids = [5, 6, 9, 10]
         rows = []
         for i in range(1, n + 1):
             importe = round(random.uniform(300.0, 8000.0), 2)
             rows.append((
-                i,
                 _rand_date(2),
-                random.choice(["Cobro factura", "Anticipo obra", "Pago proveedor", "Devolución"]),
-                importe if random.random() > 0.2 else -importe,
+                i,
                 random.choice([1, 2]),
+                importe if random.random() > 0.2 else -importe,
+                random.choice(["Cobro factura", "Anticipo obra", "Pago proveedor", "Devolución"]),
                 random.randint(1, n_clientes),
-                random.choice(agente_ids),
             ))
         self._cur.executemany(
-            "INSERT INTO CAJA (CODIGO,FECHA,CONCEPTO,IMPORTE,TIPO,CODCLIENTE,CODAGENTE) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO CAJA (FECHA,CODAPUNTE,TIPO,IMPORTE,CONCEPTO,CODCLIENTE) "
+            "VALUES (?,?,?,?,?,?)",
             rows
         )
         return len(rows)
@@ -278,26 +290,26 @@ class SyntheticSeeder:
     # ─── Estalmacen ──────────────────────────────────────────────────────────
 
     def _seed_estalmacen(self) -> int:
+        # ESTALMACEN real: CODIGO, FECHA, IMPCOSTE, IMPVENTA
+        # Es una tabla de estadísticas de almacén por período (no por artículo)
         n = Cfg.SYNTHETIC_ESTALMACEN
-        art_ids = list(range(1, len(ARTICULOS_DATA) + 1))
         art_precios = {i + 1: ARTICULOS_DATA[i][3] for i in range(len(ARTICULOS_DATA))}
         rows = []
         for i in range(1, n + 1):
-            art_id  = random.choice(art_ids)
-            precio  = art_precios.get(art_id, 100.0)
-            coste   = round(precio * random.uniform(0.55, 0.75), 2)
-            venta   = round(precio * random.uniform(0.90, 1.15), 2)
+            # Simular totales de coste/venta por período
+            base_precio = random.choice(list(art_precios.values()))
+            qty = random.randint(1, 20)
+            coste = round(base_precio * qty * random.uniform(0.55, 0.75), 2)
+            venta = round(base_precio * qty * random.uniform(0.90, 1.15), 2)
             rows.append((
                 i,
-                art_id,
-                random.choice([1, 2]),
                 _rand_date(2),
-                round(random.uniform(-5.0, 20.0), 2),
-                coste, venta,
+                coste,
+                venta,
             ))
         self._cur.executemany(
-            "INSERT INTO ESTALMACEN (CODIGO,CODART,CODALMACEN,FECHA,CANTIDAD,COSTE,VENTA) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO ESTALMACEN (CODIGO,FECHA,IMPCOSTE,IMPVENTA) "
+            "VALUES (?,?,?,?)",
             rows
         )
         return len(rows)

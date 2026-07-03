@@ -123,36 +123,32 @@ def _gen_casos_tipo(keywords, expected_contains, templates, extra_context=""):
     return casos
 
 
-# ── Casos TIPO=3 (factura cliente) ───────────────────────────────────────────
-_CASOS_TIPO3 = _gen_casos_tipo(_TIPO3_KEYWORDS, "TIPO = 3", _TEMPLATES_TIPO)
+# ── Mapeo REAL JDDC (confirmado inspeccionando DOCCAB): ──────────────────────
+#   0=presupuesto  2=SAT  11=albarán  12=pedido  13=factura  21=mov.almacén
+#   Para proveedor se usan los mismos TIPO que para cliente (sin distinción).
 
-# ── Casos TIPO=2 (albarán cliente) ───────────────────────────────────────────
-_CASOS_TIPO2 = _gen_casos_tipo(_TIPO2_KEYWORDS, "TIPO = 2", _TEMPLATES_TIPO)
+# ── Casos TIPO=13 (factura — cliente o proveedor) ─────────────────────────────
+_CASOS_TIPO13 = _gen_casos_tipo(_TIPO3_KEYWORDS, "TIPO = 13", _TEMPLATES_TIPO)
+_CASOS_TIPO13 += _gen_casos_tipo(_TIPO13_KEYWORDS, "TIPO = 13", _TEMPLATES_PROV)
 
-# ── Casos TIPO=0 (presupuesto cliente) ───────────────────────────────────────
+# ── Casos TIPO=11 (albarán — cliente o proveedor) ─────────────────────────────
+_CASOS_TIPO11 = _gen_casos_tipo(_TIPO2_KEYWORDS, "TIPO = 11", _TEMPLATES_TIPO)
+_CASOS_TIPO11 += _gen_casos_tipo(_TIPO12_KEYWORDS, "TIPO = 11", _TEMPLATES_PROV)
+
+# ── Casos TIPO=0 (presupuesto — cliente o proveedor) ─────────────────────────
 _CASOS_TIPO0 = _gen_casos_tipo(_TIPO0_KEYWORDS, "TIPO = 0", _TEMPLATES_TIPO)
+_CASOS_TIPO0 += _gen_casos_tipo(_TIPO10_KEYWORDS, "TIPO = 0", _TEMPLATES_PROV)
 
-# ── Casos TIPO=1 (pedido cliente) ─────────────────────────────────────────────
-_CASOS_TIPO1 = _gen_casos_tipo(_TIPO1_KEYWORDS, "TIPO = 1", _TEMPLATES_TIPO)
+# ── Casos TIPO=12 (pedido — cliente o proveedor) ─────────────────────────────
+_CASOS_TIPO12 = _gen_casos_tipo(_TIPO1_KEYWORDS, "TIPO = 12", _TEMPLATES_TIPO)
+_CASOS_TIPO12 += _gen_casos_tipo(_TIPO11_KEYWORDS, "TIPO = 12", _TEMPLATES_PROV)
 
-# ── Casos TIPO=13 (factura proveedor) ────────────────────────────────────────
-_CASOS_TIPO13 = _gen_casos_tipo(_TIPO13_KEYWORDS, "TIPO = 13", _TEMPLATES_PROV)
-
-# ── Casos TIPO=12 (albarán proveedor) ────────────────────────────────────────
-_CASOS_TIPO12 = _gen_casos_tipo(_TIPO12_KEYWORDS, "TIPO = 12", _TEMPLATES_PROV)
-
-# ── Casos TIPO=11 (pedido proveedor) ─────────────────────────────────────────
-_CASOS_TIPO11 = _gen_casos_tipo(_TIPO11_KEYWORDS, "TIPO = 11", _TEMPLATES_PROV)
-
-# ── Casos TIPO=10 (presupuesto proveedor) ────────────────────────────────────
-_CASOS_TIPO10 = _gen_casos_tipo(_TIPO10_KEYWORDS, "TIPO = 10", _TEMPLATES_PROV)
-
-# ── Casos SAT (sin TIPO fijo → retorna "") ───────────────────────────────────
-_CASOS_SAT = [(kw, "") for kw in _SAT_KEYWORDS]
+# ── Casos SAT → TIPO=2 en JDDC ───────────────────────────────────────────────
+_CASOS_SAT = [(kw, "TIPO = 2") for kw in _SAT_KEYWORDS]
 _CASOS_SAT += [
-    ("órdenes de trabajo pendientes", ""),
-    ("SAT abiertos este mes", ""),
-    ("servicio técnico en garantía", ""),
+    ("órdenes de trabajo pendientes", "TIPO = 2"),
+    ("SAT abiertos este mes", "TIPO = 2"),
+    ("servicio técnico en garantía", "TIPO = 2"),
 ]
 
 # ── Casos SIN TIPO detectable ─────────────────────────────────────────────────
@@ -164,16 +160,20 @@ _CASOS_NO_TIPO += [
     ("resumen del mes de enero", ""),
     ("evolución del 2026", ""),
     ("total de ventas sin especificar", ""),
+    # Abonos — TIPO no verificado en JDDC → no filtrar
+    ("abono de cliente", ""),
+    ("abonos pendientes", ""),
 ]
 
 # ── Casos de PRECEDENCIA (albarán > factura) ──────────────────────────────────
+# En JDDC: albarán → TIPO=11 (no cambia aunque aparezca "facturar" como verbo)
 _CASOS_PRECEDENCIA = [
-    ("albaranes sin facturar", "TIPO = 2"),
-    ("albarán pendiente de facturación", "TIPO = 2"),
-    ("albaranes que aún no tienen factura", "TIPO = 2"),
-    ("albaranes sin facturar de proveedor", "TIPO = 12"),
-    ("albarán de compra sin factura de compra", "TIPO = 12"),
-    ("albaranes de proveedor sin facturar", "TIPO = 12"),
+    ("albaranes sin facturar", "TIPO = 11"),
+    ("albarán pendiente de facturación", "TIPO = 11"),
+    ("albaranes que aún no tienen factura", "TIPO = 11"),
+    ("albaranes sin facturar de proveedor", "TIPO = 11"),
+    ("albarán de compra sin factura de compra", "TIPO = 11"),
+    ("albaranes de proveedor sin facturar", "TIPO = 11"),
 ]
 
 # ── Casos de DOBLE CONTEXTO (proveedor sin keyword de tipo) ──────────────────
@@ -185,14 +185,10 @@ _CASOS_COMPRAS_GENERALES = [
 
 # Combinar todos los casos
 _ALL_TIPO_CASOS = (
-    _CASOS_TIPO3
-    + _CASOS_TIPO2
-    + _CASOS_TIPO0
-    + _CASOS_TIPO1
-    + _CASOS_TIPO13
-    + _CASOS_TIPO12
+    _CASOS_TIPO13
     + _CASOS_TIPO11
-    + _CASOS_TIPO10
+    + _CASOS_TIPO0
+    + _CASOS_TIPO12
     + _CASOS_SAT
     + _CASOS_NO_TIPO
     + _CASOS_PRECEDENCIA
@@ -223,30 +219,27 @@ def test_detect_tipo_filter(question: str, expected_contains: str):
 # ─── Tests adicionales específicos ────────────────────────────────────────────
 
 @pytest.mark.parametrize("question,expected", [
-    # Casos verificados por el usuario el 2026-06-25
-    ("facturas de clientes de enero", "TIPO = 3"),
-    ("albaranes sin facturar", "TIPO = 2"),
+    # Mapeo real JDDC (0=presupuesto, 2=SAT, 11=albarán, 12=pedido, 13=factura)
+    ("facturas de clientes de enero", "TIPO = 13"),
+    ("albaranes sin facturar", "TIPO = 11"),
     ("presupuestos aceptados", "TIPO = 0"),
-    ("pedidos de proveedor pendientes", "TIPO = 11"),
-    ("albaranes de proveedor del mes", "TIPO = 12"),
+    ("pedidos de proveedor pendientes", "TIPO = 12"),
+    ("albaranes de proveedor del mes", "TIPO = 11"),
     ("facturas de proveedor sin pagar", "TIPO = 13"),
-    ("presupuestos de compra a proveedores", "TIPO = 10"),
+    ("presupuestos de compra a proveedores", "TIPO = 0"),
     ("movimiento de almacén de enero", "TIPO = 21"),
-    ("sat abiertos", ""),
-    ("orden de trabajo urgente", ""),
-    # Frases con factura como verbo (NO debería detectar TIPO si va sin artículo)
-    ("¿cuánto falta por facturar?", "TIPO = 3"),  # "facturar" contiene "factur"
-    ("documentos sin facturar", "TIPO = 3"),      # "facturar" → detectado
-    # Abono → TIPO=3 (mapeo especial)
-    ("abono de cliente", "TIPO = 3"),
-    ("abonos pendientes", "TIPO = 3"),
+    ("sat abiertos", "TIPO = 2"),
+    ("orden de trabajo urgente", "TIPO = 2"),
+    # Frases con factura como verbo → también detectan TIPO=13 (contienen "factur")
+    ("¿cuánto falta por facturar?", "TIPO = 13"),
+    ("documentos sin facturar", "TIPO = 13"),
     # Mayúsculas
-    ("FACTURAS DEL MES", "TIPO = 3"),
-    ("ALBARANES PENDIENTES", "TIPO = 2"),
+    ("FACTURAS DEL MES", "TIPO = 13"),
+    ("ALBARANES PENDIENTES", "TIPO = 11"),
     ("PRESUPUESTOS 2026", "TIPO = 0"),
 ])
 def test_detect_tipo_filter_casos_verificados(question: str, expected: str):
-    """Casos explícitamente verificados — regresión directa."""
+    """Casos explícitamente verificados — regresión directa con mapeo real JDDC."""
     assert _detect_tipo_filter(question) == expected
 
 
@@ -344,10 +337,10 @@ def test_detect_month_number_returns_int():
 
 
 def test_detect_tipo_proveedor_context():
-    """Con 'compras' en el texto, presupuesto → TIPO=10 en lugar de TIPO=0."""
-    assert _detect_tipo_filter("presupuesto de compras a proveedor") == "TIPO = 10"
-    assert _detect_tipo_filter("pedido de compra urgente") == "TIPO = 11"
-    assert _detect_tipo_filter("albarán de compra de proveedor") == "TIPO = 12"
+    """En JDDC, los TIPO de proveedor son los mismos que los de cliente (sin distinción)."""
+    assert _detect_tipo_filter("presupuesto de compras a proveedor") == "TIPO = 0"
+    assert _detect_tipo_filter("pedido de compra urgente") == "TIPO = 12"
+    assert _detect_tipo_filter("albarán de compra de proveedor") == "TIPO = 11"
 
 
 def test_detect_tipo_movimiento_almacen():

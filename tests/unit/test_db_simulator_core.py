@@ -202,7 +202,8 @@ class TestSchema:
 
     def test_articulo_has_required_columns(self):
         cols = TABLE_COLUMNS["ARTICULO"]
-        required = {"CODIGO", "NOMBRE", "PRECIO", "CODFAMILIA", "STOCKARTICULO"}
+        # Columna real en BD Firebird: PRECIOVENTA (no PRECIO)
+        required = {"CODIGO", "NOMBRE", "PRECIOVENTA", "CODFAMILIA", "STOCKARTICULO"}
         assert required.issubset(set(cols))
 
     def test_ddl_valid_sqlite(self):
@@ -244,7 +245,8 @@ class TestSimulatedFirebirdDriver:
         meta = driver_in_memory.get_table_metadata("ARTICULO")
         field_names = [m["FIELD_NAME"] for m in meta]
         assert "NOMBRE" in field_names
-        assert "PRECIO" in field_names
+        # Columna real en BD Firebird: PRECIOVENTA (no PRECIO)
+        assert "PRECIOVENTA" in field_names
 
     def test_get_table_metadata_unknown_table(self, driver_in_memory):
         meta = driver_in_memory.get_table_metadata("TABLA_INEXISTENTE")
@@ -292,7 +294,8 @@ class TestSimulatedFirebirdDriver:
         )
         field_names = [r.get("FIELD_NAME") or r.get("F") for r in rows]
         assert "NOMBRE" in field_names
-        assert "PRECIO" in field_names
+        # Columna real en BD Firebird: PRECIOVENTA (no PRECIO)
+        assert "PRECIOVENTA" in field_names
 
     def test_system_query_rdb_relation_fields_params(self, driver_in_memory):
         """RDB$RELATION_FIELDS con parámetros posicionales."""
@@ -346,8 +349,9 @@ class TestSyntheticSeeder:
         assert seeded_driver.has_data() is True
 
     def test_articulos_have_precio(self, seeded_driver):
+        # Columna real en BD Firebird: PRECIOVENTA (no PRECIO)
         rows = seeded_driver.execute_query(
-            "SELECT * FROM ARTICULO WHERE PRECIO <= 0 LIMIT 5"
+            "SELECT * FROM ARTICULO WHERE PRECIOVENTA <= 0 LIMIT 5"
         )
         assert rows == [], "Todos los artículos deben tener precio > 0"
 

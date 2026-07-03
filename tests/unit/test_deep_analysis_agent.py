@@ -35,9 +35,9 @@ from tests.unit.test_deep_analysis_2_phases import (
 )
 from tests.unit.test_deep_analysis_3_learn import (
     TestPhase4bLearnAndPersist,
+    TestFixedSQLsEstadoPend,
 )
 from tests.unit.test_deep_analysis_4_advanced import (
-    TestFixedSQLsEstadoPend,
     TestSIUOMetadataHelpers,
 )
 from tests.unit.test_deep_analysis_5_knowledge import (
@@ -47,9 +47,9 @@ from tests.unit.test_deep_analysis_5_knowledge import (
 )
 from tests.unit.test_deep_analysis_6_knowledge2 import (
     TestPhase2KnowledgeStoreCache,
-    TestPhase2KnowledgeStorePersistence,
 )
 from tests.unit.test_deep_analysis_7_knowledge3 import (
+    TestPhase2KnowledgeStorePersistence,
     TestPhase4bEstadoPendVenCom,
 )
 

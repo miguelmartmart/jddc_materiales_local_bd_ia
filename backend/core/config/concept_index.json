@@ -266,6 +266,9 @@
     ],
     "familia": [
       {
+        "table": "FAMILIA"
+      },
+      {
         "table": "ARTICULO"
       },
       {
@@ -1156,6 +1159,9 @@
     ],
     "agente": [
       {
+        "table": "AGENTE"
+      },
+      {
         "table": "AGENTES"
       },
       {
@@ -1163,9 +1169,6 @@
       },
       {
         "table": "AGEGASTPRGAVAGENTE"
-      },
-      {
-        "table": "AGENTE"
       },
       {
         "table": "AGENTEDOCUM"
@@ -3251,6 +3254,9 @@
     ],
     "agentes": [
       {
+        "table": "AGENTE"
+      },
+      {
         "table": "AGEGAST"
       },
       {
@@ -3272,6 +3278,9 @@
       }
     ],
     "clientes": [
+      {
+        "table": "CLIENTE"
+      },
       {
         "table": "AGEGAST"
       },
@@ -4247,6 +4256,10 @@
       }
     ],
     "facturas": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=13"
+      },
       {
         "table": "AGEGAST"
       },
@@ -9062,6 +9075,13 @@
     ],
     "ventas": [
       {
+        "table": "DOCLIN"
+      },
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO IN (11,13)"
+      },
+      {
         "table": "CAJAMONEDAS"
       },
       {
@@ -12952,6 +12972,9 @@
       }
     ],
     "familias": [
+      {
+        "table": "FAMILIA"
+      },
       {
         "table": "COMISART"
       }
@@ -16915,6 +16938,9 @@
     ],
     "almacenes": [
       {
+        "table": "ALMACEN"
+      },
+      {
         "table": "DOCUBIC"
       },
       {
@@ -17878,6 +17904,13 @@
     ],
     "compras": [
       {
+        "table": "DOCLIN"
+      },
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=12"
+      },
+      {
         "table": "ESTFAMILIA"
       },
       {
@@ -18378,6 +18411,9 @@
     ],
     "proveedores": [
       {
+        "table": "PROVEED"
+      },
+      {
         "table": "ESTPREVPROVEED"
       },
       {
@@ -18385,9 +18421,6 @@
       },
       {
         "table": "GESDOCFICHERO"
-      },
-      {
-        "table": "PROVEED"
       },
       {
         "table": "PROVEEDAUTORIZA"
@@ -21693,6 +21726,10 @@
     ],
     "pedidos": [
       {
+        "table": "DOCCAB",
+        "filter": "TIPO=12"
+      },
+      {
         "table": "PREPEDCAB"
       },
       {
@@ -21888,6 +21925,10 @@
       }
     ],
     "presupuestos": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=0"
+      },
       {
         "table": "PRESUPROYE"
       }
@@ -23166,6 +23207,10 @@
     ],
     "abonos": [
       {
+        "table": "DOCCAB",
+        "filter": "TIPO=3"
+      },
+      {
         "table": "SERIE"
       }
     ],
@@ -24161,6 +24206,12 @@
       },
       {
         "table": "DOCDESTINO"
+      }
+    ],
+    "albaranes": [
+      {
+        "table": "DOCCAB",
+        "filter": "TIPO=11"
       }
     ]
   }
