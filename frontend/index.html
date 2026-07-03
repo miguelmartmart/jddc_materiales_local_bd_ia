@@ -696,76 +696,222 @@
                     </div>
                 </div>
 
-                <!-- Chat -->
-                <!-- Chat -->
+                <!-- Chat IA — Responsive, expandible, UX completo -->
                 <div id="view-chat" class="view-section" style="display: none;">
-                    <!-- Chat Section with Sidebar -->
-                    <div style="display: flex; height: 75vh; gap: 20px;">
-                        <!-- History Sidebar -->
-                        <aside id="chat-history-sidebar"
-                            style="width: 250px; background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; transition: width 0.3s ease;">
-                            <div
-                                style="padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
-                                <h3 style="margin: 0; font-size: 1.1em; color: #1e293b;">Historial</h3>
-                                <button id="btn-new-chat" class="btn primary"
-                                    style="padding: 5px 10px; font-size: 0.9em; height: auto;">+ Nuevo</button>
-                            </div>
-                            <div id="history-list" style="flex: 1; overflow-y: auto; padding: 10px;">
-                                <!-- History items will be injected here -->
-                                <div style="text-align: center; color: #64748b; margin-top: 20px;">Cargando...</div>
-                            </div>
-                        </aside>
+                    <style>
+                        /* ── Chat responsive ─────────────────────────────── */
+                        #chat-outer {
+                            display: flex;
+                            flex-direction: column;
+                            height: calc(100vh - 120px);
+                            min-height: 400px;
+                            gap: 0;
+                        }
+                        /* Toolbar superior: wrappable en móvil */
+                        #chat-toolbar {
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 6px;
+                            align-items: center;
+                            padding: 8px 12px;
+                            background: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 10px 10px 0 0;
+                            border-bottom: none;
+                        }
+                        #chat-toolbar label { font-weight: 500; font-size: 0.85em; white-space: nowrap; }
+                        #chat-toolbar select, #chat-toolbar .btn {
+                            font-size: 0.85em;
+                        }
+                        /* Cuerpo: sidebar + mensajes */
+                        #chat-body {
+                            display: flex;
+                            flex: 1;
+                            overflow: hidden;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 0 0 10px 10px;
+                            background: white;
+                        }
+                        /* Sidebar historial */
+                        #chat-history-sidebar {
+                            width: 220px;
+                            min-width: 0;
+                            flex-shrink: 0;
+                            display: flex;
+                            flex-direction: column;
+                            border-right: 1px solid #e2e8f0;
+                            background: #f8fafc;
+                            transition: width 0.25s ease, opacity 0.25s ease;
+                            overflow: hidden;
+                        }
+                        #chat-history-sidebar.collapsed {
+                            width: 0 !important;
+                            opacity: 0;
+                            pointer-events: none;
+                        }
+                        /* Área de mensajes */
+                        #chat-main {
+                            flex: 1;
+                            display: flex;
+                            flex-direction: column;
+                            overflow: hidden;
+                        }
+                        #chat-messages {
+                            flex: 1;
+                            overflow-y: auto;
+                            padding: 12px;
+                            scroll-behavior: smooth;
+                        }
+                        /* Input area */
+                        .chat-input-area {
+                            display: flex;
+                            gap: 6px;
+                            align-items: center;
+                            flex-wrap: wrap;
+                            padding: 8px 10px;
+                            border-top: 1px solid #e2e8f0;
+                            background: #fafafa;
+                        }
+                        /* Botón expandir chat a pantalla completa */
+                        #btn-chat-expand {
+                            background: none;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 6px;
+                            padding: 4px 8px;
+                            cursor: pointer;
+                            font-size: 1em;
+                            color: #64748b;
+                            transition: background 0.15s;
+                        }
+                        #btn-chat-expand:hover { background: #f1f5f9; }
+                        /* Modo pantalla completa */
+                        #view-chat.chat-fullscreen {
+                            position: fixed;
+                            inset: 0;
+                            z-index: 9999;
+                            background: white;
+                            padding: 0;
+                            margin: 0;
+                            display: flex !important;
+                            flex-direction: column;
+                        }
+                        #view-chat.chat-fullscreen #chat-outer {
+                            height: 100vh;
+                            border-radius: 0;
+                        }
+                        /* Responsive: móvil (<640px) */
+                        @media (max-width: 640px) {
+                            #chat-history-sidebar { display: none !important; }
+                            #chat-toolbar { padding: 6px 8px; }
+                            #chat-toolbar label { display: none; }
+                        }
+                    </style>
 
-                        <!-- Main Chat Area -->
-                        <div class="card"
-                            style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0; height: 100%;">
-                            <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
-                                <button id="btn-toggle-history" class="btn secondary" style="padding: 5px 10px;"
-                                    title="Ocultar/Mostrar Historial">🗂️</button>
-                                <label style="font-weight: 500;">Modelo IA:</label>
-                                <select id="chat-model-selector"
-                                    style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                    <option value="">Cargando modelos...</option>
-                                </select>
-                                <label style="font-weight: 500; margin-left: 4px;">Motor LAN:</label>
-                                <select id="chat-lan-model-selector"
-                                    style="padding: 8px; border: 1px solid #93c5fd; border-radius: 4px; background: #eff6ff; color: #1e40af; font-size: 0.88em;"
-                                    title="Seleccionar motor de IA local (LAN JDDC)">
-                                    <option value="jddcia-qwen3-30b-ip">🏠 Qwen3 30B (IP)</option>
-                                    <option value="jddcia-qwen3-30b">🏠 Qwen3 30B (mDNS)</option>
-                                    <option value="jddcia-qwen3-8b-ip">⚡ Qwen3 8B (IP)</option>
-                                    <option value="jddcia-qwen3-8b">⚡ Qwen3 8B (mDNS)</option>
-                                </select>
-                                <button id="btn-chat-config" class="btn secondary" style="padding: 5px 10px;"
+                    <div id="chat-outer">
+                        <!-- ── Toolbar ─────────────────────────────────────── -->
+                        <div id="chat-toolbar">
+                            <button id="btn-toggle-history" class="btn secondary" style="padding: 4px 8px; font-size: 0.9em;"
+                                title="Ocultar/Mostrar Historial">🗂️</button>
+                            <label>Modelo:</label>
+                            <select id="chat-model-selector"
+                                style="flex: 1; min-width: 120px; max-width: 220px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                                <option value="">Cargando...</option>
+                            </select>
+                            <label>Motor LAN:</label>
+                            <select id="chat-lan-model-selector"
+                                style="padding: 6px; border: 1px solid #93c5fd; border-radius: 4px; background: #eff6ff; color: #1e40af; font-size: 0.82em;"
+                                title="Motor de IA local (LAN JDDC)">
+                                <option value="jddcia-qwen3-30b-ip">🏠 30B (IP)</option>
+                                <option value="jddcia-qwen3-30b">🏠 30B (mDNS)</option>
+                                <option value="jddcia-qwen3-8b-ip">⚡ 8B (IP)</option>
+                                <option value="jddcia-qwen3-8b">⚡ 8B (mDNS)</option>
+                            </select>
+                            <label>Fuente BD:</label>
+                            <select id="chat-db-mode"
+                                style="padding: 6px; border: 1px solid #a7f3d0; border-radius: 4px; background: #ecfdf5; color: #065f46; font-size: 0.82em; font-weight: 600;"
+                                title="Fuente de datos para el chat IA">
+                                <option value="real">🔥 BD Real</option>
+                                <option value="simulator">🎭 Simulada</option>
+                                <option value="no_db">💬 Sin BD</option>
+                            </select>
+                            <span id="chat-db-mode-badge"
+                                style="font-size: 0.75em; padding: 3px 8px; border-radius: 12px; background: #d1fae5; color: #065f46; font-weight: 600; white-space: nowrap; border: 1px solid #a7f3d0;"
+                                title="Modo BD activo">🔥 Real</span>
+                            <div style="margin-left: auto; display: flex; gap: 4px;">
+                                <button id="btn-chat-config" class="btn secondary" style="padding: 4px 8px; font-size: 0.85em;"
                                     title="Configuración Chat">⚙️</button>
-                                <button id="btn-chat-full-history" class="btn secondary" style="padding: 5px 10px;"
-                                    title="Ver Historial Completo">📜</button>
+                                <button id="btn-chat-full-history" class="btn secondary" style="padding: 4px 8px; font-size: 0.85em;"
+                                    title="Historial Completo">📜</button>
+                                <button id="btn-chat-expand" title="Expandir / Contraer chat">⛶</button>
                             </div>
-                            <div id="chat-messages"
-                                style="flex: 1; overflow-y: auto; padding: 10px; border: 1px solid #eee; margin-bottom: 10px; border-radius: 4px;">
-                                <div class="message ai"
-                                    style="background: #f5f5f5; padding: 10px; border-radius: 8px; max-width: 80%;">
-                                    Hola, soy DEVIA. ¿En qué puedo ayudarte hoy?
+                        </div>
+
+                        <!-- ── Cuerpo: sidebar + mensajes ─────────────────── -->
+                        <div id="chat-body">
+                            <!-- Sidebar historial -->
+                            <aside id="chat-history-sidebar">
+                                <div style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f1f5f9;">
+                                    <span style="font-weight: 600; font-size: 0.9em; color: #1e293b;">Historial</span>
+                                    <button id="btn-new-chat" class="btn primary"
+                                        style="padding: 3px 8px; font-size: 0.8em; height: auto;">+ Nuevo</button>
                                 </div>
-                            </div>
-                            <div id="chat-preview-container"
-                                style="display: flex; gap: 10px; padding: 5px; overflow-x: auto; min-height: 0px;">
-                            </div>
-                            <div class="chat-input-area" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                <input type="file" id="chat-file-input" accept="image/*" multiple
-                                    style="display: none;">
-                                <button id="btn-attach-file" class="btn secondary"
-                                    style="padding: 0 12px; font-size: 1.2em; flex-shrink: 0;" title="Adjuntar imagen">📎</button>
-                                <input type="text" id="chat-input" placeholder="Escribe tu mensaje..."
-                                    style="flex: 1; min-width: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                                <label id="deep-analysis-label" style="display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; font-size: 0.82em; color: #1e40af; font-weight: 600; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 20px; padding: 4px 10px; transition: background 0.2s; flex-shrink: 0; white-space: nowrap;" title="Activa el análisis multi-fase épico (5 fases, hasta 12 SQLs, análisis crítico profundo)">
-                                    <input type="checkbox" id="deep-analysis-toggle" checked style="width: 13px; height: 13px; cursor: pointer; accent-color: #1e40af;">
-                                    🔬 Análisis
-                                </label>
-                                <button id="btn-send-chat" class="btn primary" style="flex-shrink: 0;">Enviar</button>
+                                <div id="history-list" style="flex: 1; overflow-y: auto; padding: 8px;">
+                                    <div style="text-align: center; color: #94a3b8; font-size: 0.85em; margin-top: 16px;">Cargando...</div>
+                                </div>
+                            </aside>
+
+                            <!-- Área principal de chat -->
+                            <div id="chat-main">
+                                <div id="chat-messages">
+                                    <div class="message ai"
+                                        style="background: #f5f5f5; padding: 10px; border-radius: 8px; max-width: 80%;">
+                                        Hola, soy DEVIA. ¿En qué puedo ayudarte hoy?
+                                    </div>
+                                </div>
+                                <div id="chat-preview-container"
+                                    style="display: none; gap: 8px; padding: 6px 10px; overflow-x: auto; border-top: 1px solid #f0f0f0;">
+                                </div>
+                                <div class="chat-input-area">
+                                    <input type="file" id="chat-file-input" accept="image/*" multiple style="display: none;">
+                                    <button id="btn-attach-file" class="btn secondary"
+                                        style="padding: 0 10px; font-size: 1.1em; flex-shrink: 0;" title="Adjuntar imagen">📎</button>
+                                    <input type="text" id="chat-input" placeholder="Escribe tu mensaje..."
+                                        style="flex: 1; min-width: 80px; padding: 9px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    <label id="deep-analysis-label"
+                                        style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; font-size: 0.8em; color: #1e40af; font-weight: 600; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 20px; padding: 4px 9px; white-space: nowrap; flex-shrink: 0;"
+                                        title="Análisis multi-fase (5 fases, hasta 12 SQLs)">
+                                        <input type="checkbox" id="deep-analysis-toggle" checked style="width: 12px; height: 12px; cursor: pointer; accent-color: #1e40af;">
+                                        🔬 Análisis
+                                    </label>
+                                    <button id="btn-send-chat" class="btn primary" style="flex-shrink: 0; padding: 9px 16px;">Enviar</button>
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Script: expand/collapse chat fullscreen -->
+                    <script>
+                        (function() {
+                            document.addEventListener('DOMContentLoaded', function() {
+                                var expandBtn = document.getElementById('btn-chat-expand');
+                                var chatView = document.getElementById('view-chat');
+                                if (expandBtn && chatView) {
+                                    expandBtn.addEventListener('click', function() {
+                                        chatView.classList.toggle('chat-fullscreen');
+                                        expandBtn.textContent = chatView.classList.contains('chat-fullscreen') ? '⊠' : '⛶';
+                                        expandBtn.title = chatView.classList.contains('chat-fullscreen') ? 'Salir de pantalla completa' : 'Expandir chat';
+                                    });
+                                    // ESC para salir de pantalla completa
+                                    document.addEventListener('keydown', function(e) {
+                                        if (e.key === 'Escape' && chatView.classList.contains('chat-fullscreen')) {
+                                            chatView.classList.remove('chat-fullscreen');
+                                            expandBtn.textContent = '⛶';
+                                        }
+                                    });
+                                }
+                            });
+                        })();
+                    </script>
                 </div>
 
                 <!-- Chat Config Modal -->

@@ -19,6 +19,11 @@ class ChatRequest(BaseModel):
     images: Optional[List[str]] = None  # Valid Base64 strings
     session_id: Optional[str] = None  # New field for persistence
     deep_analysis: Optional[bool] = False  # 🔬 Checkbox "Análisis Profundo" del frontend
+    # ── Modo BD explícito (selector frontend) ────────────────────────────────
+    db_mode: Optional[str] = None          # "real" | "simulator" | "no_db"
+    use_simulator: Optional[bool] = False  # True = forzar simulador SQLite
+    no_db: Optional[bool] = False          # True = modo conversacional puro
+    preferred_model_id: Optional[str] = None  # Motor LAN preferido (30B / 8B)
     
 class ConfigRequest(BaseModel):
     max_sql_retries: int

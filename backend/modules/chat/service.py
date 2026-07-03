@@ -480,28 +480,66 @@ class ChatService:
         logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
 
-        # MODO SIN BD - chat conversacional puro
-        # Se activa si: no_db=True, db_params ausente/vacio, o fallo de conexion
+        # ══════════════════════════════════════════════════════════════════════
+        # MODO BD — Resolución de fuente de datos con cadena de fallback
+        # Prioridad: db_mode explícito > use_simulator > no_db > auto-detect
+        # Cadena de fallback: Real BD → Simulador → Sin BD
+        # ══════════════════════════════════════════════════════════════════════
+        db_mode_explicit = context.get('db_mode')       # "real" | "simulator" | "no_db" | None
+        use_simulator_flag = context.get('use_simulator', False)
         no_db_flag = context.get('no_db', False)
         db_params = context.get('db_params')
         db_params_empty = not db_params or not db_params.get('host') or not db_params.get('database')
 
+        # Resolver modo efectivo desde el selector explícito del frontend
+        if db_mode_explicit == 'no_db':
+            no_db_flag = True
+        elif db_mode_explicit == 'simulator':
+            use_simulator_flag = True
+            no_db_flag = False
+        elif db_mode_explicit == 'real':
+            use_simulator_flag = False
+            no_db_flag = False
+
+        # Comprobar disponibilidad del simulador
         simulator_available = False
+        simulator_has_data = False
         try:
             from backend.modules.db_simulator.manager import simulator_manager
             simulator_available = simulator_manager.is_enabled()
+            if simulator_available:
+                _sim_st = simulator_manager.get_status()
+                _rc = _sim_st.get("row_counts", {})
+                simulator_has_data = bool(_rc) and any(v > 0 for v in _rc.values())
         except Exception as sim_err:
             logger.warning(f"[CHAT] No se pudo consultar el simulador: {sim_err}")
 
-        if simulator_available and db_params_empty and not no_db_flag:
-            logger.info("[CHAT] Simulador activo y no hay parámetros reales; usando simulador para generar respuestas SQL")
-            db_params = {}
-            db_params_empty = False
-            context['db_params'] = db_params
-
-        if no_db_flag or db_params_empty:
-            logger.info(f"[CHAT] Sin BD (no_db={no_db_flag}, db_params_empty={db_params_empty})")
+        # ── Modo Sin BD ───────────────────────────────────────────────────────
+        if no_db_flag:
+            logger.info("[CHAT] Modo Sin BD (conversacional puro)")
             return await self._chat_no_db(message, context)
+
+        # ── Modo Simulador explícito ──────────────────────────────────────────
+        if use_simulator_flag:
+            if simulator_available and simulator_has_data:
+                logger.info("[CHAT] Modo Simulador explícito — usando SQLite")
+                db_params = {}
+                db_params_empty = False
+                context['db_params'] = db_params
+            else:
+                logger.warning("[CHAT] Simulador solicitado pero no disponible/sin datos → fallback Sin BD")
+                return await self._chat_no_db(message, context)
+
+        # ── Auto-detect: sin params reales → intentar simulador → sin BD ─────
+        elif db_params_empty:
+            if simulator_available and simulator_has_data:
+                logger.info("[CHAT] Sin params reales; simulador disponible → usando simulador")
+                db_params = {}
+                db_params_empty = False
+                context['db_params'] = db_params
+            else:
+                logger.info(f"[CHAT] Sin BD (db_params_empty={db_params_empty}, simulador no disponible)")
+                return await self._chat_no_db(message, context)
 
         # ══════════════════════════════════════════════════════════════════════
         # FASE 1 — CLASIFICACIÓN DE INTENCIÓN POR IA (genérica, sin keywords)

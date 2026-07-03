@@ -199,19 +199,39 @@ export class ChatModule {
       if (btnToggleHistory) {
         btnToggleHistory.addEventListener("click", () => {
           const sidebar = document.getElementById("chat-history-sidebar");
-          if (
-            sidebar.style.width === "0px" ||
-            sidebar.style.display === "none"
-          ) {
-            sidebar.style.width = "250px";
-            sidebar.style.display = "flex";
-            sidebar.style.padding = "0"; // Reset padding if needed
-          } else {
-            sidebar.style.width = "0px";
-            setTimeout(() => (sidebar.style.display = "none"), 300); // Wait for transition
+          if (sidebar) {
+            sidebar.classList.toggle("collapsed");
+            btnToggleHistory.title = sidebar.classList.contains("collapsed")
+              ? "Mostrar Historial"
+              : "Ocultar Historial";
           }
         });
       }
+    }
+
+    // ── DB mode selector badge update ────────────────────────────────────────
+    const dbModeSelector = document.getElementById("chat-db-mode");
+    const dbModeBadge = document.getElementById("chat-db-mode-badge");
+    if (dbModeSelector && dbModeBadge) {
+      const _updateBadge = () => {
+        const mode = dbModeSelector.value;
+        const badges = {
+          real:      { text: "🔥 Real",      bg: "#d1fae5", color: "#065f46", border: "#a7f3d0" },
+          simulator: { text: "🎭 Simulada",  bg: "#fef3c7", color: "#92400e", border: "#fde68a" },
+          no_db:     { text: "💬 Sin BD",    bg: "#f1f5f9", color: "#475569", border: "#cbd5e1" },
+        };
+        const b = badges[mode] || badges.real;
+        dbModeBadge.textContent = b.text;
+        dbModeBadge.style.background = b.bg;
+        dbModeBadge.style.color = b.color;
+        dbModeBadge.style.border = `1px solid ${b.border}`;
+        // Also update selector border color
+        dbModeSelector.style.borderColor = b.border;
+        dbModeSelector.style.background = b.bg;
+        dbModeSelector.style.color = b.color;
+      };
+      dbModeSelector.addEventListener("change", _updateBadge);
+      _updateBadge(); // Init badge on load
     }
 
     this.loadModels();
@@ -622,9 +642,13 @@ export class ChatModule {
       const deepToggle = document.getElementById("deep-analysis-toggle");
       const deepAnalysisEnabled = deepToggle ? deepToggle.checked : false;
 
-      // Leer estado del checkbox "Sin BD" (modo conversacional puro)
-      const noDbToggle = document.getElementById("no-db-toggle");
-      const noDbMode = noDbToggle ? noDbToggle.checked : false;
+      // Leer selector de modo BD (real / simulator / no_db)
+      const dbModeSelector = document.getElementById("chat-db-mode");
+      const dbMode = dbModeSelector ? dbModeSelector.value : "real";
+
+      // Derivar flags de compatibilidad desde el selector unificado
+      const noDbMode = dbMode === "no_db";
+      const useSimulator = dbMode === "simulator";
 
       // Leer selector de motor LAN (30B vs 8B)
       const lanSelector = document.getElementById("chat-lan-model-selector");
@@ -643,6 +667,8 @@ export class ChatModule {
           session_id: this.currentSessionId, // Send current session ID
           deep_analysis: deepAnalysisEnabled, // 🔬 Checkbox análisis profundo
           no_db: noDbMode, // 💬 Checkbox sin BD
+          db_mode: dbMode, // 🗄️ Modo BD explícito: real | simulator | no_db
+          use_simulator: useSimulator, // 🎭 Forzar simulador aunque haya params reales
         }),
       });
 
