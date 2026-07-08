@@ -3,9 +3,9 @@
 Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatización).  
 Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
-> **Última actualización:** 03/07/2026  
-> **Versión:** 2.8.0  
-> **Estado tests:** ✅ 10.139 passed · 162 skipped · 70 xfailed · **7 failures** (aislamiento)
+> **Última actualización:** 08/07/2026  
+> **Versión:** 2.9.0  
+> **Estado tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
 ---
 

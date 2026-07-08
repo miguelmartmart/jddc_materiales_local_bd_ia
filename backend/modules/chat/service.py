@@ -480,6 +480,19 @@ class ChatService:
         logger.info(f"{LogPrefixes.CONTEXTO} model_id={context.get('model_id')}")
         logger.info("="*80)
 
+        # ── ProgressTracker: helper para reportar fases al frontend ──────────
+        # El frontend hace polling a GET /api/chat/progress/{request_id}
+        # y muestra las fases en tiempo real en el bubble "Pensando..."
+        _progress_id = context.get('_progress_request_id')
+        def _phase(phase: str, detail: str = "") -> None:
+            """Reporta una fase al tracker (no-op si no hay request_id)."""
+            if _progress_id:
+                try:
+                    from backend.modules.chat.progress_tracker import tracker as _tracker
+                    _tracker.add_phase(_progress_id, phase, detail)
+                except Exception:
+                    pass  # Nunca fallar por el tracker
+
         # ══════════════════════════════════════════════════════════════════════
         # MODO BD — Resolución de fuente de datos con cadena de fallback
         # Prioridad: db_mode explícito > use_simulator > no_db > auto-detect
@@ -563,21 +576,36 @@ class ChatService:
         # Forzar deep_analysis si el checkbox del frontend está activo
         _force_deep = context.get('deep_analysis', False)
 
+        _phase("🧠 Clasificando intención...", "IA analizando tu pregunta")
         intent = await self._intent_classifier.classify(message, conv_history)
         logger.info(
             f"[FASE1] Intención: {intent.intent} "
             f"(conf={intent.confidence:.2f}, force_deep={_force_deep}) | {intent.reasoning}"
         )
+        _phase(
+            f"✅ Intención detectada: {intent.intent}",
+            f"Confianza {intent.confidence:.0%} · {'Análisis profundo' if _force_deep else 'Consulta estándar'}"
+        )
 
         # ── FASE 1a: CONVERSACIONAL ───────────────────────────────────────────
-        if intent.is_conversational() and not _force_deep:
-            logger.info("[FASE1] 💬 Conversacional → chat sin BD")
+        # RESILIENCIA: CONVERSACIONAL siempre bypasea DeepAnalysis, incluso con
+        # force_deep=True. El checkbox "🔬 Análisis" solo aplica a consultas de
+        # datos (DB_QUERY). Un saludo/pregunta general NUNCA activa el agente
+        # multi-fase — sería un desperdicio de recursos y causaría errores 400
+        # por contexto demasiado grande en el modelo local.
+        if intent.is_conversational():
+            logger.info(
+                f"[FASE1] 💬 Conversacional → chat sin BD "
+                f"(force_deep ignorado para intención conversacional)"
+            )
             return await self._chat_no_db(message, context)
 
         # ── FASE 1b: ACLARACIÓN/JUSTIFICACIÓN ────────────────────────────────
         # El usuario pide más detalle sobre la respuesta anterior.
         # NO generamos nueva SQL — usamos el historial de conversación.
-        if intent.is_clarification() and not _force_deep:
+        # RESILIENCIA: igual que CONVERSACIONAL, CLARIFICATION no activa
+        # DeepAnalysis aunque force_deep=True — el agente necesita datos nuevos.
+        if intent.is_clarification():
             last_assistant_msg = ""
             last_user_question = ""
             for m in reversed(conv_history):
@@ -638,9 +666,14 @@ class ChatService:
                 logger.info("[FASE1] Sin historial para aclaración → redirigiendo a DB_QUERY")
 
         # ── FASE 1c: ANÁLISIS PROFUNDO ────────────────────────────────────────
+        # DEVIA — Ultra-resiliente:
+        # El DeepAnalysisAgent tiene un timeout global configurable.
+        # Si supera el timeout → fallback al flujo normal (no error al usuario).
+        # El timeout se calcula dinámicamente según el modo BD y el modelo LAN.
         _wants_deep = _force_deep or intent.is_deep_analysis()
         if _wants_deep:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
+            _phase("🔬 Iniciando análisis profundo multi-fase...", "DeepAnalysisAgent v3.0")
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
                 # Obtener contexto SIUO (mismo esquema Firebird siempre —
@@ -664,6 +697,8 @@ class ChatService:
                     db_context=db_context,
                     sql_executor=_async_sql_executor,
                     sql_normalizer=self.sql_normalizer,
+                    # Pasar el progress tracker para que el agente reporte fases
+                    progress_id=_progress_id,
                 )
                 # Limpiar prefijo /deep del mensaje
                 clean_msg = message.strip()
@@ -673,11 +708,30 @@ class ChatService:
                         break
 
                 conv_history = context.get('conversation_history', [])
+
+                # ── Sin timeout en el backend ─────────────────────────────────
+                # DEVIA: el backend espera todo lo que necesite el modelo LAN.
+                # El frontend gestiona la espera con heartbeat + extensiones de
+                # timeout automáticas (chat-recovery.js): mientras el backend
+                # responda al ping /health, el frontend sigue esperando.
+                # No hay asyncio.wait_for aquí — el backend no corta la conexión.
+                _phase(
+                    "⏳ Análisis profundo en curso...",
+                    "El modelo LAN está procesando — el frontend seguirá esperando"
+                )
+                logger.info("[CHAT] 🔬 DeepAgent iniciado (sin timeout de backend)")
+
                 result = await agent.analyze(clean_msg, conv_history)
                 logger.info("[CHAT] ✅ DeepAnalysisAgent completado")
+                _phase("✅ Análisis profundo completado", f"{len(result)} chars de respuesta")
                 return result
+
             except Exception as e:
                 logger.error(f"[CHAT] ❌ DeepAnalysisAgent falló: {e} — continuando con flujo normal")
+                _phase(
+                    "⚠️ Análisis profundo falló — usando flujo estándar",
+                    str(e)[:80]
+                )
                 # Fall-through al flujo normal si el agente falla
 
         # DEBUG: List tables command
@@ -938,6 +992,7 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
   - NO INTENTES EJECUTAR SQL PARA MODIFICAR IMÁGENES.
 
 """
+        _phase("🤖 Generando consulta SQL...", "IA construyendo la consulta a la base de datos")
         logger.info(f"[AI PROVIDER] 📤 Usando sistema de fallback multi-modelo...")
         logger.info(f"[AI PROVIDER] System Prompt:\n{system_prompt}")
         logger.info(f"[AI PROVIDER] User Message: {message}")
@@ -1024,7 +1079,8 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                     job_response = await self.image_service.generate_image(req, user_id="chat_user")
                     
                     # WAIT FOR JOB COMPLETION to show the image directly
-                    import asyncio
+                    # asyncio ya importado a nivel de módulo — NO reimportar aquí
+                    # (reimportarlo como local rompe closures que usan asyncio en la misma función)
                     # Poll max 60s
                     job_data = None
                     for _ in range(30):
@@ -1099,6 +1155,7 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 
                 logger.info(f"[SQL] Consulta normalizada: {sql_query}")
                 logger.info(f"[DATABASE] 🔄 Ejecutando consulta SQL...")
+                _phase("🗄️ Ejecutando consulta en la base de datos...", sql_query[:80] + ("..." if len(sql_query) > 80 else ""))
                 
                 # Execute with auto-correction
                 results = await self.sql_corrector.execute_with_correction(
@@ -1262,6 +1319,10 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "8. Completa SIEMPRE la respuesta. No la cortes a mitad."
                     )
                     
+                    _phase(
+                        f"📊 Interpretando {n_rows} resultado{'s' if n_rows != 1 else ''}...",
+                        "IA generando respuesta en lenguaje de negocio"
+                    )
                     logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB (Qwen3 LAN preferido)...")
                     final_response, _ = await self.model_orchestrator.execute_with_fallback(
                         system_prompt=interpretation_system,

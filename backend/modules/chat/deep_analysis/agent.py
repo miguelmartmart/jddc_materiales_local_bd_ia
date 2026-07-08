@@ -57,6 +57,7 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
         sql_normalizer=None,
         sql_corrector=None,
         context_limit_tokens: int = DEFAULT_CONTEXT_LIMIT_TOKENS,
+        progress_id: Optional[str] = None,
     ):
         self.orchestrator    = orchestrator
         self.db_context      = db_context
@@ -64,6 +65,7 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
         self.sql_normalizer  = sql_normalizer
         self.sql_corrector   = sql_corrector
         self.budget          = TokenBudget(context_limit_tokens)
+        self._progress_id    = progress_id  # Para reportar fases al frontend
 
         # Intentar obtener el límite real del modelo desde el orchestrator
         try:
@@ -75,6 +77,15 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
             pass
 
         logger.info("[DEEP AGENT] DeepAnalysisAgent v3.0 inicializado")
+
+    def _phase(self, phase: str, detail: str = "") -> None:
+        """Reporta una fase al ProgressTracker (no-op si no hay progress_id)."""
+        if self._progress_id:
+            try:
+                from backend.modules.chat.progress_tracker import tracker as _tracker
+                _tracker.add_phase(self._progress_id, phase, detail)
+            except Exception:
+                pass  # Nunca fallar por el tracker
 
     # ─────────────────────────────────────────────────────────────────────────
     # API PÚBLICA
@@ -118,24 +129,36 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
 
         try:
             # ── FASE 0: Ajuste de presupuesto de tokens ───────────────────────
+            self._phase("⚙️ Fase 0: Ajustando presupuesto de tokens...", f"Profundidad: {detected_depth.value}")
             cfg = self._phase0_budget(cfg, question, conversation_history)
             cfg = self._phase0_lan_optimize(cfg)
 
             # ── FASE 1: Comprensión épica ─────────────────────────────────────
+            self._phase("🧠 Fase 1: Comprendiendo la pregunta...", "Identificando intención, sub-preguntas y tablas")
             phase1 = await self._phase1_understand(question, result, cfg, conversation_history)
             result.phases.append(phase1)
             phase1_data = phase1.data or {}
+            _tables = phase1_data.get("tables", [])
+            if _tables:
+                self._phase("✅ Fase 1 completada", f"Tablas identificadas: {', '.join(_tables[:5])}")
 
             # ── FASE 2: Exploración total ─────────────────────────────────────
+            self._phase("🔍 Fase 2: Explorando la base de datos...", "Conteo, columnas y muestreo de datos")
             phase2 = await self._phase2_explore(question, phase1_data, result, cfg)
             result.phases.append(phase2)
             phase2_data = phase2.data or {}
+            _n_explored = len(phase2_data.get("tables_explored", []))
+            self._phase("✅ Fase 2 completada", f"{_n_explored} tablas exploradas · {len(result.sql_queries)} SQLs ejecutados")
 
             # ── BUCLE DE INVESTIGACIÓN ITERATIVA ─────────────────────────────
             last_analysis_data: Dict = {}
             for cycle in range(MAX_INVESTIGATION_CYCLES):
                 result.investigation_cycles = cycle + 1
                 logger.info(f"[DEEP AGENT] ── CICLO {cycle + 1}/{MAX_INVESTIGATION_CYCLES} ──")
+                self._phase(
+                    f"🔬 Ciclo {cycle + 1}/{MAX_INVESTIGATION_CYCLES}: Investigando...",
+                    f"{len(result.sql_queries)} SQLs acumulados · {len(result.anomalies)} anomalías"
+                )
 
                 # Fase 3: Investigación multi-angular
                 cycle_cfg = dict(cfg)
@@ -148,11 +171,21 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
                 result.phases.append(phase3)
 
                 # Fase 4: Análisis crítico profundo
+                self._phase(
+                    f"📊 Ciclo {cycle + 1}: Analizando resultados...",
+                    f"{len(result.sql_queries)} SQLs · {len(result.anomalies)} anomalías detectadas"
+                )
                 phase4 = await self._phase4_analyze(question, result, cycle_cfg)
                 result.phases.append(phase4)
                 last_analysis_data = phase4.data if phase4.data else {}
 
                 # Fase 3b: Resolución de inconsistencias detectadas
+                _n_anomalies = len(result.anomalies)
+                if _n_anomalies > 0:
+                    self._phase(
+                        f"🔧 Ciclo {cycle + 1}: Resolviendo {_n_anomalies} inconsistencia{'s' if _n_anomalies != 1 else ''}...",
+                        "Verificando datos y corrigiendo anomalías"
+                    )
                 phase3b = await self._phase3b_resolve_inconsistencies(
                     question, result, cycle_cfg
                 )
@@ -167,6 +200,10 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
                 )
                 if not should_continue:
                     logger.info(f"[DEEP AGENT] Bucle terminado: {reason}")
+                    self._phase(
+                        f"✅ Investigación completada en {cycle + 1} ciclo{'s' if cycle != 0 else ''}",
+                        reason
+                    )
                     break
 
             logger.info(
@@ -181,6 +218,10 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
             result.phases.append(phase4b)
 
             # ── FASE 5: Síntesis épica ────────────────────────────────────────
+            self._phase(
+                "✍️ Fase 5: Sintetizando respuesta final...",
+                f"{len(result.sql_queries)} SQLs · {result.investigation_cycles} ciclos completados"
+            )
             phase5 = await self._phase5_synthesize(question, result, cfg)
             result.phases.append(phase5)
 
@@ -192,6 +233,7 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
                     "[DEEP AGENT] ⟳ Evaluación post-síntesis: calidad insuficiente "
                     "→ ciclo extra de investigación"
                 )
+                self._phase("🔄 Mejorando calidad — ciclo extra de investigación...", "Calidad insuficiente detectada")
                 _extra_cfg = {**cfg, "max_sqls": min(cfg.get("max_sqls", 5), 4)}
                 phase3_extra = await self._phase3_investigate(
                     question, phase1_data, phase2_data, result, _extra_cfg
@@ -206,6 +248,7 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
             # Verifica que la respuesta IA no contiene datos inventados.
             # Añade sello de fiabilidad al final de la respuesta.
             try:
+                self._phase("🔒 Verificando fiabilidad de la respuesta...", "Comprobando que no hay datos inventados")
                 phase5b = await self._phase5b_verify(question, result, cfg)
                 result.phases.append(phase5b)
             except Exception as verify_err:
@@ -222,12 +265,18 @@ class DeepAnalysisAgent(HelpersAgentMixin, Phases12Mixin, Phases345Mixin, PhaseV
                     f"{len(result.warnings)} warnings, "
                     f"{len(result.final_answer)} chars"
                 )
+                self._phase(
+                    "✅ Análisis épico completado",
+                    f"{result.investigation_cycles} ciclos · {len(result.sql_queries)} SQLs · {len(result.final_answer)} chars"
+                )
                 return result.final_answer
             else:
+                self._phase("⚠️ Respuesta de emergencia — análisis parcial", "No se pudo completar el análisis épico")
                 return self._emergency_fallback(result)
 
         except Exception as e:
             logger.error(f"[DEEP AGENT] Error crítico en análisis: {e}", exc_info=True)
+            self._phase("❌ Error en análisis profundo — generando respuesta de emergencia", str(e)[:80])
             self._cleanup_partial_files(result)
             return self._emergency_fallback(result)
 

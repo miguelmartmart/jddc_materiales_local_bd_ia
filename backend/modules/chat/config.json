@@ -5,12 +5,13 @@
     "ai_local_only": true,
     "_ai_local_only_comment": "Si true: SOLO usa la IA local Qwen3 VL 30B (red LAN JDDC). No sale a internet. Si false: usa sistema de fallback multi-modelo (Groq, Gemini, OpenAI, etc.). La funcionalidad de fallback NO se borra, solo se desactiva.",
     "_ai_local_only_models": "Modelos locales: jddcia-qwen3-30b (http://jddcia.local) y jddcia-qwen3-30b-ip (http://192.168.0.36)",
-    "lan_max_retries": 10,
-    "_lan_max_retries_comment": "Número máximo de rondas de reintento en modo LAN_ONLY antes de devolver error. Cada ronda prueba todos los modelos LAN. Rango recomendado: 5-15.",
-    "lan_read_timeout_s": 180,
-    "_lan_read_timeout_s_comment": "Timeout de lectura en segundos para inferencia LAN (Qwen3 30B puede tardar 30-60s en la primera petición; prompts grandes de DeepAnalysis pueden tardar 120-180s). El connect timeout se mantiene en 3s.",
+    "lan_max_retries": 3,
+    "_lan_max_retries_comment": "Número máximo de rondas de reintento en modo LAN_ONLY antes de devolver error. Reducido de 10 a 3 para evitar que el DeepAgent espere demasiado (10 rondas × backoff = 100s+ por fase). Con 3 rondas: ~15s máximo de espera antes de devolver error y hacer fallback.",
+    "lan_read_timeout_s": 120,
+    "_lan_read_timeout_s_comment": "Timeout de lectura en segundos para inferencia LAN. Reducido de 180s a 120s: el modelo Qwen3 30B tarda 30-60s en respuestas normales; 120s es suficiente para prompts grandes. El DeepAgent tiene su propio timeout global de 240s en service.py.",
     "lan_model_max_tokens": 2048,
     "_lan_model_max_tokens_comment": "Máximo de tokens a generar por respuesta en modo LAN (Qwen3 30B). IMPORTANTE: el modelo 30B tiene context_limit=4096. Con max_tokens=4096 se producía error 400 ('max_tokens > context - input'). 2048 deja ~2000 tokens para el prompt de entrada, suficiente para análisis profundo.",
     "lan_model_context_limit": 4096,
-    "_lan_model_context_limit_comment": "Límite de contexto total del modelo Qwen3 30B en tokens. El modelo unified-main (Qwen3 30B en el gateway JDDC) tiene context_limit=4096. Valor anterior 32768 era incorrecto y causaba que el ContextManager calculara mal el presupuesto de tokens."
+    "_lan_model_context_limit_comment": "Límite de contexto total del modelo Qwen3 30B en tokens. El modelo unified-main (Qwen3 30B en el gateway JDDC) tiene context_limit=4096. Valor anterior 32768 era incorrecto y causaba que el ContextManager calculara mal el presupuesto de tokens.",
+    "_deep_analysis_note": "DEVIA: el backend NO tiene timeout propio para el DeepAnalysisAgent. El frontend gestiona la espera con heartbeat + extensiones automáticas (chat-recovery.js). Mientras el backend responda al ping /health, el frontend sigue esperando. Ver constants.js: AI_REQUEST_DEEP=600s, MAX_TIMEOUT_EXTENSIONS=20."
 }

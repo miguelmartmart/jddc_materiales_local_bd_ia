@@ -127,8 +127,31 @@ export const LIMITS = {
 // ============================================================================
 
 export const TIMEOUTS = {
-    API_REQUEST: 60000, // 60 segundos
-    DEBOUNCE: 300 // 300ms
+    API_REQUEST:            120000, // 120s — petición normal al modelo IA
+    AI_REQUEST:             120000, // alias para compatibilidad con chat-recovery.js
+    AI_REQUEST_DEEP:        600000, // 600s — análisis profundo (modelo LAN 30B puede tardar 5-10 min)
+                                    // DEVIA: el backend no tiene timeout propio — el frontend espera
+                                    // todo lo que necesite mientras el heartbeat confirme que el
+                                    // backend sigue vivo. 600s es el primer checkpoint, no el límite.
+    HEARTBEAT_INTERVAL:      30000, // 30s — intervalo entre pings de heartbeat
+    HEARTBEAT_PING_TIMEOUT:   5000, // 5s  — timeout de cada ping individual
+    MAX_TIMEOUT_EXTENSIONS:     20, // DEVIA: mientras el backend esté vivo (ping OK), seguir esperando.
+                                    // 20 extensiones × 600s = 200 min máximo teórico.
+                                    // En la práctica: el backend responde antes de agotar las extensiones.
+                                    // Si el backend muere (ping falla) → abortar inmediatamente.
+    DEBOUNCE:                  300, // 300ms — debounce de inputs
+};
+
+// ============================================================================
+// MENSAJES DE RECUPERACIÓN DE CHAT (chat-recovery-ui.js)
+// ============================================================================
+
+export const RECOVERY_MESSAGES = {
+    BTN_CANCEL:       '✕ Cancelar',
+    BTN_CANCEL_TITLE: 'Cancelar la petición en curso',
+    BTN_RETRY:        '🔄 Reintentar',
+    BTN_RETRY_TITLE:  'Volver a enviar el mensaje',
+    RETRY_HINT:       'Puedes reintentar la petición.',
 };
 
 // ============================================================================

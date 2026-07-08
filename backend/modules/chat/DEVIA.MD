@@ -5,6 +5,9 @@
 
 | Sesión | Archivo | Contenido |
 |--------|---------|-----------|
+| 08/07/2026 | `DEVIA.MD` | **FIX CRÍTICO — Timeout análisis profundo**: El frontend abortaba la conexión a los 300s antes de que el backend terminara (el modelo LAN 30B tardó 312s). Solución DEVIA: el backend NO tiene timeout propio para el DeepAgent. El frontend gestiona la espera con heartbeat (30s) + extensiones automáticas. `constants.js`: `AI_REQUEST_DEEP` 300s→600s, `MAX_TIMEOUT_EXTENSIONS` 2→20. `service.py`: eliminado `asyncio.wait_for`. Principio: mientras el ping `/health` responda OK, el frontend sigue esperando. |
+| 08/07/2026 | `DEVIA.MD` | **FEAT: ProgressTracker en DeepAnalysisAgent**: `agent.py` — nuevo parámetro `progress_id` en `__init__`. Método `_phase()` ultra-resiliente (nunca falla aunque el tracker falle). Fases reportadas en tiempo real: Fase 0→1→2→ciclos→síntesis→verificación. El usuario ve progreso en el bubble "Pensando..." durante el análisis épico. |
+| 08/07/2026 | `DEVIA.MD` | **TUNE: `lan_max_retries` reducido**: `config.json` — `lan_max_retries` 10→3, `lan_read_timeout_s` 180→120. Con 10 rondas × backoff = 100s+ por fase del DeepAgent. Con 3 rondas: ~15s máximo de espera antes de devolver error y hacer fallback. |
 | 03/07/2026 | `DEVIA.MD` | **FEAT: Selector modo BD** (`db_mode`): `ChatRequest` acepta `db_mode` ("real"\|"simulator"\|"no_db"). `process_message` resuelve la cadena de fallback: selector explícito > flag `use_simulator` > flag `no_db` > auto-detect. El simulador solo se usa si tiene datos reales (`simulator_has_data`). Commit `b7b9635`. |
 | 03/07/2026 | `DEVIA.MD` | **FEAT: `preferred_model_id` propagado en todos los paths**: `process_message` lo pasa al orchestrator en SQL, no_db y deep_analysis. Commit `b7b9635`. |
 | 03/07/2026 | `DEVIA.MD` | **FIX error 400 chat IA**: `jddcia_provider.py` — clamp de `max_tokens` para que nunca supere `context_limit - prompt_tokens`. `config.json`: `lan_model_max_tokens=2048`, `lan_model_context_limit=4096`. Commit `51d0234`. |
@@ -268,7 +271,7 @@ Al añadir los IDs 8B aquí, el orchestrator los incluye automáticamente sin m�
     "integration_status": "IntentClassifier creado y disponible. Integracion gradual en process_message en curso.",
     "commit": "a6deed5 (01/06/2026)"
   },
-  "last_updated": "03/07/2026",
+  "last_updated": "08/07/2026",
   "related_devia": [
     "bots/interjddcia/DEVIA.MD (documentación principal)",
     "backend/modules/chat/DEVIA_ROBUSTNESS.md (Model Fallback & Self-Healing)",

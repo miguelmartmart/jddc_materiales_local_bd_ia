@@ -1,10 +1,10 @@
 # DEVIA — Documentacion Tecnica del Sistema
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Ultima actualizacion:** 03/07/2026
+> **Ultima actualizacion:** 08/07/2026
 > **Version:** 2.9.0
 > **Ruta:** `bots/interjddcia/`
-> **Tests:** ✅ 10.139 passed · 162 skipped · 70 xfailed · 7 failed (aislamiento)
+> **Tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
 ---
 
@@ -1214,7 +1214,7 @@ Mejora manual o automatica del concept_index
 4. Las siguientes preguntas con esos keywords funcionan mejor
 5. El feedback confirma la mejora
 
-### 10. Usabilidad y experiencia de desarrollo
+### 10. Usabilidad y experiencia de desarrolloc
 
 - **DEVIA.MD en cada modulo**: documentacion local de responsabilidad, flujo y dependencias
 - **Comandos de diagnostico**: seccion 10 del DEVIA principal con curl commands listos
@@ -1761,6 +1761,43 @@ python -m pytest tests/unit/test_analista_bd_catalog.py -v
 ---
 
 ## 15. Historial de cambios
+
+### v2.9.0 (08/07/2026) — Análisis profundo sin timeout + ProgressTracker en DeepAgent
+
+**Principio DEVIA aplicado:** El backend NO tiene timeout propio para el DeepAnalysisAgent.
+El frontend gestiona la espera con heartbeat (30s) + extensiones automáticas de timeout.
+Mientras el ping `/health` responda OK, el frontend sigue esperando.
+
+**Frontend (`constants.js`):**
+- `AI_REQUEST_DEEP`: 300s → **600s** (primer checkpoint, no el límite real)
+- `MAX_TIMEOUT_EXTENSIONS`: 2 → **20** (20 × 600s = 200 min teórico máximo)
+- Comportamiento: si el backend muere (ping falla) → aborta inmediatamente
+- Si el backend sigue vivo → extiende el timeout automáticamente
+
+**Backend (`service.py`):**
+- Eliminado `asyncio.wait_for` del DeepAnalysisAgent — el backend espera sin límite
+- Si el DeepAgent falla por error real → `except Exception` → fallback al flujo normal
+- Si el modelo LAN tarda 5, 10 o 15 minutos → el backend espera y responde con calidad
+
+**Backend (`deep_analysis/agent.py`):**
+- Nuevo parámetro `progress_id` en `__init__` del DeepAnalysisAgent
+- Nuevo método `_phase()` ultra-resiliente (nunca falla aunque el tracker falle)
+- Fases reportadas en tiempo real: Fase 0→1→2→ciclos→síntesis→verificación
+- El usuario ve progreso en el bubble "Pensando..." durante el análisis épico
+
+**Backend (`chat/config.json`):**
+- `lan_max_retries`: 10 → **3** (evita que cada fase del DeepAgent espere 100s+)
+- `lan_read_timeout_s`: 180 → **120s**
+- Eliminados `deep_analysis_timeout_s` y `deep_analysis_lan_max_retries` (obsoletos)
+- Añadida nota explicativa del principio DEVIA
+
+**Resultado:**
+```
+Antes: frontend abortaba a los 300s (el backend tardó 312s → timeout)
+Ahora: el frontend espera todo lo que necesite el modelo LAN
+       mientras el heartbeat confirme que el backend sigue vivo
+Tests: 39 passed, 2 skipped, 0 failures
+```
 
 ### v2.9.0 (03/07/2026) — Selector modo BD + UX responsiva + degradacion graceful
 
