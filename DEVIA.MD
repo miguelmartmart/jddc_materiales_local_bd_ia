@@ -1,8 +1,8 @@
 # DEVIA — Documentacion Tecnica del Sistema
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Ultima actualizacion:** 08/07/2026
-> **Version:** 2.9.0
+> **Ultima actualizacion:** 09/07/2026
+> **Version:** 3.0.0
 > **Ruta:** `bots/interjddcia/`
 > **Tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
@@ -1761,6 +1761,46 @@ python -m pytest tests/unit/test_analista_bd_catalog.py -v
 ---
 
 ## 15. Historial de cambios
+
+### v3.0.0 (09/07/2026) — Seguridad BD + SemanticReasoningEngine + Proyectos/Certificaciones
+
+**Módulos nuevos:**
+
+**`backend/core/security/db_security_guard.py`** — Guardián de seguridad BD (SOLO LECTURA):
+- 6 capas de validación independientes (léxico, sintáctico, multi-sentencia, patrones, funciones peligrosas, comentarios)
+- Fail-safe: ante cualquier duda, BLOQUEA (nunca permite una consulta no validada)
+- Inmutable: `SecurityResult` es `frozen=True`, no se puede modificar post-creación
+- Integrado en `_execute_sql()` de `service.py` — se ejecuta SIEMPRE antes de cualquier consulta
+- Singleton: se inicializa una sola vez al arrancar el servidor
+- Auditable: todo bloqueo queda registrado con severidad (CRITICAL/HIGH/MEDIUM/LOW)
+
+**`backend/modules/chat/semantic_reasoning_engine.py`** — Motor de razonamiento semántico:
+- Detecta el dominio de negocio de la pregunta (proyectos, certificaciones, retenciones, etc.)
+- Enriquece el system_prompt con hints SQL deterministas y contexto de negocio JDDC
+- Ultra-resiliente: si falla, el pipeline continúa sin enriquecimiento (nunca rompe el chat)
+- Integrado en `service.py` antes de construir el system_prompt
+
+**Simulador SQLite — Proyectos y Certificaciones:**
+- `schema.py`: nuevas tablas `PROYECTOS` y `PRESUPROYE` con columnas verificadas
+- `synthetic_seeder.py`: 8 proyectos sintéticos realistas + certificaciones de obra
+- `DOCCAB.CODPROYECTO`: columna añadida para vincular facturas a proyectos
+- ~40% de las facturas generadas son certificaciones de obra (con CODPROYECTO)
+
+**Parámetros centralizados (`constants.py`):**
+- `JDDCDocTipos`: ÚNICA fuente de verdad para el mapeo TIPO → nombre de documento
+  - Verificado con BD real: TIPO=3=factura_cli, TIPO=13=factura_prov, etc.
+- `SQLDangerousCommands`: ampliado con INSERT, UPDATE, DELETE, MERGE, GRANT, REVOKE, COMMIT, ROLLBACK, LOCK
+
+**Corrección crítica (`service.py`):**
+- Mapeo DOCCAB.TIPO corregido en el system_prompt (era incorrecto: TIPO=13 para facturas cliente)
+- Ahora: TIPO=3=factura_cli, TIPO=2=albaran_cli, TIPO=1=pedido_cli, TIPO=0=presupuesto
+- Certificaciones de obra: TIPO=3 con CODPROYECTO no nulo (no TIPO=51 como estaba antes)
+
+**Principios DEVIA aplicados:**
+- SOLO LECTURA: ninguna consulta puede modificar la BD real
+- PARÁMETROS CENTRALIZADOS: JDDCDocTipos en constants.py, no dispersos en el código
+- ULTRA-RESILIENTE: SecurityGuard fail-safe, SemanticEngine con fallback gracioso
+- AUDITABLE: todo bloqueo de seguridad queda registrado con contexto completo
 
 ### v2.9.0 (08/07/2026) — Análisis profundo sin timeout + ProgressTracker en DeepAgent
 

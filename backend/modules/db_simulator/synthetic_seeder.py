@@ -76,9 +76,11 @@ class SyntheticSeeder:
         counts["PROVEED"]     = self._seed_proveedores()
         counts["ARTICULO"]    = self._seed_articulos()
         counts["CLIENTE"]     = self._seed_clientes()
+        counts["PROYECTOS"]   = self._seed_proyectos()
         counts["DOCCAB"], counts["DOCLIN"] = self._seed_documentos()
         counts["CAJA"]        = self._seed_caja()
         counts["ESTALMACEN"]  = self._seed_estalmacen()
+        counts["PRESUPROYE"]  = self._seed_presuproye()
 
         self.conn.commit()
         total = sum(counts.values())
@@ -172,6 +174,102 @@ class SyntheticSeeder:
         )
         return len(rows)
 
+    # ─── Proyectos y certificaciones ─────────────────────────────────────────
+
+    def _seed_proyectos(self) -> int:
+        """
+        Genera proyectos/obras sintéticos realistas para JDDC.
+        Incluye datos de retención y tipo de aval para demostrar el módulo.
+        """
+        # Limpiar primero (no estaba en _clear_all para no romper FK)
+        try:
+            self._cur.execute("DELETE FROM PRESUPROYE")
+        except Exception:
+            pass
+        try:
+            self._cur.execute("DELETE FROM PROYECTOS")
+        except Exception:
+            pass
+
+        today = date.today()
+        proyectos = [
+            # (CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA, TIPORETENCION, PORCRETENCION)
+            # TIPORETENCION: 0=sin, 1=aval previo, 2=aval al finalizar, 3=sin aval
+            ("P2024-001", "Instalación climatización Nave Industrial Etosa",
+             "ETOSA S.A.", "2024-01-15", "2024-08-30", 1, 2, 5.0),
+            ("P2024-002", "Mantenimiento anual HVAC Oficinas Centrales",
+             "Grupo Empresarial Norte S.L.", "2024-03-01", "2025-02-28", 2, 0, 0.0),
+            ("P2024-003", "Instalación VRF Edificio Residencial Torre Sur",
+             "Promotora Inmobiliaria Sur S.A.", "2024-05-10", "2024-12-15", 1, 1, 5.0),
+            ("P2024-004", "Renovación sistema frigorífico Almacén Logístico",
+             "Logística Mediterránea S.L.", "2024-06-01", "2024-09-30", 1, 3, 5.0),
+            ("P2025-001", "Climatización Centro Comercial Plaza Mayor",
+             "Inversiones Comerciales S.A.", "2025-01-10", "2025-07-31", 1, 2, 5.0),
+            ("P2025-002", "Instalación geotérmica Complejo Hotelero",
+             "Hoteles del Mediterráneo S.L.", "2025-02-15", "2025-11-30", 1, 1, 3.0),
+            ("P2025-003", "Mantenimiento preventivo Hospitales Zona Norte",
+             "Consorcio Sanitario Regional", "2025-01-01", "2025-12-31", 2, 0, 0.0),
+            ("P2025-004", "Instalación solar térmica Polideportivo Municipal",
+             "Ayuntamiento de Murcia", "2025-03-01", "2025-09-30", 1, 3, 5.0),
+        ]
+
+        rows = []
+        for cod, nombre, cliente, fi, ff, tipoobra, tiporetencion, porcretencion in proyectos:
+            rows.append((
+                cod, nombre, cliente, fi, fi, ff,
+                tipoobra, tiporetencion, porcretencion, "N"
+            ))
+
+        self._cur.executemany(
+            "INSERT OR IGNORE INTO PROYECTOS "
+            "(CODIGO,NOMBRE,CLIENTE,FECHAINICIO,FECHAINICIOPREV,FECHAFIN,"
+            "TIPOOBRA,TIPORETENCION,PORCRETENCION,ESGASTOSGENERALES) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            rows
+        )
+        logger.info(f"[SEEDER] Proyectos insertados: {len(rows)}")
+        return len(rows)
+
+    def _seed_presuproye(self) -> int:
+        """
+        Vincula presupuestos (DOCCAB TIPO=0) a proyectos.
+        Se ejecuta DESPUÉS de _seed_documentos para tener los IDs de DOCCAB.
+        """
+        try:
+            # Obtener presupuestos generados
+            self._cur.execute("SELECT CODIGO FROM DOCCAB WHERE TIPO=0 ORDER BY CODIGO")
+            presupuestos = [r[0] for r in self._cur.fetchall()]
+
+            # Obtener proyectos
+            self._cur.execute("SELECT CODIGO FROM PROYECTOS ORDER BY CODIGO")
+            proyectos = [r[0] for r in self._cur.fetchall()]
+
+            if not presupuestos or not proyectos:
+                return 0
+
+            rows = []
+            # Asignar 1-3 presupuestos por proyecto
+            pres_idx = 0
+            for cod_proy in proyectos:
+                n_pres = random.randint(1, 3)
+                for _ in range(n_pres):
+                    if pres_idx >= len(presupuestos):
+                        break
+                    rows.append((cod_proy, presupuestos[pres_idx], None))
+                    pres_idx += 1
+
+            self._cur.executemany(
+                "INSERT OR IGNORE INTO PRESUPROYE "
+                "(CODPROYECTO,CODPRESUPUESTO,CODPROYSUBCONTRATA) "
+                "VALUES (?,?,?)",
+                rows
+            )
+            logger.info(f"[SEEDER] PRESUPROYE insertados: {len(rows)}")
+            return len(rows)
+        except Exception as e:
+            logger.warning(f"[SEEDER] Error en _seed_presuproye: {e}")
+            return 0
+
     # ─── Documentos (DOCCAB + DOCLIN) ────────────────────────────────────────
 
     def _seed_documentos(self) -> Tuple[int, int]:
@@ -199,9 +297,21 @@ class SyntheticSeeder:
         art_precios = {i + 1: ARTICULOS_DATA[i][3] for i in range(len(ARTICULOS_DATA))}
         art_nombres = {i + 1: ARTICULOS_DATA[i][1] for i in range(len(ARTICULOS_DATA))}
 
+        # Proyectos disponibles para vincular certificaciones
+        # Se leen de la tabla ya insertada por _seed_proyectos()
+        _proyectos_codigos: List[str] = []
+        try:
+            self._cur.execute("SELECT CODIGO FROM PROYECTOS ORDER BY CODIGO")
+            _proyectos_codigos = [r[0] for r in self._cur.fetchall()]
+        except Exception:
+            pass
+
         doccab_rows: List[tuple] = []
         doclin_rows: List[tuple] = []
         numero_por_tipo: dict = {}
+
+        # Contador de certificaciones por proyecto (para descripción realista)
+        _cert_count: dict = {}
 
         for doc_id in range(1, n_docs + 1):
             tipo       = tipos_list[doc_id - 1]
@@ -212,47 +322,57 @@ class SyntheticSeeder:
             cod_agente = random.choice(agente_ids)
             estado     = _doc_estado(tipo)
 
+            # ── Vincular facturas a proyectos (certificaciones de obra) ──────
+            # ~40% de las facturas son certificaciones de obra (tienen CODPROYECTO)
+            cod_proyecto = None
+            descripcion_doc = JDDCDocTipos.LABELS.get(tipo, "")
+            if tipo == JDDCDocTipos.FACTURA and _proyectos_codigos and random.random() < 0.40:
+                cod_proyecto = random.choice(_proyectos_codigos)
+                _cert_count[cod_proyecto] = _cert_count.get(cod_proyecto, 0) + 1
+                n_cert = _cert_count[cod_proyecto]
+                descripcion_doc = f"Certificación {n_cert} — {cod_proyecto}"
+
             # Generar líneas (2-5 por documento)
             n_lineas   = random.randint(2, 5)
             arts_sel   = random.sample(art_ids, min(n_lineas, len(art_ids)))
             base       = 0.0
             for linia_num, art_id in enumerate(arts_sel, start=1):
                 precio    = art_precios.get(art_id, 100.0)
-                precio    = round(precio * random.uniform(0.9, 1.15), 2)
+                # Certificaciones tienen importes más altos (obras grandes)
+                multiplier = random.uniform(2.0, 8.0) if cod_proyecto else random.uniform(0.9, 1.15)
+                precio    = round(precio * multiplier, 2)
                 cantidad  = round(random.choice([1.0, 1.0, 1.0, 2.0, 3.0, 0.5]), 2)
                 descuento = round(random.choice([0.0, 0.0, 5.0, 10.0, 15.0]), 2)
                 importe   = round(precio * cantidad * (1 - descuento / 100), 2)
                 base     += importe
-                # DOCLIN real: CODDOCUMENTO, CODIGO, CODARTICULO, DESCRIPCION,
-                #              CANTIDAD, PRECIO, COSTE, DESCUENTOS
                 doclin_rows.append((
                     doc_id, linia_num,
                     str(art_id),
                     art_nombres.get(art_id, ""),
                     cantidad, precio,
-                    round(precio * 0.65, 2),  # COSTE ≈ 65% del precio
+                    round(precio * 0.65, 2),
                     descuento,
                 ))
 
             iva_total = round(base * Cfg.IVA_GENERAL / 100, 2)
             total     = round(base + iva_total, 2)
-            # DOCCAB real: CODIGO, TIPO, SERIE, NUMERO, FECHA, CODCLIENTE, CODAGENTE,
-            #              CODALMACEN, DESCRIPCION, OBSERVACIONES,
-            #              IMPORTEBASE, IMPORTEIVA, IMPORTETOTAL, ESTADO
+
+            # DOCCAB con CODPROYECTO para certificaciones
             doccab_rows.append((
                 doc_id, tipo, "A", numero, fecha,
                 cod_cli, cod_agente, 1,
-                JDDCDocTipos.LABELS.get(tipo, ""),
+                descripcion_doc,
                 "",
                 round(base, 2), iva_total, total,
                 estado,
+                cod_proyecto,  # CODPROYECTO — None para docs sin proyecto
             ))
 
         self._cur.executemany(
             "INSERT INTO DOCCAB "
             "(CODIGO,TIPO,SERIE,NUMERO,FECHA,CODCLIENTE,CODAGENTE,CODALMACEN,"
-            "DESCRIPCION,OBSERVACIONES,IMPORTEBASE,IMPORTEIVA,IMPORTETOTAL,ESTADO) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "DESCRIPCION,OBSERVACIONES,IMPORTEBASE,IMPORTEIVA,IMPORTETOTAL,ESTADO,CODPROYECTO) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             doccab_rows
         )
         self._cur.executemany(
@@ -260,6 +380,12 @@ class SyntheticSeeder:
             "(CODDOCUMENTO,CODIGO,CODARTICULO,DESCRIPCION,CANTIDAD,PRECIO,COSTE,DESCUENTOS) "
             "VALUES (?,?,?,?,?,?,?,?)",
             doclin_rows
+        )
+        # Log de certificaciones generadas
+        total_cert = sum(_cert_count.values())
+        logger.info(
+            f"[SEEDER] Certificaciones generadas: {total_cert} "
+            f"en {len(_cert_count)} proyectos → {_cert_count}"
         )
         return len(doccab_rows), len(doclin_rows)
 

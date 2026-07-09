@@ -868,30 +868,77 @@ Si ves texto en la imagen, transcríbelo pero NO lo busques en ninguna tabla.
             # Standard SQL Mode — system prompt ultra-compacto para minimizar tokens
             # ── Nota simulador (solo si está activo) ─────────────────────────
             _sim_note = ""
+            _is_simulator_active = False
             try:
                 from backend.modules.db_simulator.manager import simulator_manager as _sm
                 if _sm.is_enabled():
+                    _is_simulator_active = True
                     from backend.modules.db_simulator.schema import TABLE_SCHEMAS
                     _sim_tables = ", ".join(sorted(TABLE_SCHEMAS.keys()))
                     _sim_note = (
                         f"\n⚠️ MODO SIMULADOR ACTIVO (SQLite local — snapshot de Firebird).\n"
                         f"TABLAS DISPONIBLES (SOLO ESTAS): {_sim_tables}\n"
                         f"NO generes SQL contra tablas que no estén en esta lista.\n"
-                        f"Escribe SQL con sintaxis Firebird (FIRST N, EXTRACT, etc.) — "
-                        f"el sistema lo convierte a SQLite automáticamente.\n"
+                        f"Escribe SQL con sintaxis SQLite (LIMIT N en lugar de FIRST N, "
+                        f"strftime en lugar de EXTRACT) — el sistema convierte automáticamente.\n"
+                        f"PROYECTOS y DOCCAB.CODPROYECTO están disponibles en el simulador.\n"
                     )
             except Exception:
                 pass
 
+            # ── Razonamiento semántico multi-fase ────────────────────────────
+            # DEVIA: antes de construir el system_prompt, el SemanticReasoningEngine
+            # analiza la pregunta para detectar el dominio de negocio (proyectos,
+            # certificaciones, retenciones, etc.) y enriquece el contexto con
+            # conocimiento JDDC específico + hints SQL deterministas.
+            # Ultra-resiliente: si falla, continúa con el prompt base sin modificar.
+            _reasoning_enrichment = ""
+            try:
+                from backend.modules.chat.semantic_reasoning_engine import get_reasoning_engine
+                _reasoning_engine = get_reasoning_engine()
+                _reasoning_result = _reasoning_engine.reason(
+                    question=message,
+                    db_context=db_context,
+                    is_simulator=_is_simulator_active,
+                )
+                if _reasoning_result.confidence >= 0.5:
+                    # Construir bloque de enriquecimiento para el system_prompt
+                    _parts = []
+                    if _reasoning_result.business_context:
+                        _parts.append(_reasoning_result.business_context)
+                    if _reasoning_result.hints:
+                        _hints_txt = "\n".join(f"  • {h}" for h in _reasoning_result.hints)
+                        _parts.append(f"\n🎯 HINTS SQL PARA ESTA CONSULTA:\n{_hints_txt}")
+                    if _reasoning_result.filters_suggested:
+                        _filters_txt = "\n".join(f"  • {f}" for f in _reasoning_result.filters_suggested)
+                        _parts.append(f"\n🔍 FILTROS SUGERIDOS:\n{_filters_txt}")
+                    if _parts:
+                        _reasoning_enrichment = "\n".join(_parts)
+                    logger.info(
+                        f"[REASONING] Dominio={_reasoning_result.domain} "
+                        f"conf={_reasoning_result.confidence:.0%} "
+                        f"hints={len(_reasoning_result.hints)} "
+                        f"steps={_reasoning_result.reasoning_steps}"
+                    )
+                    _phase(
+                        f"🧩 Dominio detectado: {_reasoning_result.domain}",
+                        f"Confianza {_reasoning_result.confidence:.0%} · "
+                        f"{len(_reasoning_result.hints)} hints SQL"
+                    )
+            except Exception as _re:
+                logger.warning(f"[REASONING] SemanticReasoningEngine falló: {_re} — continuando sin enriquecimiento")
+
             system_prompt = f"""Firebird 2.5 SQL. Convierte preguntas a SQL válido.
 {history_context}
 {db_context}{_sim_note}
+{_reasoning_enrichment}
 REGLAS(no negociar):
 • FIRST N no LIMIT/TOP/ROWS: SELECT FIRST 10 CODIGO FROM ARTICULO
 • UPPER(col) LIKE UPPER('%x%') para texto (Firebird es case-sensitive)
 • BLOB(DESCRIPCION en ARTICULO/DOCCAB) → NO usar en GROUP BY/ORDER BY/SELECT si hay GROUP BY; usa DESCRIPCIONCORTA o NOMBRE
 • ARTICULO.STOCK no existe → usar STOCKARTICULO
-• DOCCAB.TIPO: 13=factura,12=pedido,11=albaran,0=presupuesto,3=abono,2=SAT
+• DOCCAB.TIPO (verificado): 0=presupuesto, 1=pedido_cli, 2=albaran_cli, 3=factura_cli, 10=presupuesto_prov, 11=pedido_prov, 12=albaran_prov, 13=factura_prov
+• CERTIFICACIONES DE OBRA: facturas (TIPO=3) con CODPROYECTO no nulo → JOIN PROYECTOS ON PROYECTOS.CODIGO=DOCCAB.CODPROYECTO
 • Fechas: EXTRACT(MONTH FROM FECHA), EXTRACT(YEAR FROM FECHA); NO DATEADD dentro de EXTRACT
 • Mes pasado: (EXTRACT(YEAR FROM FECHA)*12+EXTRACT(MONTH FROM FECHA))=(EXTRACT(YEAR FROM CURRENT_DATE)*12+EXTRACT(MONTH FROM CURRENT_DATE)-1)
 • Artículos con más compras → JOIN DOCLIN ON DOCLIN.CODIGO=ARTICULO.CODIGO GROUP BY ARTICULO.CODIGO,ARTICULO.NOMBRE ORDER BY COUNT(*) DESC
@@ -925,16 +972,18 @@ NO generes imágenes si solo te preguntan qué hay en la anterior.
 """
 
         system_prompt += """
-TIPOS DE DOCUMENTOS (TABLA DOCCAB, COLUMNA TIPO):
-- Para "facturas" -> WHERE TIPO = 13
-- Para "albaranes" -> WHERE TIPO = 11
-- Para "presupuestos" -> WHERE TIPO = 0
-- Para "pedidos" -> WHERE TIPO = 12
-- Para "abonos" -> WHERE TIPO = 3
-- Para "recibos" -> WHERE TIPO = 61
-- Para "contratos" -> WHERE TIPO = 10
-- Para "certificaciones" -> WHERE TIPO = 51
-- Para "ordenes de trabajo" o "SAT" -> WHERE TIPO = 2
+TIPOS DE DOCUMENTOS (TABLA DOCCAB, COLUMNA TIPO) — VERIFICADO CON BD REAL JDDC:
+- Para "facturas" (cliente) -> WHERE TIPO = 3
+- Para "albaranes" (cliente) -> WHERE TIPO = 2
+- Para "presupuestos" (cliente) -> WHERE TIPO = 0
+- Para "pedidos" (cliente) -> WHERE TIPO = 1
+- Para "facturas proveedor" -> WHERE TIPO = 13
+- Para "albaranes proveedor" -> WHERE TIPO = 12
+- Para "pedidos proveedor" -> WHERE TIPO = 11
+- Para "presupuestos proveedor" -> WHERE TIPO = 10
+- Para "certificaciones de obra" -> TIPO = 3 (factura cliente) con CODPROYECTO no nulo
+- Para "SAT" u "órdenes de trabajo" -> WHERE TIPO = 2 (albarán cliente con descripción SAT)
+NOTA: TIPO=13 es factura PROVEEDOR (compras), TIPO=3 es factura CLIENTE (ventas).
 
 TERMINOLOGÍA ESPECÍFICA (CONTEXTO AIRE ACONDICIONADO):
 - "Split" se refiere a equipos de aire acondicionado.
@@ -1522,8 +1571,37 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
 
         IMPORTANTE: No usa time.sleep() para no bloquear el event loop de asyncio.
         Un único intento — si falla, lanza excepción inmediatamente.
+
+        SEGURIDAD: El DatabaseSecurityGuard valida el SQL ANTES de ejecutarlo.
+        Cualquier intento de escritura (INSERT/UPDATE/DELETE/DROP/etc.) es bloqueado
+        con DatabaseSecurityError. Esta validación es OBLIGATORIA y no se puede
+        desactivar — protege la BD real de modificaciones accidentales o maliciosas.
         """
         logger.info(f"[DATABASE] Preparando ejecución de consulta...")
+
+        # ── SEGURIDAD: Validación de solo lectura (OBLIGATORIA) ───────────────
+        # Se ejecuta SIEMPRE, tanto en modo simulador como en modo real.
+        # El guard tiene 6 capas de validación y es fail-safe (bloquea ante duda).
+        try:
+            from backend.core.security.db_security_guard import (
+                get_db_security_guard, DatabaseSecurityError
+            )
+            _guard = get_db_security_guard()
+            _guard.validate_or_raise(query, context="chat_service._execute_sql")
+        except DatabaseSecurityError as _sec_err:
+            logger.critical(f"[SECURITY] 🚨 CONSULTA BLOQUEADA: {_sec_err}")
+            raise ValueError(
+                f"⛔ Consulta bloqueada por seguridad: solo se permiten consultas de lectura (SELECT). "
+                f"Detalle: {_sec_err}"
+            )
+        except Exception as _sec_import_err:
+            # Si el módulo de seguridad no carga, BLOQUEAR por fail-safe
+            logger.critical(
+                f"[SECURITY] 🚨 Módulo de seguridad no disponible — bloqueando consulta: {_sec_import_err}"
+            )
+            raise ValueError(
+                "⛔ Sistema de seguridad no disponible — consulta bloqueada por precaución."
+            )
 
         # ── MODO SIMULADOR (activación servidor) ──────────────────────────────
         # El simulador se activa SOLO si simulator_enabled=true en

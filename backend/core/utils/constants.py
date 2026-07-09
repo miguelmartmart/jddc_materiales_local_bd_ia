@@ -292,8 +292,76 @@ class SQLLimits:
 
 
 class SQLDangerousCommands:
-    """Comandos SQL peligrosos (no permitidos)"""
-    COMMANDS = ["DROP", "TRUNCATE", "ALTER", "CREATE", "EXECUTE"]
+    """
+    Comandos SQL peligrosos (no permitidos en BD real).
+    NOTA: La validación completa (6 capas) está en backend/core/security/db_security_guard.py.
+    Esta clase es solo referencia rápida para otros módulos.
+    """
+    COMMANDS = [
+        "DROP", "TRUNCATE", "ALTER", "CREATE", "EXECUTE",
+        "INSERT", "UPDATE", "DELETE", "MERGE", "GRANT", "REVOKE",
+        "COMMIT", "ROLLBACK", "LOCK",
+    ]
+    # Solo lectura permitida
+    ALLOWED = ["SELECT", "WITH", "EXPLAIN"]
+
+
+class JDDCDocTipos:
+    """
+    Tipos de documentos DOCCAB verificados con la BD real JDDC.
+    ÚNICA fuente de verdad para el mapeo TIPO → nombre de documento.
+
+    IMPORTANTE: Estos valores son los reales de la BD Firebird JDDC.
+    NO modificar sin verificar contra la BD real.
+
+    Uso en SQL:
+        WHERE DOCCAB.TIPO = JDDCDocTipos.FACTURA_CLI  -- facturas de clientes
+        WHERE DOCCAB.TIPO = JDDCDocTipos.PRESUPUESTO  -- presupuestos
+    """
+    # Documentos de CLIENTE (ventas)
+    PRESUPUESTO     = 0   # Presupuesto cliente
+    PEDIDO_CLI      = 1   # Pedido cliente
+    ALBARAN_CLI     = 2   # Albarán cliente (también SAT/orden de trabajo)
+    FACTURA_CLI     = 3   # Factura cliente (también certificaciones de obra con CODPROYECTO)
+
+    # Documentos de PROVEEDOR (compras)
+    PRESUPUESTO_PRV = 10  # Presupuesto proveedor
+    PEDIDO_PRV      = 11  # Pedido proveedor
+    ALBARAN_PRV     = 12  # Albarán proveedor
+    FACTURA_PRV     = 13  # Factura proveedor
+
+    # Mapeo tipo → etiqueta legible
+    LABELS = {
+        0:  "Presupuesto cliente",
+        1:  "Pedido cliente",
+        2:  "Albarán cliente",
+        3:  "Factura cliente",
+        10: "Presupuesto proveedor",
+        11: "Pedido proveedor",
+        12: "Albarán proveedor",
+        13: "Factura proveedor",
+    }
+
+    # Tipos que son documentos de venta (cliente)
+    TIPOS_VENTA = {0, 1, 2, 3}
+
+    # Tipos que son documentos de compra (proveedor)
+    TIPOS_COMPRA = {10, 11, 12, 13}
+
+    @classmethod
+    def label(cls, tipo: int) -> str:
+        """Devuelve la etiqueta legible para un tipo de documento."""
+        return cls.LABELS.get(tipo, f"Tipo desconocido ({tipo})")
+
+    @classmethod
+    def is_venta(cls, tipo: int) -> bool:
+        """True si el tipo es un documento de venta (cliente)."""
+        return tipo in cls.TIPOS_VENTA
+
+    @classmethod
+    def is_compra(cls, tipo: int) -> bool:
+        """True si el tipo es un documento de compra (proveedor)."""
+        return tipo in cls.TIPOS_COMPRA
 
 
 # ============================================================================
