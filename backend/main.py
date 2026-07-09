@@ -98,8 +98,26 @@ from backend.modules.data_quality.router import router as data_quality_router
 from backend.modules.models.router import router as models_router
 
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import os
+
+# ── Middleware: no-cache para JS/CSS (evita errores por caché obsoleta) ──────
+# DEVIA — Principio de resiliencia: los archivos JS/CSS se sirven siempre
+# con Cache-Control: no-cache para que el navegador valide con el servidor
+# antes de usar la versión en caché. Esto evita errores como
+# "(q.dept || []).map is not a function" causados por JS antiguo en caché.
+class NoCacheJSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.endswith(".js") or path.endswith(".css"):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+        return response
+
+app.add_middleware(NoCacheJSMiddleware)
 
 # Mount frontend static files
 # Use path relative to this file (backend/main.py → ../frontend)
@@ -111,7 +129,10 @@ if os.path.isdir(_assets_dir):
 
 @app.get("/")
 async def read_index():
-    return FileResponse(os.path.join(frontend_path, "index.html"))
+    resp = FileResponse(os.path.join(frontend_path, "index.html"))
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 app.include_router(articles_router, prefix="/api/articles", tags=["Articles"])
 app.include_router(prompts_router, prefix="/api/prompts", tags=["Prompts"])

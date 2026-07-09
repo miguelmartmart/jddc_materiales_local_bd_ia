@@ -41,8 +41,12 @@ class App {
     const navItems = document.querySelectorAll("nav li");
     navItems.forEach((item) => {
       item.addEventListener("click", (e) => {
-        const view = e.target.dataset.view;
-        this.navigate(view);
+        // Usar closest() para que el click en un <span> hijo también funcione.
+        // pointer-events:none en los spans (CSS) ya lo garantiza, pero esto
+        // añade una segunda capa de resiliencia (DEVIA — defensa en profundidad).
+        const li = e.target.closest("li[data-view]");
+        const view = li ? li.dataset.view : e.target.dataset.view;
+        if (view) this.navigate(view);
       });
     });
   }
@@ -144,4 +148,42 @@ class App {
 // Initialize App
 document.addEventListener("DOMContentLoaded", () => {
   window.app = new App();
+
+  // ── Sidebar toggle con persistencia ──────────────────────────────────────
+  // DEVIA — Principio de resiliencia UX:
+  // El estado del sidebar (plegado/desplegado) se persiste en localStorage
+  // para que el usuario no tenga que volver a configurarlo en cada recarga.
+  const sidebar    = document.getElementById("main-sidebar");
+  const toggleBtn  = document.getElementById("btn-sidebar-toggle");
+  const STORAGE_KEY = "devia_sidebar_collapsed";
+
+  if (sidebar && toggleBtn) {
+    // Restaurar estado guardado
+    const savedCollapsed = localStorage.getItem(STORAGE_KEY) === "true";
+    if (savedCollapsed) {
+      sidebar.classList.add("collapsed");
+      toggleBtn.title = "Desplegar menú";
+      toggleBtn.setAttribute("aria-expanded", "false");
+    } else {
+      toggleBtn.setAttribute("aria-expanded", "true");
+    }
+
+    toggleBtn.addEventListener("click", () => {
+      const isCollapsed = sidebar.classList.toggle("collapsed");
+      localStorage.setItem(STORAGE_KEY, isCollapsed);
+      toggleBtn.title = isCollapsed ? "Desplegar menú" : "Plegar menú";
+      toggleBtn.setAttribute("aria-expanded", String(!isCollapsed));
+    });
+
+    // Atajo de teclado: Ctrl+B (estándar en IDEs y apps de productividad)
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+        // Solo si no hay un input/textarea activo
+        const active = document.activeElement;
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+        e.preventDefault();
+        toggleBtn.click();
+      }
+    });
+  }
 });

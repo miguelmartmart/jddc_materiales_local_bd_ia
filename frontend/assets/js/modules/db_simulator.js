@@ -74,22 +74,47 @@ export class SimulatorModule {
   // ── Carga de datos ─────────────────────────────────────────────────────────
 
   async _loadAll() {
+    // DEVIA — Resiliencia en profundidad:
+    // Cada fase de carga es independiente. Si una falla, las demás continúan.
+    // El usuario ve lo que funciona, no una pantalla de error total.
+
+    // Fase 1: config + status (críticos — sin ellos no podemos renderizar)
     try {
       const [cfg, status] = await Promise.all([
-        this._apiFetch(`${SIM_API}/config`),
-        this._apiFetch(`${SIM_API}/status`),
+        this._apiFetch(`${SIM_API}/config`).catch(() => ({})),
+        this._apiFetch(`${SIM_API}/status`).catch(() => ({ status: "not_initialized" })),
       ]);
       this._config = cfg;
       this._status = status;
-      await this._loadDemoQueryLibrary();
-      this._render();
-
-      // Cargar datos de demostración si el simulador está listo
-      if (status?.status === "ready") {
-        await this._loadDemo();
-      }
     } catch (e) {
-      this._renderError(e.message);
+      this._config = {};
+      this._status = { status: "not_initialized" };
+      console.warn("[SimulatorModule] Config/status no disponibles:", e.message);
+    }
+
+    // Fase 2: biblioteca de consultas (no crítica — si falla, la UI sigue)
+    try {
+      await this._loadDemoQueryLibrary();
+    } catch (e) {
+      this._libQueries = [];
+      this._libCatalog = null;
+      console.warn("[SimulatorModule] Biblioteca de consultas no disponible:", e.message);
+    }
+
+    // Fase 3: render principal (con protección por sección)
+    try {
+      this._render();
+    } catch (e) {
+      console.error("[SimulatorModule] Error en _render():", e);
+      // Render de emergencia: muestra lo que se pueda
+      this._renderFallback(e.message);
+    }
+
+    // Fase 4: demo (no crítica — se carga aparte)
+    if (this._status?.status === "ready") {
+      this._loadDemo().catch(e => {
+        console.warn("[SimulatorModule] Demo no disponible:", e.message);
+      });
     }
   }
 
@@ -124,6 +149,42 @@ export class SimulatorModule {
       </div>`;
   }
 
+  /**
+   * Render de emergencia: muestra la UI básica aunque _render() haya fallado.
+   * DEVIA — Resiliencia: nunca mostrar pantalla en blanco o error total.
+   * El usuario puede seguir usando los botones de acción aunque la biblioteca falle.
+   */
+  _renderFallback(errorMsg) {
+    if (!this._root) return;
+    const cfg    = this._config  || {};
+    const status = this._status  || {};
+    const enabled   = !!cfg.simulator_enabled;
+    const simStatus = status.status || "not_initialized";
+
+    this._root.innerHTML = `
+      <div style="padding:16px; color:#92400e; background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; margin-bottom:16px;">
+        <strong>⚠️ Aviso:</strong> La biblioteca de consultas no pudo cargarse correctamente.
+        <br><small style="color:#78350f;">Detalle técnico: ${errorMsg || "Error desconocido"}</small>
+        <br><small>El resto de funcionalidades están disponibles. Pulsa "Actualizar" para reintentar.</small>
+      </div>
+      <div class="sim-actions">
+        <button id="btn-sim-synthetic" class="btn secondary">🎲 Generar Datos Sintéticos</button>
+        <div class="sim-sep"></div>
+        <button id="btn-sim-snapshot" class="btn secondary" style="background:#1e40af;color:#fff;border-color:#1e40af;">📸 Capturar Snapshot Real</button>
+        <div class="sim-sep"></div>
+        <button id="btn-sim-refresh" class="btn secondary" style="margin-left:auto;" title="Recargar estado">🔄 Actualizar</button>
+      </div>
+      <div style="margin-top:12px; padding:12px; background:#f8fafc; border-radius:8px; font-size:0.85em; color:#64748b;">
+        Estado: <strong>${simStatus}</strong> | Simulador: <strong>${enabled ? "🟢 Activo" : "⚪ Inactivo"}</strong>
+      </div>
+      <div id="sim-demo-section" style="margin-top:16px;"></div>`;
+
+    // Registrar eventos básicos
+    document.getElementById("btn-sim-synthetic")?.addEventListener("click", () => this._buildSynthetic());
+    document.getElementById("btn-sim-snapshot")?.addEventListener("click", () => this._buildSnapshot());
+    document.getElementById("btn-sim-refresh")?.addEventListener("click", () => this.onEnter());
+  }
+
   _render() {
     const cfg    = this._config  || {};
     const status = this._status  || {};
@@ -138,17 +199,18 @@ export class SimulatorModule {
     this._root.innerHTML = `
       <!-- Header de estado -->
       <div class="sim-header">
-        <span class="sim-badge ${enabled ? "active" : "inactive"}">
+        <span class="sim-badge ${enabled ? "active" : "inactive"}" title="${enabled ? "Simulador activo: el chat IA usa datos simulados" : "BD Real activa: el chat IA usa Firebird"}">
           ${enabled ? "🟢 SIMULADOR ACTIVO" : "⚪ BD REAL (Firebird)"}
         </span>
-        ${simMode !== "empty" ? `<span class="sim-mode-tag">${_modeLabel(simMode)}</span>` : ""}
-        ${snapDate ? `<span class="sim-snapshot-date">📅 Snapshot: ${snapDate}</span>` : ""}
-        <span style="color:#94a3b8; font-size:0.82em;">Estado BD: <strong>${_statusLabel(simStatus)}</strong></span>
+        ${simMode !== "empty" ? `<span class="sim-mode-tag" title="Modo de datos actual">${_modeLabel(simMode)}</span>` : ""}
+        ${snapDate ? `<span class="sim-snapshot-date" title="Fecha del último snapshot capturado">📅 ${snapDate}</span>` : ""}
+        <span style="color:#94a3b8; font-size:0.82em;">Estado: <strong>${_statusLabel(simStatus)}</strong></span>
+        <span class="sim-help-tip" data-tip="El simulador permite al chat IA trabajar con datos de prueba sin tocar la BD real Firebird. Actívalo para demos, pruebas o cuando Firebird no esté disponible.">?</span>
 
         <div class="sim-header-actions">
-          <label class="sim-toggle-wrap">
-            <span>${enabled ? "Desactivar" : "Activar"}</span>
-            <label class="sim-toggle" title="Activar/desactivar el simulador">
+          <label class="sim-toggle-wrap" title="${enabled ? "Desactivar simulador → volver a BD real" : "Activar simulador → usar datos de prueba"}">
+            <span>${enabled ? "Desactivar" : "Activar simulador"}</span>
+            <label class="sim-toggle">
               <input type="checkbox" id="sim-toggle-chk" ${enabled ? "checked" : ""}>
               <span class="sim-toggle-slider"></span>
             </label>
@@ -360,14 +422,14 @@ export class SimulatorModule {
       ? `<div class="sim-lib-empty">No hay consultas que coincidan con los filtros.</div>`
       : this._libQueries.map(q => `
           <div class="sim-lib-item ${this._libSelected?.id === q.id ? "selected" : ""}"
-               data-qid="${q.id}" title="${q.desc}">
+               data-qid="${q.id}" title="${q.desc || ""}">
             <span class="sim-lib-icon">${q.icono || "📋"}</span>
             <div class="sim-lib-item-body">
-              <div class="sim-lib-item-title">${q.title}</div>
+              <div class="sim-lib-item-title">${q.title || q.nombre || q.id}</div>
               <div class="sim-lib-item-meta">
-                <span class="sim-lib-badge urgencia-${_urgenciaClass(q.urgencia)}">${_urgenciaIcon(q.urgencia)} ${q.urgencia}</span>
-                ${(q.dept||[]).map(d=>`<span class="sim-lib-badge dept">${d}</span>`).join("")}
-                <span class="sim-lib-badge tipo">${q.tipo}</span>
+                <span class="sim-lib-badge urgencia-${_urgenciaClass(q.urgencia)}">${_urgenciaIcon(q.urgencia)} ${q.urgencia || ""}</span>
+                ${_toArray(q.dept).map(d=>`<span class="sim-lib-badge dept">${d}</span>`).join("")}
+                <span class="sim-lib-badge tipo">${q.tipo || ""}</span>
               </div>
             </div>
           </div>`).join("");
@@ -507,14 +569,14 @@ export class SimulatorModule {
     }
     listEl.innerHTML = this._libQueries.map(q => `
       <div class="sim-lib-item ${this._libSelected?.id === q.id ? "selected" : ""}"
-           data-qid="${q.id}" title="${q.desc}">
+           data-qid="${q.id}" title="${q.desc || ""}">
         <span class="sim-lib-icon">${q.icono || "📋"}</span>
         <div class="sim-lib-item-body">
-          <div class="sim-lib-item-title">${q.title}</div>
+          <div class="sim-lib-item-title">${q.title || q.nombre || q.id}</div>
           <div class="sim-lib-item-meta">
-            <span class="sim-lib-badge urgencia-${_urgenciaClass(q.urgencia)}">${_urgenciaIcon(q.urgencia)} ${q.urgencia}</span>
-            ${(q.dept||[]).map(d=>`<span class="sim-lib-badge dept">${d}</span>`).join("")}
-            <span class="sim-lib-badge tipo">${q.tipo}</span>
+            <span class="sim-lib-badge urgencia-${_urgenciaClass(q.urgencia)}">${_urgenciaIcon(q.urgencia)} ${q.urgencia || ""}</span>
+            ${_toArray(q.dept).map(d=>`<span class="sim-lib-badge dept">${d}</span>`).join("")}
+            <span class="sim-lib-badge tipo">${q.tipo || ""}</span>
           </div>
         </div>
       </div>`).join("");
@@ -556,11 +618,14 @@ export class SimulatorModule {
       `;
     }
 
-    // Limpiar resultado anterior
+    // Limpiar resultado anterior y paneles de verificación
     const result = document.getElementById("sim-query-result");
     if (result) result.innerHTML = "";
     const message = document.getElementById("sim-query-message");
     if (message) message.textContent = "";
+    // Limpiar paneles de verificación de la consulta anterior
+    const verPanel = document.getElementById("sim-verifications-panel");
+    if (verPanel) verPanel.innerHTML = "";
 
     // Marcar item seleccionado en la lista
     document.querySelectorAll(".sim-lib-item").forEach(el => {
@@ -594,10 +659,127 @@ export class SimulatorModule {
         body: JSON.stringify({ sql }),
       });
       result.innerHTML = this._formatSqlResult(payload);
+
+      // ── Paneles de justificación/verificación ─────────────────────────────
+      // Si hay una consulta seleccionada de la biblioteca, cargar sus paneles
+      // de verificación debajo del resultado SQL.
+      if (this._libSelected?.id) {
+        await this._loadAndRenderVerifications(this._libSelected.id);
+      }
     } catch (e) {
       if (message) message.textContent = `Error: ${e.message}`;
       result.innerHTML = "";
     }
+  }
+
+  /**
+   * Carga y renderiza los paneles de justificación/verificación para una consulta.
+   * Llama a GET /api/db-simulator/query-library/{id}/verify y ejecuta cada sub-SQL.
+   * Los paneles se muestran en #sim-verifications-panel, debajo del resultado SQL.
+   *
+   * RESILIENCIA: si el endpoint falla o no hay paneles, no rompe nada — simplemente
+   * no muestra el panel de verificaciones.
+   */
+  async _loadAndRenderVerifications(queryId) {
+    // Asegurar que existe el contenedor de verificaciones
+    let verPanel = document.getElementById("sim-verifications-panel");
+    if (!verPanel) {
+      const result = document.getElementById("sim-query-result");
+      if (!result) return;
+      verPanel = document.createElement("div");
+      verPanel.id = "sim-verifications-panel";
+      result.parentNode.insertBefore(verPanel, result.nextSibling);
+    }
+
+    verPanel.innerHTML = `
+      <div class="sim-card" style="margin-top:16px;">
+        <div class="sim-card-header">
+          <span class="sim-card-icon">🔍</span>
+          <span class="sim-card-title">Paneles de Verificación</span>
+          <span style="margin-left:auto; font-size:0.78em; color:#94a3b8;">Cargando…</span>
+        </div>
+        <div class="sim-loading" style="padding:16px;"><div class="sim-spinner"></div><span>Ejecutando verificaciones…</span></div>
+      </div>`;
+
+    try {
+      const data = await this._apiFetch(`${SIM_API}/query-library/${queryId}/verify`);
+      const verifications = data.verifications || [];
+
+      if (!verifications.length) {
+        verPanel.innerHTML = "";
+        return;
+      }
+
+      verPanel.innerHTML = this._renderVerificationsPanel(verifications, data.simulator_ready);
+    } catch (e) {
+      // Fallo silencioso — las verificaciones son opcionales
+      verPanel.innerHTML = "";
+      console.warn("[SimulatorModule] Verificaciones no disponibles:", e.message);
+    }
+  }
+
+  /**
+   * Renderiza los 10 paneles de verificación como secciones colapsables.
+   * Cada panel tiene: icono, label, justificacion, y tabla de resultados (si hay datos).
+   */
+  _renderVerificationsPanel(verifications, simulatorReady) {
+    const panelsHtml = verifications.map((v, idx) => {
+      const rows = v.rows || [];
+      const cols = v.columns || [];
+      const hasData = rows.length > 0 && cols.length > 0;
+      const icono = v.icono || "📋";
+      const label = v.label || `Panel ${idx + 1}`;
+      const justificacion = v.justificacion || "";
+      const error = v.error || null;
+
+      let bodyHtml = "";
+      if (!simulatorReady) {
+        bodyHtml = `<div class="sim-empty" style="padding:8px 0;">Simulador no disponible — actívalo para ver datos.</div>`;
+      } else if (error) {
+        bodyHtml = `<div class="sim-empty" style="color:#ef4444; padding:8px 0;">⚠️ ${error}</div>`;
+      } else if (!hasData) {
+        bodyHtml = `<div class="sim-empty" style="padding:8px 0;">Sin datos para este panel.</div>`;
+      } else {
+        const thead = cols.map(c => `<th>${c}</th>`).join("");
+        const tbody = rows.map(row =>
+          `<tr>${cols.map(c => `<td>${row[c] ?? "—"}</td>`).join("")}</tr>`
+        ).join("");
+        bodyHtml = `
+          <div style="overflow:auto; max-height:220px;">
+            <table class="sim-table" style="width:100%; border-collapse:collapse; font-size:0.85em;">
+              <thead><tr>${thead}</tr></thead>
+              <tbody>${tbody}</tbody>
+            </table>
+          </div>`;
+      }
+
+      // Panel colapsable — abierto el primero, cerrado el resto
+      const isOpen = idx === 0 ? "open" : "";
+      return `
+        <details class="sim-ver-panel" ${isOpen} style="border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; background:#fff;">
+          <summary style="padding:10px 14px; cursor:pointer; display:flex; align-items:center; gap:8px; user-select:none; list-style:none; font-weight:600; color:#1e293b;">
+            <span style="font-size:1.1em;">${icono}</span>
+            <span style="flex:1;">${label}</span>
+            <span style="font-size:0.75em; color:#64748b; font-weight:400;">${hasData ? rows.length + " filas" : ""}</span>
+          </summary>
+          <div style="padding:0 14px 12px 14px;">
+            ${justificacion ? `<div style="font-size:0.82em; color:#475569; margin-bottom:8px; padding:6px 10px; background:#f8fafc; border-radius:6px; border-left:3px solid #93c5fd;">${justificacion}</div>` : ""}
+            ${bodyHtml}
+          </div>
+        </details>`;
+    }).join("");
+
+    return `
+      <div class="sim-card" style="margin-top:16px;">
+        <div class="sim-card-header" style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          <span class="sim-card-icon">🔍</span>
+          <span class="sim-card-title">Paneles de Verificación</span>
+          <span style="margin-left:auto; font-size:0.78em; color:#94a3b8;">${verifications.length} paneles · click para colapsar</span>
+        </div>
+        <div class="sim-card-body" style="padding:12px;">
+          ${panelsHtml}
+        </div>
+      </div>`;
   }
 
   _formatSqlResult(payload) {
@@ -799,6 +981,18 @@ export class SimulatorModule {
 }
 
 // ─── Helpers locales ──────────────────────────────────────────────────────────
+
+/**
+ * Normaliza dept/rol: acepta string, array o null/undefined.
+ * Siempre devuelve un array, nunca lanza excepción.
+ * Resiliente ante cualquier formato que devuelva el backend.
+ */
+function _toArray(val) {
+  if (val == null) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string" && val.length > 0) return [val];
+  return [];
+}
 
 function _statusLabel(s) {
   const map = {

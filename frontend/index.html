@@ -9,28 +9,54 @@
     <link rel="stylesheet" href="assets/css/chat_markdown.css">
     <link rel="stylesheet" href="assets/css/metadata_builder.css">
     <link rel="stylesheet" href="assets/css/siuo.css">
+    <link rel="stylesheet" href="assets/css/db_simulator.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div class="app-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="main-sidebar">
+            <!-- Botón toggle: pliega/despliega el sidebar -->
+            <button class="sidebar-toggle-btn" id="btn-sidebar-toggle"
+                title="Plegar/Desplegar menú" aria-label="Plegar menú lateral">◀</button>
             <div class="logo">
                 <h1>🚀 DEVIA</h1>
             </div>
             <nav>
                 <ul>
-                    <li class="active" data-view="dashboard">📊 Dashboard</li>
-                    <li data-view="articles">📦 Gestión Artículos</li>
-                    <li data-view="prompts">⚙️ Configuración Prompts</li>
-                    <li data-view="models">🤖 Modelos IA</li>
-                    <li data-view="database-config">🗄️ Configuración BD</li>
-                    <li data-view="chat">💬 Chat IA</li>
-                    <li data-view="outlook">📧 Outlook</li>
-                    <li data-view="anonymizer">🛡️ Anonimizar</li>
-                    <li data-view="metadata-builder">🗄️ Constructor BD</li>
-                    <li data-view="db-simulator">🎭 BD Simulada</li>
-                    <li data-view="siuo">🧠 Índices SIUO</li>
+                    <li class="active" data-view="dashboard" data-tooltip="Dashboard">
+                        <span>📊</span><span class="nav-label">Dashboard</span>
+                    </li>
+                    <li data-view="articles" data-tooltip="Gestión Artículos">
+                        <span>📦</span><span class="nav-label">Gestión Artículos</span>
+                    </li>
+                    <li data-view="prompts" data-tooltip="Configuración Prompts">
+                        <span>⚙️</span><span class="nav-label">Configuración Prompts</span>
+                    </li>
+                    <li data-view="models" data-tooltip="Modelos IA">
+                        <span>🤖</span><span class="nav-label">Modelos IA</span>
+                    </li>
+                    <li data-view="database-config" data-tooltip="Configuración BD">
+                        <span>🗄️</span><span class="nav-label">Configuración BD</span>
+                    </li>
+                    <li data-view="chat" data-tooltip="Chat IA">
+                        <span>💬</span><span class="nav-label">Chat IA</span>
+                    </li>
+                    <li data-view="outlook" data-tooltip="Outlook">
+                        <span>📧</span><span class="nav-label">Outlook</span>
+                    </li>
+                    <li data-view="anonymizer" data-tooltip="Anonimizar">
+                        <span>🛡️</span><span class="nav-label">Anonimizar</span>
+                    </li>
+                    <li data-view="metadata-builder" data-tooltip="Constructor BD">
+                        <span>🗄️</span><span class="nav-label">Constructor BD</span>
+                    </li>
+                    <li data-view="db-simulator" data-tooltip="BD Simulada">
+                        <span>🎭</span><span class="nav-label">BD Simulada</span>
+                    </li>
+                    <li data-view="siuo" data-tooltip="Índices SIUO">
+                        <span>🧠</span><span class="nav-label">Índices SIUO</span>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -870,7 +896,7 @@
                                 <div id="chat-preview-container"
                                     style="display: none; gap: 8px; padding: 6px 10px; overflow-x: auto; border-top: 1px solid #f0f0f0;">
                                 </div>
-                                <div class="chat-input-area">
+                                <div class="chat-input-area" style="flex-wrap: wrap;">
                                     <input type="file" id="chat-file-input" accept="image/*" multiple style="display: none;">
                                     <button id="btn-attach-file" class="btn secondary"
                                         style="padding: 0 10px; font-size: 1.1em; flex-shrink: 0;" title="Adjuntar imagen">📎</button>
@@ -1328,7 +1354,7 @@
     <script src="assets/js/modules/metadata_builder.js?v=4"></script>
     <!-- SIUO: módulo ES con imports de siuo_constants.js y siuo_render.js -->
     <script type="module" src="assets/js/modules/siuo.js?v=2"></script>
-    <script type="module" src="assets/js/core/app.js?v=4"></script>
+    <script type="module" src="assets/js/core/app.js?v=5"></script>
 </body>
 
 </html>
