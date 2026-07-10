@@ -1080,8 +1080,59 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
         )
         
         if not response_text:
-            logger.error(f"[AI PROVIDER] ❌ Todos los modelos fallaron")
-            return "❌ No se pudo generar la consulta con ningún modelo disponible. Por favor, inténtalo más tarde."
+            logger.error(f"[AI PROVIDER] ❌ Todos los modelos fallaron — activando resiliencia adaptativa")
+            # ── RESILIENCIA ADAPTATIVA ────────────────────────────────────────────
+            # Cuando la IA no está disponible, el AdaptiveResilienceEngine genera
+            # una respuesta de calidad usando datos reales del simulador SQLite.
+            # NUNCA devuelve "no disponible" si hay datos en el simulador.
+            # DEVIA: backend/modules/chat/adaptive_resilience.py
+            try:
+                from backend.modules.chat.adaptive_resilience import get_resilience_engine
+
+                # Crear executor async que usa el mismo mecanismo que el chat
+                _db_params_for_resilience = context.get('db_params')
+                async def _resilience_sql_executor(q: str) -> list:
+                    import asyncio as _asyncio
+                    loop = _asyncio.get_running_loop()
+                    return await loop.run_in_executor(
+                        None, self._execute_sql, q, _db_params_for_resilience
+                    )
+
+                resilience_engine = get_resilience_engine(
+                    sql_executor=_resilience_sql_executor
+                )
+                resilience_result = await resilience_engine.generate_response(
+                    question=message,
+                    context=context,
+                )
+                logger.info(
+                    f"[RESILIENCE] Respuesta adaptativa generada: "
+                    f"dominio={resilience_result.domain} "
+                    f"calidad={resilience_result.quality} "
+                    f"filas={resilience_result.data_rows} "
+                    f"sqls={resilience_result.sqls_successful}/{resilience_result.sqls_executed}"
+                )
+                if resilience_result.quality in ("high", "medium"):
+                    _phase(
+                        "✅ Respuesta generada (modo sin IA)",
+                        f"Dominio: {resilience_result.domain} · {resilience_result.data_rows} filas"
+                    )
+                    return resilience_result.response
+                # Si la calidad es baja pero hay algo, devolver igualmente
+                if resilience_result.response and resilience_result.data_rows > 0:
+                    return resilience_result.response
+            except Exception as _res_err:
+                logger.error(f"[RESILIENCE] AdaptiveResilienceEngine falló: {_res_err}")
+
+            # Último recurso: mensaje de error informativo
+            return (
+                "❌ El servidor de IA no está disponible en este momento.\n"
+                "Comprueba que el servidor Qwen3 esté activo e inténtalo de nuevo.\n\n"
+                "💡 **Mientras tanto**, puedes:\n"
+                "- Verificar que el servidor LAN (http://jddcia.local) esté activo\n"
+                "- Usar el simulador de BD para consultas básicas\n"
+                "- Cambiar a modo 'Sin IA' en Configuración para respuestas deterministas"
+            )
         
         logger.info(f"[AI PROVIDER] ✅ Respuesta generada con modelo: {used_model_id}")
         logger.info(f"[AI PROVIDER] Respuesta completa: {response_text}")
