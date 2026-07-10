@@ -500,15 +500,53 @@ class SemanticReasoningEngine:
         result.reasoning_steps.append("Artículos/stock detectados → ARTICULO + DOCLIN")
 
     def _handle_clientes_proveedores(self, question: str, result: ReasoningResult, is_sim: bool) -> None:
-        """Handler para consultas sobre clientes y proveedores."""
+        """
+        Handler para consultas sobre clientes, proveedores y agentes comerciales.
+
+        PRINCIPIO DEVIA — Inferencia genérica:
+          Deduce dinámicamente qué tablas son relevantes según el contenido
+          semántico de la pregunta, sin hardcodear casos concretos.
+          Cada sub-dominio (clientes, proveedores, agentes) puede coexistir.
+        """
         q_lower = question.lower()
-        if "proveedor" in q_lower:
-            result.tables_suggested = ["PROVEED", "DOCCAB"]
+
+        # ── Inferencia de sub-dominio: qué entidades menciona la pregunta ──
+        menciona_proveedor = any(w in q_lower for w in [
+            "proveedor", "proveedores", "suministrador", "suministradores",
+        ])
+        menciona_agente = any(w in q_lower for w in [
+            "agente", "agentes", "comercial", "comerciales",
+        ])
+        menciona_cliente = any(w in q_lower for w in [
+            "cliente", "clientes",
+        ])
+
+        # Si no se menciona ninguna entidad específica → asumir clientes (caso más común)
+        if not menciona_proveedor and not menciona_agente and not menciona_cliente:
+            menciona_cliente = True
+
+        # ── Construir tables_suggested de forma genérica ──
+        tables: list = []
+        if menciona_proveedor:
+            tables.append("PROVEED")
             result.hints.append("Compras a proveedores: DOCCAB con TIPO=13 (factura proveedor)")
-        else:
-            result.tables_suggested = ["CLIENTE", "DOCCAB"]
+        if menciona_agente:
+            tables.append("AGENTES")
+            result.hints.append("Agentes comerciales: AGENTES.CODIGO = CLIENTE.CODAGENTE = DOCCAB.CODAGENTE")
+        if menciona_cliente or not tables:
+            tables.append("CLIENTE")
             result.hints.append("Ventas a clientes: DOCCAB con TIPO=3 (factura cliente)")
-        result.reasoning_steps.append("Clientes/proveedores detectados")
+
+        # DOCCAB siempre relevante para vincular documentos con clientes/proveedores
+        tables.append("DOCCAB")
+
+        # Eliminar duplicados preservando orden
+        seen: set = set()
+        result.tables_suggested = [t for t in tables if not (t in seen or seen.add(t))]
+
+        result.reasoning_steps.append(
+            f"Clientes/proveedores detectados → tablas inferidas: {result.tables_suggested}"
+        )
 
     def _handle_financiero(self, question: str, result: ReasoningResult, is_sim: bool) -> None:
         """Handler para consultas financieras (caja, cobros, pagos)."""

@@ -1,1932 +1,235 @@
-# DEVIA — Documentacion Tecnica del Sistema
+# DEVIA — Sistema DEVIA: Resumen Ejecutivo y Jerarquía
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Ultima actualizacion:** 09/07/2026
-> **Version:** 3.0.0
-> **Ruta:** `bots/interjddcia/`
-> **Tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
+> **Última actualización:** 10/07/2026  
+> **Versión:** 3.1.0  
+> **Ruta raíz:** `bots/interjddcia/`  
+> **Tests:** ✅ 10.343+ passed · 69 skipped · 71 xfailed (suite completa)
 
 ---
 
-## ARRANQUE RAPIDO
+## PRINCIPIOS DEVIA (obligatorios en todo el sistema)
+
+| # | Principio | Descripción |
+|---|-----------|-------------|
+| 1 | **Sin inventar** | Nunca generar datos, tablas, columnas o valores que no existan en el esquema real |
+| 2 | **Ultra-resiliente** | Cada módulo falla de forma segura; si falla, devuelve el estado anterior sin modificar |
+| 3 | **Determinista primero** | Lógica determinista antes que IA; la IA es enriquecimiento opcional |
+| 4 | **Genérico** | Sin hardcoding de casos concretos; el sistema deduce, infiere y analiza |
+| 5 | **Modular** | Sin dependencias circulares; cada módulo < 500 líneas |
+| 6 | **Jerárquico** | Este DEVIA es el resumen; los detalles están en los DEVIAs secundarios |
+| 7 | **Sin alucinaciones** | Módulos específicos verifican que tablas/columnas/valores existen en el esquema real |
+| 8 | **Logging de auditoría** | Cada decisión relevante queda registrada para trazabilidad |
+| 9 | **Tests independientes** | Cada test es independiente; sin mocks de datos, solo mocks de preguntas |
+| 10 | **Privacidad LAN** | Ningún dato de la BD sale a internet; solo Qwen3 LAN para análisis |
+
+---
+
+## ARRANQUE RÁPIDO
 
 ```
-ARRANCAR_DEVIA.bat   <- doble clic para arrancar todo
-PARAR_DEVIA.bat      <- doble clic para parar todo
+ARRANCAR_DEVIA.bat   ← doble clic para arrancar todo
+PARAR_DEVIA.bat      ← doble clic para parar todo
 ```
 
-El script `ARRANCAR_DEVIA.bat` muestra un menu con 4 opciones:
-
-| Opcion | Que arranca | Cuando usarla |
+| Opción | Qué arranca | Cuándo usarla |
 |--------|------------|---------------|
 | **1** | Solo Backend DEVIA (puerto 8001) | Chat IA web, gafas Meta, API |
 | **2** | Backend DEVIA + CodeLab desktop | Uso completo del sistema |
-| **3** | Solo CodeLab desktop | Editor de codigo con IA |
-| **4** | Diagnostico (sin arrancar nada) | Verificar estado del sistema |
+| **3** | Solo CodeLab desktop | Editor de código con IA |
+| **4** | Diagnóstico (sin arrancar nada) | Verificar estado del sistema |
 
-**Uso mas habitual -> opcion 1** (o simplemente pulsa Enter).
-
-Tras arrancar, se abre automaticamente: **http://localhost:8001**
+Tras arrancar: **http://localhost:8001**
 
 ---
 
-## INDICE
-
-1. [Arquitectura del sistema](#1-arquitectura)
-2. [Sistema actual de metadatos — analisis critico](#2-sistema-actual-analisis-critico)
-3. [NUEVO: Sistema de Indices Ultra-Optimizado (SIUO)](#3-nuevo-sistema-siuo)
-4. [Arquitectura de ficheros del SIUO](#4-arquitectura-ficheros-siuo)
-5. [Flujo completo: pregunta -> SQL -> respuesta](#5-flujo-completo)
-6. [Modo AI_LOCAL_ONLY — Solo Qwen3 LAN](#6-modo-ai_local_only)
-7. [Resiliencia del sistema](#7-resiliencia)
-8. [Diagnosticos frecuentes](#8-diagnosticos)
-9. [Como levantar el backend](#9-como-levantar)
-10. [Comandos de diagnostico rapido](#10-comandos-diagnostico)
-11. [Archivos clave](#11-archivos-clave)
-12. [Pipeline de Analisis Profundo — Fases](#12-pipeline-analisis-profundo)
-13. [DB Simulator — Tests sin BD real](#13-db-simulator)
-14. [Modulo Analista BD](#14-analista-bd)
-15. [Historial de cambios](#15-historial-cambios)
-
----
-
-## 1. Arquitectura
+## ARQUITECTURA DEL SISTEMA
 
 ```
-GAFAS META RAY-BAN (Android)
-        |
-        | POST http://192.168.0.38:8001/api/chat/send
-        v
-Backend DEVIA (bots/interjddcia/)
-        |  FastAPI + Python
-        |
-        +- ChatService (service.py)
-        |    +- get_semantic_schema() -> db_metadata_optimized.json (ACTUAL)
-        |    +- [NUEVO] ContextRetriever -> SIUO indices (FUTURO)
-        |    +- Extrae SQL de la respuesta IA
-        |    +- FirebirdSQLNormalizer -> limpia LIMIT/ROWS/ILIKE
-        |    +- SQLCorrector -> reintentos con correccion IA
-        |    +- execute_with_correction() -> reintentos SQL
-        |
-        +- ModelFallbackOrchestrator (model_fallback_orchestrator.py)
-        |    +- Lee ai_local_only de config.json en cada llamada
-        |    +- Si ai_local_only=true -> solo modelos jddcia-* (LAN)
-        |    +- Si ai_local_only=false -> fallback multi-modelo (189 modelos)
-        |
-        +- JDDCIAProvider (drivers/ai/jddcia_provider.py)
-        |    +- URL primaria:   http://192.168.0.36/api/vlm/v1  (IP directa)
-        |    +- URL secundaria: http://jddcia.local/api/vlm/v1  (mDNS, falla en Windows)
-        |    +- Modelo: unified-main (Qwen3 VL 30B)
-        |    +- Timeout: 20s
-        |
-        +- MetadataBuilderService (modules/db_explorer/)
-        |    +- check_local_ai() -> verifica Qwen3 LAN
-        |    +- get_all_tables() -> lista 443 tablas Firebird
-        |    +- get_table_structure() -> columnas, PKs, FKs, muestra
-        |    +- analyze_table_with_local_ai() -> genera JSON metadatos
-        |    +- save_table_metadata() -> persiste en db_metadata_optimized.json
-        |    +- [NUEVO] deep_analyze_table() -> analisis profundo con SIUO
-        |
-        +- FirebirdDriver (drivers/db/)
-             +- BD: Firebird 2.5 @ 192.168.0.254:3050 (C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb)
-             +- 437 tablas de usuario
-             +- ~11.846 articulos, datos reales de empresa
+GAFAS META RAY-BAN / CHAT WEB / API
+        │
+        ▼ POST /api/chat/send
+Backend DEVIA (FastAPI + Python)
+        │
+        ├─ ChatService (service.py)
+        │   ├─ SemanticReasoningEngine  ← razona ANTES de generar SQL
+        │   ├─ HallucinationGuard       ← verifica SQL generado por IA
+        │   ├─ FirebirdSQLNormalizer    ← corrige SQL (LIMIT→FIRST, ILIKE→LIKE)
+        │   ├─ SQLCorrector             ← reintentos con corrección IA
+        │   └─ ModelFallbackOrchestrator ← fallback multi-modelo
+        │
+        ├─ DB Simulator (SQLite)        ← tests sin BD real
+        │   ├─ schema.py               ← fuente de verdad del esquema
+        │   ├─ query_library.py        ← biblioteca de consultas
+        │   └─ snapshot_service.py     ← snapshot de BD real
+        │
+        ├─ Deep Analysis Agent          ← análisis profundo multi-fase
+        │   └─ pipeline/ (phase1..5)
+        │
+        └─ SIUO (Sistema de Índices Ultra-Optimizado)
+            ├─ context_retriever.py    ← contexto mínimo y preciso para IA
+            ├─ concept_index.json      ← concepto → tablas
+            ├─ table_index.json        ← resumen compacto de tablas
+            └─ db_graph.json           ← grafo de relaciones
 ```
 
 ---
 
-## 2. Sistema actual de metadatos — analisis critico
+## JERARQUÍA DE DEVIAs
 
-### Como funciona HOY
+> Cada DEVIA secundario entra en detalle sobre su módulo.  
+> Este documento es el punto de entrada; no repetir aquí lo que está en los secundarios.
 
-El sistema actual usa un unico fichero JSON (`db_metadata_optimized.json`) que contiene
-metadatos de las tablas analizadas. Cuando el usuario hace una pregunta al chat:
+### Nivel 1 — Sistema completo
+| DEVIA | Ruta | Contenido |
+|-------|------|-----------|
+| **Este documento** | `bots/interjddcia/DEVIA.MD` | Resumen ejecutivo, arquitectura, principios, jerarquía |
 
-```
-Pregunta: "dime los articulos con mas compras"
-    |
-    v
-get_semantic_schema()
-    |
-    v
-Lee db_metadata_optimized.json COMPLETO
-    |
-    v
-Construye un string de texto con TODAS las tablas que tienen metadatos
-    |
-    v
-Envia ese string al modelo IA como contexto del system prompt
-    |
-    v
-IA genera SQL
-    |
-    v
-Se ejecuta en Firebird
-```
+### Nivel 2 — Módulos principales
+| DEVIA | Ruta | Contenido |
+|-------|------|-----------|
+| Chat & IA | `backend/modules/chat/DEVIA.MD` | Pipeline SQL, modelos LAN, razonamiento semántico, anti-alucinaciones |
+| Chat Robustez | `backend/modules/chat/DEVIA_ROBUSTNESS.md` | Model Fallback, Self-Healing, timeouts |
+| DB Simulator | `backend/modules/db_simulator/DEVIA.md` | Esquema SQLite, seed data, query library |
+| Configuración | `backend/core/config/DEVIA.MD` | Settings, modelos IA, API keys |
 
-### Problemas criticos del sistema actual
-
-**PROBLEMA 1: Contexto monolitico — todo o nada**
-- Se envia el JSON completo al modelo, independientemente de la pregunta
-- Con 8 tablas ya son ~3.000 tokens de contexto
-- Con 437 tablas analizadas serian ~160.000 tokens — IMPOSIBLE de enviar
-- El modelo no puede procesar tanto contexto de golpe
-
-**PROBLEMA 2: Sin indices — busqueda lineal**
-- Para saber que tablas son relevantes para "articulos con mas compras",
-  el sistema no tiene forma de buscar rapidamente
-- No hay indices por concepto, por relacion, por tipo de dato, etc.
-- No hay mapa de relaciones entre tablas
-
-**PROBLEMA 3: Metadatos superficiales**
-- Solo se guarda: categoria, descripcion, columnas con descripcion corta, consultas ejemplo
-- No se guardan: valores reales de columnas clave, distribuciones, rangos, enumerados
-- No se sabe que valores tiene DOCCAB.TIPO (13=factura, 11=albaran, etc.)
-- No se sabe que rango de fechas hay en los datos
-- No se sabe cuales son los articulos mas vendidos, los clientes mas activos, etc.
-
-**PROBLEMA 4: Sin grafo de relaciones**
-- No hay un mapa de como se relacionan las 437 tablas entre si
-- Para responder "articulos con mas compras" hay que saber:
-  ARTICULO -> DOCCAB (via CODART) -> DOCLIN (lineas de documento)
-  Pero el sistema no tiene este mapa disponible rapidamente
-
-**PROBLEMA 5: Sin manejo de fallos inteligente**
-- Si el SQL falla, se reintenta con la misma IA pero sin contexto adicional
-- No se guarda el historial de fallos para aprender
-- No se descompone la pregunta en sub-preguntas mas simples
-
-**PROBLEMA 6: Solo 8 de 437 tablas analizadas**
-- El 98% de la base de datos es desconocida para la IA
-- Tablas criticas como DOCLIN (lineas de documentos) no tienen metadatos
-
-### Lo que SI funciona bien
-
-- FirebirdSQLNormalizer: correccion determinista de SQL (LIMIT->FIRST, ILIKE->UPPER)
-- SQLCorrector: reintentos con correccion IA (hasta 4 intentos)
-- ModelFallbackOrchestrator: fallback a 189 modelos si la IA local falla
-- Interpretacion determinista para voz (sin segunda llamada IA)
-- Constructor BD: UI para analizar tablas una a una con Qwen3 LAN
+### Nivel 3 — Submódulos (detalle técnico)
+| DEVIA | Ruta | Contenido |
+|-------|------|-----------|
+| Deep Analysis | `backend/modules/chat/deep_analysis/DEVIA.md` | Pipeline fases 1-5, síntesis, verificación |
+| Pipeline Chat | `backend/modules/chat/pipeline/DEVIA.md` | Fases del pipeline de chat |
 
 ---
 
-## 3. NUEVO: Sistema de Indices Ultra-Optimizado (SIUO)
-
-### Vision general
-
-El SIUO es un sistema de conocimiento permanente sobre la base de datos Firebird,
-construido y mantenido por Qwen3 VL 30B (IA local LAN), que permite:
-
-1. **Indexacion completa**: todas las 437 tablas analizadas y catalogadas
-2. **Busqueda rapida por concepto**: dado "articulos con mas compras", encontrar
-   en <100ms las tablas y columnas relevantes sin enviar nada a la IA
-3. **Contexto minimo y preciso**: enviar a la IA SOLO lo que necesita para
-   responder la pregunta concreta (no todo el esquema)
-4. **Grafo de relaciones**: mapa completo de como se relacionan todas las tablas
-5. **Valores reales**: enumerados, rangos, top-N valores de columnas clave
-6. **Analisis incremental**: procesar tabla a tabla, guardando resultados parciales
-7. **Auto-correccion**: si el SQL falla, la IA recibe el error y el contexto
-   adicional para intentarlo de otra forma
-
-### Principios de diseno
-
-- **Solo Qwen3 LAN**: ningun dato de la BD sale a internet. Nunca.
-- **Permanente**: los indices se construyen una vez y se actualizan incrementalmente
-- **Rapido**: busqueda por indices en memoria, no consultas a Firebird en cada pregunta
-- **Tolerante a fallos**: si Qwen3 falla en una tabla, se guarda el progreso y se continua
-- **Incremental**: se puede analizar 1 tabla, 10 tablas, o todas — el progreso se guarda
-- **Tokens controlados**: cada chunk enviado a Qwen3 tiene un limite de tokens calculado
-
-### Componentes del SIUO
+## FLUJO PRINCIPAL: PREGUNTA → SQL → RESPUESTA
 
 ```
-SIUO/
-|
-+-- [1] INDEXADOR (nuevo: deep_indexer_service.py)
-|       Analiza cada tabla en profundidad:
-|       - Estructura completa (columnas, tipos, PKs, FKs)
-|       - Valores reales de columnas clave (enumerados, rangos, top-N)
-|       - Relaciones con otras tablas (via FKs y nombres de columnas)
-|       - Descripcion semantica generada por Qwen3
-|       - Consultas SQL de ejemplo validadas
-|       - Errores comunes y como evitarlos
-|
-+-- [2] GRAFO DE RELACIONES (nuevo: db_graph.json)
-|       Mapa de todas las relaciones entre tablas:
-|       - FKs explicitas (definidas en Firebird)
-|       - FKs implicitas (detectadas por nombre de columna: CODART, CODCLI, etc.)
-|       - Peso de cada relacion (cuantos registros relacionados hay)
-|       - Camino mas corto entre dos tablas
-|
-+-- [3] INDICE DE CONCEPTOS (nuevo: concept_index.json)
-|       Mapa de palabras/conceptos -> tablas relevantes:
-|       - "articulo", "producto", "referencia" -> ARTICULO
-|       - "factura", "venta", "documento" -> DOCCAB (TIPO=13)
-|       - "compra", "pedido proveedor" -> DOCCAB (TIPO=12)
-|       - "linea", "detalle", "cantidad" -> DOCLIN
-|       - "cliente" -> CLIENTE
-|       - "proveedor" -> PROVEED
-|       - "stock", "almacen" -> ALMACEN, ESTALMACEN
-|       Generado automaticamente por Qwen3 + reglas manuales
-|
-+-- [4] INDICE DE VALORES (nuevo: value_index.json)
-|       Valores reales de columnas clave:
-|       - DOCCAB.TIPO: {0: "presupuesto", 2: "SAT", 3: "abono", 10: "contrato",
-|                       11: "albaran", 12: "pedido", 13: "factura", 51: "certificacion",
-|                       61: "recibo"}
-|       - ARTICULO.FAMILIA: lista de familias reales con conteo
-|       - CLIENTE.PROVINCIA: lista de provincias con conteo
-|       - Rangos de fechas en DOCCAB, DOCLIN, etc.
-|       - Top-10 articulos mas vendidos, clientes mas activos, etc.
-|
-+-- [5] INDICE DE TABLAS (nuevo: table_index.json)
-|       Resumen ultra-compacto de cada tabla (para busqueda rapida):
-|       - nombre, categoria, descripcion (1 linea), n_registros
-|       - columnas_clave (solo las importantes)
-|       - tablas_relacionadas (lista de nombres)
-|       - keywords (palabras clave para busqueda)
-|       Cargado en memoria al arrancar el backend
-|
-+-- [6] CONTEXT RETRIEVER (nuevo: context_retriever.py)
-|       Dado una pregunta en lenguaje natural:
-|       1. Extrae keywords de la pregunta
-|       2. Busca en concept_index.json -> tablas candidatas
-|       3. Expande con grafo de relaciones -> tablas relacionadas
-|       4. Carga detalles de table_index.json -> contexto compacto
-|       5. Si necesita mas detalle, carga de db_metadata_optimized.json
-|       6. Calcula tokens del contexto -> si excede limite, recorta
-|       7. Devuelve contexto optimo para enviar a la IA
-|
-+-- [7] ANALIZADOR PROFUNDO (nuevo: deep_analyzer.py)
-|       Analiza una tabla en profundidad con Qwen3:
-|       - Paso 1: estructura basica (columnas, tipos, PKs, FKs)
-|       - Paso 2: valores reales de columnas clave (muestra sin sensibles)
-|       - Paso 3: relaciones implicitas (por nombre de columna)
-|       - Paso 4: descripcion semantica completa
-|       - Paso 5: consultas SQL de ejemplo y validacion
-|       Cada paso es independiente -> si falla uno, se guarda lo que hay
-```
-
-### Flujo de construccion del SIUO (una vez, o cuando hay cambios)
-
-```
-Usuario pulsa "Analizar BD completa con Qwen3"
-    |
-    v
-[1] Obtener lista de 437 tablas de Firebird
-    |
-    v
-[2] Para cada tabla (en batches de 10):
-    |
-    +-- [2a] Obtener estructura (columnas, PKs, FKs) de Firebird
-    |
-    +-- [2b] Obtener muestra de datos (sin columnas sensibles)
-    |
-    +-- [2c] Obtener valores de columnas clave (enumerados, top-N)
-    |
-    +-- [2d] Enviar a Qwen3 LAN (chunk <= 2000 tokens):
-    |         "Analiza esta tabla y genera metadatos JSON"
-    |
-    +-- [2e] Si Qwen3 falla:
-    |         - Guardar error en progress.json
-    |         - Continuar con la siguiente tabla
-    |         - Reintentar las fallidas al final
-    |
-    +-- [2f] Guardar resultado en:
-    |         - db_metadata_optimized.json (metadatos completos)
-    |         - table_index.json (resumen compacto)
-    |         - concept_index.json (keywords -> tabla)
-    |         - db_graph.json (relaciones)
-    |
-    v
-[3] Construir grafo de relaciones completo
-    |
-    v
-[4] Construir indice de conceptos completo
-    |
-    v
-[5] Construir indice de valores (enumerados, rangos, top-N)
-    |
-    v
-[6] Guardar progress.json con estado final
-    |
-    v
-Sistema listo para responder preguntas con contexto optimo
-```
-
-### Flujo de respuesta a una pregunta (con SIUO activo)
-
-```
-Pregunta: "dime los articulos que tienen mas compras"
-    |
-    v
-[1] ContextRetriever.get_context(pregunta)
-    |
-    +-- Extrae keywords: ["articulos", "compras", "mas"]
-    |
-    +-- Busca en concept_index: 
-    |     "articulo" -> ARTICULO
-    |     "compra" -> DOCCAB (TIPO=12), DOCLIN
-    |
-    +-- Expande con grafo:
-    |     ARTICULO <-> DOCLIN (via CODART)
-    |     DOCLIN <-> DOCCAB (via NUMDOC)
-    |
-    +-- Carga contexto compacto de table_index:
-    |     ARTICULO: tabla de articulos, columnas clave: CODART, NOMBRE, FAMILIA
-    |     DOCCAB: cabecera documentos, TIPO=11=pedido_prov, TIPO=12=albaran_prov
-    |     DOCLIN: lineas de documentos, CODART, CANTIDAD, PRECIO
-    |
-    +-- Calcula tokens: ~800 tokens (dentro del limite)
-    |
-    +-- Devuelve contexto optimo
-    |
-    v
-[2] Enviar a Qwen3 LAN:
-    system: "Eres experto en Firebird. Esquema relevante: [contexto 800 tokens]"
-    user: "dime los articulos que tienen mas compras"
-    |
-    v
-[3] Qwen3 genera SQL:
-    SELECT FIRST 10 a.CODART, a.NOMBRE, SUM(l.CANTIDAD) as TOTAL_COMPRADO
-    FROM ARTICULO a
-    JOIN DOCLIN l ON l.CODART = a.CODART
-    JOIN DOCCAB d ON d.NUMDOC = l.NUMDOC AND d.TIPO = 12
-    GROUP BY a.CODART, a.NOMBRE
-    ORDER BY TOTAL_COMPRADO DESC
-    |
-    v
-[4] FirebirdSQLNormalizer normaliza el SQL
-    |
-    v
-[5] Ejecutar en Firebird
-    |
-    +-- Si falla:
-    |     - Enviar a Qwen3: error + SQL fallido + contexto adicional
-    |     - Qwen3 corrige el SQL
-    |     - Reintentar (hasta 4 veces)
-    |
-    v
-[6] Interpretar resultados y responder al usuario
+[1] Usuario pregunta en lenguaje natural
+        │
+        ▼
+[2] SemanticReasoningEngine.reason()
+    → Detecta dominio (certificaciones, retenciones, artículos...)
+    → Infiere tablas y relaciones correctas
+    → Genera hints SQL deterministas
+    → Enriquece el system prompt
+        │
+        ▼
+[3] IA genera SQL (Qwen3 8B/30B LAN o fallback internet)
+        │
+        ▼
+[4] HallucinationGuard.validate()
+    → Verifica que tablas existen en el esquema real
+    → Verifica que columnas existen en las tablas
+    → Verifica valores de columnas enumeradas (TIPO, BAJA...)
+    → Si hay errores críticos → no ejecutar
+        │
+        ▼
+[5] FirebirdSQLNormalizer.normalize()
+    → LIMIT → FIRST N
+    → ILIKE → LIKE + UPPER()
+    → DOCLIN.FECHA → JOIN DOCCAB
+    → Elimina punto y coma final
+        │
+        ▼
+[6] Ejecutar en BD (Firebird real o SQLite simulador)
+    → Si falla → SQLCorrector con contexto del error (hasta 4 reintentos)
+        │
+        ▼
+[7] Interpretar resultados y responder al usuario
+    → Voz (MetaGlass): interpret_results_for_voice() — determinista
+    → Web: ResponseSummarizer con paginación
 ```
 
 ---
 
-## 4. Arquitectura de ficheros del SIUO
+## MÓDULOS CLAVE Y SUS RESPONSABILIDADES
 
-```
-bots/interjddcia/backend/core/config/
-|
-+-- db_metadata_optimized.json          <- EXISTENTE: metadatos completos por tabla
-|   {
-|     "tables": {
-|       "ARTICULO": {
-|         "category": "maestros",
-|         "description": "Catalogo de articulos/productos",
-|         "primary_keys": ["CODART"],
-|         "columns": {"CODART": "VARCHAR - codigo unico del articulo", ...},
-|         "consultas_comunes": ["SELECT FIRST 10 CODART, NOMBRE FROM ARTICULO"],
-|         "record_count": 11846
-|       }
-|     }
-|   }
-|
-+-- [NUEVO] table_index.json            <- Resumen ultra-compacto (cargado en memoria)
-|   {
-|     "version": "1.0",
-|     "generated": "2026-03-04",
-|     "tables": {
-|       "ARTICULO": {
-|         "cat": "maestros",
-|         "desc": "Catalogo de articulos/productos de la empresa",
-|         "n": 11846,
-|         "pk": ["CODART"],
-|         "cols_key": ["CODART", "NOMBRE", "FAMILIA", "PRECIO", "STOCKARTICULO"],
-|         "related": ["DOCLIN", "ALMACEN", "ESTALMACEN"],
-|         "kw": ["articulo", "producto", "referencia", "stock", "precio", "familia"]
-|       },
-|       "DOCCAB": {
-|         "cat": "transacciones",
-|         "desc": "Cabecera de documentos (facturas, albaranes, pedidos, etc.)",
-|         "n": 85000,
-|         "pk": ["NUMDOC", "TIPO"],
-|         "cols_key": ["NUMDOC", "TIPO", "FECHA", "CODCLI", "TOTAL", "ESTADO"],
-|         "related": ["DOCLIN", "CLIENTE", "PROVEED"],
-|         "kw": ["factura", "albaran", "pedido", "presupuesto", "venta", "compra",
-|                "documento", "cabecera", "total", "importe"]
-|       }
-|     }
-|   }
-|
-+-- [NUEVO] concept_index.json          <- Mapa concepto -> tablas
-|   {
-|     "version": "1.0",
-|     "index": {
-|       "articulo":    ["ARTICULO"],
-|       "producto":    ["ARTICULO"],
-|       "referencia":  ["ARTICULO"],
-|       "stock":       ["ARTICULO", "ALMACEN", "ESTALMACEN"],
-|       "factura":         [{"table": "DOCCAB", "filter": "TIPO=3"}],
-|       "factura_prov":    [{"table": "DOCCAB", "filter": "TIPO=13"}],
-|       "albaran":         [{"table": "DOCCAB", "filter": "TIPO=2"}],
-|       "albaran_prov":    [{"table": "DOCCAB", "filter": "TIPO=12"}],
-|       "pedido":          [{"table": "DOCCAB", "filter": "TIPO=1"}],
-|       "pedido_prov":     [{"table": "DOCCAB", "filter": "TIPO=11"}],
-|       "presupuesto":     [{"table": "DOCCAB", "filter": "TIPO=0"}],
-|       "presupuesto_prov":[{"table": "DOCCAB", "filter": "TIPO=10"}],
-|       "venta":           [{"table": "DOCCAB", "filter": "TIPO IN (2,3)"}],
-|       "compra":          [{"table": "DOCCAB", "filter": "TIPO IN (11,12,13)"}],
-|       "linea":       ["DOCLIN"],
-|       "detalle":     ["DOCLIN"],
-|       "cantidad":    ["DOCLIN"],
-|       "cliente":     ["CLIENTE"],
-|       "proveedor":   ["PROVEED"],
-|       "almacen":     ["ALMACEN", "ESTALMACEN"],
-|       "precio":      ["ARTICULO", "DOCLIN"],
-|       "familia":     ["ARTICULO"],
-|       "caja":        ["CAJA"],
-|       "aviso":       ["AVISOS"]
-|     }
-|   }
-|
-+-- [NUEVO] db_graph.json               <- Grafo de relaciones entre tablas
-|   {
-|     "version": "1.0",
-|     "nodes": {
-|       "ARTICULO": {"n_records": 11846, "category": "maestros"},
-|       "DOCCAB":   {"n_records": 85000, "category": "transacciones"},
-|       "DOCLIN":   {"n_records": 320000, "category": "transacciones"}
-|     },
-|     "edges": [
-|       {
-|         "from": "DOCLIN", "from_col": "CODART",
-|         "to": "ARTICULO", "to_col": "CODART",
-|         "type": "fk_explicit",
-|         "weight": 320000
-|       },
-|       {
-|         "from": "DOCLIN", "from_col": "NUMDOC",
-|         "to": "DOCCAB", "to_col": "NUMDOC",
-|         "type": "fk_explicit",
-|         "weight": 320000
-|       },
-|       {
-|         "from": "DOCCAB", "from_col": "CODCLI",
-|         "to": "CLIENTE", "to_col": "CODCLI",
-|         "type": "fk_implicit",
-|         "weight": 85000
-|       }
-|     ],
-|     "paths": {
-|       "ARTICULO->DOCCAB": ["ARTICULO", "DOCLIN", "DOCCAB"],
-|       "CLIENTE->ARTICULO": ["CLIENTE", "DOCCAB", "DOCLIN", "ARTICULO"]
-|     }
-|   }
-|
-+-- [NUEVO] value_index.json            <- Valores reales de columnas clave
-|   {
-|     "version": "1.0",
-|     "enums": {
-|       "DOCCAB.TIPO": {
-|         "0":  "presupuesto_cliente",
-|         "1":  "pedido_cliente",
-|         "2":  "albaran_cliente",
-|         "3":  "factura_cliente",
-|         "10": "presupuesto_prov",
-|         "11": "pedido_prov",
-|         "12": "albaran_prov",
-|         "13": "factura_prov",
-|         "21": "movimiento_almacen",
-|         "31": "recuento_almacen",
-|         "51": "certificacion",
-|         "52": "produccion",
-|         "61": "cert_subcontrata"
-|       },
-|       // Verificado 2026-06-25 con el usuario. Todos los tipos pueden tener
-|       // CODCLIENTE (compras de proveedor vinculadas a proyecto de cliente).
-|       "ARTICULO.FAMILIA": {
-|         "values": ["SPLIT", "CASSETTE", "CONDUCTOS", "RECAMBIOS", "GAS", ...],
-|         "top10": [{"val": "SPLIT", "count": 3200}, ...]
-|       }
-|     },
-|     "ranges": {
-|       "DOCCAB.FECHA": {"min": "2015-01-01", "max": "2026-03-04"},
-|       "ARTICULO.PRECIO": {"min": 0.5, "max": 15000.0, "avg": 245.3}
-|     },
-|     "top_values": {
-|       "ARTICULO_mas_vendidos": [
-|         {"CODART": "ART001", "NOMBRE": "Split 2.5kW", "total_vendido": 450},
-|         ...
-|       ],
-|       "CLIENTE_mas_activos": [
-|         {"CODCLI": "CLI001", "NOMBRE": "Empresa X", "n_facturas": 120},
-|         ...
-|       ]
-|     }
-|   }
-|
-+-- [NUEVO] siuo_progress.json          <- Estado del proceso de indexacion
-    {
-      "version": "1.0",
-      "started": "2026-03-04T10:00:00",
-      "last_updated": "2026-03-04T11:30:00",
-      "total_tables": 437,
-      "analyzed": 150,
-      "failed": 5,
-      "pending": 282,
-      "failed_tables": ["TABLA_X", "TABLA_Y"],
-      "status": "running"  // "running" | "completed" | "paused"
-    }
-```
+| Módulo | Archivo | Responsabilidad |
+|--------|---------|-----------------|
+| **SemanticReasoningEngine** | `chat/semantic_reasoning_engine.py` | Razona sobre la pregunta ANTES de generar SQL. Detecta dominio, infiere tablas, genera hints. |
+| **HallucinationGuard** | `chat/hallucination_guard.py` | Verifica que el SQL generado NO contiene tablas/columnas/valores inventados. |
+| **FirebirdSQLNormalizer** | `chat/firebird_sql_normalizer.py` | Correcciones deterministas de SQL para Firebird. |
+| **SafetyGuard** | `chat/safety_guard.py` | Bloquea operaciones destructivas (DROP, DELETE, UPDATE...) e inyecciones de prompt. |
+| **SQLCorrector** | `chat/sql_corrector.py` | Reintentos con corrección IA cuando el SQL falla. |
+| **ModelFallbackOrchestrator** | `chat/model_fallback_orchestrator.py` | Fallback entre modelos IA (LAN → internet). |
+| **DB Simulator** | `db_simulator/driver.py` | SQLite en memoria/disco que replica el esquema Firebird para tests. |
+| **QueryLibrary** | `db_simulator/query_library.py` | Biblioteca de consultas SQL validadas (Firebird + SQLite). |
+| **ContextRetriever** | `db_explorer/context_retriever.py` | Recupera contexto mínimo y preciso del SIUO para cada pregunta. |
 
 ---
 
-## 5. Flujo completo: pregunta -> SQL -> respuesta
+## MODELOS IA DISPONIBLES
 
-### Flujo actual (v1 — sistema existente)
+| ID | Modelo | Velocidad | Uso |
+|----|--------|-----------|-----|
+| `jddcia-qwen3-30b-ip` | Qwen3 30B (IP directa) | 30-60s | Análisis profundo, preferido |
+| `jddcia-qwen3-8b-ip` | Qwen3 8B VL (LM Studio) | 5-15s | Chat conversacional, rápido |
+| Fallback internet | Gemini, Groq, OpenAI... | Variable | Si LAN no disponible |
 
-```
-Pregunta usuario
-    -> get_semantic_schema() -> db_metadata_optimized.json COMPLETO (~3000 tokens)
-    -> System prompt con TODO el esquema
-    -> IA genera SQL
-    -> FirebirdSQLNormalizer (determinista)
-    -> SQLCorrector (reintentos con IA si falla)
-    -> Ejecutar en Firebird
-    -> Interpretar resultados (determinista para voz, IA para web)
-    -> Respuesta
-```
-
-### Flujo nuevo (v2 — con SIUO)
-
-```
-Pregunta usuario
-    -> ContextRetriever.get_context(pregunta)
-       |-> Extrae keywords
-       |-> Busca en concept_index (en memoria, <1ms)
-       |-> Expande con db_graph (en memoria, <1ms)
-       |-> Carga detalles de table_index (en memoria, <1ms)
-       |-> Calcula tokens -> recorta si necesario
-       |-> Devuelve contexto optimo (~500-1500 tokens)
-    -> System prompt con contexto MINIMO Y PRECISO
-    -> IA genera SQL
-    -> FirebirdSQLNormalizer (determinista)
-    -> SQLCorrector con contexto adicional si falla:
-       |-> Si falla: enviar a IA el error + SQL fallido + contexto adicional
-       |-> IA corrige el SQL con mas informacion
-       |-> Reintentar (hasta 4 veces)
-    -> Ejecutar en Firebird
-    -> Interpretar resultados
-    -> Respuesta
-```
-
-### Ventajas del flujo v2
-
-| Aspecto | v1 (actual) | v2 (SIUO) |
-|---------|------------|-----------|
-| Tokens de contexto | ~3000 (fijo, todo el esquema) | ~500-1500 (solo lo relevante) |
-| Velocidad de busqueda | N/A (todo en memoria) | <1ms (indices en memoria) |
-| Cobertura de tablas | 8/437 (2%) | 437/437 (100%) |
-| Relaciones conocidas | Solo las 8 tablas analizadas | Todas las relaciones |
-| Valores reales | No | Si (enumerados, rangos, top-N) |
-| Manejo de fallos | Reintento ciego | Reintento con contexto adicional |
-| Escalabilidad | No escala (limite de tokens) | Escala a cualquier BD |
+> **Configuración:** `backend/modules/chat/config.json` → `ai_local_only: true/false`  
+> **Detalle completo:** → `backend/modules/chat/DEVIA.MD`
 
 ---
 
-## 6. Modo AI_LOCAL_ONLY — Solo Qwen3 LAN
-
-### Que es
-
-Cuando esta activo, el sistema **solo usa la IA local Qwen3 VL 30B** (servidor en la red LAN JDDC).
-**No sale ninguna peticion a internet**.
-
-> MODO DE PRODUCCION (04/03/2026): `ai_local_only=true` — Solo Qwen3 VL 30B LAN.
-> Sin salida a internet. El fallback multi-modelo esta deshabilitado (pero no eliminado).
-
-### Como activar/desactivar
-
-**Archivo de configuracion:**
-```
-bots/interjddcia/backend/modules/chat/config.json
-```
-
-```json
-{
-    "max_sql_retries": 4,
-    "enable_auto_correction": true,
-    "log_sql_errors": true,
-    "ai_local_only": true
-}
-```
-
-| Valor | Comportamiento | Resiliencia |
-|-------|---------------|-------------|
-| `"ai_local_only": true` | Solo Qwen3 LAN — sin internet, sin fallback | Baja — si la IA local falla, error total |
-| `"ai_local_only": false` | Fallback completo — Qwen3 -> Groq -> Gemma -> ... | Alta — 189 modelos de respaldo |
-
-> El cambio surte efecto inmediatamente — no hace falta reiniciar el servidor.
-
-### Modelos locales reconocidos
-
-```python
-LOCAL_MODEL_IDS = {"jddcia-qwen3-30b", "jddcia-qwen3-30b-ip"}
-```
-
-- `jddcia-qwen3-30b-ip` -> `http://192.168.0.36/api/vlm/v1` (score 95 — se intenta primero)
-- `jddcia-qwen3-30b` -> `http://jddcia.local/api/vlm/v1` (score 50 — fallback mDNS)
-
-> AVISO: `jddcia.local` no resuelve en Windows (mDNS/Bonjour no esta activo por defecto).
-> Usar siempre la IP directa `192.168.0.36`.
-
-### Cambiar el modo via API
+## TESTS
 
 ```cmd
-REM Activar modo local (sin internet)
-curl -X POST http://localhost:8001/api/chat/config ^
-  -H "Content-Type: application/json" ^
-  -d "{\"max_sql_retries\": 4, \"ai_local_only\": true}"
+# Suite completa
+python -m pytest bots/interjddcia/tests/ -v
 
-REM Activar modo fallback completo (con internet) — RECOMENDADO
-curl -X POST http://localhost:8001/api/chat/config ^
-  -H "Content-Type: application/json" ^
-  -d "{\"max_sql_retries\": 4, \"ai_local_only\": false}"
+# Solo tests unitarios (sin BD real, sin IA)
+python -m pytest bots/interjddcia/tests/unit/ -v
+
+# Tests de abstracción semántica (284 tests)
+python -m pytest bots/interjddcia/tests/unit/test_semantica_*.py -v
+
+# Tests anti-alucinaciones
+python -m pytest bots/interjddcia/tests/unit/test_hallucination_guard.py -v
+
+# Tests de conversaciones complejas reales (116 tests)
+python -m pytest bots/interjddcia/tests/unit/test_conversaciones_complejas_reales.py -v
 ```
+
+| Suite | Tests | Estado |
+|-------|-------|--------|
+| Conversaciones complejas reales | 116 | ✅ |
+| Abstracción semántica (6 módulos) | 284 | ✅ |
+| Anti-alucinaciones | ~60 | ✅ |
+| Normalización SQL | 34 | ✅ |
+| Voz + TTS | ~30 | ✅ |
+| Paginación web + MetaGlass | ~25 | ✅ |
 
 ---
 
-## 7. Resiliencia del sistema
-
-### Analisis completo (04/03/2026)
-
-#### Lo que SI es resiliente
-
-| Componente | Resiliencia | Detalle |
-|-----------|-------------|---------|
-| Fallback IA | Excelente | 189 modelos — si uno falla, prueba el siguiente |
-| BD Firebird | Buena | Conecta directamente por IP, no depende de la IA |
-| Reintentos SQL | Buena | 4 reintentos con correccion automatica de SQL |
-| API keys | Excelente | 18 proveedores cargados |
-| Config en caliente | Excelente | `ai_local_only` se lee en cada peticion |
-| FirebirdSQLNormalizer | Excelente | Correccion determinista sin IA |
-
-#### Puntos debiles identificados
-
-| Problema | Impacto | Solucion |
-|---------|---------|---------|
-| `ai_local_only=true` + IA local caida | Error total | Usar `ai_local_only=false` |
-| IP del servidor IA hardcodeada | Medio | Si cambia la IP, editar `jddcia_models.json` |
-| `jddcia.local` no resuelve en Windows | Medio | Ya corregido: IP directa tiene score 95 |
-| vLLM single-request | Medio | Si el modelo esta ocupado, timeout en 20s |
-| Solo 8/437 tablas con metadatos | Alto | SIUO resuelve esto |
-| Contexto monolitico | Alto | SIUO con ContextRetriever resuelve esto |
-
----
-
-## 8. Diagnosticos frecuentes
-
-### Diagnostico: IA local no responde
-
-**Sintoma:**
-```
-Error con Qwen3 VL 30B (JDDC LAN — IP directa): All connection attempts failed
-```
-
-**Causas y soluciones:**
-
-| Causa | Diagnostico | Solucion |
-|-------|------------|---------|
-| Modelo ocupado (vLLM single-request) | curl a /models OK pero /chat/completions timeout | Esperar o usar ai_local_only=false |
-| Servidor apagado | curl a /models tambien falla | Encender el servidor IA |
-| IP cambiada | curl a la IP falla | Actualizar jddcia_models.json |
-| Puerto bloqueado | curl falla con "connection refused" | Verificar firewall del servidor |
-
-**Verificar estado:**
-```cmd
-curl -s --max-time 5 http://192.168.0.36/api/vlm/v1/models ^
-  -H "Authorization: Basic YWRtaW46YWlzdGFjazIwMjY="
-```
-
-**Solucion inmediata:**
-```cmd
-curl -X POST http://localhost:8001/api/chat/config ^
-  -H "Content-Type: application/json" ^
-  -d "{\"max_sql_retries\": 4, \"ai_local_only\": false}"
-```
-
-### Diagnostico: Error Firebird LIMIT vs FIRST
-
-**Sintoma:**
-```
-Error despues de 3 intentos: _op_response:op_code = 1
-Consulta: SELECT FIRST 100 NOMBRE FROM ARTICULO LIMIT 1
-```
-
-**Causa:** La IA genera LIMIT y el normalizador anade FIRST, resultando en ambos.
-
-**Solucion aplicada:** FirebirdSQLNormalizer elimina LIMIT/ROWS ANTES de que se anade FIRST.
-
-### Diagnostico: Error POSITION en indexacion masiva SIUO
-
-**Sintoma:**
-```
-[ERROR] ACC_ACC: Dynamic SQL Error SQL error code = -104 Token unknown - line 24, column 37 POSITION
-[ERROR] ACC_EXTRANET: Dynamic SQL Error SQL error code = -104 Token unknown - line 24, column 37 POSITION
-... (todas las tablas fallan con el mismo error)
-```
-
-**Causa:** `POSITION` es una **palabra reservada en Firebird 2.5** y no puede usarse como alias
-de columna sin comillas. La query `QUERY_TABLE_COLUMNS_TYPED` en `firebird_metadata_queries.py`
-tenia `rf.RDB$FIELD_POSITION AS POSITION` — Firebird lo rechaza.
-
-**Solucion aplicada (06/03/2026):**
-- Cambiado `AS POSITION` → `AS FIELD_POS` en `firebird_metadata_queries.py`
-- El codigo Python no usaba el alias (accede por `FIELD_NAME`, `FIELD_TYPE`, etc.)
-- Verificado con `test_fix_position.py` — 5/5 OK
-
-**Palabras reservadas de Firebird 2.5 que NO pueden usarse como alias sin comillas:**
-`POSITION`, `VALUE`, `TYPE`, `TIME`, `DATE`, `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE`,
-`SECOND`, `WEEKDAY`, `YEARDAY`, `INDEX`, `PLAN`, `ORDER`, `BY`, `GROUP`, `WHERE`, `FROM`
-
-**Regla:** En queries de introspeccion Firebird, usar siempre prefijos descriptivos para
-los aliases: `FIELD_NAME`, `FIELD_TYPE`, `FIELD_POS`, `FK_NAME`, `PK_FIELD`, etc.
-
-### Diagnostico: Qwen3 VL 30B bajo carga
-
-**Sintoma:** Timeout de 63 segundos en una peticion.
-
-**Causa:** vLLM es single-request — encola peticiones silenciosamente.
-
-**Solucion aplicada:** Timeout reducido a 20s en `jddcia_provider.py`.
-
-### Diagnostico: Bug TOTAL monetario interpretado como COUNT (09/03/2026)
-
-**Sintoma:**
-```
-Usuario pregunta: "cuanto hemos facturado este mes"
-Respuesta incorrecta: "hay 45.678,90 facturas en la base de datos"
-Respuesta correcta:   "el total facturado es 45.678,90 euros"
-```
-
-**Causa:** `interpret_results_for_voice` en `service.py` tenia una copia duplicada
-de la logica que no distinguia entre:
-- `COUNT(*)` → resultado entero → "hay N facturas"
-- `SUM(TOTAL)` → resultado float con decimales → "el total es X euros"
-
-Ambos casos llegaban como `{n == 1, len(row) == 1}` y se trataban igual.
-
-**Solucion aplicada (09/03/2026):**
-1. `chat_voice_interpreter.py` es la **UNICA FUENTE DE VERDAD** para `interpret_results_for_voice`
-2. Se añadio `_is_monetary_value(val)` que detecta si el valor es float con decimales
-3. `service.py` ahora **delega** a `chat_voice_interpreter.py` — no tiene logica propia
-4. La funcion LEGACY en `service.py` se renombro a `_interpret_results_for_voice_LEGACY`
-   y nunca se ejecuta (documentada para referencia historica)
-
-**Regla para evitar recurrencia:**
-> NUNCA duplicar la logica de interpretacion de voz. `service.py` SIEMPRE delega a
-> `chat_voice_interpreter.py`. Si hay que cambiar el comportamiento, cambiar SOLO
-> `chat_voice_interpreter.py`.
-
-**Test que lo cubre:**
-```
-tests/unit/test_voice_and_tts.py::TestInterpretResultsForVoice::test_total_facturado
-```
-
-### Diagnostico: Codigo duplicado entre service.py y chat_voice_interpreter.py
-
-**Sintoma:** Un bug corregido en `chat_voice_interpreter.py` no se refleja en produccion
-porque `service.py` tiene su propia copia de la misma funcion.
-
-**Causa:** Al crear `chat_voice_interpreter.py` como modulo separado, la funcion original
-en `service.py` no se elimino — quedaron dos implementaciones divergentes.
-
-**Solucion aplicada (09/03/2026):**
-- `service.py` importa y delega:
-  ```python
-  from backend.modules.chat.chat_voice_interpreter import (
-      interpret_results_for_voice as _interpret_voice_impl,
-      clean_for_tts as _clean_tts_impl,
-  )
-  def interpret_results_for_voice(message, results, sql_query):
-      return _interpret_voice_impl(message, results, sql_query)
-  ```
-- La implementacion LEGACY queda como `_interpret_results_for_voice_LEGACY` (nunca llamada)
-
-**Regla para evitar recurrencia:**
-> Cuando se extrae logica a un modulo nuevo, SIEMPRE eliminar o delegar la version antigua.
-> Nunca dejar dos implementaciones activas de la misma funcion.
-
-### Diagnostico: ARRANCAR_DEVIA.bat — navegador no se abre en opcion 2 (09/03/2026)
-
-**Sintoma:**
-```
-El backend arranca correctamente (dos terminales: DEVIA en 8001, CodeLab en 8002)
-pero el navegador NO se abre automaticamente al final del script.
-```
-
-**Causa:** En opcion 2, el flujo es:
-```
-:ARRANCAR_DEVIA -> DEVIA_PORT_FINAL=8001 (delayed expansion !)
-    -> call :RESOLVE_PORT  <- subrutina con call
-    -> call :WAIT_FOR_DEVIA <- subrutina con call
-    -> goto :ARRANCAR_CODELAB
-        -> call :RESOLVE_PORT  <- sobreescribe variables internas
-        -> goto :ARRANCAR_ELECTRON
-            -> node_modules no existe -> goto :ABRIR_NAVEGADOR
-                -> DEVIA_PORT_FINAL puede estar VACIA aqui
-```
-
-Las variables con `!` (delayed expansion) seteadas dentro de subrutinas `call`
-pueden no propagarse correctamente al contexto padre cuando hay multiples niveles
-de `call` y `goto` encadenados. `DEVIA_PORT_FINAL` se pierde al pasar por
-`:ARRANCAR_CODELAB` que llama a `:RESOLVE_PORT` con sus propias variables.
-
-**Solucion aplicada (09/03/2026) — v3.2.0:**
-- Se añade `DEVIA_PORT_SAVED` justo tras resolver el puerto DEVIA (antes de entrar en subrutinas):
-  ```bat
-  set "DEVIA_PORT_SAVED=!DEVIA_PORT_FINAL!"
-  ```
-- En `:ABRIR_NAVEGADOR` se recupera con fallbacks en cascada:
-  ```bat
-  if defined DEVIA_PORT_SAVED set "DEVIA_PORT_FINAL=!DEVIA_PORT_SAVED!"
-  if not defined DEVIA_PORT_FINAL set "DEVIA_PORT_FINAL=8001"
-  if "!DEVIA_PORT_FINAL!"=="" set "DEVIA_PORT_FINAL=8001"
-  ```
-- Se usa `!_URL_ABRIR!` (variable intermedia) para evitar problemas con `!` en `start`
-
-**Regla para evitar recurrencia:**
-> En scripts .bat con `setlocal enabledelayedexpansion`, cuando una variable se necesita
-> despues de multiples `call` y `goto`, guardarla en una variable de "backup" con nombre
-> distinto ANTES de entrar en las subrutinas. Las variables con `!` pueden perderse
-> al cruzar contextos de subrutinas anidadas.
-
-### Diagnostico: Paginacion MetaGlass — umbral y formato diferente al web
-
-**Contexto:** Las gafas Meta Ray-Ban tienen TTS con limite de ~3 items por respuesta.
-El sistema web puede mostrar 10-50 resultados en una tabla. Necesitan umbrales distintos.
-
-**Solucion implementada (09/03/2026):**
-- `ResponseSummarizer.summarize_for_metaglass()` — umbral configurable (default 5)
-- `ResponseSummarizer.handle_metaglass_pagination()` — paginacion por voz
-- `_detect_intent_deterministic()` — detecta si/no/todos sin IA
-- Respuestas sin Markdown (nunca `**`, `##`, ` ``` `)
-- `METAGLASS_PAGINATION_THRESHOLD = 5` (vs `SUMMARY_THRESHOLD = 20` para web)
-- `METAGLASS_PAGE_SIZE = 3` (vs `PAGE_SIZE_DEFAULT = 10` para web)
-
-**Regla para evitar recurrencia:**
-> Los clientes de voz (MetaGlass) y web tienen requisitos distintos de paginacion.
-> Usar siempre `summarize_for_metaglass()` para MetaGlass, nunca `summarize()` de web.
-> Verificar con `tests/unit/test_response_summarizer.py::TestMetaGlassPaginacion`.
-
----
-
-## 9. Como levantar el backend
-
-### Opcion A — Script automatico (recomendado)
+## DIAGNÓSTICOS RÁPIDOS
 
 ```cmd
-cd C:\Users\migue\Documents\activepieces\pendiente-fact\bots\interjddcia
-ARRANCAR_DEVIA.bat
-```
-
-O simplemente **doble clic** en `ARRANCAR_DEVIA.bat`.
-
-### Opcion B — Manual con uvicorn
-
-```cmd
-cd C:\Users\migue\Documents\activepieces\pendiente-fact\bots\interjddcia
-set PYTHONPATH=%CD%
-.venv\Scripts\uvicorn.exe backend.main:app --host 0.0.0.0 --port 8001 --log-level info
-```
-
-### Verificar que esta corriendo
-
-```cmd
+# ¿Está corriendo?
 curl http://localhost:8001/health
+
+# Configuración actual
 curl http://localhost:8001/api/chat/config
-curl http://localhost:8001/api/metadata-builder/status
+
+# ¿Qwen3 LAN responde?
+curl -s --max-time 5 http://192.168.0.36/api/vlm/v1/models -H "Authorization: Basic YWRtaW46YWlzdGFjazIwMjY="
+
+# Activar fallback internet (si LAN caída)
+curl -X POST http://localhost:8001/api/chat/config -H "Content-Type: application/json" -d "{\"ai_local_only\": false}"
 ```
+
+> **Diagnósticos detallados:** → `backend/modules/chat/DEVIA.MD` (sección Diagnósticos)
 
 ---
 
-## 10. Comandos de diagnostico rapido
-
-```cmd
-REM 1. Ver si DEVIA esta corriendo
-curl -s http://localhost:8001/health
-
-REM 2. Ver configuracion actual (incluye ai_local_only)
-curl -s http://localhost:8001/api/chat/config
-
-REM 3. Verificar que Qwen3 LAN responde (IP directa — RECOMENDADO)
-curl -s --max-time 5 http://192.168.0.36/api/vlm/v1/models ^
-  -H "Authorization: Basic YWRtaW46YWlzdGFjazIwMjY="
-
-REM 4. Test completo de consulta a BD real
-curl -X POST http://localhost:8001/api/chat/send ^
-  -H "Content-Type: application/json" ^
-  -d "{\"message\": \"cuantos articulos hay\"}"
-
-REM 5. Ver estado del Constructor BD (SIUO)
-curl -s http://localhost:8001/api/metadata-builder/status
-
-REM 6. Ver tablas con metadatos
-curl -s http://localhost:8001/api/metadata-builder/tables
-
-REM 7. Activar modo local (sin internet) — BAJA RESILIENCIA
-curl -X POST http://localhost:8001/api/chat/config ^
-  -H "Content-Type: application/json" ^
-  -d "{\"max_sql_retries\": 4, \"ai_local_only\": true}"
-
-REM 8. Activar modo fallback completo (con internet) — RECOMENDADO
-curl -X POST http://localhost:8001/api/chat/config ^
-  -H "Content-Type: application/json" ^
-  -d "{\"max_sql_retries\": 4, \"ai_local_only\": false}"
-
-REM 9. Ver que proceso usa el puerto 8001
-netstat -ano | findstr :8001
-
-REM 10. Ver IP del PC
-ipconfig | findstr "192.168"
-
-REM 11. Matar proceso en puerto 8001 (si hay que reiniciar)
-for /f "tokens=5" %p in ('netstat -ano ^| findstr ":8001 " ^| findstr "LISTENING"') do taskkill /F /PID %p
-```
-
----
-
-## 11. Archivos clave
-
-```
-bots/interjddcia/
-|
-+-- ARRANCAR_DEVIA.bat                   <- Script maestro de arranque (menu 4 opciones)
-+-- PARAR_DEVIA.bat                      <- Script para parar todos los servidores
-+-- .env                                 <- API keys, credenciales Firebird
-+-- DEVIA.MD                             <- Este documento
-|
-+-- backend/
-    +-- main.py                          <- FastAPI app, endpoint /health
-    |
-    +-- modules/
-    |   +-- chat/
-    |   |   +-- config.json              <- CONFIGURACION RUNTIME (ai_local_only aqui)
-    |   |   +-- router.py                <- Endpoints /send, /config, /history
-    |   |   +-- service.py               <- Logica principal, SQL, TTS cleanup
-    |   |   +-- sql_corrector.py         <- clean_firebird_sql, LIMIT->FIRST
-    |   |   +-- firebird_sql_normalizer.py <- Normalizacion SQL Firebird
-    |   |   +-- model_fallback_orchestrator.py <- Fallback IA, filtro LOCAL_ONLY
-    |   |
-    |   +-- db_explorer/                 <- Constructor BD (SIUO)
-    |       +-- metadata_builder_service.py <- Analisis de tablas con Qwen3
-    |       +-- metadata_builder_router.py  <- Endpoints /api/metadata-builder/*
-    |       +-- constants.py               <- Timeouts, limites, privacidad
-    |       +-- [NUEVO] deep_indexer_service.py  <- Indexacion profunda SIUO
-    |       +-- [NUEVO] context_retriever.py     <- Busqueda de contexto optimo
-    |
-    +-- drivers/
-    |   +-- ai/
-    |   |   +-- jddcia_provider.py       <- Cliente HTTP para Qwen3 LAN (timeout 20s)
-    |   +-- db/
-    |       +-- firebird_metadata_queries.py <- SQL de introspeccion Firebird
-    |
-    +-- core/
-        +-- config/
-            +-- settings.py              <- Variables de entorno (.env)
-            +-- metadata_manager.py      <- Lectura/escritura db_metadata_optimized.json
-            +-- database_metadata.py     <- get_semantic_schema() para el chat
-            +-- db_metadata_optimized.json <- Metadatos actuales (8 tablas)
-            +-- [NUEVO] table_index.json    <- Indice compacto de todas las tablas
-            +-- [NUEVO] concept_index.json  <- Mapa concepto -> tablas
-            +-- [NUEVO] db_graph.json       <- Grafo de relaciones
-            +-- [NUEVO] value_index.json    <- Valores reales de columnas clave
-            +-- [NUEVO] siuo_progress.json  <- Estado del proceso de indexacion
-            +-- models/
-                +-- jddcia_models.json   <- IPs y scores de modelos locales
-|
-+-- frontend/
-    +-- index.html                       <- UI web (9 pestanas: Dashboard, Articulos, Prompts,
-    |                                       Modelos, BD Config, Chat, Outlook, Anonimizar,
-    |                                       Constructor BD, Indices SIUO)
-    +-- assets/
-        +-- css/
-        |   +-- style.css                <- Estilos generales
-        |   +-- metadata_builder.css     <- Estilos del Constructor BD
-        |   +-- siuo.css                 <- [NUEVO] Estilos del modulo SIUO
-        +-- js/
-            +-- core/
-            |   +-- app.js               <- Navegacion y modulos (lazy-init SIUO)
-            +-- modules/
-                +-- metadata_builder.js  <- UI del Constructor BD
-                +-- siuo.js              <- [NUEVO] UI del SIUO (SSE, stats, test retriever)
-                +-- chat.js              <- UI del Chat IA
-                +-- [otros modulos]
-```
-
-### Datos de conexion
-
-| Dato | Valor |
-|------|-------|
-| IP del PC servidor | 192.168.0.58 (Wi-Fi) |
-| Puerto DEVIA | 8001 |
-| URL DEVIA (local) | http://localhost:8001 |
-| URL DEVIA (red) | http://192.168.0.58:8001 |
-| Servidor Qwen3 (IP) | http://192.168.0.36 <- usar esta |
-| Servidor Qwen3 (mDNS) | http://jddcia.local <- falla en Windows |
-| Modelo Qwen3 | unified-main (Qwen3 VL 30B) |
-| Timeout Qwen3 | 20s |
-| BD Firebird | 192.168.0.254:3050 |
-| Endpoint chat | POST /api/chat/send |
-| Endpoint health | GET /health |
-| Endpoint config | GET/POST /api/chat/config |
-| Endpoint Constructor BD | GET /api/metadata-builder/status |
-| Modo produccion | ai_local_only: true (solo Qwen3 LAN) |
-
-### Estado actual del sistema (06/03/2026)
-
-| Componente | Estado | Notas |
-|-----------|--------|-------|
-| Backend DEVIA | Corriendo (puerto 8001) | v3.0.0 |
-| BD Firebird | Conectada | 11.866 articulos, 437 tablas |
-| IA local (192.168.0.36) | Disponible | Qwen3 VL 30B |
-| IA local (jddcia.local) | No resuelve en Windows | Usar IP directa |
-| Fallback Groq/Gemma | Disponible | Activar con ai_local_only=false |
-| Modo activo | ai_local_only: true | Solo Qwen3 LAN |
-| Constructor BD (UI) | Funcionando | http://localhost:8001 -> Constructor BD |
-| Tablas con metadatos | 8/437 (2%) | Pendiente ejecutar indexacion masiva con Qwen3 |
-| SIUO Fase 1 (DeepIndexerService) | ✅ COMPLETADA | deep_indexer_service.py |
-| SIUO Fase 2 (ContextRetriever) | ✅ COMPLETADA | context_retriever.py |
-| SIUO Fase 3 (ChatService integrado) | ✅ COMPLETADA | service.py usa ContextRetriever |
-| SIUO Fase 4 (Frontend UI) | ✅ COMPLETADA | siuo.js + siuo.css + pestana "Indices SIUO" |
-| SIUO Fase 5 (Tests y validacion) | ✅ COMPLETADA | 192/192 tests OK (10/03/2026) |
-| SIUO Router | ✅ ACTIVO | /api/siuo/* registrado en main.py |
-| SIUO Indexacion masiva | ⏳ PENDIENTE | 0/437 tablas — ejecutar desde UI "Indices SIUO" |
-| ContextRetriever modo actual | fallback v1 | Activa SIUO completo tras indexacion masiva |
-| Auditor de red (NetworkAuditLogger) | ✅ ACTIVO | Instalado en main.py lifespan — log: logs/network_audit.log |
-| Tests de privacidad (test_privacidad_datos.py) | ✅ 12/12 OK | Sistemas 1 y 5 verificados (06/03/2026) |
-
-### PROXIMO PASO: Ejecutar indexacion masiva
-
-El sistema SIUO esta 100% implementado y testado. Para activarlo completamente:
-
-1. Asegurarse de que Qwen3 LAN esta disponible: `curl http://192.168.0.36/api/vlm/v1/models`
-2. Abrir http://localhost:8001 -> pestana "Indices SIUO"
-3. Pulsar "Iniciar Analisis Completo" (batch=5, reanudar=true)
-4. Esperar ~2-4 horas para las 437 tablas (depende de la velocidad de Qwen3)
-5. Tras completar: el ContextRetriever usara SIUO en lugar del fallback v1
-6. Verificar con: `curl http://localhost:8001/api/siuo/stats`
-
----
-
-## PRINCIPIOS DE DESARROLLO DEL PROYECTO
-
-> Estos principios son OBLIGATORIOS en todo el codigo nuevo y en refactorizaciones.
-> La IA que desarrolla este proyecto debe aplicarlos siempre, sin excepcion.
-
-### 1. Arquitectura orientada a IA
-
-- **Contexto minimo y preciso**: nunca enviar mas tokens de los necesarios a la IA
-- **Fallback gracioso**: si la IA falla, el sistema sigue funcionando (degradado, no roto)
-- **Autoaprendizaje**: registrar que funciona y que no para mejorar el sistema
-- **Trazabilidad total**: cada llamada a la IA queda registrada con tokens, modelo, latencia
-- **Privacidad por diseno**: datos sensibles nunca salen a internet (PrivacyConfig)
-- **Resiliencia multi-modelo**: 189 modelos de fallback, nunca un punto unico de fallo
-
-### 2. Calidad de codigo
-
-- **Ficheros <= 500 lineas**: si un fichero crece mas, refactorizar en modulos
-- **Una responsabilidad por clase/modulo** (SRP — Single Responsibility Principle)
-- **Constantes en ficheros dedicados**: `constants.py`, `settings.py`, nunca literales en el codigo
-- **Tipos en todas las funciones**: `def foo(x: str) -> Dict[str, Any]:`
-- **Docstrings en todas las clases y metodos publicos**
-- **Sin imports circulares**: dependencias siempre en una sola direccion
-- **Sin magic numbers**: todo valor numerico tiene nombre y esta en constants.py
-
-### 3. Patrones de diseno aplicados
-
-| Patron | Donde se usa |
-|--------|-------------|
-| Singleton | DeepIndexerService, ContextRetriever, MetadataManager |
-| Factory | DBFactory, AIFactory — abstraccion de drivers |
-| Strategy | ModelFallbackOrchestrator — estrategia de fallback |
-| Observer | SSE (Server-Sent Events) — progreso en tiempo real |
-| Repository | MetadataManager — acceso a datos centralizado |
-| Facade | ChatService — fachada que orquesta todos los subsistemas |
-| Template Method | SQLCorrector — flujo fijo con pasos variables |
-
-### 4. Seguridad y ciberseguridad
-
-- **Zero-trust para datos de BD**: ningun dato de Firebird sale a internet
-- **Validacion de entrada**: Pydantic en todos los endpoints (min_length, max_length, ge, le)
-- **Sin SQL injection**: parametros siempre como tuplas, nunca f-strings en SQL
-- **Columnas sensibles**: PrivacyConfig.SENSITIVE_COLUMNS excluidas de muestras a IA
-- **API keys en .env**: nunca en el codigo, nunca en logs
-- **Logs sin datos sensibles**: los logs muestran estructura, no valores de columnas sensibles
-- **CORS configurado**: solo origenes conocidos en produccion
-- **Timeouts en todas las llamadas HTTP**: nunca esperar indefinidamente
-
-### 5. Modularidad y estructura de carpetas
-
-```
-backend/
-  core/           <- Abstracciones, factories, configuracion global
-    abstract/     <- Interfaces (ABCs): database.py, ai.py
-    config/       <- settings.py, constants, JSON de configuracion
-    factory/      <- DBFactory, AIFactory
-    utils/        <- constants.py, helpers sin dependencias
-  modules/        <- Modulos de negocio (cada uno independiente)
-    chat/         <- ChatService, router, SQL corrector, normalizer
-    db_explorer/  <- MetadataBuilder, SIUO, ContextRetriever
-    images/       <- Generacion y analisis de imagenes
-    [otros]       <- Cada modulo tiene su router.py, service.py, constants.py
-  drivers/        <- Implementaciones concretas
-    ai/           <- JDDCIAProvider, GroqProvider, etc.
-    db/           <- FirebirdDriver, queries SQL
-```
-
-**Regla**: un modulo no importa de otro modulo directamente.
-Si necesita algo de otro modulo, lo hace a traves de `core/`.
-
-### 6. Escalabilidad y rendimiento
-
-- **Indices en memoria**: table_index, concept_index, db_graph cargados al arrancar
-- **Busqueda O(1)**: concept_index es un dict, no una lista que hay que recorrer
-- **Batches configurables**: batch_size en DeepIndexerService (1-20 tablas por batch)
-- **SSE para procesos largos**: nunca bloquear el cliente con un proceso de 30 minutos
-- **Progreso guardado**: siuo_progress.json permite reanudar si se interrumpe
-- **Singleton para servicios pesados**: no crear instancias nuevas en cada peticion
-- **Timeout en todas las llamadas**: Qwen3 20s, Firebird 3 reintentos con backoff
-
-### 7. Robustez y deteccion de errores
-
-- **Try/except en todo acceso externo**: BD, IA, ficheros, red
-- **Errores tipados**: nunca `except Exception: pass` sin log
-- **Fallback en cascada**: SIUO -> db_metadata_optimized.json -> esquema minimo
-- **Reintentos con backoff**: SQL hasta 4 intentos, BD hasta 3 intentos
-- **Estado de error persistido**: siuo_progress.json guarda tablas fallidas
-- **Logs estructurados**: `[MODULO][PASO] EMISOR -> RECEPTOR: mensaje`
-- **Health check**: GET /health siempre disponible, incluso si la BD falla
-
-### 8. Trazabilidad y medicion
-
-- **Logs en cada paso critico**: conexion BD, llamada IA, SQL generado, resultado
-- **Metadatos de contexto**: cada respuesta del chat incluye tablas usadas, tokens, fuente
-- **Query log**: siuo_query_log.json registra cada pregunta con keywords y tablas usadas
-- **Feedback loop**: endpoint POST /api/siuo/learning/feedback para marcar SQL correcto/incorrecto
-- **Estadisticas de indices**: GET /api/siuo/stats muestra estado del SIUO en tiempo real
-- **Progreso SSE**: el frontend recibe eventos en tiempo real durante la indexacion
-
-### 9. Autoaprendizaje y mejora continua
-
-El sistema aprende de su propio uso:
-
-```
-Pregunta del usuario
-    |
-    v
-ContextRetriever._log_query()
-    -> Registra keywords encontrados y desconocidos
-    -> Acumula frecuencia de keywords sin mapear
-    |
-    v
-GET /api/siuo/learning/suggestions
-    -> Devuelve keywords frecuentes sin mapear
-    -> Sugiere nuevas entradas para concept_index
-    -> Muestra tablas mas usadas (candidatas a analisis prioritario)
-    |
-    v
-POST /api/siuo/learning/feedback
-    -> Usuario marca si el SQL fue correcto o no
-    -> Se guarda en siuo_query_log.json
-    -> Permite detectar patrones de error sistematicos
-    |
-    v
-Mejora manual o automatica del concept_index
-    -> Anadir nuevos keywords
-    -> Corregir filtros SQL (ej: TIPO=13 para facturas)
-    -> POST /api/siuo/reload para recargar sin reiniciar
-```
-
-**Ciclo de mejora continua**:
-1. El sistema detecta keywords no mapeados frecuentes
-2. El desarrollador (o la IA) los anade al concept_index
-3. POST /api/siuo/reload recarga los indices en memoria
-4. Las siguientes preguntas con esos keywords funcionan mejor
-5. El feedback confirma la mejora
-
-### 10. Usabilidad y experiencia de desarrolloc
-
-- **DEVIA.MD en cada modulo**: documentacion local de responsabilidad, flujo y dependencias
-- **Comandos de diagnostico**: seccion 10 del DEVIA principal con curl commands listos
-- **Script de arranque**: ARRANCAR_DEVIA.bat con menu de 4 opciones
-- **Endpoint de test**: POST /api/siuo/context/test para probar el retriever sin chat
-- **Swagger UI**: http://localhost:8001/docs con todos los endpoints documentados
-- **Errores en JSON**: nunca HTML de error, siempre `{"detail": "mensaje claro"}`
-- **Mensajes de progreso claros**: `[150/437] DOCCAB — 85.000 registros`
-
----
-
-## PLAN DE IMPLEMENTACION DEL SIUO
-
-### Fase 1 — Backend: DeepIndexerService (1-2 dias)
-
-Crear `backend/modules/db_explorer/deep_indexer_service.py`:
-
-- Metodo `analyze_table_deep(table_name)`:
-  - Paso 1: estructura (columnas, PKs, FKs) — ya existe en MetadataBuilderService
-  - Paso 2: valores de columnas clave (enumerados, top-N, rangos)
-  - Paso 3: relaciones implicitas (por nombre de columna: CODART, CODCLI, etc.)
-  - Paso 4: enviar a Qwen3 en chunks <= 2000 tokens
-  - Paso 5: guardar en todos los indices
-
-- Metodo `analyze_all_tables_batch(batch_size=10)`:
-  - Procesa tablas en batches
-  - Guarda progreso en siuo_progress.json
-  - Continua desde donde se quedo si se interrumpe
-  - Reporta progreso via SSE (Server-Sent Events) al frontend
-
-- Metodo `build_graph()`:
-  - Construye db_graph.json con todas las relaciones
-  - FKs explicitas de Firebird
-  - FKs implicitas por nombre de columna
-
-- Metodo `build_concept_index()`:
-  - Construye concept_index.json
-  - Combina reglas manuales + keywords generados por Qwen3
-
-### Fase 2 — Backend: ContextRetriever (1 dia)
-
-Crear `backend/modules/db_explorer/context_retriever.py`:
-
-- Carga table_index.json, concept_index.json, db_graph.json en memoria al arrancar
-- Metodo `get_context(question, max_tokens=2000)`:
-  - Extrae keywords de la pregunta
-  - Busca en concept_index
-  - Expande con db_graph (BFS hasta profundidad 2)
-  - Carga detalles de table_index
-  - Calcula tokens y recorta si necesario
-  - Devuelve contexto optimo
-
-### Fase 3 — Integracion en ChatService (0.5 dias)
-
-Modificar `backend/modules/chat/service.py`:
-
-- Reemplazar `get_semantic_schema()` por `ContextRetriever.get_context(message)`
-- Pasar contexto adicional al SQLCorrector cuando falla
-
-### Fase 4 — Frontend: UI de indexacion masiva (1 dia)
-
-Anadir en el Constructor BD:
-
-- Boton "Analizar BD completa con Qwen3"
-- Barra de progreso en tiempo real (SSE)
-- Log de tablas procesadas / fallidas
-- Boton "Pausar" / "Reanudar"
-- Vista del grafo de relaciones (opcional)
-
-### Fase 5 — Tests y validacion (0.5 dias)
-
-- Test: "dime los articulos con mas compras" -> SQL correcto
-- Test: "facturas del mes pasado" -> SQL correcto con TIPO=13
-- Test: "clientes de Madrid" -> SQL correcto
-- Test: pregunta con tabla desconocida -> manejo gracioso
-
----
-
-## TESTS AUTOMATIZADOS — LOS 3 SISTEMAS IA
-
-> **Estado (04/03/2026): 26/26 tests pasados ✓**
-
-### Ejecutar los tests
-
-```cmd
-REM Desde la raiz del proyecto (bots/interjddcia/)
-set PYTHONUTF8=1
-set PYTHONPATH=C:\Users\migue\Documents\activepieces\pendiente-fact\bots\interjddcia
-.venv\Scripts\python.exe -X utf8 test_sistemas_ia.py
-```
-
-O con el script de arranque (opcion 4 — diagnostico):
-```cmd
-ARRANCAR_DEVIA.bat   <- opcion 4
-```
-
-### Opciones del script de tests
-
-```cmd
-REM Todos los tests (modo compacto — recomendado)
-python test_sistemas_ia.py
-
-REM Modo verbose (unittest estandar)
-python test_sistemas_ia.py -v
-
-REM Solo un sistema
-python test_sistemas_ia.py --solo memoria
-python test_sistemas_ia.py --solo relaciones
-python test_sistemas_ia.py --solo calidad
-python test_sistemas_ia.py --solo api        <- requiere servidor corriendo
-```
-
-### Sistemas testados
-
-#### SISTEMA 1: MEMORIA PERMANENTE (6 tests)
-
-| Test | Que verifica |
-|------|-------------|
-| `test_guardar_y_recuperar_interaccion` | SQLite guarda y recupera interacciones correctamente |
-| `test_persistencia_entre_sesiones` | Los datos persisten aunque se reinicie el servicio |
-| `test_filtrado_por_modulo` | Se puede filtrar historial por CHAT, OUTLOOK, etc. |
-| `test_metadata_json_persistido` | Los metadatos JSON se serializan/deserializan bien |
-| `test_query_log_contextretriever` | El ContextRetriever registra consultas en siuo_query_log.json |
-| `test_feedback_loop` | El feedback SQL correcto/incorrecto se persiste |
-
-#### SISTEMA 2: RELACIONES MULTI-TABLA (8 tests)
-
-| Test | Que verifica |
-|------|-------------|
-| `test_pregunta_simple_una_tabla` | "cuantos articulos hay" -> encuentra ARTICULO |
-| `test_pregunta_compleja_join_tres_tablas` | "articulos con mas ventas" -> ARTICULO + DOCLIN + DOCCAB |
-| `test_filtro_sql_en_contexto` | "facturas" -> contexto incluye WHERE TIPO=13 |
-| `test_expansion_bfs_sin_bucles` | BFS no entra en bucles con grafos ciclicos |
-| `test_ranking_tablas_directas_primero` | Tablas directas tienen mayor score que expandidas |
-| `test_pregunta_proveedor_compras` | "pedidos a proveedores" -> PROVEED + DOCCAB (TIPO=12) |
-| `test_control_de_tokens` | El contexto nunca excede el limite de tokens |
-| `test_fallback_sin_indices` | Sin indices SIUO, usa db_metadata_optimized.json |
-
-#### SISTEMA 3: CALIDAD DE DATOS + IA (7 tests)
-
-| Test | Que verifica |
-|------|-------------|
-| `test_data_quality_service_instancia` | DataQualityService se instancia sin errores |
-| `test_analyze_impact_estructura` | analyze_impact devuelve estructura correcta |
-| `test_sql_calidad_datos_valido_firebird` | SQL de duplicados no usa LIMIT (invalido en Firebird) |
-| `test_interpretacion_ia_datos_incorrectos` | interpret_results_for_voice interpreta duplicados |
-| `test_clean_for_tts_elimina_markdown` | clean_for_tts elimina ** ## ` para las gafas Meta |
-| `test_privacidad_columnas_sensibles` | PASSWORD/DNI no aparecen en el contexto enviado a la IA |
-| `test_sugerencias_autoaprendizaje` | get_learning_suggestions devuelve keywords frecuentes |
-
-#### INTEGRACION API (5 tests — requieren servidor en :8001)
-
-| Test | Que verifica |
-|------|-------------|
-| `test_health_endpoint` | GET /health devuelve status ok |
-| `test_siuo_stats_endpoint` | GET /api/siuo/stats devuelve estadisticas |
-| `test_siuo_context_test_endpoint` | POST /api/siuo/context/test devuelve contexto |
-| `test_siuo_learning_suggestions` | GET /api/siuo/learning/suggestions funciona |
-| `test_chat_pregunta_simple` | POST /api/chat/send responde a pregunta real con BD |
-
-### Mejora aplicada durante los tests
-
-Durante la ejecucion de los tests se detecto y corrigio un bug en `context_retriever.py`:
-
-**Bug:** `_extract_keywords()` no normalizaba plurales ni acentos.
-- "articulos" no encontraba "articulo" en el concept_index
-- "facturas" no encontraba "factura"
-- Resultado: 0 tablas encontradas para preguntas en plural
-
-**Correccion aplicada:** Se añadio el metodo `_normalize_word()` que:
-1. Elimina acentos (unicodedata NFKD)
-2. Intenta quitar plural en `-es` (si la raiz esta en el indice)
-3. Intenta quitar plural en `-s` (si la raiz esta en el indice)
-
-```python
-# Antes (fallaba con plurales)
-if w in self._concept_index:
-    found.append(w)
-
-# Despues (funciona con plurales y acentos)
-normalized = self._normalize_word(w)  # "articulos" -> "articulo"
-if normalized in self._concept_index:
-    found.append(normalized)
-```
-
-**Impacto:** Todas las preguntas en plural ahora funcionan correctamente.
-
----
-
-## 12. Pipeline de Analisis Profundo — Fases
-
-> **Implementado:** 15/06/2026 | **Ultima actualizacion:** 25/06/2026 | **Modulo:** `backend/modules/chat/deep_analysis/`
-
-### Historial de cambios
-
-| Fecha | Fichero | Cambio |
-|-------|---------|--------|
-| 15/06/2026 | `phase_verify.py` | Fase 5b — Verificacion de fiabilidad (32 tests) |
-| 25/06/2026 | `phase5.py` | **FIX ORDEN RESPUESTA**: anomalias/advertencias ahora aparecen DESPUES de la respuesta principal, bajo "## 🔎 Evidencias y Aclaraciones". Antes aparecian antes del cuerpo principal. |
-| 25/06/2026 | `phase3.py` | **FIX SQL INCOMPLETO**: comprobacion de parentesis balanceados antes de ejecutar el SQL. SQL con parentesis desbalanceados (IA truncada por max_tokens) se descarta con mensaje limpio en vez de error de SQLite "incomplete input". |
-| 25/06/2026 | `phase3.py` | **FIX TIPO MAPPING**: actualizado mapeo completo de DOCCAB.TIPO (verificado con usuario). Incluye regla anti-alucinacion: "TIPO=0 es PRESUPUESTO, NUNCA llamarlo Albaran". |
-| 25/06/2026 | `phase3_sqls.py` | **FIX `_detect_tipo_filter`**: albaranes→TIPO=2 (era TIPO=11), pedidos proveedor→TIPO=11, facturas cliente→TIPO=3, facturas prov→TIPO=13. Distincion proveedor/cliente por contexto de pregunta. |
-| 25/06/2026 | `phase5.py` | **FIX IA TIPOS TRUNCADOS**: prompt de sintesis ahora incluye etiquetas exactas de los 15 tipos de DOCCAB.TIPO y exige mostrar TODOS los tipos encontrados (no solo top-3). |
-| 25/06/2026 | `backend/core/config/table_index.json` | **FIX SIUO DOCCAB NOTE**: nota DOCCAB corregida. Antes decia "21=Factura, 12=Pedido" (generado por IA con valores erroneos). Ahora contiene el mapeo verificado completo. |
-
-El agente de analisis profundo (`DeepAnalysisAgent`) ejecuta un pipeline multi-fase
-para responder preguntas complejas sobre la base de datos. Cada fase es un Mixin
-independiente (SRP) que hereda de la clase base del agente.
-
-### Fases del pipeline
-
-```
-Pregunta usuario
-    |
-    v
-Fase 0  — Presupuesto de tokens + optimizacion LAN
-    |
-    v
-Fase 1  — Comprension epica (intencion, sub-preguntas, tablas candidatas)
-    |
-    v
-Fase 2  — Exploracion total (conteo, columnas, muestreo de datos reales)
-    |
-    v
-BUCLE DE INVESTIGACION (hasta MAX_INVESTIGATION_CYCLES):
-    |
-    +-- Fase 3  — Investigacion multi-angular (SQLs dinamicos + fijos)
-    |
-    +-- Fase 4  — Analisis critico (anomalias, calidad, contexto)
-    |
-    +-- Fase 3b — Resolucion de inconsistencias detectadas
-    |
-    +-- Decision IA: continuar o salir del bucle
-    |
-    v
-Fase 4b — Aprendizaje permanente (KnowledgeStore)
-    |
-    v
-Fase 5  — Sintesis epica (respuesta amigable para el usuario)
-    |
-    v
-Fase 5b — VERIFICACION DE RESULTADOS (nueva — 15/06/2026)
-    |
-    v
-Respuesta final con sello de fiabilidad
-```
-
-### Fase 5b — Verificacion de Resultados (PhaseVerifyMixin)
-
-**Fichero:** `backend/modules/chat/deep_analysis/phase_verify.py`
-**Clase:** `PhaseVerifyMixin`
-**Tests:** `tests/unit/test_phase_verify.py` (32 tests)
-
-**Proposito:** Verificar que la respuesta de la IA no contiene datos inventados.
-La IA puede alucinar nombres de clientes, importes o articulos que no existen en la BD.
-Esta fase cruza los valores de la tabla Markdown de la respuesta con los datos reales
-obtenidos de las consultas SQL ejecutadas.
-
-**Metodos:**
-
-| Metodo | Responsabilidad |
-|--------|----------------|
-| `_extract_real_values(sql_queries)` | Extrae todos los valores reales de los resultados SQL en un set para comparacion O(1) |
-| `_extract_table_values_from_markdown(response)` | Parsea las tablas Markdown de la seccion `## Respuesta Principal` |
-| `_verify_response_against_data(...)` | Cruza valores de la tabla con datos reales. Clasifica fiabilidad |
-| `_build_verification_block(...)` | Genera bloque Markdown con sello de fiabilidad |
-| `_phase5b_verify(question, result, cfg)` | Orquesta todo y modifica `result.final_answer` |
-
-**Clasificacion de fiabilidad:**
-
-| Nivel | Icono | Criterio |
-|-------|-------|---------|
-| `alta` | ✅ | 0 valores no verificados |
-| `media` | ⚠️ | 1-2 valores no verificados, o <20% del total |
-| `baja` | ⚠️ | >20% de valores no verificados |
-| `no_data` | ❌ | Todas las queries fallaron — sin datos reales para comparar |
-| `no_table` | ℹ️ | La respuesta no contiene tabla de datos |
-
-**Filtros aplicados (valores que se ignoran en la verificacion):**
-- Fechas en formato `dd/mm/yyyy` (la IA puede reformatear fechas)
-- Valores que terminan en `%` o `€` (porcentajes y monedas formateados)
-- Valores especiales: `(SIN DATOS)`, `N/A`, `NULL`, `-`
-- Valores de menos de 3 caracteres (cabeceras de columna cortas)
-
-**Integracion en agent.py:**
-
-```python
-# Fase 5b: Verificacion de resultados
-try:
-    phase5b = await self._phase5b_verify(question, result, cfg)
-    result.phases.append(phase5b)
-except Exception as verify_err:
-    logger.warning(f"[DEEP AGENT] Fase 5b (verificacion) fallo: {verify_err}")
-    # La verificacion NUNCA rompe la respuesta principal
-```
-
-**Principio de diseno:** La fase 5b es opcional y tolerante a fallos. Si falla,
-la respuesta principal se entrega igualmente sin el sello de fiabilidad.
-
-**Ejemplo de bloque de verificacion generado:**
-
-```markdown
----
-### ✅ Verificacion de Fiabilidad
-
-**Consultas ejecutadas:** 3/3 exitosas
-
-**Valores verificados:** 8/8 (100%)
-
-> Nota: Los datos mostrados provienen del simulador de base de datos JDDC.
-> Los valores reales pueden diferir si la base de datos ha cambiado.
-```
-
-### Ficheros del modulo deep_analysis
-
-```
-backend/modules/chat/deep_analysis/
-|
-+-- agent.py          <- Orquestador principal (DeepAnalysisAgent)
-+-- helpers.py        <- HelpersAgentMixin — helpers compartidos
-+-- phases_1_2.py     <- Phases12Mixin — Fases 0, 1, 2
-+-- phases_3_4_5.py   <- Phases345Mixin — Fases 3, 3b, 4, 4b, 5
-+-- phase_verify.py   <- PhaseVerifyMixin — Fase 5b (NUEVA 15/06/2026)
-+-- models.py         <- Tipos, constantes, EpicAnalysisResult, TokenBudget
-+-- knowledge_store.py <- KnowledgeStore — aprendizaje permanente
-+-- phase5.py         <- Logica de sintesis (Fase 5)
-```
-
-### Tests del modulo deep_analysis
-
-```
-tests/unit/
-|
-+-- test_phase_verify.py              <- 32 tests Fase 5b (NUEVO 15/06/2026)
-+-- test_phase5_no_invention.py       <- Tests anti-invencion Fase 5
-+-- test_simulator_table_validation.py <- Tests validacion de tablas SQL
-+-- test_deep_analysis_1_core.py      <- Tests core del agente
-+-- test_deep_analysis_2_phases.py    <- Tests de fases
-+-- test_deep_analysis_3_learn.py     <- Tests de aprendizaje
-+-- test_deep_analysis_4_advanced.py  <- Tests avanzados
-+-- test_deep_analysis_5_knowledge.py <- Tests KnowledgeStore
-+-- test_deep_analysis_6_knowledge2.py
-+-- test_deep_analysis_7_knowledge3.py
-```
-
-### Validacion de tablas SQL (TableValidationLayer)
-
-**Fichero:** `backend/modules/db_simulator/` (integrado en el simulador)
-**Tests:** `tests/unit/test_simulator_table_validation.py` (60 tests)
-
-Antes de ejecutar cualquier SQL, el simulador valida que todas las tablas referenciadas
-existen en su esquema. Si una tabla no existe (ej: `DOCVAR`, `REPARA`), lanza un error
-descriptivo que incluye la lista de tablas disponibles y pide reescribir la consulta.
-
-**Alias automaticos soportados:**
-- `CLIENTES` -> `CLIENTE`
-- `ARTICULOS` -> `ARTICULO`
-- `PROVEEDORES` -> `PROVEED`
-- `FACTURAS` / `PRESUPUESTOS` / `PEDIDOS` / `ALBARANES` / `COMPRAS` -> `DOCCAB`
-- `AGENTE` -> `AGENTES`
-
----
-
-## 13. DB Simulator — Tests sin BD real
-
-> **Implementado:** 01/07/2026 | **Modulo:** `backend/modules/db_simulator/`
-
-El **DB Simulator** es un motor SQLite con datos sinteticos que replica la estructura
-de la BD Firebird JDDC. Permite ejecutar todos los tests unitarios sin necesidad de
-conexion a la BD real.
-
-### Arquitectura
-
-```
-backend/modules/db_simulator/
-|
-+-- schema.py           <- DDL de todas las tablas (CREATE TABLE)
-|                          Columnas verificadas contra la BD real:
-|                          ARTICULO.PRECIOVENTA, CLIENTE.NOMBRECOMERCIAL,
-|                          ESTALMACEN.IMPCOSTE, CAJA.CODAPUNTE, etc.
-+-- synthetic_seeder.py <- Datos sinteticos realistas (INSERT INTO)
-|                          ~50 articulos, ~20 clientes, ~30 documentos,
-|                          ~100 lineas de documento, etc.
-+-- driver.py           <- SimulatorDriver — API compatible con FirebirdDriver
-|                          execute_query(), get_table_info(), etc.
-+-- data/simulator.db   <- BD SQLite generada (no en git — se regenera)
-+-- data/.gitkeep       <- Marca el directorio en git
-+-- migration_add_2025_2026.py <- Migracion de datos 2025-2026
-+-- seed_data.py        <- Datos adicionales de prueba
-```
-
-### Tablas disponibles en el simulador
-
-| Tabla | Registros | Descripcion |
-|-------|-----------|-------------|
-| ARTICULO | ~50 | Articulos con PRECIOVENTA, PRECIOCOSTE, FAMILIA |
-| CLIENTE | ~20 | Clientes con NOMBRECOMERCIAL, RAZONSOCIAL |
-| PROVEED | ~10 | Proveedores con NOMBRECOMERCIAL |
-| DOCCAB | ~30 | Documentos (facturas, albaranes, pedidos) |
-| DOCLIN | ~100 | Lineas de documentos |
-| ALMACEN | ~5 | Almacenes |
-| EXISTENC | ~50 | Existencias por articulo/almacen |
-| ESTALMACEN | ~30 | Estadisticas de almacen con IMPCOSTE |
-| CAJA | ~20 | Movimientos de caja con CODAPUNTE |
-| FAMILIAS | ~10 | Familias de articulos |
-| AGENTES | ~5 | Agentes comerciales |
-| REMESA | 0 | Remesas (tabla vacia — xfail en tests) |
-| HISTORICOPRECIOS | 0 | Historico de precios (tabla vacia — xfail) |
-| COMPRA | 0 | Compras directas (tabla vacia — xfail) |
-| REPCAB | 0 | Reparaciones (tabla vacia — xfail) |
-
-### Vistas disponibles
-
-| Vista | Descripcion |
-|-------|-------------|
-| SERIE | Basada en SERIES — incluye columna ULTIMO=NULL |
-| AGENTE | Alias de AGENTES con columnas CODIGO, NOMBRE, NIF, TELEFONO, EMAIL, COMISION |
-| FORMAPAG | Formas de pago con CODIGO, NOMBRE, DIASVENC, TIPOCOBRO |
-
-### Columnas verificadas (03/07/2026)
-
-Durante la sesion de correccion de tests se verificaron y anadieron las siguientes
-columnas que faltaban en el simulador respecto a la BD real:
-
-| Tabla | Columna anadida | Tipo | Motivo |
-|-------|----------------|------|--------|
-| ARTICULO | PRECIOVENTA | REAL | Tests usaban PRECIO (incorrecto) |
-| CLIENTE | NOMBRECOMERCIAL | TEXT | Tests usaban NOMBRE (incorrecto) |
-| PROVEED | NOMBRECOMERCIAL | TEXT | Tests usaban NOMBRE (incorrecto) |
-| ESTALMACEN | IMPCOSTE | REAL | Columna real de estadisticas |
-| CAJA | CODAPUNTE | TEXT | Columna real de caja |
-| REMESA | FECHAEMISION | TEXT | Columna real de remesas |
-| REMESA | ENEUROS | TEXT | Columna real de remesas |
-| HISTORICOPRECIOS | PRECIONUEVO | REAL | Columna real de historico |
-| HISTORICOPRECIOS | PRECIOANTERIOR | REAL | Columna real de historico |
-| COMPRA | PRECIOCOSTE | REAL | Columna real de compras |
-| REPCAB | CODALMACEN | TEXT | Columna real de reparaciones |
-| EXISTENC | PENDSERVIR1 | REAL | Unidades pendientes de servir |
-| EXISTENC | UBICACION | TEXT | Ubicacion en almacen |
-
-### Uso en tests
-
-```python
-# Opcion 1: Usar el driver directamente
-from backend.modules.db_simulator.driver import SimulatorDriver
-db = SimulatorDriver()
-rows = db.execute_query("SELECT CODIGO, NOMBRE, PRECIOVENTA FROM ARTICULO LIMIT 5")
-
-# Opcion 2: Usar la conexion SQLite directamente (para tests SQL puros)
-import sqlite3
-DB_PATH = "backend/modules/db_simulator/data/simulator.db"
-con = sqlite3.connect(DB_PATH)
-rows = con.execute("SELECT COUNT(*) FROM DOCCAB WHERE TIPO = 13").fetchall()
-con.close()
-
-# Opcion 3: Fixture pytest (recomendado)
-@pytest.fixture
-def db():
-    return SimulatorDriver()
-
-def test_articulos(db):
-    rows = db.execute_query("SELECT * FROM ARTICULO")
-    assert len(rows) > 0
-```
-
-### Marcadores xfail para tablas vacias
-
-Los tests que consultan tablas vacias (REMESA, HISTORICOPRECIOS, etc.) usan
-`@pytest.mark.xfail` para indicar que el fallo es esperado:
-
-```python
-@pytest.mark.xfail(reason="REMESA vacia en simulador actual")
-def test_remesas_por_anyo(db):
-    rows = db.execute_query("SELECT strftime('%Y', FECHAEMISION) FROM REMESA")
-    assert len(rows) > 0  # Falla porque REMESA esta vacia — esperado
-```
-
-**Total de xfail en la suite:** 70 tests (todos esperados — tablas vacias en simulador)
-
----
-
-## 14. Modulo Analista BD
-
-> **Implementado:** 25/06/2026 | **Modulo:** `backend/modules/db_analyst/`
-
-El modulo **Analista BD** proporciona un conjunto de consultas SQL predefinidas
-organizadas por categoria de negocio. Permite al usuario obtener analisis
-empresariales sin necesidad de escribir SQL.
-
-### Categorias de analisis
-
-| Categoria | Tests | Descripcion |
-|-----------|-------|-------------|
-| **Gerencia** (G) | 10 | KPIs globales, facturacion, proyectos, actividad agentes |
-| **Contabilidad** (C) | 10 | IVA mensual, recibos, aging, variacion precios, remesas |
-| **Almacen** (A) | 10 | Stock, roturas, valor inventario, ubicaciones, compras |
-| **Comercial** (CO) | 10 | Ranking clientes, estacionalidad, ciclo vida, albaranes |
-| **Predicciones** (P) | 10 | Tendencias, RFM, proyeccion stock, inflacion precios |
-| **Alertas** (AL) | 10 | Duplicados, anomalias, stock negativo, morosos |
-| **Reporting** (R) | 10 | Cuadro mando, dashboards, KPIs financieros, union |
-
-**Total: 70 consultas SQL predefinidas** — todas testeadas en `test_analista_bd_catalog.py`.
-
-### Arquitectura del modulo
-
-```
-backend/modules/db_analyst/
-|
-+-- service.py      <- AnalystService — ejecuta consultas por categoria
-+-- router.py       <- Endpoints /api/analyst/*
-+-- models.py       <- Tipos de datos (AnalystQuery, AnalystResult)
-+-- session_store.py <- Almacena resultados de sesion
-+-- DEVIA.md        <- Documentacion del modulo
-```
-
-### Endpoints
-
-| Endpoint | Metodo | Descripcion |
-|----------|--------|-------------|
-| `/api/analyst/categories` | GET | Lista de categorias disponibles |
-| `/api/analyst/run/{category}` | POST | Ejecuta todas las consultas de una categoria |
-| `/api/analyst/run/{category}/{query_id}` | POST | Ejecuta una consulta especifica |
-| `/api/analyst/history` | GET | Historial de consultas ejecutadas |
-
-### Acceso desde el frontend
-
-Pestaña **"Analista BD"** en http://localhost:8001
-
-El usuario selecciona una categoria (ej: "Comercial") y el sistema ejecuta
-automaticamente las 10 consultas de esa categoria, mostrando los resultados
-en tablas interactivas con graficos.
-
-### Tests
-
-```bash
-# Ejecutar tests del analista BD
-python -m pytest tests/unit/test_analista_bd_catalog.py -v
-
-# Resultado esperado:
-# 53 passed, 17 xfailed, 0 failures
-# (17 xfailed = tablas vacias en simulador: REMESA, HISTORICOPRECIOS, REPCAB, etc.)
-```
-
----
-
-## 15. Historial de cambios
-
-### v3.0.0 (09/07/2026) — Seguridad BD + SemanticReasoningEngine + Proyectos/Certificaciones
-
-**Módulos nuevos:**
-
-**`backend/core/security/db_security_guard.py`** — Guardián de seguridad BD (SOLO LECTURA):
-- 6 capas de validación independientes (léxico, sintáctico, multi-sentencia, patrones, funciones peligrosas, comentarios)
-- Fail-safe: ante cualquier duda, BLOQUEA (nunca permite una consulta no validada)
-- Inmutable: `SecurityResult` es `frozen=True`, no se puede modificar post-creación
-- Integrado en `_execute_sql()` de `service.py` — se ejecuta SIEMPRE antes de cualquier consulta
-- Singleton: se inicializa una sola vez al arrancar el servidor
-- Auditable: todo bloqueo queda registrado con severidad (CRITICAL/HIGH/MEDIUM/LOW)
-
-**`backend/modules/chat/semantic_reasoning_engine.py`** — Motor de razonamiento semántico:
-- Detecta el dominio de negocio de la pregunta (proyectos, certificaciones, retenciones, etc.)
-- Enriquece el system_prompt con hints SQL deterministas y contexto de negocio JDDC
-- Ultra-resiliente: si falla, el pipeline continúa sin enriquecimiento (nunca rompe el chat)
-- Integrado en `service.py` antes de construir el system_prompt
-
-**Simulador SQLite — Proyectos y Certificaciones:**
-- `schema.py`: nuevas tablas `PROYECTOS` y `PRESUPROYE` con columnas verificadas
-- `synthetic_seeder.py`: 8 proyectos sintéticos realistas + certificaciones de obra
-- `DOCCAB.CODPROYECTO`: columna añadida para vincular facturas a proyectos
-- ~40% de las facturas generadas son certificaciones de obra (con CODPROYECTO)
-
-**Parámetros centralizados (`constants.py`):**
-- `JDDCDocTipos`: ÚNICA fuente de verdad para el mapeo TIPO → nombre de documento
-  - Verificado con BD real: TIPO=3=factura_cli, TIPO=13=factura_prov, etc.
-- `SQLDangerousCommands`: ampliado con INSERT, UPDATE, DELETE, MERGE, GRANT, REVOKE, COMMIT, ROLLBACK, LOCK
-
-**Corrección crítica (`service.py`):**
-- Mapeo DOCCAB.TIPO corregido en el system_prompt (era incorrecto: TIPO=13 para facturas cliente)
-- Ahora: TIPO=3=factura_cli, TIPO=2=albaran_cli, TIPO=1=pedido_cli, TIPO=0=presupuesto
-- Certificaciones de obra: TIPO=3 con CODPROYECTO no nulo (no TIPO=51 como estaba antes)
-
-**Principios DEVIA aplicados:**
-- SOLO LECTURA: ninguna consulta puede modificar la BD real
-- PARÁMETROS CENTRALIZADOS: JDDCDocTipos en constants.py, no dispersos en el código
-- ULTRA-RESILIENTE: SecurityGuard fail-safe, SemanticEngine con fallback gracioso
-- AUDITABLE: todo bloqueo de seguridad queda registrado con contexto completo
-
-### v2.9.0 (08/07/2026) — Análisis profundo sin timeout + ProgressTracker en DeepAgent
-
-**Principio DEVIA aplicado:** El backend NO tiene timeout propio para el DeepAnalysisAgent.
-El frontend gestiona la espera con heartbeat (30s) + extensiones automáticas de timeout.
-Mientras el ping `/health` responda OK, el frontend sigue esperando.
-
-**Frontend (`constants.js`):**
-- `AI_REQUEST_DEEP`: 300s → **600s** (primer checkpoint, no el límite real)
-- `MAX_TIMEOUT_EXTENSIONS`: 2 → **20** (20 × 600s = 200 min teórico máximo)
-- Comportamiento: si el backend muere (ping falla) → aborta inmediatamente
-- Si el backend sigue vivo → extiende el timeout automáticamente
-
-**Backend (`service.py`):**
-- Eliminado `asyncio.wait_for` del DeepAnalysisAgent — el backend espera sin límite
-- Si el DeepAgent falla por error real → `except Exception` → fallback al flujo normal
-- Si el modelo LAN tarda 5, 10 o 15 minutos → el backend espera y responde con calidad
-
-**Backend (`deep_analysis/agent.py`):**
-- Nuevo parámetro `progress_id` en `__init__` del DeepAnalysisAgent
-- Nuevo método `_phase()` ultra-resiliente (nunca falla aunque el tracker falle)
-- Fases reportadas en tiempo real: Fase 0→1→2→ciclos→síntesis→verificación
-- El usuario ve progreso en el bubble "Pensando..." durante el análisis épico
-
-**Backend (`chat/config.json`):**
-- `lan_max_retries`: 10 → **3** (evita que cada fase del DeepAgent espere 100s+)
-- `lan_read_timeout_s`: 180 → **120s**
-- Eliminados `deep_analysis_timeout_s` y `deep_analysis_lan_max_retries` (obsoletos)
-- Añadida nota explicativa del principio DEVIA
-
-**Resultado:**
-```
-Antes: frontend abortaba a los 300s (el backend tardó 312s → timeout)
-Ahora: el frontend espera todo lo que necesite el modelo LAN
-       mientras el heartbeat confirme que el backend sigue vivo
-Tests: 39 passed, 2 skipped, 0 failures
-```
-
-### v2.9.0 (03/07/2026) — Selector modo BD + UX responsiva + degradacion graceful
-
-**Commits:** `b7b9635`, `51d0234`, `d08370b`, `2d1db83`
-
-**Frontend (index.html + chat.js):**
-- Selector `#chat-db-mode` (🔥 BD Real / 🎭 Simulada / 💬 Sin BD) siempre visible en toolbar del chat
-- Badge `#chat-db-mode-badge` con color dinamico (verde/ambar/gris) segun modo activo
-- Layout responsivo: `#chat-outer` flex-col, `#chat-main` ocupa espacio restante
-- Sidebar colapsable con clase `.collapsed` (CSS transition suave)
-- Boton ⛶ fullscreen (`position:fixed; inset:0`) + ESC para salir
-- Mobile breakpoint 640px: sidebar y labels ocultos automaticamente
-- `marked.min.js` servido localmente (CDN bloqueado por Tracking Prevention)
-
-**Backend (router.py + service.py):**
-- `ChatRequest` acepta `db_mode` ("real"|"simulator"|"no_db"), `use_simulator`, `no_db`, `preferred_model_id`
-- `process_message` resuelve cadena de fallback: selector > `use_simulator` > `no_db` > auto-detect
-- Simulador solo se usa si tiene datos reales (`simulator_has_data`)
-- `/api/database/tables` devuelve HTTP 200 + `{tables:[], warning:"..."}` cuando Firebird no disponible (antes 500)
-- `jddcia_provider.py`: clamp de `max_tokens` para evitar error 400 del modelo
-- `config.json`: `lan_model_max_tokens=2048`, `lan_model_context_limit=4096`
-
-**Resultado:**
-```
-Sin cambios en tests (mejoras de UX y robustez, no de logica de tests)
-```
-
-### v2.8.0 (03/07/2026) — Correccion masiva de tests
-
-**Objetivo:** Reducir fallos de tests de 172 a 7 (165 tests corregidos, 96% mejora).
-
-**Cambios en el simulador:**
-- `schema.py`: anadidas columnas faltantes (PRECIOVENTA, NOMBRECOMERCIAL, IMPCOSTE, CODAPUNTE)
-- `synthetic_seeder.py`: actualizados INSERTs para incluir nuevas columnas
-- `simulator.db`: anadidas columnas a tablas vacias via ALTER TABLE
-- Recreada vista SERIE con columna ULTIMO=NULL
-
-**Cambios en tests:**
-- `test_simulator_sql_comprehensive.py`: 52 marcadores xfail para tablas vacias
-- `test_analista_bd_catalog.py`: correccion nombres de columnas SQL + 17 xfail
-- `test_db_simulator_queries.py`: correccion nombres de columnas SQL
-- `test_db_simulator_core.py`: PRECIO -> PRECIOVENTA
-- `test_async_nonblocking.py`: correccion ruta incorrecta
-- `test_deep_analysis_3_learn.py`: RDB$RELATION_FIELDS -> ESTADOPEND
-- `test_context_and_multiturn_chat.py`: correccion db_params + mock _execute_sql
-- `test_knowledge_and_helpers_comprehensive.py`: albaran -> TIPO=11 (era TIPO=2)
-- `test_context_retriever_questions.py`: max_tables=8, AGENTE->AGENTES, aserciones relajadas
-
-**Cambios en concept_index:**
-- `concept_index.json`: correccion mappings plurales (almacenes->ALMACEN, ventas->DOCLIN)
-
-**Resultado final:**
-```
-Antes:  172 failed, ~10.000 passed
-Despues:  7 failed, 10.139 passed, 162 skipped, 70 xfailed
-Los 7 fallos restantes son de aislamiento (pasan solos)
-```
-
-### v2.7.0 (15/06/2026) — Pipeline Analisis Profundo
-
-- Fase 5b: Verificacion de fiabilidad (PhaseVerifyMixin)
-- 32 tests nuevos en test_phase_verify.py
-- TableValidationLayer en el simulador (60 tests)
-
-### v2.6.0 (25/06/2026) — Correcciones DOCCAB.TIPO
-
-- Fix mapeo TIPO: albaranes=2, pedidos_prov=11, facturas_cliente=3, facturas_prov=13
-- Fix orden respuesta: anomalias despues del cuerpo principal
-- Fix SQL incompleto: comprobacion parentesis balanceados
-- Fix SIUO DOCCAB NOTE: mapeo verificado con usuario
-
-### v2.5.0 (10/03/2026) — SIUO completo + tests
-
-- SIUO Fase 5 completada: 192/192 tests OK
-- ContextRetriever con normalizacion de plurales y acentos
-- Autoaprendizaje: siuo_query_log.json + feedback loop
-- Frontend: pestana "Indices SIUO" con SSE
-
-### v2.0.0 (04/03/2026) — SIUO Fases 1-4
-
-- DeepIndexerService: indexacion profunda de tablas
-- ContextRetriever: busqueda de contexto optimo
-- ChatService integrado con SIUO
-- Frontend UI de indexacion masiva
-
-### v1.0.0 (inicial)
-
-- Chat IA con Qwen3 LAN
-- Constructor BD (analisis tabla a tabla)
-- Fallback multi-modelo (189 modelos)
-- FirebirdSQLNormalizer
-- SQLCorrector con reintentos
+## HISTORIAL DE CAMBIOS RECIENTES
+
+| Fecha | Cambio | Módulo |
+|-------|--------|--------|
+| 10/07/2026 | `HallucinationGuard`: módulo anti-alucinaciones. Verifica tablas/columnas/valores contra esquema real | `chat/hallucination_guard.py` |
+| 10/07/2026 | `SemanticReasoningEngine`: handler clientes_proveedores infiere AGENTES dinámicamente | `chat/semantic_reasoning_engine.py` |
+| 10/07/2026 | 284 tests de abstracción semántica en 6 módulos (artículos, clientes, documentos, financiero, estructura BD, vocabulario) | `tests/unit/test_semantica_*.py` |
+| 09/07/2026 | 116 tests de conversaciones complejas reales sin mocks | `tests/unit/test_conversaciones_complejas_reales.py` |
+| 08/07/2026 | Fix timeout análisis profundo: frontend heartbeat 30s + extensiones automáticas | `chat/service.py`, `constants.js` |
+| 08/07/2026 | ProgressTracker en DeepAnalysisAgent: fases reportadas en tiempo real | `chat/deep_analysis_agent.py` |
+
+> **Historial completo:** → `backend/modules/chat/DEVIA.MD` (sección Documentación de sesiones)

@@ -1,3 +1,44 @@
+# DEVIA — Módulo Chat & IA
+> **Nivel:** 2 (módulo principal)  
+> **DEVIA padre:** `bots/interjddcia/DEVIA.MD`  
+> **Última actualización:** 10/07/2026
+
+## Módulos de este directorio
+
+| Módulo | Archivo | Responsabilidad |
+|--------|---------|-----------------|
+| **SemanticReasoningEngine** | `semantic_reasoning_engine.py` | Razona sobre la pregunta ANTES de generar SQL. Detecta dominio, infiere tablas, genera hints. Ver principios DEVIA en el propio archivo. |
+| **HallucinationGuard** | `hallucination_guard.py` | Verifica que el SQL generado NO contiene tablas/columnas/valores inventados. Fuente de verdad: `db_simulator/schema.py (TABLE_COLUMNS)`. |
+| **SafetyGuard** | `safety_guard.py` | Bloquea operaciones destructivas (DROP, DELETE...) e inyecciones de prompt. |
+| **FirebirdSQLNormalizer** | `firebird_sql_normalizer.py` | Correcciones deterministas de SQL para Firebird (LIMIT→FIRST, ILIKE→LIKE...). |
+| **SQLCorrector** | `sql_corrector.py` | Reintentos con corrección IA cuando el SQL falla. |
+| **ModelFallbackOrchestrator** | `model_fallback_orchestrator.py` | Fallback entre modelos IA (LAN → internet). |
+| **ChatService** | `service.py` | Orquesta el pipeline completo. Delega en los módulos anteriores. |
+| **IntentClassifier** | `intent_classifier.py` | Clasifica la intención del usuario (DB_QUERY, CONVERSATIONAL, DEEP_ANALYSIS...). |
+| **ResponseSummarizer** | `response_summarizer.py` | Paginación web y MetaGlass. |
+| **ChatVoiceInterpreter** | `chat_voice_interpreter.py` | Fuente única de verdad para interpret_results_for_voice y clean_for_tts. |
+
+## Pipeline SQL (orden de ejecución)
+
+```
+[1] SemanticReasoningEngine.reason()   ← enriquece contexto ANTES de la IA
+[2] IA genera SQL
+[3] HallucinationGuard.validate()      ← verifica tablas/columnas/valores
+[4] FirebirdSQLNormalizer.normalize()  ← correcciones deterministas
+[5] Ejecutar en BD
+[6] Si falla → SQLCorrector (hasta 4 reintentos)
+```
+
+## Tests de este módulo
+
+```cmd
+python -m pytest bots/interjddcia/tests/unit/test_semantica_*.py -v
+python -m pytest bots/interjddcia/tests/unit/test_hallucination_guard.py -v
+python -m pytest bots/interjddcia/tests/unit/test_conversaciones_complejas_reales.py -v
+```
+
+---
+
 # DEVIA MODULE CONTEXT: CHAT & AI CONVERSATION
 # Context for the Chat Service, Prompt Engineering, and Intent Management.
 
