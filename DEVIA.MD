@@ -17,7 +17,7 @@
 | 3 | **Determinista primero** | Lógica determinista antes que IA; la IA es enriquecimiento opcional |
 | 4 | **Genérico** | Sin hardcoding de casos concretos; el sistema deduce, infiere y analiza |
 | 5 | **Modular** | Sin dependencias circulares; cada módulo < 500 líneas |
-| 6 | **Jerárquico** | Este DEVIA es el resumen; los detalles están en los DEVIAs secundarios |
+| 6 | **Jerárquico** | Este DEVIA es el resumen; los detalles están en los DEVIAs secundarios, con referencias EXACTAS a cada DEVIA secundario y a los ficheros/funcionalidades importantes que describe, para que ninguna funcionalidad quede huérfana o se pierda; cada DEVIA debe mantenerse breve, pero el conjunto de todos los DEVIAs debe describir el proyecto completo |
 | 7 | **Sin alucinaciones** | Módulos específicos verifican que tablas/columnas/valores existen en el esquema real |
 | 8 | **Logging de auditoría** | Cada decisión relevante queda registrada para trazabilidad |
 | 9 | **Tests independientes** | Cada test es independiente; sin mocks de datos, solo mocks de preguntas |
@@ -98,6 +98,18 @@ Backend DEVIA (FastAPI + Python)
 |-------|------|-----------|
 | Deep Analysis | `backend/modules/chat/deep_analysis/DEVIA.md` | Pipeline fases 1-5, síntesis, verificación |
 | Pipeline Chat | `backend/modules/chat/pipeline/DEVIA.md` | Fases del pipeline de chat |
+| **Tests QA SQL Obras** | `tests/qa_sql_obras/DEVIA.MD` | Cientos de tests que simulan preguntas de usuario sobre SQL Obras contra `POST /api/chat/send` real (sin mocks), cruzando modelo (30B/8B) × BD (real/simulador). Contiene el **registro de progreso** de esta iniciativa (ver sección siguiente) |
+
+---
+
+## 📋 REGISTROS DE PROGRESO (para retomar tras cortes de conversación)
+
+> Estos ficheros son logs Markdown persistentes, con una fila por sesión, pensados para que un asistente (o una persona) pueda retomar el trabajo sin releer todo el historial de chat. Se añade una fila nueva cada sesión; no se borran las anteriores.
+
+| Registro | Ruta | Qué guarda |
+|----------|------|------------|
+| QA SQL Obras | `tests/qa_sql_obras/DEVIA.MD` (tabla "Registro de progreso") | Avance de la generación de tests de preguntas de usuario sobre SQL Obras: decisiones de diseño, lotes de casos generados, incongruencias detectadas entre el manual técnico y los valores reales de la BD |
+| **Observaciones y conclusiones (optimización de fases)** | `tests/qa_sql_obras/OBSERVACIONES_OPTIMIZACION.md` | Distinto del registro de progreso: aquí se acumulan hallazgos sobre **carencias del sistema** (huecos de conocimiento, fiabilidad de modelos LAN, gaps de esquema, reglas de negocio no capturadas...) detectados mientras se generan/ejecutan los tests de QA SQL Obras, cada uno con la fase del pipeline de chat a la que apunta. Se irá sintetizando en una propuesta concreta de optimización de fases para que las respuestas del chat IA sean de ultra calidad |
 
 ---
 
