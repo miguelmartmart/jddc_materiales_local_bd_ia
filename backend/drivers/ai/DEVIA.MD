@@ -192,22 +192,54 @@ invalidate_cache()
 
 ### 3.6 Integración con OpenAICompatibleProvider
 
-`openai_compatible_provider.py` llama a `get_lmstudio_base_url()` en cada reintento
-cuando el modelo es LM Studio (`is_lmstudio_model(model_name)`). Si la URL falla,
-invalida la cache y redescubre en el siguiente intento.
+> **⚠️ Corregido 13/07/2026**: hasta esa fecha esta sección describía una
+> integración que **no existía en el código**. `openai_compatible_provider.py`
+> no importaba `lmstudio_discovery.py` en absoluto — hacía una única llamada
+> a la `base_url` fija de `jddcia_models.json` y, si fallaba (típico: la IP de
+> la interfaz Hyper-V/WSL2 cambia al reiniciar el host), lanzaba la excepción
+> directamente sin reintentar ni redescubrir. Esto causó un "IA local no
+> disponible" real con LM Studio corriendo y accesible por 4 IPs distintas.
+> Ahora sí está conectado de verdad — ver el método real abajo.
+
+`openai_compatible_provider.py::generate_text()` reintenta hasta 3 veces
+(`_MAX_RETRIES`). Si el modelo es LM Studio (`self._is_lmstudio_model()` —
+mira si `"qwen3"` está en el nombre del modelo) y la llamada falla con un
+error no permanente (no 401, no contexto excedido), invalida la cache y
+redescubre antes del siguiente intento:
 
 ```python
 # En generate_text(), bucle de reintentos:
-if is_lmstudio_model(model_name) and attempt > 0:
-    invalidate_cache()
-    base_url = get_lmstudio_base_url(configured_url)
+if is_lmstudio:
+    import backend.drivers.ai.lmstudio_discovery as disc_module
+    disc_module.invalidate_cache()
+    new_base_url = await disc_module.discover_lmstudio(force=True)
+    if new_base_url:
+        self._reconfigure_client(new_base_url)  # recrea el cliente OpenAI con la IP nueva
+await asyncio.sleep(attempt + 1)
 ```
+
+Verificado end-to-end: configurando el provider a propósito con una IP
+muerta, `generate_text()` se autorrecupera y obtiene respuesta real del
+modelo tras redescubrir la IP viva.
 
 ### 3.7 Tests
 
-**Fichero:** `backend/tests/test_lmstudio_discovery.py` — 25 tests  
-**Fichero:** `backend/tests/test_openai_compatible_provider.py` — 24 tests  
-**Total:** 49 tests / 0 fallos
+**Fichero:** `backend/tests/test_lmstudio_discovery.py` — 25 tests
+**Fichero:** `backend/tests/test_openai_compatible_provider.py` — 23 tests
+**Fichero:** `backend/tests/test_service_model_precedence.py` — 4 tests (precedencia `preferred_model_id`, módulo `chat`)
+
+> **⚠️ Corregido 13/07/2026**: esta sección afirmaba "49 tests / 0 fallos" —
+> tampoco era cierto. Ambos ficheros de test importaban con el prefijo
+> `bots.interjddcia.backend...`, que no existe en el `sys.path` de este
+> proyecto (`pytest.ini` usa `pythonpath = .` desde `bots/interjddcia`, sin
+> paquete `bots`). Los tests fallaban en el `import`, nunca se llegó a
+> ejecutar la lógica que verificaban. Corregido el prefijo en
+> `test_openai_compatible_provider.py` (import → `backend...`, igual que el
+> resto de la suite). De paso se corrigieron dos bugs reales que estos tests
+> sacaron a la luz: `_build_extra_body()` trataba `enable_thinking=None`
+> como `False`, y `_build_messages()` no truncaba el prompt cuando el
+> presupuesto de tokens quedaba en negativo (relevante para los errores 400
+> por contexto ya documentados en otras sesiones).
 
 Cobertura:
 - Cache memoria: TTL, invalidación, hit/miss
@@ -234,6 +266,29 @@ Cobertura:
 
 ---
 
+## 4.1 Actualización crítica (24/07/2026) — OpenAICompatibleProvider
+
+**Fichero:** `openai_compatible_provider.py`
+
+Cambios aplicados con foco en timeouts de fase del chat:
+
+1. Migración a cliente async nativo:
+- `OpenAI` → `AsyncOpenAI`.
+
+2. Retries internos desactivados:
+- Cliente configurado con `max_retries=0`.
+- Evita reintentos opacos del SDK que podían extender latencia fuera del presupuesto de fase.
+
+3. Compatibilidad de tests/mocks preservada:
+- Nuevo helper interno soporta clientes awaitable y mocks sync.
+- La suite `backend/tests/test_openai_compatible_provider.py` se mantiene en verde.
+
+4. Objetivo operativo:
+- Reducir riesgo de trabajo tardío tras timeout de fase.
+- Mantener control de retries/fallbacks en orquestación del chat (`ModelFallbackOrchestrator` + deadlines de `service.py`).
+
+---
+
 ## 5. Interfaz AIProvider
 
 ```python
@@ -256,4 +311,4 @@ class AIProvider(ABC):
 
 ---
 
-*Última actualización: 17/06/2026 — LmStudioDiscovery v1.0 + OpenAICompatibleProvider reintentos + 49 tests*
+*Última actualización: 24/07/2026 — OpenAICompatibleProvider migrado a AsyncOpenAI, retries internos desactivados, compatibilidad de mocks mantenida*

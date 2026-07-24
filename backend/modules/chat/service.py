@@ -574,6 +574,14 @@ class ChatService:
             context["_request_trace"] = trace.to_dict()
             return value
 
+        def _normalize_resilience_response(value: str) -> str:
+            if not value:
+                return value
+            if context.get("db_mode") == "real":
+                value = value.replace("base de datos simulada", "base de datos seleccionada")
+                value = value.replace("BD simulada", "BD seleccionada")
+            return value
+
         # ══════════════════════════════════════════════════════════════════════
         # MODO BD — Resolución de fuente de datos con cadena de fallback
         # Prioridad: db_mode explícito > use_simulator > no_db > auto-detect
@@ -1220,7 +1228,46 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
             _finish_phase(_sql_gen_phase, status="ok", model_actual=used_model_id)
         except Exception as _sql_gen_err:
             _finish_phase(_sql_gen_phase, status="failed", exception=_sql_gen_err)
-            return _return_with_trace("Se agotó el tiempo durante sql_selection_or_generation.", status="failed")
+            logger.warning(
+                "[CHAT] sql_selection_or_generation falló (%s) — intentando resiliencia adaptativa",
+                _sql_gen_err,
+            )
+            try:
+                from backend.modules.chat.adaptive_resilience import get_resilience_engine
+
+                _db_params_for_resilience = context.get('db_params')
+
+                async def _resilience_sql_executor(q: str) -> list:
+                    import asyncio as _asyncio
+                    loop = _asyncio.get_running_loop()
+                    return await loop.run_in_executor(
+                        None, self._execute_sql, q, _db_params_for_resilience
+                    )
+
+                resilience_engine = get_resilience_engine(sql_executor=_resilience_sql_executor)
+                resilience_result = await resilience_engine.generate_response(
+                    question=message,
+                    context=context,
+                )
+                logger.info(
+                    f"[RESILIENCE] Respuesta adaptativa tras timeout SQL-gen: "
+                    f"dominio={resilience_result.domain} "
+                    f"calidad={resilience_result.quality} "
+                    f"filas={resilience_result.data_rows} "
+                    f"sqls={resilience_result.sqls_successful}/{resilience_result.sqls_executed}"
+                )
+                if resilience_result.response:
+                    return _return_with_trace(
+                        _normalize_resilience_response(resilience_result.response),
+                        status="degraded",
+                    )
+            except Exception as _res_err:
+                logger.error(f"[RESILIENCE] Fallback tras timeout SQL-gen falló: {_res_err}")
+
+            return _return_with_trace(
+                "Se agotó el tiempo durante sql_selection_or_generation.",
+                status="failed",
+            )
         
         if not response_text:
             logger.error(f"[AI PROVIDER] ❌ Todos los modelos fallaron — activando resiliencia adaptativa")
@@ -1260,10 +1307,10 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "✅ Respuesta generada (modo sin IA)",
                         f"Dominio: {resilience_result.domain} · {resilience_result.data_rows} filas"
                     )
-                    return resilience_result.response
+                    return _normalize_resilience_response(resilience_result.response)
                 # Si la calidad es baja pero hay algo, devolver igualmente
                 if resilience_result.response and resilience_result.data_rows > 0:
-                    return resilience_result.response
+                    return _normalize_resilience_response(resilience_result.response)
             except Exception as _res_err:
                 logger.error(f"[RESILIENCE] AdaptiveResilienceEngine falló: {_res_err}")
 

@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional, Tuple
 import asyncio
+import inspect
 import json
 from backend.core.abstract.ai import AIProvider, AIConfig
 
@@ -41,7 +42,7 @@ class OpenAICompatibleProvider(AIProvider):
 
     def configure(self, config: AIConfig):
         try:
-            from openai import OpenAI
+            from openai import AsyncOpenAI
         except ImportError:
             raise ImportError("openai package not installed. Run: pip install openai")
 
@@ -71,10 +72,15 @@ class OpenAICompatibleProvider(AIProvider):
 
         # Create client with custom base_url + timeout (timeout se leía pero
         # nunca se pasaba al cliente real — quedaba en el default del SDK)
-        kwargs = {"api_key": self._api_key, "timeout": float(self._timeout_s)}
+        kwargs = {
+            "api_key": self._api_key,
+            "timeout": float(self._timeout_s),
+            # Evita retries internos opacos que pueden sobrevivir al timeout de fase.
+            "max_retries": 0,
+        }
         if self._base_url:
             kwargs["base_url"] = self._base_url
-        self.client = OpenAI(**kwargs)
+        self.client = AsyncOpenAI(**kwargs)
 
     def _build_extra_body(self) -> Optional[Dict]:
         """Devuelve extra_body para la petición (enable_thinking para Qwen3)."""
@@ -108,13 +114,25 @@ class OpenAICompatibleProvider(AIProvider):
 
     def _reconfigure_client(self, base_url: str) -> None:
         """Reconstruye el cliente OpenAI con una nueva base_url (tras autodescubrimiento)."""
-        from openai import OpenAI
+        if not hasattr(self, "_api_key") or not self._api_key:
+            # En tests unitarios se inyecta client mock sin configure().
+            # Evitamos romper el flujo de retry por falta de credenciales internas.
+            return
+        from openai import AsyncOpenAI
         self._base_url = base_url.rstrip("/")
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             api_key=self._api_key,
             base_url=self._base_url,
             timeout=float(self._timeout_s),
+            max_retries=0,
         )
+
+    async def _chat_create(self, **kwargs):
+        """Ejecuta chat.completions.create soportando clientes async y mocks sync."""
+        result = self.client.chat.completions.create(**kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
     async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, images: list = None, audios: list = None, videos: list = None) -> str:
         if not self.client:
@@ -173,10 +191,7 @@ class OpenAICompatibleProvider(AIProvider):
 
         for attempt in range(_MAX_RETRIES):
             try:
-                response = await asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    **create_kwargs,
-                )
+                response = await self._chat_create(**create_kwargs)
                 return response.choices[0].message.content
             except Exception as e:
                 err_text = str(e)
@@ -241,8 +256,7 @@ Response must be ONLY the JSON object."""
         # Enable JSON mode for compatible models (Groq/OpenAI/etc)
         use_json_mode = any(x in self.model_name.lower() for x in ["gpt", "llama", "mix", "gemma", "deepseek"])
         
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create,
+        response = await self._chat_create(
             model=self.model_name,
             messages=messages,
             response_format={"type": "json_object"} if use_json_mode else None,

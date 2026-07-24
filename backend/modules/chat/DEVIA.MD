@@ -1,7 +1,7 @@
 # DEVIA — Módulo Chat & IA
 > **Nivel:** 2 (módulo principal)  
 > **DEVIA padre:** `bots/interjddcia/DEVIA.MD`  
-> **Última actualización:** 10/07/2026
+> **Última actualización:** 13/07/2026
 
 ## Módulos de este directorio
 
@@ -46,6 +46,12 @@ python -m pytest bots/interjddcia/tests/unit/test_conversaciones_complejas_reale
 
 | Sesión | Archivo | Contenido |
 |--------|---------|-----------|
+| 24/07/2026 | `DEVIA.MD` | **FIX INCIDENTE CHAT_TIMEOUT_600S (fase SQL)**: en `service.py`, cuando `sql_selection_or_generation` agota presupuesto (15s), ya NO devuelve error fatal inmediato. Ahora intenta `AdaptiveResilienceEngine` y responde en modo degradado cuando hay salida útil. Además se normaliza el texto de degradación en modo `db_mode=real` para no afirmar erróneamente "base de datos simulada" como única fuente. |
+| 24/07/2026 | `DEVIA.MD` | **EVIDENCIA OPERATIVA**: caso real `"dime un proyecto cualquiera, y sus certificaciones"` con 8B y análisis profundo mostró `intent_classification=degraded (~5s)` + `sql_selection_or_generation=failed (~15s)` pero `success=true` con respuesta degradada (sin mensaje fatal de timeout en UI/API). |
+| 13/07/2026 | `DEVIA.MD` | **FIX REAL (por fin) — precedencia `preferred_model_id`**: la entrada del 10/06/2026 de esta misma tabla decía que `service.py` ya usaba `context.get('preferred_model_id') or context.get('model_id')` en `_chat_no_db` y en el flujo principal de SQL — **era falso, nunca se aplicó**. El código seguía usando solo `context.get('model_id')` en ambos sitios, así que el selector "Motor LAN" (30B/8B) del frontend era decorativo: quien de verdad enrutaba era el desplegable "Modelo" (el que exponía las 4 IDs crudas IP/mDNS). Corregido de verdad esta vez, con test de regresión: `backend/tests/test_service_model_precedence.py`. |
+| 13/07/2026 | `DEVIA.MD` | **FIX: `openai_compatible_provider.py` nunca usaba `lmstudio_discovery.py`**: el módulo de autodescubrimiento de LM Studio (v1.0, 25 tests) existía completo pero ningún código de producción lo importaba — el provider del 8B hacía una única llamada a la `base_url` fija de `jddcia_models.json` (IP de la interfaz Hyper-V/WSL2, que cambia al reiniciar el host) y fallaba sin reintentar. Añadidos reintentos + redescubrimiento (`_is_lmstudio_model`, `_reconfigure_client`) en `generate_text()`. Verificado end-to-end contra LM Studio real. |
+| 13/07/2026 | `DEVIA.MD` | **FIX: suite de tests con imports rotos nunca se ejecutaba de verdad**: `test_openai_compatible_provider.py` y `test_lmstudio_discovery.py` importaban con el prefijo `bots.interjddcia.backend...`, que no existe en el `sys.path` de este proyecto (`pytest.ini` usa `pythonpath = .` desde `bots/interjddcia`, sin paquete `bots`). Los "49 tests / 0 fallos" de la sección 3.7 de `backend/drivers/ai/DEVIA.MD` nunca se comprobaron — fallaban en el import, no en la lógica. Corregido el prefijo en `test_openai_compatible_provider.py`. |
+| 13/07/2026 | `DEVIA.MD` | **UX: un único selector de modelo en Chat IA**: eliminado `#chat-model-selector` (mostraba las 4 IDs crudas de `jddcia_models.json`, de ahí que aparecieran "IP directa"/"mDNS" como si fueran modelos distintos). Queda solo `#chat-lan-model-selector` (renombrado a "Modelo:" en el toolbar) con 2 opciones (30B/8B). La resiliencia IP↔mDNS↔autodescubrimiento la resuelve la app sola a nivel de provider — nunca fue algo que el usuario debiera elegir. Ver `frontend_lan_model_selector` más abajo. |
 | 08/07/2026 | `DEVIA.MD` | **FIX CRÍTICO — Timeout análisis profundo**: El frontend abortaba la conexión a los 300s antes de que el backend terminara (el modelo LAN 30B tardó 312s). Solución DEVIA: el backend NO tiene timeout propio para el DeepAgent. El frontend gestiona la espera con heartbeat (30s) + extensiones automáticas. `constants.js`: `AI_REQUEST_DEEP` 300s→600s, `MAX_TIMEOUT_EXTENSIONS` 2→20. `service.py`: eliminado `asyncio.wait_for`. Principio: mientras el ping `/health` responda OK, el frontend sigue esperando. |
 | 08/07/2026 | `DEVIA.MD` | **FEAT: ProgressTracker en DeepAnalysisAgent**: `agent.py` — nuevo parámetro `progress_id` en `__init__`. Método `_phase()` ultra-resiliente (nunca falla aunque el tracker falle). Fases reportadas en tiempo real: Fase 0→1→2→ciclos→síntesis→verificación. El usuario ve progreso en el bubble "Pensando..." durante el análisis épico. |
 | 08/07/2026 | `DEVIA.MD` | **TUNE: `lan_max_retries` reducido**: `config.json` — `lan_max_retries` 10→3, `lan_read_timeout_s` 180→120. Con 10 rondas × backoff = 100s+ por fase del DeepAgent. Con 3 rondas: ~15s máximo de espera antes de devolver error y hacer fallback. |
@@ -63,7 +69,7 @@ python -m pytest bots/interjddcia/tests/unit/test_conversaciones_complejas_reale
 | 10/06/2026 | `DEVIA.MD` | Añadido soporte Qwen3 8B VL en LM Studio (jddcia-qwen3-8b-ip / jddcia-qwen3-8b) |
 | 10/06/2026 | `DEVIA.MD` | FirebirdSQLNormalizer: paso 23 (CAST AS TEXT→VARCHAR(100)), paso 24 (derived table AS alias), fix_after_error TOKEN UNKNOWN AS. 34/34 tests ✅ |
 | 10/06/2026 | `DEVIA.MD` | **BUG FIX**: `ChatRequest` en `router.py` no tenía campo `preferred_model_id` ni `no_db` → Pydantic los ignoraba silenciosamente. Añadidos ambos campos. |
-| 10/06/2026 | `DEVIA.MD` | **BUG FIX**: `service.py` usaba `context.get('model_id')` como `preferred_model_id` en el orchestrator (2 lugares: `_chat_no_db` y `process_message`). Corregido a `context.get('preferred_model_id') or context.get('model_id')`. |
+| 10/06/2026 | `DEVIA.MD` | **BUG FIX (⚠️ nunca se aplicó de verdad — ver entrada 13/07/2026)**: `service.py` usaba `context.get('model_id')` como `preferred_model_id` en el orchestrator (2 lugares: `_chat_no_db` y `process_message`). Se documentó como corregido a `context.get('preferred_model_id') or context.get('model_id')`, pero el código nunca cambió. |
 | 11/06/2026 | `DEVIA.MD` | **BUG FIX CRÍTICO — Respuesta cortada**: `max_tokens=512` en todos los modelos Qwen3 cortaba respuestas largas (análisis profundo ~2000-3500 tokens). Causa raíz: `jddcia_provider.py` calculaba `max_tokens = context_limit // 8` ignorando el valor del JSON. |
 | 11/06/2026 | `DEVIA.MD` | **FIX**: `jddcia_provider.py` `configure()` ahora lee `max_tokens` con prioridad: 1) `parameters.max_tokens` del JSON del modelo, 2) `lan_model_max_tokens` en `config.json`, 3) auto-cálculo 50% del contexto (mínimo 512). |
 | 11/06/2026 | `DEVIA.MD` | **FIX**: `jddcia_models.json` — `max_tokens` actualizado a 4096 para los 4 modelos Qwen3 (30B-ip, 30B-mDNS, 8B-ip, 8B-mDNS). Timeout 8B actualizado a 180s. |
@@ -250,17 +256,17 @@ Al añadir los IDs 8B aquí, el orchestrator los incluye automáticamente sin m�
     "GET /api/chat/history": "Ver historial de conversación"
   },
   "frontend_lan_model_selector": {
-    "description": "Desplegable '⚡ Motor LAN:' en la cabecera del Chat IA para elegir entre Qwen3 30B y Qwen3 8B VL sin recargar la página.",
+    "description": "ÚNICO desplegable de modelo del Chat IA (etiqueta 'Modelo:') para elegir entre Qwen3 30B y Qwen3 8B VL sin recargar la página. Desde 13/07/2026 ya no coexiste con el antiguo #chat-model-selector (mostraba las 4 IDs crudas IP/mDNS de jddcia_models.json — confuso y, además, ignorado por service.py).",
     "element_id": "chat-lan-model-selector",
-    "location": "frontend/index.html — sección #view-chat, junto al selector de modelo IA",
+    "location": "frontend/index.html — sección #view-chat, toolbar del Chat IA",
     "options": [
       { "value": "jddcia-qwen3-30b-ip", "label": "🏠 Qwen3 30B (potente)" },
-      { "value": "jddcia-qwen3-8b-ip",  "label": "⚡ Qwen3 8B VL (rápido)" }
+      { "value": "jddcia-qwen3-8b-ip",  "label": "⚡ Qwen3 8B (rápido)" }
     ],
-    "wire_js": "frontend/assets/js/modules/chat.js — sendMessage() y confirmAndSend() leen el selector y envían preferred_model_id en el body del POST /api/chat/send",
-    "backend_field": "preferred_model_id en ChatRequest → el orchestrator coloca ese modelo primero en la lista de fallback",
-    "visual": "Borde azul (#93c5fd), fondo #eff6ff, texto azul oscuro — diferenciado del selector de modelo general",
-    "nota": "El selector LAN es independiente del selector de modelo IA general. El selector general elige el 'canal' (jddcia, groq, etc.); el selector LAN elige el motor específico dentro del canal JDDC."
+    "wire_js": "frontend/assets/js/modules/chat.js — sendMessage() y confirmAndSend() leen el selector y envían su valor en model_id y preferred_model_id en el body del POST /api/chat/send",
+    "backend_field": "preferred_model_id en ChatRequest → service.py hace context.get('preferred_model_id') or context.get('model_id') → el orchestrator coloca ese modelo primero en la lista de fallback (LAN_ONLY sigue reintentando el resto de modelos LAN si falla)",
+    "resiliencia": "IP directa vs mDNS vs autodescubrimiento (Hyper-V/WSL2) es un detalle interno resuelto por el provider (jddcia_provider.py para 30B, openai_compatible_provider.py + lmstudio_discovery.py para 8B) — el usuario NUNCA elige eso, solo el motor (30B/8B).",
+    "nota": "Ya NO existe un selector de modelo general separado. model_id se mantiene en el payload solo por compatibilidad con history_service.create_session() (etiqueta el historial de sesiones)."
   },
   "tests": {
     "unit": "tests/unit/test_voice_and_tts.py (voz+TTS), tests/unit/test_response_summarizer.py (paginación web+MetaGlass), tests/unit/test_qwen3_8b_lmstudio.py (Qwen3 8B VL — 27 tests, 8 sistemas)",
@@ -312,7 +318,7 @@ Al añadir los IDs 8B aquí, el orchestrator los incluye automáticamente sin m�
     "integration_status": "IntentClassifier creado y disponible. Integracion gradual en process_message en curso.",
     "commit": "a6deed5 (01/06/2026)"
   },
-  "last_updated": "08/07/2026",
+  "last_updated": "13/07/2026",
   "related_devia": [
     "bots/interjddcia/DEVIA.MD (documentación principal)",
     "backend/modules/chat/DEVIA_ROBUSTNESS.md (Model Fallback & Self-Healing)",

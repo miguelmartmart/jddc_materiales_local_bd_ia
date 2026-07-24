@@ -7,6 +7,29 @@ Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prom
 > **Versión:** 2.9.0  
 > **Estado tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
+## ⚠️ Nota Operativa (24/07/2026) — CHAT_TIMEOUT_600S
+
+Se aplicaron correcciones específicas de resiliencia para evitar errores fatales en:
+
+- `intent_classification`
+- `sql_selection_or_generation`
+
+Cambios técnicos relevantes:
+
+- `OpenAICompatibleProvider` usa cliente async nativo (`AsyncOpenAI`) y `max_retries=0` para evitar reintentos opacos fuera del control de fases.
+- Si `sql_selection_or_generation` agota presupuesto, el chat intenta respuesta degradada vía `AdaptiveResilienceEngine` en lugar de devolver fallo inmediato.
+- En modo BD real, la respuesta degradada evita mensajes engañosos que mencionen exclusivamente BD simulada.
+
+Validación mínima confirmada:
+
+- `backend/tests/test_timeout_resilience.py` ✅
+- `backend/tests/test_chat_timeout_600s_fix.py` ✅
+- `backend/tests/test_openai_compatible_provider.py` ✅
+
+Requisito de despliegue:
+
+- Reiniciar backend tras actualizar código para que cargue los cambios en providers y pipeline de chat.
+
 ---
 
 ## 🚀 Características
