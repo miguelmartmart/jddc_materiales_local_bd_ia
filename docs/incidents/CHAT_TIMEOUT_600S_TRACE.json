@@ -1,0 +1,38 @@
+{
+  "captured_at": "2026-07-24T12:53:50Z",
+  "source": "tmp_live_probe_response.json",
+  "endpoint": "/api/chat/send",
+  "request": {
+    "message": "dime un proyecto cualquiera, y sus certificaciones",
+    "db_mode": "real",
+    "deep_analysis": false,
+    "model_id": "jddcia-qwen3-30b-ip",
+    "preferred_model_id": "jddcia-qwen3-30b-ip"
+  },
+  "response": {
+    "success": true,
+    "trace_id": "0eb1ff8c-c712-4acb-a285-e53c358b62fa",
+    "model_actual": "deterministic-fallback",
+    "user_message": "❌ El servidor de IA no está disponible en este momento. Comprueba que el servidor Qwen3 esté activo e inténtalo de nuevo."
+  },
+  "trace": {
+    "request_timeout_ms": 60000,
+    "database_mode": "real",
+    "phases": [
+      {
+        "phase_name": "intent_classification",
+        "status": "degraded",
+        "elapsed_ms": 5008,
+        "timeout_budget_ms": 5000,
+        "model_actual": "deterministic-fallback",
+        "exception_type": "TimeoutError"
+      },
+      {
+        "phase_name": "sql_selection_or_generation",
+        "status": "ok",
+        "elapsed_ms": 2428,
+        "timeout_budget_ms": 15000
+      }
+    ]
+  }
+}

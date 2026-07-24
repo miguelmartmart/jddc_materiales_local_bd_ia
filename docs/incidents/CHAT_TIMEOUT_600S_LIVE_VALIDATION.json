@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-07-24T12:57:30",
+  "status": "partial_live_validation",
+  "backend_process": {
+    "pid": 23064,
+    "python": "C:/Users/migue/AppData/Local/Programs/Python/Python310/python.exe",
+    "command": "python .venv/Scripts/uvicorn.exe backend.main:app --host 0.0.0.0 --port 8001 --log-level info"
+  },
+  "single_probe": {
+    "trace_id": "0eb1ff8c-c712-4acb-a285-e53c358b62fa",
+    "intent_status": "degraded",
+    "intent_elapsed_ms": 5008,
+    "intent_exception_type": "TimeoutError",
+    "continued_to_next_phase": true
+  },
+  "matrix": {
+    "target_total": 6,
+    "completed": 4,
+    "ok": 4,
+    "failed": 0,
+    "runs_file": "tmp_live_matrix_output.json",
+    "incomplete_reason": "deep-analysis live run exceeded diagnostic execution window"
+  },
+  "completed_runs": [
+    {
+      "message": "dime un proyecto cualquiera, y sus certificaciones",
+      "deep_analysis": false,
+      "trace_id": "8cbafd31-d6fd-452f-835a-281b30dd1f80",
+      "intent_status": "degraded",
+      "intent_elapsed_ms": 5012
+    },
+    {
+      "message": "dime un proyecto cualquiera, y sus certificaciones",
+      "deep_analysis": true,
+      "trace_id": "eb0d2850-4b22-486c-9930-9c8316a5d446",
+      "intent_status": "degraded",
+      "intent_elapsed_ms": 5000
+    },
+    {
+      "message": "dame los 5 clientes con mayor facturacion",
+      "deep_analysis": false,
+      "trace_id": "b7caec55-9e0f-4798-a6e2-50237583c5f6",
+      "intent_status": "degraded",
+      "intent_elapsed_ms": 5008
+    },
+    {
+      "message": "dame los 5 clientes con mayor facturacion",
+      "deep_analysis": true,
+      "trace_id": "01731536-5c96-4cdb-88c4-54c6ccc137a5",
+      "intent_status": "degraded",
+      "intent_elapsed_ms": 4991
+    }
+  ]
+}

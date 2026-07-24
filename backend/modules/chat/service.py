@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 # DEVIA: backend/modules/chat/DEVIA.md
 import json
 from backend.core.factory.ai_factory import AIFactory
@@ -16,10 +16,13 @@ from backend.modules.db_explorer.context_retriever import get_context_retriever
 from backend.modules.chat.sql_corrector import SQLCorrector
 from backend.modules.chat.firebird_sql_normalizer import FirebirdSQLNormalizer
 from backend.modules.chat.model_fallback_orchestrator import ModelFallbackOrchestrator
+from backend.modules.chat.request_trace import RequestTrace, PhaseTrace
 import logging
 import os
 import base64
 import asyncio
+import time
+import uuid
 
 # Image Services Integration
 from backend.modules.images.service import ImageService
@@ -286,6 +289,52 @@ class ChatService:
             except Exception as e:
                 logger.warning(f"Error loading chat config: {e}")
 
+    def _determine_database_mode(self, context: Dict[str, Any]) -> str:
+        db_mode = context.get("db_mode")
+        if db_mode == "simulator" or context.get("use_simulator"):
+            return "simulator"
+        if db_mode == "no_db" or context.get("no_db"):
+            return "no_db"
+        return "real"
+
+    def _init_request_trace(self, context: Dict[str, Any]) -> RequestTrace:
+        model_requested = context.get("preferred_model_id") or context.get("model_id")
+        db_mode = self._determine_database_mode(context)
+        trace_id = context.get("_trace_id") or str(uuid.uuid4())
+        context["_trace_id"] = trace_id
+
+        hard_timeout_ms = 120000 if context.get("deep_analysis") else 60000
+        trace = RequestTrace.create(
+            trace_id=trace_id,
+            timeout_ms=hard_timeout_ms,
+            model_requested=model_requested,
+            database_mode=db_mode,
+        )
+        context["_request_trace"] = trace.to_dict()
+        context["_request_deadline_monotonic"] = time.monotonic() + (hard_timeout_ms / 1000.0)
+        return trace
+
+    @staticmethod
+    def _remaining_budget_ms(deadline_monotonic: float) -> int:
+        return int(max(0.0, deadline_monotonic - time.monotonic()) * 1000)
+
+    def _phase_timeout_s(self, deadline_monotonic: float, phase_budget_ms: int) -> float:
+        remaining = self._remaining_budget_ms(deadline_monotonic)
+        if remaining <= 0:
+            raise TimeoutError("REQUEST_DEADLINE_EXCEEDED")
+        return max(0.1, min(phase_budget_ms, remaining) / 1000.0)
+
+    @staticmethod
+    def _safe_results_preview(rows: List[Dict[str, Any]], max_rows: int = 3) -> str:
+        if not rows:
+            return "No se obtuvieron filas."
+        cols = list(rows[0].keys()) if isinstance(rows[0], dict) else []
+        return (
+            f"Filas devueltas: {len(rows)}. "
+            f"Columnas: {', '.join(cols[:8]) if cols else 'N/A'}. "
+            f"Muestra: {rows[:max_rows]}"
+        )
+
 
     async def _ai_requires_database(self, message: str) -> bool:
         """
@@ -459,7 +508,7 @@ class ChatService:
                 system_prompt=system_prompt,
                 user_message=message,
                 images=context.get('images'),
-                preferred_model_id=context.get('model_id'),
+                preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
             )
 
             if response:
@@ -492,6 +541,38 @@ class ChatService:
                     _tracker.add_phase(_progress_id, phase, detail)
                 except Exception:
                     pass  # Nunca fallar por el tracker
+
+        trace = self._init_request_trace(context)
+        deadline_monotonic = context.get("_request_deadline_monotonic", time.monotonic() + 60.0)
+
+        def _start_phase(name: str, budget_ms: Optional[int] = None) -> PhaseTrace:
+            return trace.start_phase(phase_name=name, timeout_budget_ms=budget_ms)
+
+        def _finish_phase(
+            phase_obj: PhaseTrace,
+            status: str,
+            model_actual: Optional[str] = None,
+            sql_execution_ms: Optional[int] = None,
+            rows_returned: Optional[int] = None,
+            exception: Optional[Exception] = None,
+        ) -> None:
+            stats = getattr(self.model_orchestrator, "last_execution_stats", {}) or {}
+            trace.finish_phase(
+                phase_obj,
+                status=status,
+                model_actual=model_actual,
+                retry_number=int(stats.get("retries", 0)),
+                fallback_number=int(stats.get("fallbacks", 0)),
+                sql_execution_ms=sql_execution_ms,
+                rows_returned=rows_returned,
+                exception=exception,
+            )
+            context["_request_trace"] = trace.to_dict()
+
+        def _return_with_trace(value: str, status: str = "ok") -> str:
+            trace.mark_done(status)
+            context["_request_trace"] = trace.to_dict()
+            return value
 
         # ══════════════════════════════════════════════════════════════════════
         # MODO BD — Resolución de fuente de datos con cadena de fallback
@@ -530,7 +611,8 @@ class ChatService:
         # ── Modo Sin BD ───────────────────────────────────────────────────────
         if no_db_flag:
             logger.info("[CHAT] Modo Sin BD (conversacional puro)")
-            return await self._chat_no_db(message, context)
+            _resp_no_db = await self._chat_no_db(message, context)
+            return _return_with_trace(_resp_no_db)
 
         # ── Modo Simulador explícito ──────────────────────────────────────────
         if use_simulator_flag:
@@ -541,7 +623,8 @@ class ChatService:
                 context['db_params'] = db_params
             else:
                 logger.warning("[CHAT] Simulador solicitado pero no disponible/sin datos → fallback Sin BD")
-                return await self._chat_no_db(message, context)
+                _resp_sim_fb = await self._chat_no_db(message, context)
+                return _return_with_trace(_resp_sim_fb)
 
         # ── Auto-detect: sin params reales → intentar simulador → sin BD ─────
         elif db_params_empty:
@@ -552,7 +635,8 @@ class ChatService:
                 context['db_params'] = db_params
             else:
                 logger.info(f"[CHAT] Sin BD (db_params_empty={db_params_empty}, simulador no disponible)")
-                return await self._chat_no_db(message, context)
+                _resp_auto_no_db = await self._chat_no_db(message, context)
+                return _return_with_trace(_resp_auto_no_db)
 
         # ══════════════════════════════════════════════════════════════════════
         # FASE 1 — CLASIFICACIÓN DE INTENCIÓN POR IA (genérica, sin keywords)
@@ -577,7 +661,38 @@ class ChatService:
         _force_deep = context.get('deep_analysis', False)
 
         _phase("🧠 Clasificando intención...", "IA analizando tu pregunta")
-        intent = await self._intent_classifier.classify(message, conv_history)
+        _intent_phase = _start_phase("intent_classification", budget_ms=5000)
+        try:
+            _intent_timeout_s = self._phase_timeout_s(deadline_monotonic, 5000)
+            intent = await asyncio.wait_for(
+                self._intent_classifier.classify(
+                    message,
+                    conv_history,
+                    preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
+                ),
+                timeout=_intent_timeout_s,
+            )
+            _finish_phase(
+                _intent_phase,
+                status="ok",
+                model_actual=(getattr(self.model_orchestrator, "last_execution_stats", {}) or {}).get("model_used"),
+            )
+        except Exception as _intent_err:
+            logger.warning(
+                "[FASE1] intent_classification falló (%s) → fallback determinista",
+                _intent_err,
+            )
+            intent = self._intent_classifier._classify_deterministic(message, conv_history)
+            _finish_phase(
+                _intent_phase,
+                status="degraded",
+                model_actual="deterministic-fallback",
+                exception=_intent_err,
+            )
+            _phase(
+                "⚠️ Clasificación degradada",
+                "La IA tardó más de lo esperado; uso un clasificador determinista para continuar",
+            )
         logger.info(
             f"[FASE1] Intención: {intent.intent} "
             f"(conf={intent.confidence:.2f}, force_deep={_force_deep}) | {intent.reasoning}"
@@ -598,7 +713,8 @@ class ChatService:
                 f"[FASE1] 💬 Conversacional → chat sin BD "
                 f"(force_deep ignorado para intención conversacional)"
             )
-            return await self._chat_no_db(message, context)
+            _resp_conv = await self._chat_no_db(message, context)
+            return _return_with_trace(_resp_conv)
 
         # ── FASE 1b: ACLARACIÓN/JUSTIFICACIÓN ────────────────────────────────
         # El usuario pide más detalle sobre la respuesta anterior.
@@ -655,7 +771,7 @@ class ChatService:
                     system_prompt=clarification_system,
                     user_message=clarification_prompt,
                     feedback_callback=None,
-                    preferred_model_id="jddcia-qwen3-30b"
+                    preferred_model_id=context.get('preferred_model_id') or context.get('model_id')
                 )
                 if clarification_response:
                     logger.info("[FASE1] ✅ Justificación profunda generada")
@@ -671,9 +787,14 @@ class ChatService:
         # Si supera el timeout → fallback al flujo normal (no error al usuario).
         # El timeout se calcula dinámicamente según el modo BD y el modelo LAN.
         _wants_deep = _force_deep or intent.is_deep_analysis()
-        if _wants_deep:
+        _is_fast_db_intent = intent.intent in (IntentType.DB_QUERY, IntentType.UNKNOWN)
+        _run_deep_before_fast = _wants_deep and (not _is_fast_db_intent)
+        _run_deep_after_fast = _wants_deep and _is_fast_db_intent
+
+        if _run_deep_before_fast:
             logger.info("[CHAT] 🔬 Activando DeepAnalysisAgent (análisis multi-fase)")
             _phase("🔬 Iniciando análisis profundo multi-fase...", "DeepAnalysisAgent v3.0")
+            _deep_phase = _start_phase("deep_analysis", budget_ms=self._remaining_budget_ms(deadline_monotonic))
             try:
                 from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
                 # Obtener contexto SIUO (mismo esquema Firebird siempre —
@@ -699,6 +820,7 @@ class ChatService:
                     sql_normalizer=self.sql_normalizer,
                     # Pasar el progress tracker para que el agente reporte fases
                     progress_id=_progress_id,
+                    preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
                 )
                 # Limpiar prefijo /deep del mensaje
                 clean_msg = message.strip()
@@ -721,13 +843,22 @@ class ChatService:
                 )
                 logger.info("[CHAT] 🔬 DeepAgent iniciado (sin timeout de backend)")
 
-                result = await agent.analyze(clean_msg, conv_history)
+                _deep_timeout_s = self._phase_timeout_s(deadline_monotonic, self._remaining_budget_ms(deadline_monotonic))
+                result = await asyncio.wait_for(agent.analyze(clean_msg, conv_history), timeout=_deep_timeout_s)
                 logger.info("[CHAT] ✅ DeepAnalysisAgent completado")
                 _phase("✅ Análisis profundo completado", f"{len(result)} chars de respuesta")
+                _finish_phase(
+                    _deep_phase,
+                    status="ok",
+                    model_actual=(getattr(self.model_orchestrator, "last_execution_stats", {}) or {}).get("model_used"),
+                )
+                trace.mark_done("ok")
+                context["_request_trace"] = trace.to_dict()
                 return result
 
             except Exception as e:
                 logger.error(f"[CHAT] ❌ DeepAnalysisAgent falló: {e} — continuando con flujo normal")
+                _finish_phase(_deep_phase, status="failed", exception=e)
                 _phase(
                     "⚠️ Análisis profundo falló — usando flujo estándar",
                     str(e)[:80]
@@ -1042,6 +1173,7 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
 
 """
         _phase("🤖 Generando consulta SQL...", "IA construyendo la consulta a la base de datos")
+        _sql_gen_phase = _start_phase("sql_selection_or_generation", budget_ms=15000)
         logger.info(f"[AI PROVIDER] 📤 Usando sistema de fallback multi-modelo...")
         logger.info(f"[AI PROVIDER] System Prompt:\n{system_prompt}")
         logger.info(f"[AI PROVIDER] User Message: {message}")
@@ -1071,13 +1203,24 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 logger.error(f"[CHAT] ❌ Falló el análisis de imagen: {e}")
 
         # Use ModelFallbackOrchestrator for robust multi-model generation
-        response_text, used_model_id = await self.model_orchestrator.execute_with_fallback(
-            system_prompt=system_prompt,
-            user_message=message,
-            images=context.get('images'),
-            feedback_callback=None,  # TODO: Implement real-time feedback to user
-            preferred_model_id=context.get('model_id')
-        )
+        try:
+            _sql_gen_timeout_s = self._phase_timeout_s(deadline_monotonic, 15000)
+            response_text, used_model_id = await asyncio.wait_for(
+                self.model_orchestrator.execute_with_fallback(
+                    system_prompt=system_prompt,
+                    user_message=message,
+                    images=context.get('images'),
+                    feedback_callback=None,  # TODO: Implement real-time feedback to user
+                    preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
+                    execution_policy={"max_retries_per_model": 1, "max_models": 2},
+                    deadline_monotonic=deadline_monotonic,
+                ),
+                timeout=_sql_gen_timeout_s,
+            )
+            _finish_phase(_sql_gen_phase, status="ok", model_actual=used_model_id)
+        except Exception as _sql_gen_err:
+            _finish_phase(_sql_gen_phase, status="failed", exception=_sql_gen_err)
+            return _return_with_trace("Se agotó el tiempo durante sql_selection_or_generation.", status="failed")
         
         if not response_text:
             logger.error(f"[AI PROVIDER] ❌ Todos los modelos fallaron — activando resiliencia adaptativa")
@@ -1256,16 +1399,32 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 logger.info(f"[SQL] Consulta normalizada: {sql_query}")
                 logger.info(f"[DATABASE] 🔄 Ejecutando consulta SQL...")
                 _phase("🗄️ Ejecutando consulta en la base de datos...", sql_query[:80] + ("..." if len(sql_query) > 80 else ""))
+
+                _sql_val_phase = _start_phase("sql_validation", budget_ms=5000)
+                _finish_phase(_sql_val_phase, status="ok")
+                _firebird_phase = _start_phase("firebird_execution", budget_ms=15000)
+                _firebird_started = time.monotonic()
                 
                 # Execute with auto-correction
-                results = await self.sql_corrector.execute_with_correction(
-                    sql_query=sql_query,
-                    original_question=message,
-                    db_context=db_context,
-                    ai_provider=provider,
-                    execute_func=lambda q: self._execute_sql(q, context.get('db_params')),
-                    max_retries=self.config.get("max_sql_retries", 3)
-                )
+                try:
+                    _firebird_timeout_s = self._phase_timeout_s(deadline_monotonic, 15000)
+                    results = await asyncio.wait_for(
+                        self.sql_corrector.execute_with_correction(
+                            sql_query=sql_query,
+                            original_question=message,
+                            db_context=db_context,
+                            ai_provider=provider,
+                            execute_func=lambda q: self._execute_sql(q, context.get('db_params')),
+                            max_retries=min(1, self.config.get("max_sql_retries", 1))
+                        ),
+                        timeout=_firebird_timeout_s,
+                    )
+                    _sql_ms = int((time.monotonic() - _firebird_started) * 1000)
+                    _finish_phase(_firebird_phase, status="ok", sql_execution_ms=_sql_ms, rows_returned=len(results))
+                except Exception as _fb_err:
+                    _sql_ms = int((time.monotonic() - _firebird_started) * 1000)
+                    _finish_phase(_firebird_phase, status="failed", sql_execution_ms=_sql_ms, exception=_fb_err)
+                    raise
                 
                 logger.info(f"[DATABASE] ✓ Consulta ejecutada exitosamente")
                 logger.info(f"[DATABASE] Resultados: {len(results)} filas")
@@ -1424,12 +1583,36 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                         "IA generando respuesta en lenguaje de negocio"
                     )
                     logger.info(f"[AI PROVIDER] Solicitando interpretacion WEB (Qwen3 LAN preferido)...")
-                    final_response, _ = await self.model_orchestrator.execute_with_fallback(
-                        system_prompt=interpretation_system,
-                        user_message=interpretation_prompt,
-                        feedback_callback=None,
-                        preferred_model_id="jddcia-qwen3-30b"
-                    )
+                    _interpret_phase = _start_phase("result_interpretation", budget_ms=20000)
+                    try:
+                        _interpret_timeout_s = self._phase_timeout_s(deadline_monotonic, 20000)
+                        final_response, _ = await asyncio.wait_for(
+                            self.model_orchestrator.execute_with_fallback(
+                                system_prompt=interpretation_system,
+                                user_message=interpretation_prompt,
+                                feedback_callback=None,
+                                preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
+                                execution_policy={"max_retries_per_model": 1, "max_models": 2},
+                                deadline_monotonic=deadline_monotonic,
+                            ),
+                            timeout=_interpret_timeout_s,
+                        )
+                        _finish_phase(
+                            _interpret_phase,
+                            status="ok",
+                            model_actual=(getattr(self.model_orchestrator, "last_execution_stats", {}) or {}).get("model_used"),
+                            rows_returned=n_rows,
+                        )
+                    except Exception as _interp_err:
+                        _finish_phase(_interpret_phase, status="failed", exception=_interp_err, rows_returned=n_rows)
+                        final_response = (
+                            "Se han obtenido datos de la BD real. "
+                            "El análisis adicional no pudo completarse dentro del tiempo establecido.\n\n"
+                            f"analysis_status: TIMEOUT\n"
+                            f"data_status: AVAILABLE\n"
+                            f"degraded_response: true\n"
+                            f"{self._safe_results_preview(results)}"
+                        )
                     
                     if not final_response:
                         final_response = (
@@ -1440,7 +1623,60 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
                 logger.info(f"[AI PROVIDER] 📥 Interpretación recibida")
                 logger.info(f"[RESPUESTA FINAL] {final_response}")
                 logger.info("="*80)
+
+                # analysis=true no bloquea el fast path: solo enriquece si queda presupuesto
+                if _run_deep_after_fast:
+                    _remaining = self._remaining_budget_ms(deadline_monotonic)
+                    if _remaining >= 10000:
+                        _post_deep_phase = _start_phase("deep_analysis", budget_ms=_remaining)
+                        try:
+                            from backend.modules.chat.deep_analysis_agent import DeepAnalysisAgent
+                            try:
+                                retriever = get_context_retriever()
+                                post_db_context, _ = retriever.get_context(message)
+                            except Exception:
+                                post_db_context = get_semantic_schema()
+
+                            async def _post_async_sql_executor(q: str) -> list:
+                                loop = asyncio.get_running_loop()
+                                return await loop.run_in_executor(None, self._execute_sql, q, context.get('db_params'))
+
+                            post_agent = DeepAnalysisAgent(
+                                orchestrator=self.model_orchestrator,
+                                db_context=post_db_context,
+                                sql_executor=_post_async_sql_executor,
+                                sql_normalizer=self.sql_normalizer,
+                                progress_id=_progress_id,
+                                preferred_model_id=context.get('preferred_model_id') or context.get('model_id'),
+                            )
+                            _post_timeout_s = self._phase_timeout_s(deadline_monotonic, _remaining)
+                            post_result = await asyncio.wait_for(post_agent.analyze(message, conv_history), timeout=_post_timeout_s)
+                            _finish_phase(
+                                _post_deep_phase,
+                                status="ok",
+                                model_actual=(getattr(self.model_orchestrator, "last_execution_stats", {}) or {}).get("model_used"),
+                            )
+                            final_response = (
+                                f"{final_response}\n\n"
+                                "---\n"
+                                "Análisis adicional completado:\n"
+                                f"{post_result}"
+                            )
+                        except Exception as _post_err:
+                            _finish_phase(_post_deep_phase, status="failed", exception=_post_err)
+                            final_response = (
+                                f"{final_response}\n\n"
+                                "---\n"
+                                "analysis_status: TIMEOUT\n"
+                                "data_status: AVAILABLE\n"
+                                "degraded_response: true\n"
+                                "El análisis adicional no pudo completarse dentro del tiempo restante."
+                            )
                 
+                _delivery_phase = _start_phase("response_delivery", budget_ms=self._remaining_budget_ms(deadline_monotonic))
+                _finish_phase(_delivery_phase, status="ok")
+                trace.mark_done("ok")
+                context["_request_trace"] = trace.to_dict()
                 return final_response
             except Exception as e:
                 error_str = str(e)
@@ -1492,6 +1728,10 @@ CAPACIDADES DE GENERACIÓN DE IMAGEN:
         
         logger.info(f"[RESPUESTA FINAL] {response_text}")
         logger.info("="*80)
+        _delivery_phase = _start_phase("response_delivery", budget_ms=self._remaining_budget_ms(deadline_monotonic))
+        _finish_phase(_delivery_phase, status="ok")
+        trace.mark_done("ok")
+        context["_request_trace"] = trace.to_dict()
         return response_text
 
 

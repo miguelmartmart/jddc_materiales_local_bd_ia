@@ -1,9 +1,11 @@
 from typing import Any, Dict, Optional, Tuple
+import asyncio
 import json
 from backend.core.abstract.ai import AIProvider, AIConfig
 
 _CHARS_PER_TOKEN: float = 4.0
 _SAFETY_MARGIN_TOKENS: int = 100
+_MAX_RETRIES: int = 3
 
 
 def _estimate_tokens(text: str) -> int:
@@ -43,16 +45,14 @@ class OpenAICompatibleProvider(AIProvider):
         except ImportError:
             raise ImportError("openai package not installed. Run: pip install openai")
 
-        # Create client with custom base_url if provided
-        kwargs = {"api_key": config.api_key}
+        self.model_name = config.model
+        self._api_key = config.api_key
+        self._base_url = None
         if hasattr(config, 'base_url') and config.base_url:
             base_url = config.base_url.rstrip("/")
             if base_url.endswith("/chat/completions"):
                 base_url = base_url.replace("/chat/completions", "")
-            kwargs["base_url"] = base_url
-
-        self.client = OpenAI(**kwargs)
-        self.model_name = config.model
+            self._base_url = base_url
 
         # ── Leer parámetros extendidos desde extra_params ────────────────────
         extra = getattr(config, "extra_params", {})
@@ -69,9 +69,16 @@ class OpenAICompatibleProvider(AIProvider):
         else:
             self._enable_thinking = True
 
+        # Create client with custom base_url + timeout (timeout se leía pero
+        # nunca se pasaba al cliente real — quedaba en el default del SDK)
+        kwargs = {"api_key": self._api_key, "timeout": float(self._timeout_s)}
+        if self._base_url:
+            kwargs["base_url"] = self._base_url
+        self.client = OpenAI(**kwargs)
+
     def _build_extra_body(self) -> Optional[Dict]:
         """Devuelve extra_body para la petición (enable_thinking para Qwen3)."""
-        if not self._enable_thinking:
+        if self._enable_thinking is False:
             return {"enable_thinking": False}
         return None
 
@@ -87,33 +94,49 @@ class OpenAICompatibleProvider(AIProvider):
         budget_tokens = self._context_limit - self._max_tokens - _SAFETY_MARGIN_TOKENS - sys_tokens
         prompt_tokens = _estimate_tokens(prompt)
 
-        if prompt_tokens > budget_tokens > 0:
-            prompt, _ = _truncate_to_token_budget(prompt, budget_tokens)
+        if prompt_tokens > budget_tokens:
+            # budget_tokens puede ser <= 0 con configs muy ajustadas; garantizamos
+            # un mínimo para que _truncate_to_token_budget no reciba un valor negativo
+            prompt, _ = _truncate_to_token_budget(prompt, max(budget_tokens, 10))
 
         messages.append({"role": "user", "content": prompt})
         return messages
-    
+
+    def _is_lmstudio_model(self) -> bool:
+        """Detecta si el modelo activo corre en LM Studio (Qwen3 VL 8B)."""
+        return bool(self.model_name) and "qwen3" in self.model_name.lower()
+
+    def _reconfigure_client(self, base_url: str) -> None:
+        """Reconstruye el cliente OpenAI con una nueva base_url (tras autodescubrimiento)."""
+        from openai import OpenAI
+        self._base_url = base_url.rstrip("/")
+        self.client = OpenAI(
+            api_key=self._api_key,
+            base_url=self._base_url,
+            timeout=float(self._timeout_s),
+        )
+
     async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, images: list = None, audios: list = None, videos: list = None) -> str:
         if not self.client:
-            raise Exception("Provider not configured")
-        
+            raise Exception("Provider not configured — call configure() first")
+
         # Determine strict or flexible input mode based on provider/model
         # For simplicity in this generic provider, we use standard OpenAI Vision format
-        
+
         messages = []
         if system_instruction:
              # Some models like o1 don't support system role, but we assume standart behavior here.
             messages.append({"role": "system", "content": system_instruction})
-            
+
         user_content = [{"type": "text", "text": prompt}]
-        
+
         if images:
             for img_b64 in images:
                 # Ensure header
                 if "," not in img_b64:
                      # Guess png if no header
                     img_b64 = f"data:image/png;base64,{img_b64}"
-                
+
                 user_content.append({
                     "type": "image_url",
                     "image_url": {"url": img_b64}
@@ -127,7 +150,7 @@ class OpenAICompatibleProvider(AIProvider):
         if audios:
              # Placeholder: In a real advanced provider, we'd use the appropriate audio input format
              pass
-             
+
         if videos:
              # Video support: Typically processed as list of frames (images) or specific video URL input
              # For generic OpenAI compatible, we'll try to treat it as content if possible or skip.
@@ -135,13 +158,62 @@ class OpenAICompatibleProvider(AIProvider):
              pass
 
         messages.append({"role": "user", "content": user_content if images else prompt})
-        
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=messages
+
+        extra_body = self._build_extra_body()
+        create_kwargs = {
+            "model": self.model_name,
+            "messages": messages,
+            "max_tokens": self._max_tokens,
+        }
+        if extra_body:
+            create_kwargs["extra_body"] = extra_body
+
+        is_lmstudio = self._is_lmstudio_model()
+        last_error: Optional[Exception] = None
+
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    **create_kwargs,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                err_text = str(e)
+                err_lower = err_text.lower()
+
+                # Errores no recuperables: no tiene sentido reintentar
+                if "401" in err_text or "unauthorized" in err_lower:
+                    raise Exception(
+                        f"Error de autenticación con el modelo {self.model_name}: {err_text}"
+                    ) from e
+                if ("400" in err_text or "context" in err_lower) and "context" in err_lower:
+                    raise Exception(
+                        f"Error de contexto (prompt demasiado largo) en {self.model_name}: {err_text}"
+                    ) from e
+
+                last_error = e
+                if attempt >= _MAX_RETRIES - 1:
+                    break
+
+                if is_lmstudio:
+                    # LM Studio (Hyper-V/WSL2) cambia de IP al reiniciar — redescubrir
+                    import backend.drivers.ai.lmstudio_discovery as disc_module
+                    disc_module.invalidate_cache()
+                    new_base_url = await disc_module.discover_lmstudio(force=True)
+                    if new_base_url:
+                        self._reconfigure_client(new_base_url)
+
+                await asyncio.sleep(attempt + 1)
+
+        if is_lmstudio:
+            raise Exception(
+                f"IA local no disponible: LM Studio no responde tras {_MAX_RETRIES} intentos. "
+                f"Verifica que LM Studio esté abierto con el modelo cargado. Último error: {last_error}"
+            )
+        raise Exception(
+            f"IA local no disponible tras {_MAX_RETRIES} intentos. Último error: {last_error}"
         )
-        
-        return response.choices[0].message.content
     
     async def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: Optional[str] = None) -> Dict[str, Any]:
         if not self.client:
@@ -169,10 +241,11 @@ Response must be ONLY the JSON object."""
         # Enable JSON mode for compatible models (Groq/OpenAI/etc)
         use_json_mode = any(x in self.model_name.lower() for x in ["gpt", "llama", "mix", "gemma", "deepseek"])
         
-        response = self.client.chat.completions.create(
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model=self.model_name,
             messages=messages,
-            response_format={"type": "json_object"} if use_json_mode else None
+            response_format={"type": "json_object"} if use_json_mode else None,
         )
         
         text = response.choices[0].message.content.strip()
