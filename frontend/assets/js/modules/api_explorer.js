@@ -1,0 +1,562 @@
+/**
+ * api_explorer.js v2 — Modulo API Explorer de DEVIA.
+ * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
+ * MODO SOLO LECTURA por defecto.
+ */
+const API = "/api/api-explorer";
+
+let _state = {
+  status: null, config: null, catalogue: null,
+  history: [], matrix: {}, currentTab: "conexion",
+  selectedModulo: null, selectedClase: null, selectedOp: null,
+  paramValues: {},
+};
+
+async function _fetch(path, opts = {}) {
+  const res = await fetch(API + path, { headers: { "Content-Type": "application/json" }, ...opts });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function estadoIcon(e) {
+  return { ok:"✅", falla:"❌", sin_permiso:"🔒", sin_licencia:"🚫", bloqueado:"⛔", no_probado:"⬜" }[e] || "❓";
+}
+function estadoColor(e) {
+  return { ok:"#28a745", falla:"#dc3545", sin_permiso:"#6c757d", sin_licencia:"#dc3545", bloqueado:"#fd7e14" }[e] || "#6c757d";
+}
+
+// ─── Renderizar datos de respuesta en tabla legible ───────────────────────────
+function renderDatos(json, clase, op) {
+  if (!json || !Object.keys(json).length) return "";
+  const isMock = _state.status && _state.status.use_mock;
+
+  // Banner indicador de origen de datos
+  const origenBanner = isMock
+    ? `<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:6px 12px;border-radius:4px;font-size:0.82em;color:#1d4ed8;margin-bottom:8px">
+        🔵 <strong>Datos de BD Simulada</strong> — Estos son datos de ejemplo representativos basados en la documentacion de la API.
+        No son datos reales de SQL Obras. Sirven para verificar el funcionamiento del modulo.
+       </div>`
+    : `<div style="background:#dcfce7;border-left:3px solid #16a34a;padding:6px 12px;border-radius:4px;font-size:0.82em;color:#166534;margin-bottom:8px">
+        🟢 <strong>Datos de SQL Obras REAL</strong> — Estos datos provienen directamente de vuestra base de datos de produccion.
+       </div>`;
+
+  // Si tiene items (browse), renderizar tabla
+  const items = json.items || json.data || json.fields;
+  if (Array.isArray(items) && items.length > 0) {
+    const keys = Object.keys(items[0]);
+    const rows = items.map(item =>
+      `<tr>${keys.map(k => `<td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;font-size:0.85em">${item[k] ?? "—"}</td>`).join("")}</tr>`
+    ).join("");
+    return `${origenBanner}
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0">
+        <table style="width:100%;border-collapse:collapse;background:white">
+          <thead style="background:#f8fafc">
+            <tr>${keys.map(k => `<th style="padding:6px 10px;text-align:left;font-size:0.8em;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}</tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p style="color:#64748b;font-size:0.8em;margin-top:6px">${items.length} registro(s) ${json.total !== undefined ? `(total en BD: ${json.total})` : ""}</p>`;
+  }
+
+  // Si es un registro individual (read) o resultado de operacion
+  const skip = ["code"];
+  const displayKeys = Object.keys(json).filter(k => !skip.includes(k));
+  if (displayKeys.length === 0) return origenBanner;
+
+  const rows = displayKeys.map(k =>
+    `<tr><td style="padding:5px 10px;font-size:0.85em;color:#64748b;font-weight:500;width:35%;background:#f8fafc;border-bottom:1px solid #f1f5f9">${k}</td>
+     <td style="padding:5px 10px;font-size:0.85em;border-bottom:1px solid #f1f5f9">${typeof json[k] === "object" ? JSON.stringify(json[k]) : (json[k] ?? "—")}</td></tr>`
+  ).join("");
+
+  return `${origenBanner}
+    <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderResult(r) {
+  const color = estadoColor(r.estado);
+  const bg = r.estado === "ok" ? "#e8f5e9" : r.estado === "bloqueado" ? "#fff3e0" : ["sin_permiso","sin_licencia"].includes(r.estado) ? "#f3e5f5" : "#ffebee";
+  const modo = r.use_mock ? "🔵 Mock" : "🟠 Real";
+  let html = `<div style="background:${bg};border-left:4px solid ${color};padding:10px 14px;border-radius:6px;margin:8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <strong>${estadoIcon(r.estado)} ${r.estado.toUpperCase()}</strong>
+    <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">${r.clase}.${r.operacion}</code>
+    <span style="color:#64748b;font-size:0.85em">HTTP ${r.http_status ?? "—"} | code=${r.code ?? "—"} | ${r.duracion_ms}ms | ${modo}</span>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:6px 0;color:#374151">💬 ${r.mensaje}</div>`;
+
+  if (r.nota_doc) html += `<p style="color:#64748b;font-size:0.82em;margin:4px 0">📖 <em>${r.nota_doc}</em></p>`;
+  if (r.nota_seguridad) html += `<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin:4px 0;color:#856404;font-size:0.85em">⚠️ ${r.nota_seguridad}</div>`;
+
+  // Datos en tabla legible
+  if (r.json && r.estado === "ok") {
+    const datosHtml = renderDatos(r.json, r.clase, r.operacion);
+    if (datosHtml) html += `<div style="margin-top:10px">${datosHtml}</div>`;
+  }
+
+  // JSON raw en collapsible
+  if (r.json && Object.keys(r.json).length) {
+    html += `<details style="margin-top:6px"><summary style="cursor:pointer;color:#64748b;font-size:0.82em;user-select:none">🔧 JSON raw (debug)</summary>
+      <pre style="background:#1e293b;color:#e2e8f0;border-radius:6px;padding:12px;font-size:0.78em;overflow-x:auto;margin-top:6px">${JSON.stringify(r.json, null, 2)}</pre>
+    </details>`;
+  }
+  return html;
+}
+
+// ─── Info por clase y operacion (tooltips) ────────────────────────────────────
+const CLASE_INFO = {
+  proyectos:  { emoji:"🏗️", desc:"Obras / Proyectos del ERP", detalle:"Browse lista los proyectos disponibles. Read devuelve detalle por codProyecto (ej: '25/184' = obra 184 del 2025)." },
+  partidas:   { emoji:"📋", desc:"Capitulos/partidas de un proyecto", detalle:"Una obra se divide en partidas (capitulos). Necesitas codProyecto primero. Ej: '03.02' = Climatizacion subcap 2." },
+  proordutil: { emoji:"⚡", desc:"Utilizados: costes REALES imputados al proyecto", detalle:"Clase clave. Registra materiales y mano de obra realmente consumidos en una obra/partida. new crea objeto temporal; write lo persiste; cancel descarta." },
+  proordprev: { emoji:"📐", desc:"Previstos: costes estimados del proyecto", detalle:"Costes planificados (no reales). Similar a proordutil pero para previsiones." },
+  reporden:   { emoji:"🔧", desc:"Ordenes de reparacion/mantenimiento", detalle:"Crear, listar y modificar ordenes de reparacion vinculadas a equipos." },
+  repobjetos: { emoji:"⚙️", desc:"Equipos / objetos reparables", detalle:"Catalogo de equipos (maquinaria, unidades de clima...) que pueden tener ordenes de reparacion." },
+  repinst:    { emoji:"🏢", desc:"Instalaciones donde estan los equipos", detalle:"Ubicaciones fisicas de los equipos." },
+  tipostrabajo:{ emoji:"🏷️", desc:"Tipos de trabajo para reparaciones", detalle:"Catalogo: mantenimiento preventivo, averia, revision anual..." },
+  repordutil: { emoji:"🔩", desc:"Materiales/horas usados en una reparacion", detalle:"Como proordutil pero para ordenes de reparacion." },
+  articulos:  { emoji:"📦", desc:"Catalogo de articulos/materiales", detalle:"Todos los materiales disponibles. codArticulo se usa en proordutil.write." },
+  recursos:   { emoji:"👷", desc:"Empleados, maquinaria y otros recursos", detalle:"Recursos imputables con distintas tarifas segun tipo de hora." },
+  proveedores:{ emoji:"🏭", desc:"Catalogo de proveedores", detalle:"Util para filtrar documentos de compra." },
+  clientes:   { emoji:"🤝", desc:"Catalogo de clientes", detalle:"Propietarios de los proyectos." },
+  docalbcom:  { emoji:"📄", desc:"Albaranes de compra + imputaPro a proyectos", detalle:"imputaPro vincula una linea de albaran directamente a obra/partida como coste real. Documentado explicitamente." },
+  docfaccom:  { emoji:"🧾", desc:"Facturas de compra + imputaPro a proyectos", detalle:"Igual que docalbcom para facturas. Documentado explicitamente." },
+  docpedcom:  { emoji:"📝", desc:"Pedidos de compra (imputaPro incierto)", detalle:"⚠️ La documentacion usa 'previsiblemente' para pedidos. No confirmado. Verificar empiricamente." },
+  ordenfab:   { emoji:"🏭", desc:"Ordenes de fabricacion (requiere licencia)", detalle:"Si no teneis el modulo de fabricacion, browse devolvera sin_licencia." },
+};
+const OP_INFO = {
+  browse:    "Listar registros. Devuelve lista con filtros opcionales.",
+  read:      "Leer un registro especifico por su codigo.",
+  permiso:   "Auditar permisos del usuario API en esta clase. Fundamental para conocer la licencia.",
+  info:      "Metadatos de campos: tipos, nombres, descripciones.",
+  new:       "🟡 Crea objeto TEMPORAL en sesion. No persiste hasta write. Seguro para ensayar.",
+  edit:      "🟡 Igual que new pero para editar un registro existente.",
+  write:     "🟠 ESCRITURA REAL. Persiste el objeto temporal en SQL Obras. Irreversible.",
+  cancel:    "🟢 Descarta objeto temporal. No persiste nada. Siempre seguro.",
+  imputaPro: "🟠 Vincula linea de compra directamente a proyecto/partida como coste real.",
+  delete:    "🔴 ELIMINA un registro definitivamente del ERP.",
+};
+
+function infoClase(clase) {
+  const i = CLASE_INFO[clase]; if(!i) return "";
+  return `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.85em">
+    <span style="font-size:1.2em">${i.emoji}</span> <strong>${clase}</strong> — ${i.desc}
+    <br><span style="color:#64748b;margin-top:4px;display:block">${i.detalle}</span>
+  </div>`;
+}
+function infoOp(op) {
+  const d = OP_INFO[op]; if(!d) return "";
+  return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:0.83em;color:#475569">${d}</div>`;
+}
+
+const PARAMS_DB = {
+  "proyectos.browse":  [{n:"filtro",t:"text",ph:"Hospital",desc:"Texto libre"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "proyectos.read":    [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Codigo del proyecto"}],
+  "partidas.browse":   [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Proyecto"}],
+  "partidas.read":     [{n:"codProyecto",t:"text",req:true,desc:"Proyecto"},{n:"codPartida",t:"text",ph:"03.02",req:true,desc:"Partida"}],
+  "proordutil.browse": [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Proyecto"},{n:"codPartida",t:"text",ph:"03.02",desc:"Partida (opcional)"}],
+  "proordutil.read":   [{n:"codDocumento",t:"text",ph:"U-001",req:true,desc:"Codigo utilizado"}],
+  "proordutil.new":    [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Proyecto destino"},{n:"codPartida",t:"text",ph:"03.02",req:true,desc:"Partida destino"},{n:"tipo",t:"select",opts:["M","R"],req:true,desc:"M=Material  R=Recurso/mano de obra"}],
+  "proordutil.write":  [{n:"objectId",t:"text",req:true,desc:"ID temporal de new"},{n:"codArticulo",t:"text",ph:"1#100142",req:true,desc:"Codigo articulo/recurso"},{n:"cantidad",t:"number",ph:"2",req:true,desc:"Cantidad"},{n:"coste",t:"number",ph:"35.10",req:true,desc:"Coste unitario euros"},{n:"precio",t:"number",ph:"42.00",desc:"Precio venta"},{n:"fecha",t:"text",ph:"20260901",desc:"Fecha AAAAMMDD"}],
+  "proordutil.cancel": [{n:"objectId",t:"text",req:true,desc:"ID temporal a descartar"}],
+  "reporden.browse":   [{n:"estado",t:"select",opts:["","abierta","cerrada","todas"],desc:"Estado"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "reporden.read":     [{n:"codOrden",t:"text",req:true,desc:"Codigo orden"}],
+  "repordutil.browse": [{n:"codOrden",t:"text",req:true,desc:"Orden de reparacion"}],
+  "repordutil.write":  [{n:"objectId",t:"text",req:true,desc:"ID temporal"},{n:"codRecurso",t:"text",req:true,desc:"Articulo/recurso"},{n:"cantidad",t:"number",req:true,desc:"Cantidad/horas"},{n:"coste",t:"number",req:true,desc:"Coste"},{n:"precio",t:"number",desc:"Precio"},{n:"fecha",t:"text",ph:"20260901",desc:"Fecha AAAAMMDD"}],
+  "articulos.browse":  [{n:"filtro",t:"text",ph:"Tubo cobre",desc:"Buscar en catalogo"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "articulos.read":    [{n:"codArticulo",t:"text",req:true,desc:"Codigo articulo"}],
+  "recursos.browse":   [{n:"filtro",t:"text",desc:"Buscar recursos"}],
+  "proveedores.browse":[{n:"filtro",t:"text",ph:"Daikin",desc:"Filtrar"}],
+  "clientes.browse":   [{n:"filtro",t:"text",desc:"Filtrar clientes"}],
+  "docalbcom.browse":  [{n:"proveedor",t:"text",ph:"Daikin",desc:"Filtrar por proveedor"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "docalbcom.read":    [{n:"codDocumento",t:"text",req:true,desc:"Codigo albaran"}],
+  "docalbcom.imputaPro":[{n:"codDocumento",t:"text",req:true,desc:"Codigo albaran"},{n:"codLinea",t:"text",req:true,desc:"Numero de linea"},{n:"codMaestro",t:"text",ph:"25/184",req:true,desc:"Proyecto destino"},{n:"codDetalle",t:"text",ph:"03.02",req:true,desc:"Partida destino"},{n:"subcontrata",t:"select",opts:["T","F"],req:true,desc:"T=subcontrata F=no"}],
+  "docfaccom.browse":  [{n:"proveedor",t:"text",desc:"Filtrar"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "docfaccom.read":    [{n:"codDocumento",t:"text",req:true,desc:"Codigo factura"}],
+  "docfaccom.imputaPro":[{n:"codDocumento",t:"text",req:true,desc:"Factura"},{n:"codLinea",t:"text",req:true,desc:"Linea"},{n:"codMaestro",t:"text",req:true,desc:"Proyecto"},{n:"codDetalle",t:"text",req:true,desc:"Partida"},{n:"subcontrata",t:"select",opts:["T","F"],req:true,desc:"T/F"}],
+  "docpedcom.browse":  [{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "docpedcom.imputaPro":[{n:"codDocumento",t:"text",req:true,desc:"Pedido"},{n:"codLinea",t:"text",req:true,desc:"Linea"},{n:"codMaestro",t:"text",req:true,desc:"Proyecto"},{n:"codDetalle",t:"text",req:true,desc:"Partida"},{n:"subcontrata",t:"select",opts:["T","F"],req:true,desc:"T/F"}],
+};
+
+function renderParamFields(clase, op) {
+  const fields = PARAMS_DB[`${clase}.${op}`] || [];
+  if (!fields.length) return "";
+  return fields.map(f => {
+    const lbl = f.req
+      ? `<span style="color:#dc3545;font-weight:600">* ${f.n}</span>`
+      : `<span style="color:#374151">${f.n}</span>`;
+    const descHtml = f.desc ? `<span style="color:#94a3b8;font-size:0.78em;margin-left:4px"> — ${f.desc}</span>` : "";
+    const saved = _state.paramValues[f.n] || "";
+    if (f.t === "select")
+      return `<div><label style="display:block;font-size:0.82em;margin-bottom:3px">${lbl}${descHtml}</label>
+        <select id="ae-p-${f.n}" class="form-control" style="width:100%">
+          ${(f.opts||[]).map(o=>`<option value="${o}" ${saved===o?'selected':''}>${o||'(ninguno)'}</option>`).join('')}
+        </select></div>`;
+    return `<div><label style="display:block;font-size:0.82em;margin-bottom:3px">${lbl}${descHtml}</label>
+      <input id="ae-p-${f.n}" type="${f.t}" class="form-control" placeholder="${f.ph||''}" value="${saved}" style="width:100%"></div>`;
+  }).join('');
+}
+
+function collectParams(clase, op) {
+  const fields = PARAMS_DB[`${clase}.${op}`] || [];
+  const params = {};
+  fields.forEach(f => {
+    const el = document.getElementById(`ae-p-${f.n}`);
+    if (el && el.value !== "") {
+      params[f.n] = f.t === "number" ? parseFloat(el.value) : el.value;
+      _state.paramValues[f.n] = el.value;
+    }
+  });
+  return params;
+}
+
+// ─── Render Main ─────────────────────────────────────────────────────────────
+function renderMain() {
+  const root = document.getElementById("api-explorer-root");
+  if (!root) return;
+  const s = _state.status || { session_active:false, use_mock:true, modo_escritura:false, empresa:"", usuario:"", ssid1_masked:"", ssid2_masked:"" };
+  const modoBanner = s.modo_escritura
+    ? `<div style="background:#fff3e0;border-left:5px solid #fd7e14;padding:10px 16px;border-radius:4px;margin-bottom:12px;font-weight:600;font-size:0.9em">⚠️ MODO ESCRITURA ACTIVO — Las operaciones pueden modificar SQL Obras permanentemente</div>`
+    : `<div style="background:#dcfce7;border-left:5px solid #28a745;padding:10px 16px;border-radius:4px;margin-bottom:12px;font-weight:600;font-size:0.9em">🟢 MODO SOLO LECTURA — Sin riesgo de modificar datos</div>`;
+
+  const mockBanner = s.use_mock && s.session_active
+    ? `<div style="background:#dbeafe;border-left:4px solid #3b82f6;padding:8px 14px;border-radius:4px;margin-bottom:10px;font-size:0.85em;color:#1d4ed8">🔵 <strong>BD Simulada activa</strong> — Los resultados son datos de ejemplo representativos, NO datos reales de SQL Obras. Sirven para probar el funcionamiento del modulo.</div>`
+    : (!s.use_mock && s.session_active
+      ? `<div style="background:#dcfce7;border-left:4px solid #16a34a;padding:8px 14px;border-radius:4px;margin-bottom:10px;font-size:0.85em;color:#166534">🟢 <strong>API Real conectada</strong> — Los datos que ves son REALES de SQL Obras.</div>`
+      : "");
+
+  const TABS = [["conexion","🔌 Conexion"],["explorador","🔬 Explorador"],["permisos","🔍 Permisos"],["matriz","📊 Matriz"],["historial","📜 Historial"],["escritura","🟠 Escritura"]];
+  const tabBar = `<div style="display:flex;gap:2px;margin-bottom:18px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
+    ${TABS.map(([id,lbl])=>`<button onclick="ApiExplorerModule.setTab('${id}')" style="padding:8px 14px;border:none;background:${_state.currentTab===id?'#3b82f6':'transparent'};color:${_state.currentTab===id?'white':'#64748b'};border-radius:6px 6px 0 0;cursor:pointer;font-size:0.88em;font-weight:${_state.currentTab===id?'600':'400'};transition:all 0.15s">${lbl}</button>`).join('')}
+  </div>`;
+
+  root.innerHTML = modoBanner + mockBanner + tabBar + `<div id="ae-tab-content">${renderTab(s)}</div>`;
+}
+
+function renderTab(s) {
+  const cfg = _state.config || {};
+  const cat = _state.catalogue;
+  const catalogue = cat ? cat.catalogue : {};
+  const modulos = Object.keys(catalogue);
+  const mod = _state.selectedModulo || modulos[0] || "";
+  const clases = catalogue[mod] || {};
+  const cls = _state.selectedClase || Object.keys(clases)[0] || "";
+  const RIESGO = {browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:1,write:2,imputaPro:2,exec:2,delete:3};
+  const opsAll = clases[cls] || [];
+  const ops = s.modo_escritura ? opsAll : opsAll.filter(o=>(RIESGO[o]||0)<2);
+  const op = _state.selectedOp || ops[0] || "";
+  const riesgo = RIESGO[op]||0;
+  const RLBL = ["🟢 Solo lectura","🟡 Preparacion (sin riesgo)","🟠 ESCRITURA REAL","🔴 DESTRUCTIVO"];
+  const hist = _state.history;
+  const mat = _state.matrix;
+  const permisoR = {}; hist.forEach(r=>{if(r.operacion==="permiso")permisoR[r.clase]=r;});
+  const ops_cols = ["browse","read","new","write","cancel","imputaPro"];
+  const CLASSES = ["proyectos","partidas","proordutil","proordprev","reporden","repobjetos","repinst","tipostrabajo","repordutil","articulos","recursos","proveedores","clientes","docalbcom","docfaccom","docpedcom","ordenfab"];
+  const resumen = {total:hist.length,ok:0,falla:0,sin_permiso:0,sin_licencia:0,bloqueado:0};
+  hist.forEach(r=>{if(resumen[r.estado]!==undefined)resumen[r.estado]++;});
+
+  if (_state.currentTab === "conexion") return renderConexion(s, cfg);
+  if (_state.currentTab === "explorador") return renderExplorador(s, modulos, mod, clases, cls, ops, op, riesgo, RLBL);
+  if (_state.currentTab === "permisos") return !s.session_active ? noSesion() : renderPermisos(CLASSES, ops_cols, permisoR);
+  if (_state.currentTab === "matriz") return renderMatriz(catalogue, mat);
+  if (_state.currentTab === "historial") return renderHistorial(hist, resumen);
+  if (_state.currentTab === "escritura") return renderEscritura(s);
+  return "";
+}
+
+const noSesion = () => `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:20px;text-align:center;color:#92400e">⚠️ Conectate primero en la pestana <strong>Conexion</strong>.</div>`;
+
+
+function renderConexion(s, cfg) {
+  const sesion=s.session_active; const modoMock=s.use_mock;
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
+      <h3 style="margin:0 0 12px;font-size:1em">Modo de conexion</h3>
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <button onclick="ApiExplorerModule.setModo(true)" class="btn ${modoMock?'primary':'secondary'}" style="flex:1">🔵 BD Simulada</button>
+        <button onclick="ApiExplorerModule.setModo(false)" class="btn ${!modoMock?'primary':'secondary'}" style="flex:1">🟠 API Real</button>
+      </div>
+      <p style="font-size:0.83em;color:#64748b;margin:3px 0">Sesion: ${sesion?`<strong style="color:#166534">${s.empresa}/${s.usuario} ✅</strong>`:'<span style="color:#991b1b">Sin sesion activa</span>'}</p>
+      <p style="font-size:0.83em;color:#64748b;margin:3px 0">Escritura: ${s.modo_escritura?'<strong style="color:#d97706">⚠️ ACTIVA</strong>':'<strong style="color:#166534">🟢 Solo lectura</strong>'}</p>
+      ${modoMock?'<p style="font-size:0.78em;color:#3b82f6;margin-top:8px;background:#dbeafe;padding:5px 8px;border-radius:5px">🔵 Los datos en modo simulado son ejemplos representativos, NO datos reales.</p>':''}
+    </div>
+    <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
+      <h3 style="margin:0 0 10px;font-size:1em">Variables de entorno (.env)</h3>
+      <table style="width:100%;font-size:0.82em;border-collapse:collapse">
+        <tr><td style="color:#64748b;padding:2px 0;width:42%">SQLOB_API_URL</td><td>${cfg.api_url||'<span style="color:#dc3545">No configurada</span>'}</td></tr>
+        <tr><td style="color:#64748b">SQLOB_EMPRESA</td><td>${cfg.empresa||'—'}</td></tr>
+        <tr><td style="color:#64748b">SQLOB_USUARIO</td><td>${cfg.usuario||'—'}</td></tr>
+        <tr><td style="color:#64748b">SQLOB_PASSWORD</td><td>${cfg.password_set?'<span style="color:#166534">✅</span>':'<span style="color:#dc3545">No configurada</span>'}</td></tr>
+      </table>
+      ${!cfg.api_url?'<p style="font-size:0.77em;color:#dc2626;margin-top:6px;background:#fef2f2;padding:5px 8px;border-radius:4px">Agregar en .env: SQLOB_API_URL, SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD</p>':''}
+    </div>
+  </div>
+  <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
+    <h3 style="margin:0 0 12px;font-size:1em">Login / Logout</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Empresa</label><input id="ae-empresa" type="text" value="${cfg.empresa||'JDDC'}" class="form-control" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Usuario API</label><input id="ae-usuario" type="text" value="${cfg.usuario||'API_JDDC'}" class="form-control" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Password</label><input id="ae-password" type="password" value="${modoMock?'test123':''}" class="form-control" placeholder="${modoMock?'(cualquier valor en modo simulado)':''}" style="width:100%"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button onclick="ApiExplorerModule.doLogin()" class="btn primary">🔑 Conectar</button>
+      <button onclick="ApiExplorerModule.doLogout()" class="btn secondary" ${!sesion?'disabled':''}>🔌 Desconectar</button>
+    </div>
+    <div id="ae-login-result" style="margin-top:12px"></div>
+  </div>
+  ${sesion?`<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:12px;margin-top:12px;font-size:0.82em">
+    <strong>Sesion activa</strong> &nbsp;|&nbsp; ssid1: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${s.ssid1_masked}</code> &nbsp;
+    ssid2: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${s.ssid2_masked}</code>
+    <span style="color:#94a3b8;font-size:0.85em">&nbsp;(enmascarados por seguridad)</span>
+  </div>`:''}`;
+}
+
+
+function renderExplorador(s, modulos, mod, clases, cls, ops, op, riesgo, RLBL) {
+  if (!s.session_active) return noSesion();
+  const pf = renderParamFields(cls, op);
+  const rc = ["#28a745","#ffc107","#fd7e14","#dc3545"][riesgo];
+  return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">📦 Modulo</label>
+      <select id="ae-modulo" class="form-control" onchange="ApiExplorerModule.onModuloChange()" style="width:100%">
+        ${modulos.map(m=>`<option value="${m}" ${m===mod?'selected':''}>${m}</option>`).join('')}
+      </select></div>
+    <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">🗂 Clase/Objeto &nbsp;<button onclick="ApiExplorerModule.toggleInfoClase()" style="border:none;background:none;cursor:pointer;color:#3b82f6;font-size:0.82em;padding:0">ℹ️ info</button></label>
+      <select id="ae-clase" class="form-control" onchange="ApiExplorerModule.onClaseChange()" style="width:100%">
+        ${Object.keys(clases).map(c=>{const i=CLASE_INFO[c];return`<option value="${c}" ${c===cls?'selected':''}>${i?i.emoji+' ':''} ${c} — ${i?i.desc:''}</option>`;}).join('')}
+      </select></div>
+    <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">⚙️ Operacion &nbsp;<button onclick="ApiExplorerModule.toggleInfoOp()" style="border:none;background:none;cursor:pointer;color:#3b82f6;font-size:0.82em;padding:0">ℹ️ info</button></label>
+      <select id="ae-op" class="form-control" onchange="ApiExplorerModule.onOpChange()" style="width:100%">
+        ${ops.map(o=>`<option value="${o}" ${o===op?'selected':''}>${o}</option>`).join('')}
+      </select>
+      ${!s.modo_escritura&&(clases[cls]||[]).length>ops.length?`<p style="font-size:0.74em;color:#94a3b8;margin:2px 0">Activa escritura (tab 🟠) para ver operaciones de escritura</p>`:''}
+    </div>
+  </div>
+  <div id="ae-info-clase" style="display:none">${infoClase(cls)}</div>
+  <div id="ae-info-op" style="display:none">${infoOp(op)}</div>
+  <div style="background:#f8fafc;border-left:4px solid ${rc};border-radius:0 6px 6px 0;padding:8px 14px;margin-bottom:12px;font-size:0.88em">
+    ${RLBL[riesgo]} | <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">${cls}.${op}</code>
+  </div>
+  ${pf?`<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px;margin-bottom:12px">
+    <h4 style="margin:0 0 10px;font-size:0.88em;color:#374151">Parametros <span style="color:#dc3545;font-size:0.8em">* = requerido</span></h4>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">${pf}</div></div>`
+    :`<div style="background:#f8fafc;border-radius:6px;padding:8px 14px;color:#94a3b8;font-size:0.85em;margin-bottom:12px">Sin parametros adicionales.</div>`}
+  ${riesgo>=2
+    ?`<div style="background:#fff3e0;border:1px solid #fbbf24;border-radius:8px;padding:12px;margin-bottom:12px">
+      <p style="margin:0 0 8px;color:#92400e;font-weight:600;font-size:0.9em">⚠️ ESCRITURA REAL — Modifica SQL Obras permanentemente.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="ae-confirm-word" type="text" class="form-control" placeholder="Escribe exactamente: CONFIRMAR" style="flex:1;min-width:180px">
+        <button onclick="ApiExplorerModule.doEjecutar(true)" class="btn primary" style="background:#fd7e14;border-color:#fd7e14;white-space:nowrap">🟠 Ejecutar ${cls}.${op}</button>
+      </div></div>`
+    :`<button onclick="ApiExplorerModule.doEjecutar(false)" class="btn primary">▶️ Probar ${cls}.${op}</button>`}
+  <div id="ae-exec-result" style="margin-top:14px"></div>`;
+}
+
+
+function renderPermisos(CLASSES, ops_cols, permisoR) {
+  const rows=CLASSES.map(c=>{const r=permisoR[c];const i=CLASE_INFO[c];
+    return`<tr style="border-bottom:1px solid #f1f5f9"><td style="font-family:monospace;padding:5px 8px;font-size:0.85em;font-weight:600">${i?i.emoji:''} ${c}</td><td style="font-size:0.78em;color:#64748b;padding:5px 4px">${i?i.desc:''}</td><td style="text-align:center;padding:4px">${r?estadoIcon(r.estado):'⬜'}</td>${ops_cols.map(o=>{if(!r)return`<td style="text-align:center;color:#cbd5e1">—</td>`;const v=r.json?r.json[o]:undefined;return`<td style="text-align:center;padding:4px">${v===true?'✅':v===false?'❌':'—'}</td>`;}).join('')}</tr>`;}).join('');
+  return `<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button onclick="ApiExplorerModule.doAuditarTodo()" class="btn primary">🚀 Auditar TODAS las clases</button>
+    <span style="font-size:0.82em;color:#64748b">Ejecuta permiso para cada clase documentada en la API mPYME v1.2</span>
+  </div>
+  <div id="ae-permiso-progress" style="display:none;margin-bottom:12px">
+    <div style="background:#e2e8f0;border-radius:4px;height:8px"><div id="ae-permiso-bar" style="background:#3b82f6;border-radius:4px;height:8px;width:0%;transition:width 0.2s"></div></div>
+    <p id="ae-permiso-msg" style="font-size:0.78em;color:#64748b;margin:4px 0"></p>
+  </div>
+  <div id="ae-permiso-single-result" style="margin-bottom:12px"></div>
+  <div style="overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;background:white">
+    <table style="width:100%;border-collapse:collapse"><thead style="background:#f8fafc"><tr style="border-bottom:2px solid #e2e8f0">
+      <th style="text-align:left;padding:7px 8px;font-size:0.82em">Clase</th>
+      <th style="text-align:left;padding:7px 4px;font-size:0.82em">Descripcion</th>
+      <th style="text-align:center;padding:7px 4px;font-size:0.82em">Estado</th>
+      ${ops_cols.map(o=>`<th style="text-align:center;padding:7px 4px;font-family:monospace;font-size:0.78em">${o}</th>`).join('')}
+    </tr></thead><tbody>${rows}</tbody></table>
+  </div>
+  <div style="margin-top:14px;background:white;border-radius:8px;border:1px solid #e2e8f0;padding:12px"><div style="display:flex;gap:10px">
+    <select id="ae-perm-cls" class="form-control" style="flex:1">${CLASSES.map(c=>{const i=CLASE_INFO[c];return`<option value="${c}">${i?i.emoji:''} ${c}</option>`;}).join('')}</select>
+    <button onclick="ApiExplorerModule.doPermisoIndividual()" class="btn primary">🔍 Consultar permiso</button>
+  </div></div>`;
+}
+
+function renderMatriz(catalogue, mat) {
+  if(!Object.keys(catalogue).length) return `<p style="color:#64748b">Cargando catalogo...</p>`;
+  let h=`<p style="color:#64748b;font-size:0.85em;margin-bottom:12px">⬜ no probado | ✅ OK | ❌ falla | 🔒 sin permiso | 🚫 sin licencia</p>`;
+  Object.entries(catalogue).forEach(([m,cm])=>{
+    const uo=[...new Set(Object.values(cm).flat())].sort();
+    h+=`<details open style="margin-bottom:14px"><summary style="cursor:pointer;font-weight:600;padding:8px 0">${m}</summary>
+    <div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+      <thead style="background:#f8fafc"><tr>
+        <th style="text-align:left;padding:6px 10px;font-size:0.82em">Clase</th>
+        <th style="text-align:left;padding:6px 4px;font-size:0.82em">Descripcion</th>
+        ${uo.map(o=>`<th style="text-align:center;font-family:monospace;font-size:0.78em;padding:6px 4px">${o}</th>`).join('')}
+      </tr></thead>
+      <tbody>${Object.entries(cm).map(([c,ops])=>{const i=CLASE_INFO[c];return`<tr style="border-bottom:1px solid #f1f5f9"><td style="font-family:monospace;padding:5px 10px;font-weight:600;font-size:0.85em">${i?i.emoji:''} ${c}</td><td style="font-size:0.78em;color:#64748b;padding:5px 4px">${i?i.desc:''}</td>${uo.map(o=>{if(!ops.includes(o))return`<td style="text-align:center;color:#e2e8f0;padding:4px">—</td>`;const e=mat[c]&&mat[c][o];return`<td style="text-align:center;padding:4px">${e?estadoIcon(e.estado):'⬜'}</td>`;}).join('')}</tr>`;}).join('')}</tbody>
+    </table></div></details>`;
+  });
+  return h;
+}
+
+function renderHistorial(hist, resumen) {
+  let h=`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px">${Object.entries(resumen).map(([k,v])=>`<div style="background:white;border-radius:8px;border:1px solid #e2e8f0;padding:8px;text-align:center"><div style="font-size:1.4em;font-weight:700">${v}</div><div style="font-size:0.74em;color:#64748b">${k}</div></div>`).join('')}</div>
+  <div style="text-align:right;margin-bottom:10px"><button onclick="ApiExplorerModule.doClearHistory()" class="btn secondary" style="font-size:0.85em">🗑️ Limpiar historial</button></div>`;
+  if(!hist.length) return h+`<div style="text-align:center;color:#64748b;padding:40px">Sin pruebas. Ve al Explorador y ejecuta operaciones.</div>`;
+  return h+hist.slice(0,50).map(r=>`<details style="margin-bottom:8px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+    <summary style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>${estadoIcon(r.estado)}</span>
+      <code style="font-size:0.88em;background:#f1f5f9;padding:2px 6px;border-radius:4px">${r.clase}.${r.operacion}</code>
+      <span style="color:#64748b;font-size:0.8em;margin-left:auto">${(r.timestamp||'').slice(11,19)} | ${r.duracion_ms}ms | ${r.use_mock?'🔵 Mock':'🟠 Real'}</span>
+    </summary>
+    <div style="padding:12px 14px;border-top:1px solid #f1f5f9">${renderResult(r)}</div>
+  </details>`).join('');
+}
+
+
+function renderEscritura(s) {
+  if(s.modo_escritura) return `<div style="background:#fff3e0;border:2px solid #fd7e14;border-radius:10px;padding:18px;margin-bottom:14px">
+    <h3 style="margin:0 0 8px;color:#9a3412">⚠️ MODO ESCRITURA ACTIVO</h3>
+    <p style="color:#64748b;margin:0 0 10px;font-size:0.9em">Puede modificar SQL Obras. Cada operacion requiere la palabra CONFIRMAR.</p>
+    <button onclick="ApiExplorerModule.doEscritura(false)" class="btn secondary">🔒 Desactivar escritura</button>
+  </div>
+  <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
+    <h3 style="margin:0 0 6px;font-size:0.95em">Prueba: proordutil — new → write / cancel</h3>
+    <p style="font-size:0.82em;color:#64748b;margin:0 0 12px">Verifica si la licencia permite crear utilizados (costes reales imputados a proyectos).</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">codProyecto *</label><input id="wr-codProyecto" type="text" class="form-control" value="25/184" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">codPartida *</label><input id="wr-codPartida" type="text" class="form-control" value="03.02" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">tipo *</label><select id="wr-tipo" class="form-control" style="width:100%"><option value="M">M — Material</option><option value="R">R — Recurso</option></select></div>
+    </div>
+    <button onclick="ApiExplorerModule.doNew()" class="btn primary" style="margin-bottom:12px;font-size:0.88em">1️⃣ new — Crear objeto temporal</button>
+    <div id="ae-wr-oid-section" style="display:none">
+      <div id="ae-wr-oid-display"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0">
+        <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">codArticulo *</label><input id="wr-codArticulo" type="text" class="form-control" value="1#100142" style="width:100%"></div>
+        <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">cantidad *</label><input id="wr-cantidad" type="number" class="form-control" value="2" step="0.1" style="width:100%"></div>
+        <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">coste * (euros)</label><input id="wr-coste" type="number" class="form-control" value="35.10" step="0.01" style="width:100%"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="wr-confirm" type="text" class="form-control" placeholder='Escribe "CONFIRMAR" para persistir en ERP' style="flex:1;min-width:200px">
+        <button onclick="ApiExplorerModule.doWrite()" class="btn primary" style="background:#fd7e14;border-color:#fd7e14;white-space:nowrap">2️⃣ write — PERSISTE</button>
+        <button onclick="ApiExplorerModule.doCancel()" class="btn secondary" style="white-space:nowrap">❌ cancel</button>
+      </div>
+    </div>
+    <div id="ae-wr-result" style="margin-top:14px"></div>
+  </div>`;
+  return `<div style="background:#dcfce7;border:2px solid #86efac;border-radius:10px;padding:18px;margin-bottom:14px">
+    <h3 style="margin:0 0 8px;color:#166534">🟢 MODO SOLO LECTURA</h3>
+    <p style="color:#64748b;margin:0;font-size:0.9em">Sin riesgo de modificar datos.</p>
+  </div>
+  <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:18px">
+    <h4 style="margin:0 0 8px">Activar modo escritura</h4>
+    <p style="color:#64748b;font-size:0.88em;margin-bottom:10px">Solo para pruebas controladas. Cada escritura requiere confirmar con "CONFIRMAR".</p>
+    <input id="ae-wr-confirm" type="text" class="form-control" placeholder="Escribe: ACTIVAR ESCRITURA" style="width:100%;margin-bottom:10px">
+    <button onclick="ApiExplorerModule.doEscritura(true)" class="btn primary" style="background:#fd7e14;border-color:#fd7e14">🟠 Activar modo escritura</button>
+  </div>`;
+}
+
+
+const ApiExplorerModule = {
+  async onEnter() {
+    const root=document.getElementById("api-explorer-root");
+    if(root) root.innerHTML=`<div style="text-align:center;padding:40px;color:#64748b">Cargando...</div>`;
+    try {
+      const [s,c,cat,hd]=await Promise.all([_fetch("/status"),_fetch("/config"),_fetch("/catalogue"),_fetch("/history")]);
+      _state.status=s;_state.config=c;_state.catalogue=cat;_state.history=hd.history||[];_state.matrix=hd.matrix||{};
+    } catch(e) {
+      if(root) root.innerHTML=`<div style="padding:24px;color:#dc2626;background:#fef2f2;border-radius:8px"><strong>Error al cargar</strong><br>${e.message}</div>`;
+      return;
+    }
+    renderMain();
+  },
+  setTab(t){_state.currentTab=t;renderMain();},
+  onModuloChange(){const el=document.getElementById("ae-modulo");if(el){_state.selectedModulo=el.value;_state.selectedClase=null;_state.selectedOp=null;}renderMain();},
+  onClaseChange(){const el=document.getElementById("ae-clase");if(el){_state.selectedClase=el.value;_state.selectedOp=null;}renderMain();},
+  onOpChange(){const el=document.getElementById("ae-op");if(el)_state.selectedOp=el.value;renderMain();},
+  toggleInfoClase(){const el=document.getElementById("ae-info-clase");if(el)el.style.display=el.style.display==="none"?"block":"none";},
+  toggleInfoOp(){const el=document.getElementById("ae-info-op");if(el)el.style.display=el.style.display==="none"?"block":"none";},
+  async setModo(m){try{await _fetch("/modo",{method:"POST",body:JSON.stringify({use_mock:m})});_state.status=await _fetch("/status");renderMain();}catch(e){alert(e.message);}},
+
+
+  async doLogin(){
+    const emp=document.getElementById("ae-empresa")?.value||"",usr=document.getElementById("ae-usuario")?.value||"",pwd=document.getElementById("ae-password")?.value||"";
+    const result=document.getElementById("ae-login-result");
+    if(result) result.innerHTML=`<div style="color:#64748b;font-size:0.85em">Conectando...</div>`;
+    try{
+      const r=await _fetch("/login",{method:"POST",body:JSON.stringify({empresa:emp,usuario:usr,password:pwd})});
+      _state.status=await _fetch("/status");if(result)result.innerHTML=renderResult(r);renderMain();
+    }catch(e){
+      if(result) result.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:4px;padding:10px;color:#991b1b;font-size:0.88em"><strong>Error de conexion</strong><br>${e.message}<br><span style="color:#64748b">Verifica URL, credenciales y acceso de red al servidor.</span></div>`;
+    }
+  },
+  async doLogout(){try{await _fetch("/logout",{method:"POST"});_state.status=await _fetch("/status");renderMain();}catch(e){alert(e.message);}},
+  async doEjecutar(needsConfirm){
+    const clase=document.getElementById("ae-clase")?.value||_state.selectedClase||"",op=document.getElementById("ae-op")?.value||_state.selectedOp||"";
+    if(needsConfirm&&document.getElementById("ae-confirm-word")?.value!=="CONFIRMAR"){alert("Escribe exactamente: CONFIRMAR");return;}
+    const params=collectParams(clase,op),result=document.getElementById("ae-exec-result");
+    if(result) result.innerHTML=`<div style="color:#64748b;font-size:0.85em">Ejecutando ${clase}.${op}...</div>`;
+    try{
+      const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase,operacion:op,params})});
+      if(result)result.innerHTML=renderResult(r);
+      const hd=await _fetch("/history");_state.history=hd.history||[];_state.matrix=hd.matrix||{};
+    }catch(e){if(result)result.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:4px;padding:10px;color:#991b1b;font-size:0.88em"><strong>Error</strong><br>${e.message}</div>`;}
+  },
+  async doAuditarTodo(){
+    const CL=["proyectos","partidas","proordutil","proordprev","reporden","repobjetos","repinst","tipostrabajo","repordutil","articulos","recursos","proveedores","clientes","docalbcom","docfaccom","docpedcom","ordenfab"];
+    const prog=document.getElementById("ae-permiso-progress"),bar=document.getElementById("ae-permiso-bar"),msg=document.getElementById("ae-permiso-msg");
+    if(prog) prog.style.display="block";
+    for(let i=0;i<CL.length;i++){
+      if(msg) msg.textContent=`Consultando ${CL[i]} (${i+1}/${CL.length})...`;
+      await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:CL[i],operacion:"permiso",params:{}})});
+      if(bar) bar.style.width=`${((i+1)/CL.length*100).toFixed(0)}%`;
+    }
+    const hd=await _fetch("/history");_state.history=hd.history||[];_state.matrix=hd.matrix||{};
+    if(prog) prog.style.display="none";renderMain();
+  },
+  async doPermisoIndividual(){
+    const cls=document.getElementById("ae-perm-cls")?.value||"",result=document.getElementById("ae-permiso-single-result");if(!cls)return;
+    try{const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:cls,operacion:"permiso",params:{}})});if(result)result.innerHTML=renderResult(r);const hd=await _fetch("/history");_state.history=hd.history||[];_state.matrix=hd.matrix||{};}
+    catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
+  },
+  async doClearHistory(){await _fetch("/history",{method:"DELETE"});_state.history=[];renderMain();},
+  async doEscritura(activar){
+    const conf=activar?(document.getElementById("ae-wr-confirm")?.value||""):"DESACTIVAR";
+    try{await _fetch("/escritura",{method:"POST",body:JSON.stringify({activar,confirmacion:conf})});_state.status=await _fetch("/status");renderMain();}
+    catch(e){alert(e.message);}
+  },
+
+
+  async doNew(){
+    const p={codProyecto:document.getElementById("wr-codProyecto")?.value||"",codPartida:document.getElementById("wr-codPartida")?.value||"",tipo:document.getElementById("wr-tipo")?.value||"M"};
+    const result=document.getElementById("ae-wr-result");
+    try{
+      const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:"proordutil",operacion:"new",params:p})});
+      if(result)result.innerHTML=renderResult(r);
+      if(r.estado==="ok"&&r.json?.objectId){
+        window._ae_objectId=r.json.objectId;
+        const sec=document.getElementById("ae-wr-oid-section");if(sec)sec.style.display="block";
+        const disp=document.getElementById("ae-wr-oid-display");
+        if(disp)disp.innerHTML=`<div style="background:#dcfce7;border-left:4px solid #28a745;border-radius:4px;padding:8px 12px;margin-bottom:10px;font-size:0.88em">objectId: <code>${r.json.objectId}</code> <span style="color:#64748b;font-size:0.82em">— No persiste hasta write. Cancel descarta sin riesgo.</span></div>`;
+      }
+    }catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
+  },
+  async doWrite(){
+    if(document.getElementById("wr-confirm")?.value!=="CONFIRMAR"){alert("Escribe exactamente: CONFIRMAR");return;}
+    const oid=window._ae_objectId||"";if(!oid){alert("Ejecuta new primero.");return;}
+    const p={objectId:oid,codArticulo:document.getElementById("wr-codArticulo")?.value||"",cantidad:parseFloat(document.getElementById("wr-cantidad")?.value||"0"),coste:parseFloat(document.getElementById("wr-coste")?.value||"0")};
+    const result=document.getElementById("ae-wr-result");
+    try{const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:"proordutil",operacion:"write",params:p})});if(result)result.innerHTML=renderResult(r);if(r.estado==="ok"){window._ae_objectId=null;const s=document.getElementById("ae-wr-oid-section");if(s)s.style.display="none";}}
+    catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
+  },
+  async doCancel(){
+    const oid=window._ae_objectId||"";if(!oid){alert("No hay objectId.");return;}
+    const result=document.getElementById("ae-wr-result");
+    try{const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:"proordutil",operacion:"cancel",params:{objectId:oid}})});if(result)result.innerHTML=renderResult(r);window._ae_objectId=null;const s=document.getElementById("ae-wr-oid-section");if(s)s.style.display="none";}
+    catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
+  },
+};
+
+window.ApiExplorerModule = ApiExplorerModule;
+

@@ -185,6 +185,12 @@ app.include_router(siuo_router, prefix="/api/siuo", tags=["SIUO — Indices IA"]
 from backend.modules.db_simulator.router import router as db_simulator_router
 app.include_router(db_simulator_router, prefix="/api/db-simulator", tags=["DB Simulator"])
 
+# API Explorer — Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2)
+# Permite probar la API real o mock, auditar permisos, ver la matriz de capacidades
+# y, con modo escritura activo, ejecutar operaciones de escritura con doble confirmacion.
+from backend.modules.api_explorer.router import router as api_explorer_router
+app.include_router(api_explorer_router, prefix="/api/api-explorer", tags=["API Explorer — Distrito K"])
+
 # Pre-cargar ContextRetriever al arrancar (indices en memoria desde el inicio)
 from backend.modules.db_explorer.context_retriever import get_context_retriever as _load_retriever
 _load_retriever()

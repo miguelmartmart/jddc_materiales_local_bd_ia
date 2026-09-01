@@ -87,6 +87,7 @@ class App {
       "metadata-builder": "Constructor de Metadatos BD",
       "db-simulator": "🎭 BD Simulada — Simulador SQLite",
       siuo: "🧠 Índices SIUO — Sistema de Índices Ultra-Optimizado",
+      "api-explorer": "🔌 API Explorer — Explorador/Validador API Distrito K",
     };
     document.getElementById("page-title").textContent =
       titles[viewName] || "DEVIA";
@@ -124,6 +125,21 @@ class App {
             "<br><small>Revisa la consola del navegador para más detalles.</small>" +
             "</div>";
         }
+      }
+    }
+
+    // Inicializar API Explorer cuando se navega a él (lazy-init en cada visita)
+    if (viewName === "api-explorer") {
+      try {
+        if (window.ApiExplorerModule && typeof window.ApiExplorerModule.onEnter === "function") {
+          window.ApiExplorerModule.onEnter();
+        } else {
+          console.error("[App.navigate] ApiExplorerModule not available");
+          const root = document.getElementById("api-explorer-root");
+          if (root) root.innerHTML = '<div style="padding:30px;color:#dc2626;background:#fef2f2;border-radius:8px;"><strong>Error:</strong> Modulo API Explorer no disponible. Verifica que el backend esta corriendo.</div>';
+        }
+      } catch (err) {
+        console.error("[App.navigate] ApiExplorerModule.onEnter() failed:", err);
       }
     }
 

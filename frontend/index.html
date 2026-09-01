@@ -57,6 +57,9 @@
                     <li data-view="siuo" data-tooltip="Índices SIUO">
                         <span>🧠</span><span class="nav-label">Índices SIUO</span>
                     </li>
+                    <li data-view="api-explorer" data-tooltip="API Explorer Distrito K">
+                        <span>🔌</span><span class="nav-label">API Explorer</span>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -840,16 +843,11 @@
                             <button id="btn-toggle-history" class="btn secondary" style="padding: 4px 8px; font-size: 0.9em;"
                                 title="Ocultar/Mostrar Historial">🗂️</button>
                             <label>Modelo:</label>
-                            <select id="chat-model-selector"
-                                style="flex: 1; min-width: 120px; max-width: 220px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
-                                <option value="">Cargando...</option>
-                            </select>
-                            <label>Motor LAN:</label>
                             <select id="chat-lan-model-selector"
-                                style="padding: 6px; border: 1px solid #93c5fd; border-radius: 4px; background: #eff6ff; color: #1e40af; font-size: 0.82em;"
-                                title="Motor de IA local (LAN JDDC) — 30B: análisis profundo · 8B: respuestas rápidas">
-                                <option value="jddcia-qwen3-30b-ip">🏠 30B (potente)</option>
-                                <option value="jddcia-qwen3-8b-ip">⚡ 8B (rápido)</option>
+                                style="flex: 1; min-width: 120px; max-width: 220px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;"
+                                title="Modelo de IA local (red LAN JDDC) — 30B: más potente, ideal para análisis profundo · 8B: respuestas más rápidas">
+                                <option value="jddcia-qwen3-30b-ip">🏠 Qwen3 30B (potente)</option>
+                                <option value="jddcia-qwen3-8b-ip">⚡ Qwen3 8B (rápido)</option>
                             </select>
                             <label>Fuente BD:</label>
                             <select id="chat-db-mode"
@@ -1170,6 +1168,16 @@
                     </div>
                 </div>
 
+                <!-- API Explorer — Explorador/Validador API Distrito K / SQL Obras -->
+                <div id="view-api-explorer" class="view-section" style="display:none;">
+                    <div id="api-explorer-root" style="padding:4px 0;">
+                        <div style="text-align:center; padding:40px; color:#64748b;">
+                            <div style="font-size:2em;">🔌</div>
+                            <p>Cargando API Explorer...</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -1354,7 +1362,9 @@
     <script src="assets/js/modules/metadata_builder.js?v=4"></script>
     <!-- SIUO: módulo ES con imports de siuo_constants.js y siuo_render.js -->
     <script type="module" src="assets/js/modules/siuo.js?v=2"></script>
-    <script type="module" src="assets/js/core/app.js?v=5"></script>
+    <!-- API Explorer: modulo ES para el explorador/validador API Distrito K -->
+    <script type="module" src="assets/js/modules/api_explorer.js?v=2"></script>
+    <script type="module" src="assets/js/core/app.js?v=7"></script>
 </body>
 
 </html>
