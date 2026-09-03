@@ -2,6 +2,7 @@
 import logging, time, random, uuid, os
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+from backend.core.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,12 @@ class ApiExplorerService:
     def _client(self):
         if self.use_mock: return self._mock
         if self._real is None:
-            self._real=RealApiClient(os.getenv("SQLOB_API_URL",""),os.getenv("SQLOB_EMPRESA",""),int(os.getenv("SQLOB_TIMEOUT","30")),os.getenv("SQLOB_VERIFY_SSL","true").lower()=="true")
+            self._real = RealApiClient(
+                settings.SQLOB_API_URL,
+                settings.SQLOB_EMPRESA,
+                settings.SQLOB_TIMEOUT,
+                settings.SQLOB_VERIFY_SSL,
+            )
         return self._real
 
     def _build(self,clase,op,params,raw,ms):
@@ -249,7 +255,7 @@ class ApiExplorerService:
         return r
 
     def login(self,empresa,usuario,password):
-        emp=empresa or os.getenv("SQLOB_EMPRESA",""); usr=usuario or os.getenv("SQLOB_USUARIO",""); pwd=password or os.getenv("SQLOB_PASSWORD","")
+        emp=empresa or settings.SQLOB_EMPRESA; usr=usuario or settings.SQLOB_USUARIO; pwd=password or settings.SQLOB_PASSWORD
         raw,ms=self._client().login(emp,usr,pwd)
         if raw.get("code")==0:
             self.ssid1=raw.get("ssid1",""); self.ssid2=raw.get("ssid2",""); self.session_active=True
@@ -273,14 +279,14 @@ class ApiExplorerService:
 
     def get_status(self): return {"session_active":self.session_active,"empresa":self.session_empresa,"usuario":self.session_usuario,"session_started":self.session_started,"ssid1_masked":f"{self.ssid1[:6]}****" if self.ssid1 else "","ssid2_masked":f"{self.ssid2[:6]}****" if self.ssid2 else "","use_mock":self.use_mock,"modo_escritura":self.modo_escritura}
     def get_config_env(self):
-        db_host = os.getenv("DB_HOST", "")
+        db_host = settings.DB_HOST or ""
         return {
-            "api_url": os.getenv("SQLOB_API_URL", ""),
-            "empresa": os.getenv("SQLOB_EMPRESA", ""),
-            "usuario": os.getenv("SQLOB_USUARIO", ""),
-            "password_set": bool(os.getenv("SQLOB_PASSWORD", "")),
-            "timeout": int(os.getenv("SQLOB_TIMEOUT", "30")),
-            "verify_ssl": os.getenv("SQLOB_VERIFY_SSL", "true").lower() == "true",
+            "api_url": settings.SQLOB_API_URL,
+            "empresa": settings.SQLOB_EMPRESA,
+            "usuario": settings.SQLOB_USUARIO,
+            "password_set": bool(settings.SQLOB_PASSWORD),
+            "timeout": settings.SQLOB_TIMEOUT,
+            "verify_ssl": settings.SQLOB_VERIFY_SSL,
             # Pista: servidor Firebird, probablemente mismo host que mPYME
             "db_host_hint": db_host,
             "candidate_urls": self._build_candidate_urls(db_host),
@@ -309,7 +315,7 @@ class ApiExplorerService:
         - Conexion rechazada/timeout → no hay servidor en ese puerto
         """
         import requests, hashlib, base64
-        db_host = extra_host or os.getenv("DB_HOST", "localhost")
+        db_host = extra_host or settings.DB_HOST or "localhost"
         candidates = self._build_candidate_urls(db_host)
         results = []
         found = []

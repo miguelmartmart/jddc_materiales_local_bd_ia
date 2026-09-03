@@ -1,5 +1,5 @@
 /**
- * api_explorer.js v2 — Modulo API Explorer de DEVIA.
+ * api_explorer.js v3 — Modulo API Explorer de DEVIA.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -274,37 +274,64 @@ const noSesion = () => `<div style="background:#fef9c3;border:1px solid #fde047;
 function renderConexion(s, cfg) {
   const sesion=s.session_active; const modoMock=s.use_mock;
   const loginMsgHtml = _state.loginMsg ? _state.loginMsg.html : "";
+  const urlOk = cfg && cfg.api_url && cfg.api_url.length > 4;
+  const userOk = cfg && cfg.usuario && cfg.usuario.length > 0;
+  const passOk = cfg && cfg.password_set;
+  const empresaOk = cfg && cfg.empresa && cfg.empresa.length > 0;
+  const todoConfigurado = urlOk && userOk && passOk && empresaOk;
+  const dbHint = (cfg && cfg.db_host_hint) || "192.168.0.254";
 
   const envPanel = modoMock
     ? `<div style="background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe;padding:16px">
         <h3 style="margin:0 0 8px;font-size:1em;color:#1e40af">🔵 Modo BD Simulada activo</h3>
-        <p style="font-size:0.83em;color:#3b82f6;margin:0 0 6px">No necesitas ninguna variable de entorno. Los datos son ejemplos representativos basados en la documentacion de la API mPYME 1.2.</p>
-        <p style="font-size:0.82em;color:#64748b;margin:0">Puedes explorar operaciones, permisos y respuestas sin tocar SQL Obras.</p>
+        <p style="font-size:0.83em;color:#3b82f6;margin:0 0 6px">No necesitas ninguna configuracion. Los datos son ejemplos representativos de la API mPYME 1.2 de Distrito K.</p>
+        <p style="font-size:0.82em;color:#64748b;margin:0 0 8px">Explora operaciones, permisos y respuestas sin tocar SQL Obras.</p>
+        <details style="font-size:0.8em"><summary style="cursor:pointer;color:#3b82f6">Ver que configurar cuando tengas los datos de Distrito K →</summary>
+          <div style="margin-top:8px;background:#dbeafe;border-radius:6px;padding:10px;color:#1e3a8a">
+            <p style="margin:0 0 5px;font-weight:600">Añade en el .env y reinicia DEVIA:</p>
+            <code style="display:block;background:white;padding:2px 6px;border-radius:3px;margin:2px 0">SQLOB_API_URL=http://${dbHint}:8081/</code>
+            <code style="display:block;background:white;padding:2px 6px;border-radius:3px;margin:2px 0">SQLOB_EMPRESA=JUANDEDI</code>
+            <code style="display:block;background:white;padding:2px 6px;border-radius:3px;margin:2px 0">SQLOB_USUARIO=tu_usuario_api</code>
+            <code style="display:block;background:white;padding:2px 6px;border-radius:3px;margin:2px 0">SQLOB_PASSWORD=tu_password</code>
+            <code style="display:block;background:white;padding:2px 6px;border-radius:3px;margin:2px 0">SQLOB_USE_MOCK=false</code>
+          </div>
+        </details>
       </div>`
     : `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
-        <h3 style="margin:0 0 8px;font-size:1em">Variables de entorno (.env)</h3>
-        <p style="font-size:0.78em;color:#64748b;margin:0 0 8px">Leidas del <code>.env</code> del proyecto. Necesarias para la API Real de Distrito K.</p>
+        <h3 style="margin:0 0 8px;font-size:1em">🟠 API Real — Configuracion</h3>
+        <p style="font-size:0.78em;color:#64748b;margin:0 0 8px">Variables del <code>.env</code>. Tras editar el fichero <strong>reinicia DEVIA</strong>.</p>
         <table style="width:100%;font-size:0.82em;border-collapse:collapse">
-          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0;width:44%">SQLOB_API_URL<br><small style="color:#94a3b8">URL base API Distrito K</small></td>
-          <td>${cfg.api_url?`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${cfg.api_url}</code>`:'<span style="color:#dc3545">❌ No configurada</span>'}</td></tr>
-          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0">SQLOB_EMPRESA<br><small style="color:#94a3b8">Codigo empresa SQL Obras</small></td>
-          <td>${cfg.empresa||'<span style="color:#94a3b8">—</span>'}</td></tr>
-          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0">SQLOB_USUARIO<br><small style="color:#94a3b8">Usuario API (no admin)</small></td>
-          <td>${cfg.usuario||'<span style="color:#94a3b8">—</span>'}</td></tr>
-          <tr><td style="color:#64748b;padding:4px 0">SQLOB_PASSWORD</td>
-          <td>${cfg.password_set?'<span style="color:#166534">✅ Configurada</span>':'<span style="color:#dc3545">❌ No configurada</span>'}</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="color:#64748b;padding:5px 0;width:44%">SQLOB_API_URL<br><small style="color:#94a3b8">URL servidor mPYME</small></td>
+            <td>${urlOk?`<code style="background:#f0fdf4;padding:2px 5px;border-radius:3px;color:#166534">${cfg.api_url}</code>`:'<span style="color:#dc3545;font-weight:600">❌ Pendiente</span>'}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="color:#64748b;padding:5px 0">SQLOB_EMPRESA<br><small style="color:#94a3b8">Codigo empresa</small></td>
+            <td>${empresaOk?`<code style="background:#f8fafc;padding:2px 5px;border-radius:3px">${cfg.empresa}</code> <small style="color:#f59e0b">⚠️ confirmar con Distrito K</small>`:'<span style="color:#f59e0b">⚠️ Vacia</span>'}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="color:#64748b;padding:5px 0">SQLOB_USUARIO<br><small style="color:#94a3b8">Usuario API (no SYSDBA)</small></td>
+            <td>${userOk?`<code style="background:#f8fafc;padding:2px 5px;border-radius:3px">${cfg.usuario}</code>`:'<span style="color:#dc3545;font-weight:600">❌ Pendiente</span>'}</td>
+          </tr>
+          <tr>
+            <td style="color:#64748b;padding:5px 0">SQLOB_PASSWORD</td>
+            <td>${passOk?'<span style="color:#166534;font-weight:600">✅ OK</span>':'<span style="color:#dc3545;font-weight:600">❌ Pendiente</span>'}</td>
+          </tr>
         </table>
-        ${!cfg.api_url?`<div style="margin-top:8px;background:#fef2f2;border-radius:5px;padding:8px 10px;font-size:0.78em;color:#991b1b">
-          Añade en el <code>.env</code> de la VM y reinicia DEVIA:<br>
-          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_API_URL=http://${cfg.db_host_hint||'192.168.0.254'}:8081/</code>
-          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_EMPRESA=JDDC</code>
-          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_USUARIO=API_JDDC</code>
-          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_PASSWORD=tu_password</code>
-        </div>`:""}
-        <div style="margin-top:10px">
-          <button onclick="ApiExplorerModule.doDiscover()" class="btn secondary" style="font-size:0.82em;width:100%">🔍 Descubrir URL automaticamente</button>
-          <div style="margin-top:4px;display:flex;gap:6px;align-items:center">
-            <input id="ae-discover-host" type="text" placeholder="Host extra (ej: 192.168.0.10)" class="form-control" style="font-size:0.8em;flex:1">
+        ${!todoConfigurado?`<div style="margin-top:10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:9px;font-size:0.8em;color:#78350f">
+          <strong>Preguntar a Distrito K:</strong>
+          <ol style="margin:5px 0 0;padding-left:16px;line-height:1.9">
+            ${!urlOk?`<li>¿URL exacta del servicio mPYME? (probablemente <code>http://${dbHint}:8081/</code>)</li>`:""}
+            ${!empresaOk?`<li>¿Codigo de empresa? (puede ser numero 1 o texto JUANDEDI)</li>`:""}
+            ${!userOk?`<li>¿Usuario API dedicado con permisos minimos?</li>`:""}
+            ${!passOk?`<li>Password de ese usuario</li>`:""}
+          </ol>
+        </div>`:`<div style="margin-top:8px;background:#dcfce7;border-radius:5px;padding:7px;font-size:0.82em;color:#166534;font-weight:600">✅ Configuracion completa</div>`}
+        <div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:10px">
+          <p style="font-size:0.78em;color:#64748b;margin:0 0 5px">Autodescubrimiento — prueba http://${dbHint} en puertos 8081, 8080, 80, 443...</p>
+          <div style="display:flex;gap:6px">
+            <button onclick="ApiExplorerModule.doDiscover()" class="btn secondary" style="font-size:0.82em;white-space:nowrap">🔍 Descubrir URL</button>
+            <input id="ae-discover-host" type="text" placeholder="IP extra (opcional)" class="form-control" style="font-size:0.8em;flex:1">
           </div>
           <div id="ae-discover-result" style="margin-top:8px"></div>
         </div>
@@ -326,8 +353,8 @@ function renderConexion(s, cfg) {
     <h3 style="margin:0 0 12px;font-size:1em">Login / Logout</h3>
     ${modoMock?'<p style="font-size:0.8em;color:#3b82f6;background:#dbeafe;border-radius:5px;padding:5px 10px;margin-bottom:10px">🔵 Modo simulado: cualquier empresa, usuario y password funcionan.</p>':''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Empresa</label><input id="ae-empresa" type="text" value="${cfg.empresa||'JDDC'}" class="form-control" style="width:100%"></div>
-      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Usuario API</label><input id="ae-usuario" type="text" value="${cfg.usuario||'API_JDDC'}" class="form-control" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Empresa <small style="color:#94a3b8">(confirmar con Distrito K)</small></label><input id="ae-empresa" type="text" value="${cfg.empresa||'JUANDEDI'}" class="form-control" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Usuario API <small style="color:#94a3b8">(pedir a Distrito K)</small></label><input id="ae-usuario" type="text" value="${cfg.usuario||''}" class="form-control" style="width:100%"></div>
       <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Password</label><input id="ae-password" type="password" value="${modoMock?'simulado':''}" class="form-control" placeholder="${modoMock?'(cualquier valor)':'Password API Distrito K'}" style="width:100%"></div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">

@@ -55,6 +55,19 @@ class Settings(BaseSettings):
     JDDCIA_BASE_URL: Optional[str] = "http://jddcia.local/api/vlm/v1"
     JDDCIA_BASE_URL_FALLBACK: Optional[str] = "http://192.168.0.36/api/vlm/v1"
 
+    # ── API Explorador Distrito K / SQL Obras ────────────────────────────
+    # URL base del servicio mPYME API (puerto 8081 segun doc v1.2)
+    # Ejemplo: http://192.168.0.254:8081/
+    SQLOB_API_URL: str = ""
+    # Codigo de empresa en SQL Obras (puede ser numero: 1 o texto: JUANDEDI)
+    SQLOB_EMPRESA: str = ""
+    # Usuario API (pedir a Distrito K, NO usar SYSDBA)
+    SQLOB_USUARIO: str = ""
+    SQLOB_PASSWORD: str = ""
+    SQLOB_TIMEOUT: int = 30
+    SQLOB_VERIFY_SSL: bool = False  # False para red local sin cert valido
+    SQLOB_USE_MOCK: bool = True
+
     # Outlook
     OUTLOOK_EMAIL: Optional[str] = None
     OUTLOOK_PASSWORD: Optional[str] = None
