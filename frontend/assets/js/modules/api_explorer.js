@@ -10,6 +10,7 @@ let _state = {
   history: [], matrix: {}, currentTab: "conexion",
   selectedModulo: null, selectedClase: null, selectedOp: null,
   paramValues: {},
+  loginMsg: null,   // {type: "ok"|"error"|"info", html: string} — persiste entre renders
 };
 
 async function _fetch(path, opts = {}) {
@@ -272,6 +273,36 @@ const noSesion = () => `<div style="background:#fef9c3;border:1px solid #fde047;
 
 function renderConexion(s, cfg) {
   const sesion=s.session_active; const modoMock=s.use_mock;
+  const loginMsgHtml = _state.loginMsg ? _state.loginMsg.html : "";
+
+  const envPanel = modoMock
+    ? `<div style="background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe;padding:16px">
+        <h3 style="margin:0 0 8px;font-size:1em;color:#1e40af">🔵 Modo BD Simulada activo</h3>
+        <p style="font-size:0.83em;color:#3b82f6;margin:0 0 6px">No necesitas ninguna variable de entorno. Los datos son ejemplos representativos basados en la documentacion de la API mPYME 1.2.</p>
+        <p style="font-size:0.82em;color:#64748b;margin:0">Puedes explorar operaciones, permisos y respuestas sin tocar SQL Obras.</p>
+      </div>`
+    : `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
+        <h3 style="margin:0 0 8px;font-size:1em">Variables de entorno (.env)</h3>
+        <p style="font-size:0.78em;color:#64748b;margin:0 0 8px">Leidas del <code>.env</code> del proyecto. Necesarias para la API Real de Distrito K.</p>
+        <table style="width:100%;font-size:0.82em;border-collapse:collapse">
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0;width:44%">SQLOB_API_URL<br><small style="color:#94a3b8">URL base API Distrito K</small></td>
+          <td>${cfg.api_url?`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${cfg.api_url}</code>`:'<span style="color:#dc3545">❌ No configurada</span>'}</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0">SQLOB_EMPRESA<br><small style="color:#94a3b8">Codigo empresa SQL Obras</small></td>
+          <td>${cfg.empresa||'<span style="color:#94a3b8">—</span>'}</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="color:#64748b;padding:4px 0">SQLOB_USUARIO<br><small style="color:#94a3b8">Usuario API (no admin)</small></td>
+          <td>${cfg.usuario||'<span style="color:#94a3b8">—</span>'}</td></tr>
+          <tr><td style="color:#64748b;padding:4px 0">SQLOB_PASSWORD</td>
+          <td>${cfg.password_set?'<span style="color:#166534">✅ Configurada</span>':'<span style="color:#dc3545">❌ No configurada</span>'}</td></tr>
+        </table>
+        ${!cfg.api_url?`<div style="margin-top:8px;background:#fef2f2;border-radius:5px;padding:8px 10px;font-size:0.78em;color:#991b1b">
+          Añade en el <code>.env</code> de la VM y reinicia DEVIA:<br>
+          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_API_URL=https://tu-servidor/api</code>
+          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_EMPRESA=JDDC</code>
+          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_USUARIO=API_JDDC</code>
+          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_PASSWORD=tu_password</code>
+        </div>`:""}
+      </div>`;
+
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
     <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
       <h3 style="margin:0 0 12px;font-size:1em">Modo de conexion</h3>
@@ -281,36 +312,27 @@ function renderConexion(s, cfg) {
       </div>
       <p style="font-size:0.83em;color:#64748b;margin:3px 0">Sesion: ${sesion?`<strong style="color:#166534">${s.empresa}/${s.usuario} ✅</strong>`:'<span style="color:#991b1b">Sin sesion activa</span>'}</p>
       <p style="font-size:0.83em;color:#64748b;margin:3px 0">Escritura: ${s.modo_escritura?'<strong style="color:#d97706">⚠️ ACTIVA</strong>':'<strong style="color:#166534">🟢 Solo lectura</strong>'}</p>
-      ${modoMock?'<p style="font-size:0.78em;color:#3b82f6;margin-top:8px;background:#dbeafe;padding:5px 8px;border-radius:5px">🔵 Los datos en modo simulado son ejemplos representativos, NO datos reales.</p>':''}
     </div>
-    <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
-      <h3 style="margin:0 0 10px;font-size:1em">Variables de entorno (.env)</h3>
-      <table style="width:100%;font-size:0.82em;border-collapse:collapse">
-        <tr><td style="color:#64748b;padding:2px 0;width:42%">SQLOB_API_URL</td><td>${cfg.api_url||'<span style="color:#dc3545">No configurada</span>'}</td></tr>
-        <tr><td style="color:#64748b">SQLOB_EMPRESA</td><td>${cfg.empresa||'—'}</td></tr>
-        <tr><td style="color:#64748b">SQLOB_USUARIO</td><td>${cfg.usuario||'—'}</td></tr>
-        <tr><td style="color:#64748b">SQLOB_PASSWORD</td><td>${cfg.password_set?'<span style="color:#166534">✅</span>':'<span style="color:#dc3545">No configurada</span>'}</td></tr>
-      </table>
-      ${!cfg.api_url?'<p style="font-size:0.77em;color:#dc2626;margin-top:6px;background:#fef2f2;padding:5px 8px;border-radius:4px">Agregar en .env: SQLOB_API_URL, SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD</p>':''}
-    </div>
+    ${envPanel}
   </div>
   <div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:16px">
     <h3 style="margin:0 0 12px;font-size:1em">Login / Logout</h3>
+    ${modoMock?'<p style="font-size:0.8em;color:#3b82f6;background:#dbeafe;border-radius:5px;padding:5px 10px;margin-bottom:10px">🔵 Modo simulado: cualquier empresa, usuario y password funcionan.</p>':''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
       <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Empresa</label><input id="ae-empresa" type="text" value="${cfg.empresa||'JDDC'}" class="form-control" style="width:100%"></div>
       <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Usuario API</label><input id="ae-usuario" type="text" value="${cfg.usuario||'API_JDDC'}" class="form-control" style="width:100%"></div>
-      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Password</label><input id="ae-password" type="password" value="${modoMock?'test123':''}" class="form-control" placeholder="${modoMock?'(cualquier valor en modo simulado)':''}" style="width:100%"></div>
+      <div><label style="font-size:0.82em;color:#64748b;display:block;margin-bottom:3px">Password</label><input id="ae-password" type="password" value="${modoMock?'simulado':''}" class="form-control" placeholder="${modoMock?'(cualquier valor)':'Password API Distrito K'}" style="width:100%"></div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button onclick="ApiExplorerModule.doLogin()" class="btn primary">🔑 Conectar</button>
       <button onclick="ApiExplorerModule.doLogout()" class="btn secondary" ${!sesion?'disabled':''}>🔌 Desconectar</button>
     </div>
-    <div id="ae-login-result" style="margin-top:12px"></div>
+    ${loginMsgHtml ? `<div style="margin-top:12px">${loginMsgHtml}</div>` : ""}
   </div>
-  ${sesion?`<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:12px;margin-top:12px;font-size:0.82em">
-    <strong>Sesion activa</strong> &nbsp;|&nbsp; ssid1: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${s.ssid1_masked}</code> &nbsp;
-    ssid2: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${s.ssid2_masked}</code>
-    <span style="color:#94a3b8;font-size:0.85em">&nbsp;(enmascarados por seguridad)</span>
+  ${sesion?`<div style="background:#dcfce7;border-radius:10px;border:1px solid #86efac;padding:12px;margin-top:12px;font-size:0.82em">
+    <strong>✅ Sesion activa</strong> &nbsp;|&nbsp; ssid1: <code style="background:#f0fdf4;padding:1px 5px;border-radius:3px">${s.ssid1_masked}</code> &nbsp;
+    ssid2: <code style="background:#f0fdf4;padding:1px 5px;border-radius:3px">${s.ssid2_masked}</code>
+    <span style="color:#94a3b8;font-size:0.85em">&nbsp;(enmascarados)</span>
   </div>`:''}`;
 }
 
@@ -477,19 +499,60 @@ const ApiExplorerModule = {
   onOpChange(){const el=document.getElementById("ae-op");if(el)_state.selectedOp=el.value;renderMain();},
   toggleInfoClase(){const el=document.getElementById("ae-info-clase");if(el)el.style.display=el.style.display==="none"?"block":"none";},
   toggleInfoOp(){const el=document.getElementById("ae-info-op");if(el)el.style.display=el.style.display==="none"?"block":"none";},
-  async setModo(m){try{await _fetch("/modo",{method:"POST",body:JSON.stringify({use_mock:m})});_state.status=await _fetch("/status");renderMain();}catch(e){alert(e.message);}},
+  async setModo(m){try{await _fetch("/modo",{method:"POST",body:JSON.stringify({use_mock:m})});_state.status=await _fetch("/status");_state.loginMsg=null;renderMain();}catch(e){alert(e.message);}},
 
 
   async doLogin(){
-    const emp=document.getElementById("ae-empresa")?.value||"",usr=document.getElementById("ae-usuario")?.value||"",pwd=document.getElementById("ae-password")?.value||"";
-    const result=document.getElementById("ae-login-result");
-    if(result) result.innerHTML=`<div style="color:#64748b;font-size:0.85em">Conectando...</div>`;
-    try{
-      const r=await _fetch("/login",{method:"POST",body:JSON.stringify({empresa:emp,usuario:usr,password:pwd})});
-      _state.status=await _fetch("/status");if(result)result.innerHTML=renderResult(r);renderMain();
-    }catch(e){
-      if(result) result.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:4px;padding:10px;color:#991b1b;font-size:0.88em"><strong>Error de conexion</strong><br>${e.message}<br><span style="color:#64748b">Verifica URL, credenciales y acceso de red al servidor.</span></div>`;
+    const emp=document.getElementById("ae-empresa")?.value||"",
+          usr=document.getElementById("ae-usuario")?.value||"",
+          pwd=document.getElementById("ae-password")?.value||"";
+    const isMock = _state.status && _state.status.use_mock;
+
+    // Validar antes de enviar en modo real
+    if(!isMock && !_state.config?.api_url) {
+      _state.loginMsg = {type:"error", html:`
+        <div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px 14px;color:#991b1b">
+          <strong>❌ URL de API no configurada</strong><br>
+          <span style="font-size:0.88em">Para conectar con la API Real necesitas añadir en el archivo <code>.env</code> de la VM:<br><br>
+          <code style="background:#fee2e2;padding:2px 6px;border-radius:3px;display:block;margin:4px 0">SQLOB_API_URL=https://tu-servidor.com/api</code>
+          <code style="background:#fee2e2;padding:2px 6px;border-radius:3px;display:block;margin:4px 0">SQLOB_EMPRESA=JDDC</code>
+          <code style="background:#fee2e2;padding:2px 6px;border-radius:3px;display:block;margin:4px 0">SQLOB_USUARIO=API_JDDC</code>
+          <code style="background:#fee2e2;padding:2px 6px;border-radius:3px;display:block;margin:4px 0">SQLOB_PASSWORD=tu_password</code>
+          Luego reinicia DEVIA para que lea los nuevos valores.</span>
+        </div>`};
+      renderMain(); return;
     }
+    if(!emp||!usr||!pwd) {
+      _state.loginMsg = {type:"error", html:`<div style="background:#fef9c3;border-left:4px solid #fde047;border-radius:6px;padding:10px 14px;color:#92400e">⚠️ Rellena empresa, usuario y password antes de conectar.</div>`};
+      renderMain(); return;
+    }
+
+    _state.loginMsg = {type:"info", html:`<div style="color:#64748b;font-size:0.88em;padding:8px 0">🔄 Conectando${isMock?" (modo simulado)":""}...</div>`};
+    renderMain();
+
+    try{
+      const r = await _fetch("/login",{method:"POST",body:JSON.stringify({empresa:emp,usuario:usr,password:pwd})});
+      _state.status = await _fetch("/status");
+      if(r.estado === "ok") {
+        _state.loginMsg = {type:"ok", html:`<div style="background:#dcfce7;border-left:4px solid #16a34a;border-radius:6px;padding:10px 14px;color:#166534"><strong>✅ Sesion iniciada</strong><br><span style="font-size:0.85em">Empresa: ${emp} | Usuario: ${usr}${isMock?" | 🔵 Modo Simulado":""}</span></div>`};
+      } else {
+        _state.loginMsg = {type:"error", html:`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:10px 14px;color:#991b1b"><strong>❌ Login fallido</strong> (code=${r.code})<br><span style="font-size:0.85em">${r.mensaje||"Credenciales incorrectas o sin acceso."}</span></div>`};
+      }
+    }catch(e){
+      const isUrlError = e.message.includes("fetch") || e.message.includes("Failed") || e.message.includes("Network");
+      _state.loginMsg = {type:"error", html:`
+        <div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px 14px;color:#991b1b">
+          <strong>❌ Error de conexion</strong><br>
+          <span style="font-size:0.88em">${e.message}</span><br>
+          ${isUrlError ? `<span style="font-size:0.82em;color:#64748b;margin-top:6px;display:block">
+            Posibles causas:<br>
+            • La URL de la API no es alcanzable desde este PC<br>
+            • El servidor de Distrito K no está accesible<br>
+            • Verifica VPN, URL y credenciales en el .env
+          </span>` : ""}
+        </div>`};
+    }
+    renderMain();
   },
   async doLogout(){try{await _fetch("/logout",{method:"POST"});_state.status=await _fetch("/status");renderMain();}catch(e){alert(e.message);}},
   async doEjecutar(needsConfirm){
