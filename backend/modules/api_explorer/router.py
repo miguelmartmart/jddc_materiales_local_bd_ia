@@ -24,6 +24,9 @@ class EscrituraRequest(BaseModel):
     activar: bool
     confirmacion: str = ""  # Debe ser "ACTIVAR ESCRITURA" para activar
 
+class DiscoverRequest(BaseModel):
+    host: str = ""  # Host extra a probar (ademas del DB_HOST del .env)
+
 
 @router.get("/status")
 async def get_status():
@@ -108,3 +111,16 @@ async def clear_history():
 async def get_matrix():
     """Matriz de capacidades: resultado de todas las pruebas realizadas."""
     return {"matrix": get_service().get_matrix(), "catalogue": CLASES_POR_MODULO}
+
+@router.post("/discover")
+async def discover_url(request: DiscoverRequest):
+    """
+    Descubrimiento automatico de la URL de la API mPYME.
+    Prueba puertos tipicos (8081 principal segun doc v1.2, mas 8080, 80, 443...)
+    en el servidor Firebird (DB_HOST del .env) y en el host indicado.
+    No requiere sesion activa. Solo lectura, sin riesgo.
+    """
+    try:
+        return get_service().discover_url(extra_host=request.host)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

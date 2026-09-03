@@ -296,11 +296,18 @@ function renderConexion(s, cfg) {
         </table>
         ${!cfg.api_url?`<div style="margin-top:8px;background:#fef2f2;border-radius:5px;padding:8px 10px;font-size:0.78em;color:#991b1b">
           Añade en el <code>.env</code> de la VM y reinicia DEVIA:<br>
-          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_API_URL=https://tu-servidor/api</code>
+          <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_API_URL=http://${cfg.db_host_hint||'192.168.0.254'}:8081/</code>
           <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_EMPRESA=JDDC</code>
           <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_USUARIO=API_JDDC</code>
           <code style="display:block;margin:3px 0;background:#fee2e2;padding:1px 5px;border-radius:3px">SQLOB_PASSWORD=tu_password</code>
         </div>`:""}
+        <div style="margin-top:10px">
+          <button onclick="ApiExplorerModule.doDiscover()" class="btn secondary" style="font-size:0.82em;width:100%">🔍 Descubrir URL automaticamente</button>
+          <div style="margin-top:4px;display:flex;gap:6px;align-items:center">
+            <input id="ae-discover-host" type="text" placeholder="Host extra (ej: 192.168.0.10)" class="form-control" style="font-size:0.8em;flex:1">
+          </div>
+          <div id="ae-discover-result" style="margin-top:8px"></div>
+        </div>
       </div>`;
 
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
@@ -555,6 +562,61 @@ const ApiExplorerModule = {
     renderMain();
   },
   async doLogout(){try{await _fetch("/logout",{method:"POST"});_state.status=await _fetch("/status");renderMain();}catch(e){alert(e.message);}},
+
+  async doDiscover() {
+    const hostInput = document.getElementById("ae-discover-host");
+    const resultDiv = document.getElementById("ae-discover-result");
+    const host = hostInput ? hostInput.value.trim() : "";
+    if (resultDiv) resultDiv.innerHTML = `<div style="color:#64748b;font-size:0.82em;padding:6px 0">🔍 Buscando servidor mPYME en la red... (puede tardar hasta 30s)</div>`;
+    try {
+      const r = await fetch("/api/api-explorer/discover", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({host}),
+      });
+      const d = await r.json();
+      if (!resultDiv) return;
+      const found = d.encontradas || [];
+      let html = `<div style="font-size:0.8em;margin-bottom:6px;color:#64748b">Probadas ${d.total_probadas} URLs en <strong>${d.host_probado}</strong></div>`;
+      if (found.length) {
+        html += `<div style="background:#dcfce7;border-left:3px solid #16a34a;border-radius:5px;padding:8px 12px;margin-bottom:8px">
+          <strong style="color:#166534">✅ Servidor mPYME encontrado</strong><br>
+          <code style="background:#f0fdf4;padding:2px 6px;border-radius:3px;font-size:0.95em">${found[0]}</code><br>
+          <span style="font-size:0.85em;color:#64748b">Copia esta URL en tu .env como SQLOB_API_URL y reinicia DEVIA</span>
+        </div>`;
+      } else {
+        html += `<div style="background:#fef9c3;border-left:3px solid #fde047;border-radius:5px;padding:8px 12px;margin-bottom:8px;color:#92400e">
+          <strong>⚠️ No encontrado automaticamente</strong><br>
+          <span style="font-size:0.85em">Posibles causas: el servicio mPYME no esta instalado/arrancado en el servidor,
+          o usa un puerto distinto. Pregunta a Distrito K cual es la URL exacta.</span>
+        </div>`;
+      }
+      html += `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.78em;color:#64748b">Ver detalle de todas las URLs probadas</summary>
+        <table style="width:100%;border-collapse:collapse;font-size:0.75em;margin-top:6px">
+          <thead><tr style="background:#f8fafc">
+            <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e2e8f0">URL</th>
+            <th style="padding:3px 6px;border-bottom:1px solid #e2e8f0">Estado</th>
+            <th style="padding:3px 6px;border-bottom:1px solid #e2e8f0">ms</th>
+            <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e2e8f0">Detalle</th>
+          </tr></thead><tbody>
+          ${(d.resultados||[]).map(row => {
+            const icon = row.estado==="mpyme_encontrado"?"✅":row.estado==="mpyme_posible"?"🟡":row.estado==="no_responde"?"⬜":"ℹ️";
+            const bg = row.estado==="mpyme_encontrado"?"#f0fdf4":row.estado==="mpyme_posible"?"#fefce8":"";
+            return `<tr style="border-bottom:1px solid #f1f5f9;background:${bg}">
+              <td style="padding:3px 6px;font-family:monospace">${row.url}</td>
+              <td style="text-align:center;padding:3px 6px">${icon}</td>
+              <td style="text-align:center;padding:3px 6px;color:#94a3b8">${row.ms||"—"}</td>
+              <td style="padding:3px 6px;color:#64748b">${row.detalle||"—"}</td>
+            </tr>`;
+          }).join("")}
+          </tbody>
+        </table>
+      </details>`;
+      resultDiv.innerHTML = html;
+    } catch(e) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">Error: ${e.message}</div>`;
+    }
+  },
   async doEjecutar(needsConfirm){
     const clase=document.getElementById("ae-clase")?.value||_state.selectedClase||"",op=document.getElementById("ae-op")?.value||_state.selectedOp||"";
     if(needsConfirm&&document.getElementById("ae-confirm-word")?.value!=="CONFIRMAR"){alert("Escribe exactamente: CONFIRMAR");return;}

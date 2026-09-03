@@ -272,7 +272,105 @@ class ApiExplorerService:
         return self._build(clase,op,params,raw,ms)
 
     def get_status(self): return {"session_active":self.session_active,"empresa":self.session_empresa,"usuario":self.session_usuario,"session_started":self.session_started,"ssid1_masked":f"{self.ssid1[:6]}****" if self.ssid1 else "","ssid2_masked":f"{self.ssid2[:6]}****" if self.ssid2 else "","use_mock":self.use_mock,"modo_escritura":self.modo_escritura}
-    def get_config_env(self): return {"api_url":os.getenv("SQLOB_API_URL",""),"empresa":os.getenv("SQLOB_EMPRESA",""),"usuario":os.getenv("SQLOB_USUARIO",""),"password_set":bool(os.getenv("SQLOB_PASSWORD","")),"timeout":int(os.getenv("SQLOB_TIMEOUT","30")),"verify_ssl":os.getenv("SQLOB_VERIFY_SSL","true").lower()=="true"}
+    def get_config_env(self):
+        db_host = os.getenv("DB_HOST", "")
+        return {
+            "api_url": os.getenv("SQLOB_API_URL", ""),
+            "empresa": os.getenv("SQLOB_EMPRESA", ""),
+            "usuario": os.getenv("SQLOB_USUARIO", ""),
+            "password_set": bool(os.getenv("SQLOB_PASSWORD", "")),
+            "timeout": int(os.getenv("SQLOB_TIMEOUT", "30")),
+            "verify_ssl": os.getenv("SQLOB_VERIFY_SSL", "true").lower() == "true",
+            # Pista: servidor Firebird, probablemente mismo host que mPYME
+            "db_host_hint": db_host,
+            "candidate_urls": self._build_candidate_urls(db_host),
+        }
+
+    def _build_candidate_urls(self, host: str) -> list:
+        """Genera URLs candidatas segun documentacion mPYME v1.2 (puerto 8081 por defecto)."""
+        if not host or host in ("localhost", "127.0.0.1"):
+            hosts = ["localhost", "127.0.0.1"]
+        else:
+            hosts = [host, "localhost"]
+        ports = [8081, 8080, 80, 443, 8443, 8000, 8001]
+        candidates = []
+        for h in hosts:
+            for p in ports:
+                proto = "https" if p in (443, 8443) else "http"
+                candidates.append(f"{proto}://{h}:{p}/")
+        return candidates[:12]
+
+    def discover_url(self, extra_host: str = "") -> dict:
+        """
+        Prueba URLs candidatas segun documentacion mPYME v1.2.
+        Envia method=login con credenciales vacias y observa la respuesta.
+        - HTTP 200 + JSON con 'code' → servidor mPYME encontrado
+        - HTTP 302 → redirige (probablemente HTTPS), seguir redireccion
+        - Conexion rechazada/timeout → no hay servidor en ese puerto
+        """
+        import requests, hashlib, base64
+        db_host = extra_host or os.getenv("DB_HOST", "localhost")
+        candidates = self._build_candidate_urls(db_host)
+        results = []
+        found = []
+
+        for url in candidates:
+            result = {"url": url, "estado": "no_responde", "detalle": "", "ms": 0}
+            try:
+                t0 = time.monotonic()
+                # Peticion minima: login con usuario vacio — suficiente para ver si responde
+                pw = base64.b64encode(hashlib.sha1(b"").digest()).decode()
+                r = requests.post(
+                    url,
+                    data={"method": "login", "user": "", "pass": pw},
+                    timeout=4,
+                    verify=False,
+                    allow_redirects=True,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                ms = round((time.monotonic() - t0) * 1000, 1)
+                result["ms"] = ms
+                result["http"] = r.status_code
+
+                if r.status_code == 200:
+                    try:
+                        j = r.json()
+                        if "code" in j:
+                            result["estado"] = "mpyme_encontrado"
+                            result["detalle"] = f"✅ Servidor mPYME confirmado — responde con code={j.get('code')}"
+                            result["json_muestra"] = str(j)[:200]
+                            found.append(url)
+                        else:
+                            result["estado"] = "http_ok_no_mpyme"
+                            result["detalle"] = f"HTTP 200 pero no parece mPYME (sin campo 'code')"
+                    except Exception:
+                        result["estado"] = "http_ok_no_json"
+                        result["detalle"] = f"HTTP 200 pero respuesta no es JSON: {r.text[:100]}"
+                elif r.status_code in (401, 403, 500):
+                    result["estado"] = "mpyme_posible"
+                    result["detalle"] = f"HTTP {r.status_code} — puede ser mPYME con autenticacion"
+                    found.append(url)
+                elif r.status_code == 302:
+                    result["estado"] = "redirige"
+                    result["detalle"] = f"Redirige a: {r.headers.get('Location','?')}"
+                else:
+                    result["estado"] = "http_otro"
+                    result["detalle"] = f"HTTP {r.status_code}"
+            except requests.exceptions.ConnectTimeout:
+                result["detalle"] = "Timeout de conexion (>4s)"
+            except requests.exceptions.ConnectionError as e:
+                result["detalle"] = f"Sin conexion: {str(e)[:80]}"
+            except Exception as e:
+                result["detalle"] = f"Error: {str(e)[:80]}"
+            results.append(result)
+
+        return {
+            "host_probado": db_host,
+            "total_probadas": len(candidates),
+            "encontradas": found,
+            "recomendacion": found[0] if found else "",
+            "resultados": results,
+        }
     def get_history(self,limit=50): return list(reversed(self._history))[:limit]
     def get_matrix(self): return self._matrix
     def get_catalogue(self): return CLASES_POR_MODULO
