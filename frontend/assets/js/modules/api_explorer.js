@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v6 — Modulo API Explorer de DEVIA. Inspector API completo.
+ * api_explorer.js v8 — Modulo API Explorer de DEVIA. Inspector API completo.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -515,7 +515,31 @@ function _inspClase(cat, cf, dr, isCls) {
 
   const stBg={con_permiso:'#dcfce7',sin_licencia:'#fef2f2',sin_permiso:'#f8fafc',error:'#fef9c3'};
   const stCl={con_permiso:'#166534',sin_licencia:'#991b1b',sin_permiso:'#64748b',error:'#92400e'};
-  const stLb={con_permiso:'✅ Acceso',sin_licencia:'🚫 Sin licencia',sin_permiso:'🔒 Sin permiso',error:'⚠️ Error'};
+  const stLb={con_permiso:'✅ Acceso',sin_licencia:'🚫 Sin licencia',sin_permiso:'🔒 Sin permiso',error:'⚠️ Diagnóstico'};
+
+  // Diagnóstico detallado cuando el servidor devolvió código inesperado
+  let diagH='';
+  if(drC && drC.estado==='error') {
+    const rows=[['permiso',drC.permiso_code,drC.permiso_raw],['info',drC.info_code,drC.info_raw],['browse',drC.browse_code,drC.browse_raw]].filter(([,,r])=>r!=null);
+    const cBg=c=>c===0?'#dcfce7':c===1?'#fef2f2':c===2?'#f1f5f9':'#fef9c3';
+    const cCl=c=>c===0?'#166534':c===1?'#991b1b':c===2?'#64748b':'#92400e';
+    diagH=`<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <p style="margin:0 0 6px;font-weight:600;font-size:0.85em;color:#92400e">⚠️ Diagnóstico — respuesta real del servidor</p>
+      ${drC.error?`<p style="margin:0 0 6px;font-size:0.79em;color:#78350f">${drC.error}</p>`:''}
+      ${drC.nota_permiso?`<p style="margin:0 0 6px;font-size:0.79em;color:#166534;background:#dcfce7;border-radius:5px;padding:3px 8px">ℹ️ ${drC.nota_permiso}</p>`:''}
+      <table style="width:100%;border-collapse:collapse;font-size:0.77em;margin-bottom:6px">
+        <thead><tr style="background:#fde68a"><th style="padding:3px 8px;text-align:left">Op</th><th style="padding:3px 8px">code</th><th style="padding:3px 8px;text-align:left">Respuesta servidor</th></tr></thead>
+        <tbody>${rows.map(([op,code,raw])=>`<tr style="border-bottom:1px solid #fde68a">
+          <td style="padding:3px 8px;font-family:monospace;font-weight:600">${op}</td>
+          <td style="padding:3px 8px;text-align:center"><span style="background:${cBg(code)};color:${cCl(code)};border-radius:4px;padding:1px 6px;font-weight:700">${code??'—'}</span></td>
+          <td style="padding:3px 8px;font-family:monospace;font-size:0.87em;color:#475569;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${JSON.stringify(raw||{}).replace(/"/g,'&quot;')}">${JSON.stringify(raw||{}).slice(0,100)}${JSON.stringify(raw||{}).length>100?'…':''}</td>
+          </tr>`).join('')}
+        </tbody></table>
+      <details style="font-size:0.78em"><summary style="cursor:pointer;color:#92400e">Ver JSON completo</summary>
+        ${rows.map(([op,,raw])=>`<p style="margin:4px 0 2px;font-weight:600;color:#92400e">${op}:</p><pre style="background:#fff7ed;border-radius:4px;padding:6px;overflow:auto;max-height:110px;color:#1e293b;font-size:0.9em">${JSON.stringify(raw,null,2)}</pre>`).join('')}
+      </details></div>`;
+  }
+
   const hdr=`<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
       <span style="font-size:1.4em">${clsDesc.emoji||'📦'}</span>
@@ -537,9 +561,15 @@ function _inspClase(cat, cf, dr, isCls) {
     </div></div>`;
 
   const permH=(drC?.permiso_ops&&Object.keys(drC.permiso_ops).length)?
-    `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px"><p style="margin:0 0 8px;font-weight:600;font-size:0.84em">Permisos reales del servidor</p><div style="display:flex;flex-wrap:wrap;gap:5px">${Object.entries(drC.permiso_ops).map(([op,v])=>`<span style="background:${v?'#dcfce7':'#fef2f2'};color:${v?'#166534':'#991b1b'};border-radius:6px;padding:3px 10px;font-size:0.8em">${v?'✅':'❌'} ${op}</span>`).join('')}</div></div>` : '';
+    `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <p style="margin:0 0 8px;font-weight:600;font-size:0.84em">Permisos reales del servidor</p>
+    ${drC.nota_permiso?`<p style="margin:0 0 6px;font-size:0.79em;color:#166534">ℹ️ ${drC.nota_permiso}</p>`:''}
+    <div style="display:flex;flex-wrap:wrap;gap:5px">${Object.entries(drC.permiso_ops).map(([op,v])=>`<span style="background:${v?'#dcfce7':'#fef2f2'};color:${v?'#166534':'#991b1b'};border-radius:6px;padding:3px 10px;font-size:0.8em">${v?'✅':'❌'} ${op}</span>`).join('')}</div></div>` : '';
 
-  return sel+hdr+opsH+permH+_inspClasetabla(drC,camposDoc,camposReal)+_inspClasemuestra(drC,muestra);
+  const browseErrH=(drC?.browse_error||drC?.browse_error_code!=null)?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.8em;color:#991b1b">⚠️ browse: ${drC.browse_error||''} ${drC.browse_error_msg||''} ${drC.browse_error_code!=null?`(code=${drC.browse_error_code})`:''}
+  </div>`:'';
+
+  return sel+hdr+diagH+opsH+permH+browseErrH+_inspClasetabla(drC,camposDoc,camposReal)+_inspClasemuestra(drC,muestra);
 }
 
 

@@ -621,48 +621,91 @@ class ApiExplorerService:
             try:
                 raw_p, ms_p = self._client().permiso(self.ssid1, self.ssid2, clase)
                 code_p = raw_p.get("code")
+                http_p = raw_p.get("_http_status", 200)
                 entry["permiso_raw"] = {k: v for k, v in raw_p.items() if k != "_http_status"}
+                entry["permiso_code"] = code_p
+                entry["permiso_http"] = http_p
                 if code_p == 0:
-                    # extraer flags de permiso (browse, read, new, write, etc.)
+                    # extraer flags de permiso — pueden estar a nivel raíz o dentro de "data"
+                    raw_data = raw_p.get("data", {})
+                    ops_src = raw_data if isinstance(raw_data, dict) and raw_data else raw_p
                     entry["permiso_ops"] = {
-                        k: v for k, v in raw_p.items()
+                        k: v for k, v in ops_src.items()
                         if k in ("browse","read","new","edit","write","cancel","delete","imputaPro")
                         and isinstance(v, bool)
                     }
                     entry["estado"] = "con_permiso"
                     resumen["con_permiso"] += 1
                 elif code_p == 1:
-                    entry["estado"] = "sin_licencia"; resumen["sin_licencia"] += 1
+                    entry["estado"] = "sin_licencia"
+                    entry["error"] = "Sin licencia para esta clase (code=1)"
+                    resumen["sin_licencia"] += 1
                 elif code_p == 2:
-                    entry["estado"] = "sin_permiso"; resumen["sin_permiso"] += 1
+                    entry["estado"] = "sin_permiso"
+                    entry["error"] = "Usuario sin permiso para esta clase (code=2)"
+                    resumen["sin_permiso"] += 1
                 else:
-                    entry["estado"] = "error"; resumen["error"] += 1
+                    # Código inesperado: puede que 'permiso' no esté soportado en esta versión
+                    # No descartamos la clase — intentamos info y browse igualmente
+                    entry["estado"] = "error"
+                    entry["error"] = f"permiso devolvió code={code_p} (inesperado — se sigue intentando browse/info)"
+                    resumen["error"] += 1
             except Exception as e:
-                entry["estado"] = "error"; entry["error"] = str(e)[:100]; resumen["error"] += 1
+                entry["estado"] = "error"
+                entry["error"] = str(e)[:150]
+                entry["permiso_code"] = -1
+                resumen["error"] += 1
 
-            # 2. info — campos reales del servidor (solo si tenemos acceso)
-            if entry["estado"] == "con_permiso":
-                try:
-                    raw_i, _ = self._client().info(self.ssid1, self.ssid2, clase)
-                    entry["info_raw"] = {k: v for k, v in raw_i.items() if k != "_http_status"}
-                    # extraer lista de campos
-                    fields = raw_i.get("fields") or raw_i.get("data") or raw_i.get("columns") or []
+            # 2. info — campos reales del servidor (se intenta siempre, no solo si con_permiso)
+            try:
+                raw_i, _ = self._client().info(self.ssid1, self.ssid2, clase)
+                entry["info_raw"] = {k: v for k, v in raw_i.items() if k != "_http_status"}
+                entry["info_code"] = raw_i.get("code")
+                if raw_i.get("code") == 0:
+                    # extraer lista de campos — el servidor puede devolverlos en distintas claves
+                    fields = (raw_i.get("fields") or raw_i.get("data")
+                              or raw_i.get("columns") or raw_i.get("items") or [])
                     if isinstance(fields, list):
                         entry["campos_reales"] = fields[:50]
-                except Exception as e:
-                    entry["info_error"] = str(e)[:80]
+                    elif isinstance(fields, dict):
+                        # algunos servidores devuelven dict {campo: tipo}
+                        entry["campos_reales"] = [{"n": k, "tipo": str(v)} for k, v in fields.items()][:50]
+                    # Si info OK pero permiso no → clase accesible aunque permiso retornó código raro
+                    if entry["estado"] == "error":
+                        entry["estado"] = "con_permiso"
+                        resumen["error"] -= 1
+                        resumen["con_permiso"] += 1
+                        entry["nota_permiso"] = (
+                            f"permiso retornó code={entry.get('permiso_code','?')} "
+                            f"pero info OK — clase accesible"
+                        )
+            except Exception as e:
+                entry["info_error"] = str(e)[:80]
 
-                # 3. browse — muestra de datos reales (solo si permiso browse=True o no hay info de permisos)
-                puede_browse = entry["permiso_ops"].get("browse", True)
-                if puede_browse:
-                    try:
-                        raw_b, _ = self._client().browse(self.ssid1, self.ssid2, clase, {})
-                        entry["browse_raw"] = {k: v for k, v in raw_b.items() if k != "_http_status"}
-                        items = raw_b.get("items") or raw_b.get("data") or []
-                        entry["muestra"] = items[:5]  # máx 5 registros de muestra
-                        entry["total_registros"] = raw_b.get("total")
-                    except Exception as e:
-                        entry["browse_error"] = str(e)[:80]
+            # 3. browse — muestra de datos reales (se intenta siempre)
+            puede_browse = entry.get("permiso_ops", {}).get("browse", True)  # asumir True si no hay info
+            try:
+                raw_b, _ = self._client().browse(self.ssid1, self.ssid2, clase, {})
+                entry["browse_raw"] = {k: v for k, v in raw_b.items() if k != "_http_status"}
+                entry["browse_code"] = raw_b.get("code")
+                if raw_b.get("code") == 0:
+                    items = raw_b.get("items") or raw_b.get("data") or []
+                    entry["muestra"] = items[:5]  # máx 5 registros de muestra
+                    entry["total_registros"] = raw_b.get("total")
+                    # Si browse OK pero permiso fue "error" → reclasificar como accesible
+                    if entry["estado"] == "error":
+                        entry["estado"] = "con_permiso"
+                        resumen["error"] -= 1
+                        resumen["con_permiso"] += 1
+                        entry["nota_permiso"] = (
+                            f"permiso retornó code={entry.get('permiso_code','?')} "
+                            f"pero browse OK — datos reales disponibles"
+                        )
+                else:
+                    entry["browse_error_code"] = raw_b.get("code")
+                    entry["browse_error_msg"] = raw_b.get("error") or raw_b.get("msg") or f"code={raw_b.get('code')}"
+            except Exception as e:
+                entry["browse_error"] = str(e)[:80]
 
             # Añadir campos documentados para comparación
             entry["campos_doc"] = campos_doc.get(clase, [])
