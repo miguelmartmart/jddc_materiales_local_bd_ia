@@ -496,6 +496,89 @@ class ApiExplorerService:
         return result
 
 
+
+    def discover_credentials(self, empresa: str, url: str) -> dict:
+        """Prueba credenciales por defecto conocidas. Max 10 intentos, 1s delay. Para al primer exito."""
+        import hashlib, base64, requests as _req
+        MAX = 10; DELAY = 1.0
+        # Credenciales factory/default documentadas para Firebird/SQL Obras. NO es ataque de diccionario.
+        CREDS = [
+            ("SYSDBA","masterkey"), ("SYSDBA",""), ("admin",""), ("admin","admin"),
+            ("admin","1234"), ("admin","sqlworks"), ("ADMIN","masterkey"),
+            ("usuario","usuario"), ("apiuser",""), ("API_JDDC",""),
+        ]
+        url_base = (url or "").rstrip("/")
+        if not url_base:
+            return {"success":False,"error":"URL no proporcionada. Ejecuta antes el Autodescubrimiento de URL.",
+                    "intentos":[],"encontrado":None}
+        def _hash(pw):
+            return base64.b64encode(hashlib.sha1(pw.encode("utf-8")).digest()).decode("ascii")
+        intentos: List[Dict] = []; encontrado: Optional[Dict] = None; n = 0
+        for usr, pw in CREDS:
+            if n >= MAX: logger.warning("[discover_credentials] limite alcanzado"); break
+            if n > 0: time.sleep(DELAY)
+            n += 1; t0 = time.monotonic()
+            it: Dict = {"n":n,"usuario":usr,"password_display":"****" if pw else "(vacia)",
+                        "empresa":empresa or "(sin empresa)","estado":"error","code":None,"mensaje":"","ms":0}
+            try:
+                fields = {"method":"login","user":usr,"pass":_hash(pw)}
+                if empresa: fields["empr"] = empresa
+                r = _req.post(url_base, data=fields, timeout=5, verify=False, allow_redirects=True,
+                              headers={"Content-Type":"application/x-www-form-urlencoded"})
+                ms = round((time.monotonic()-t0)*1000,1); it["ms"] = ms
+                try: d = r.json()
+                except Exception: d = {"raw": r.text[:200]}
+                code = d.get("code"); it["code"] = code
+                if r.status_code == 200 and code == 0:
+                    it["estado"] = "ok"; it["mensaje"] = "Login exitoso — credenciales por defecto aceptadas"
+                    encontrado = {"usuario":usr,"password":pw,"empresa":empresa}
+                    logger.warning(f"[discover_credentials] DEFAULT FUNCIONA: user={usr} url={url_base}")
+                    intentos.append(it); break
+                elif r.status_code in (401,403):
+                    it["estado"] = "rechazado"; it["mensaje"] = f"HTTP {r.status_code}"
+                elif code == 2: it["estado"] = "rechazado"; it["mensaje"] = "code=2 sin permiso"
+                elif code == 1: it["estado"] = "rechazado"; it["mensaje"] = "code=1 sin licencia/empresa"
+                elif code is not None: it["estado"] = "rechazado"; it["mensaje"] = f"code={code}"
+                else: it["estado"] = "sin_info"; it["mensaje"] = f"HTTP {r.status_code} sin code mPYME"
+            except _req.exceptions.ConnectTimeout:
+                it["ms"] = round((time.monotonic()-t0)*1000,1); it["estado"] = "timeout"; it["mensaje"] = "Timeout"
+                intentos.append(it); break
+            except _req.exceptions.ConnectionError as e:
+                it["ms"] = round((time.monotonic()-t0)*1000,1); it["estado"] = "sin_conexion"; it["mensaje"] = str(e)[:60]
+                intentos.append(it); break
+            except Exception as e:
+                it["ms"] = round((time.monotonic()-t0)*1000,1); it["estado"] = "error"; it["mensaje"] = str(e)[:100]
+            intentos.append(it)
+        # Generar recomendacion
+        if encontrado:
+            rec = (f"🚨 CREDENCIALES DEFAULT FUNCIONAN: {encontrado['usuario']} / "
+                   f"{'(sin pass)' if not encontrado['password'] else '****'}. "
+                   "CAMBIA LA CONTRASENA INMEDIATAMENTE y crea un usuario dedicado para la API.")
+        elif all(i["estado"]=="rechazado" for i in intentos):
+            rec = ("✅ Ninguna credencial por defecto funciona. "
+                   "Sistema bien configurado o usa credenciales personalizadas. "
+                   "Pide las credenciales al administrador o a Distrito K.")
+        elif any(i["estado"] in ("timeout","sin_conexion") for i in intentos):
+            rec = "⚠️ Sin conexion al servidor mPYME. Verifica la URL con el Autodescubrimiento de URL."
+        else:
+            rec = "ℹ️ Prueba completada. Si ninguna funciono, pide credenciales al administrador o Distrito K."
+        return {
+            "success": True,
+            "url_probada": url_base,
+            "empresa_probada": empresa or "(sin empresa)",
+            "total_intentos": len(intentos),
+            "max_intentos": MAX,
+            "encontrado": encontrado,
+            "recomendacion": rec,
+            "nota_seguridad": (
+                f"Probadas {len(intentos)} credenciales predeterminadas con {DELAY}s entre cada intento. "
+                "NO es ataque de diccionario. Para al primer exito o al limite de intentos."
+            ),
+            "intentos": intentos,
+        }
+
+
+
 _svc:Optional[ApiExplorerService]=None
 def get_service()->ApiExplorerService:
     global _svc

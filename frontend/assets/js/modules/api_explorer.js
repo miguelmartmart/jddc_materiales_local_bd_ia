@@ -1,5 +1,5 @@
 /**
- * api_explorer.js v4 — Modulo API Explorer de DEVIA.
+ * api_explorer.js v5 — Modulo API Explorer de DEVIA.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -346,6 +346,28 @@ function renderConexion(s, cfg) {
           </div>
           <div id="ae-discover-result" style="margin-top:6px"></div>
           <div id="ae-discover-db-result" style="margin-top:6px"></div>
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 12px;margin-top:6px">
+            <p style="font-size:0.73em;color:#92400e;font-weight:600;margin:0 0 4px">3️⃣ Probar credenciales por defecto (opcional)</p>
+            <p style="font-size:0.71em;color:#b45309;margin:0 0 6px">
+              Prueba hasta 10 combinaciones predeterminadas (SYSDBA/masterkey, admin/admin...) con 1s entre cada intento.
+              No es un ataque — son valores de fábrica documentados. Para al primer éxito.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+              <div>
+                <label style="font-size:0.72em;color:#92400e;display:block;margin-bottom:2px">URL del servidor mPYME</label>
+                <input id="ae-cred-url" type="text" placeholder="http://192.168.0.254:8081/" class="form-control" style="font-size:0.76em;width:100%">
+              </div>
+              <div>
+                <label style="font-size:0.72em;color:#92400e;display:block;margin-bottom:2px">Empresa (puede quedar vacía)</label>
+                <input id="ae-cred-empresa" type="text" placeholder="JUANDEDI o 1" class="form-control" style="font-size:0.76em;width:100%">
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input id="ae-cred-confirm" type="text" placeholder='Escribe: PROBAR CREDENCIALES' class="form-control" style="font-size:0.76em;flex:1;min-width:180px">
+              <button onclick="ApiExplorerModule.doDiscoverCreds()" class="btn secondary" style="font-size:0.76em;background:#fff7ed;border-color:#fed7aa;color:#92400e;white-space:nowrap">🔐 Probar defaults</button>
+            </div>
+            <div id="ae-discover-creds-result" style="margin-top:6px"></div>
+          </div>
         </div>
       </div>`;
 
@@ -719,6 +741,95 @@ const ApiExplorerModule = {
         html += `</div>`;
       }
       html += `</div>`;
+      resultDiv.innerHTML = html;
+    } catch(e) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">❌ Error: ${e.message}</div>`;
+    }
+  },
+
+
+
+  async doDiscoverCreds() {
+    const url = document.getElementById("ae-cred-url")?.value?.trim() || "";
+    const empresa = document.getElementById("ae-cred-empresa")?.value?.trim() || "";
+    const confirm = document.getElementById("ae-cred-confirm")?.value?.trim() || "";
+    const resultDiv = document.getElementById("ae-discover-creds-result");
+
+    if (confirm !== "PROBAR CREDENCIALES") {
+      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fef2f2;border-left:3px solid #dc3545;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#991b1b">
+        ⛔ Escribe exactamente <strong>PROBAR CREDENCIALES</strong> en el campo de confirmación para ejecutar.</div>`;
+      return;
+    }
+    if (!url) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fef9c3;border-left:3px solid #fde047;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#92400e">
+        ⚠️ Introduce la URL del servidor mPYME. Usa primero <strong>🔍 Descubrir URL</strong> para encontrarla.</div>`;
+      return;
+    }
+
+    if (resultDiv) resultDiv.innerHTML = `<div style="color:#92400e;font-size:0.82em;padding:6px 0">
+      🔐 Probando credenciales predeterminadas... (hasta 10 intentos, 1s entre cada uno)</div>`;
+
+    try {
+      const resp = await fetch("/api/api-explorer/discover-credentials", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({empresa, url, confirmacion: "PROBAR CREDENCIALES"}),
+      });
+      const r = await resp.json();
+      if (!resultDiv) return;
+
+      let html = "";
+      // Resultado principal
+      if (r.encontrado) {
+        html += `<div style="background:#fef2f2;border:2px solid #dc3545;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+          <p style="margin:0 0 5px;font-weight:700;color:#991b1b;font-size:0.9em">🚨 CREDENCIALES POR DEFECTO FUNCIONAN</p>
+          <p style="margin:0;font-size:0.85em;color:#991b1b">
+            Usuario: <code style="background:#fee2e2;padding:1px 5px;border-radius:3px">${r.encontrado.usuario}</code>
+            &nbsp; Password: <code style="background:#fee2e2;padding:1px 5px;border-radius:3px">${r.encontrado.password || "(sin password)"}</code>
+          </p>
+          <p style="margin:6px 0 0;font-size:0.82em;color:#7f1d1d">Riesgo de seguridad. Cambia la contraseña inmediatamente.</p>
+          <button onclick="document.getElementById('ae-usuario').value='${r.encontrado.usuario}';document.getElementById('ae-password').value='${r.encontrado.password}'"
+            class="btn secondary" style="font-size:0.76em;margin-top:6px;background:#fee2e2;border-color:#dc3545;color:#991b1b">
+            👆 Usar estos datos para conectar ahora
+          </button>
+        </div>`;
+      } else {
+        const esBueno = r.intentos && r.intentos.every(i => i.estado === "rechazado");
+        html += `<div style="background:${esBueno?"#f0fdf4":"#fefce8"};border-left:3px solid ${esBueno?"#16a34a":"#fde047"};border-radius:5px;padding:8px 12px;margin-bottom:8px;font-size:0.82em">
+          ${esBueno?"✅":"ℹ️"} ${r.recomendacion}</div>`;
+      }
+
+      // Nota de seguridad
+      html += `<div style="background:#f8fafc;border-radius:4px;padding:6px 10px;font-size:0.77em;color:#64748b;margin-bottom:6px">
+        🛡️ ${r.nota_seguridad}</div>`;
+
+      // Tabla de intentos
+      if (r.intentos && r.intentos.length) {
+        html += `<details style="margin-bottom:4px"><summary style="cursor:pointer;font-size:0.8em;color:#64748b;user-select:none">
+          Ver detalle de intentos (${r.total_intentos} / ${r.max_intentos} máximo)</summary>
+          <div style="overflow-x:auto;margin-top:5px"><table style="width:100%;border-collapse:collapse;font-size:0.78em">
+            <thead><tr style="background:#f8fafc">
+              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">#</th>
+              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Usuario</th>
+              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Password</th>
+              <th style="padding:3px 6px;text-align:center;border-bottom:1px solid #e2e8f0">Estado</th>
+              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Detalle</th>
+              <th style="padding:3px 6px;text-align:right;border-bottom:1px solid #e2e8f0">ms</th>
+            </tr></thead><tbody>
+            ${r.intentos.map(it => {
+              const icon = it.estado==="ok"?"✅":it.estado==="rechazado"?"❌":it.estado==="timeout"?"⏱️":it.estado==="sin_conexion"?"🔌":"⚠️";
+              const bg = it.estado==="ok"?"#fef2f2":"";
+              return `<tr style="border-bottom:1px solid #f1f5f9;background:${bg}">
+                <td style="padding:3px 6px;color:#94a3b8">${it.n}</td>
+                <td style="padding:3px 6px;font-family:monospace">${it.usuario}</td>
+                <td style="padding:3px 6px;font-family:monospace;color:#94a3b8">${it.password_display}</td>
+                <td style="padding:3px 6px;text-align:center">${icon} ${it.estado}</td>
+                <td style="padding:3px 6px;color:#64748b">${it.mensaje||"—"}</td>
+                <td style="padding:3px 6px;text-align:right;color:#94a3b8">${it.ms||"—"}</td>
+              </tr>`;
+            }).join("")}
+            </tbody></table></div></details>`;
+      }
       resultDiv.innerHTML = html;
     } catch(e) {
       if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">❌ Error: ${e.message}</div>`;

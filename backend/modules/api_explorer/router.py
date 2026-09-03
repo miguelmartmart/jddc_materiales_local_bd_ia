@@ -27,6 +27,11 @@ class EscrituraRequest(BaseModel):
 class DiscoverRequest(BaseModel):
     host: str = ""  # Host extra a probar (ademas del DB_HOST del .env)
 
+class DiscoverCredentialsRequest(BaseModel):
+    empresa: str = ""       # Codigo de empresa a probar (puede ser vacio)
+    url: str = ""           # URL del servidor mPYME (obtenida del autodescubrimiento)
+    confirmacion: str = ""  # Debe ser "PROBAR CREDENCIALES" para ejecutar
+
 
 @router.get("/status")
 async def get_status():
@@ -122,6 +127,27 @@ async def discover_url(request: DiscoverRequest):
     """
     try:
         return get_service().discover_url(extra_host=request.host)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/discover-credentials")
+async def discover_credentials(request: DiscoverCredentialsRequest):
+    """
+    Prueba credenciales por defecto conocidas contra la API mPYME.
+    SEGURIDAD:
+    - Requiere confirmacion='PROBAR CREDENCIALES' para ejecutar.
+    - Maximo 10 intentos con 1s de delay entre cada uno.
+    - Solo credenciales predeterminadas documentadas (NO diccionario de ataque).
+    - Para al primer exito.
+    - Registra todo en el log del servidor.
+    """
+    if request.confirmacion != "PROBAR CREDENCIALES":
+        raise HTTPException(
+            status_code=400,
+            detail="Confirmacion requerida. Envia confirmacion='PROBAR CREDENCIALES' para ejecutar."
+        )
+    try:
+        return get_service().discover_credentials(request.empresa, request.url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
