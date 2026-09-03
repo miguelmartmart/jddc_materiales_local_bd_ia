@@ -1,0 +1,632 @@
+{
+  "repobjetos": [
+    {
+      "n": "codObjeto",
+      "req": true,
+      "tipo": "str",
+      "desc": "Codigo equipo"
+    },
+    {
+      "n": "descripcion",
+      "tipo": "str",
+      "desc": "Nombre"
+    },
+    {
+      "n": "codInst",
+      "tipo": "str",
+      "desc": "Instalacion"
+    },
+    {
+      "n": "marca",
+      "tipo": "str",
+      "desc": "Marca"
+    },
+    {
+      "n": "modelo",
+      "tipo": "str",
+      "desc": "Modelo"
+    },
+    {
+      "n": "numSerie",
+      "tipo": "str",
+      "desc": "Numero de serie"
+    }
+  ],
+  "proyectos": [
+    {
+      "desc": "Codigo unico (ej: 25/184)",
+      "n": "codProyecto",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "Nombre de la obra",
+      "n": "descripcion",
+      "tipo": "str"
+    },
+    {
+      "desc": "activo/cerrado/presupuesto",
+      "n": "estado",
+      "tipo": "str"
+    },
+    {
+      "desc": "Cliente propietario",
+      "n": "cliente",
+      "tipo": "str"
+    },
+    {
+      "desc": "Fecha inicio AAAAMMDD",
+      "n": "fechaInicio",
+      "tipo": "date"
+    },
+    {
+      "desc": "Fecha fin prevista",
+      "n": "fechaFin",
+      "tipo": "date"
+    },
+    {
+      "desc": "Importe presupuestado",
+      "n": "importePrevisto",
+      "tipo": "decimal"
+    },
+    {
+      "desc": "Importe ejecutado",
+      "n": "importeRealizado",
+      "tipo": "decimal"
+    }
+  ],
+  "tipostrabajo": [
+    {
+      "n": "codTipo",
+      "req": true,
+      "tipo": "str",
+      "desc": "Codigo"
+    },
+    {
+      "n": "descripcion",
+      "tipo": "str",
+      "desc": "Descripcion"
+    }
+  ],
+  "repinst": [
+    {
+      "n": "codInst",
+      "req": true,
+      "tipo": "str",
+      "desc": "Codigo instalacion"
+    },
+    {
+      "n": "descripcion",
+      "tipo": "str",
+      "desc": "Nombre"
+    },
+    {
+      "n": "direccion",
+      "tipo": "str",
+      "desc": "Direccion"
+    },
+    {
+      "n": "cliente",
+      "tipo": "str",
+      "desc": "Cliente"
+    }
+  ],
+  "articulos": [
+    {
+      "req": true,
+      "n": "codArticulo",
+      "desc": "Codigo (ej: 1#100142)",
+      "tipo": "str"
+    },
+    {
+      "n": "descripcion",
+      "desc": "Nombre",
+      "tipo": "str"
+    },
+    {
+      "n": "familia",
+      "desc": "Familia/categoria",
+      "tipo": "str"
+    },
+    {
+      "n": "unidad",
+      "desc": "Unidad de medida",
+      "tipo": "str"
+    },
+    {
+      "n": "precioCoste",
+      "desc": "Precio coste",
+      "tipo": "decimal"
+    },
+    {
+      "n": "precioVenta",
+      "desc": "Precio venta",
+      "tipo": "decimal"
+    },
+    {
+      "n": "stock",
+      "desc": "Stock actual",
+      "tipo": "decimal"
+    },
+    {
+      "n": "proveedor",
+      "desc": "Proveedor habitual",
+      "tipo": "str"
+    },
+    {
+      "n": "referencia",
+      "desc": "Referencia proveedor",
+      "tipo": "str"
+    }
+  ],
+  "recursos": [
+    {
+      "req": true,
+      "n": "codRecurso",
+      "desc": "Codigo",
+      "tipo": "str"
+    },
+    {
+      "n": "descripcion",
+      "desc": "Nombre",
+      "tipo": "str"
+    },
+    {
+      "n": "tipo",
+      "desc": "EMPLEADO/MAQUINARIA/OTRO",
+      "tipo": "str"
+    },
+    {
+      "n": "costeHoraNormal",
+      "desc": "Coste hora normal",
+      "tipo": "decimal"
+    },
+    {
+      "n": "costeHoraExtra",
+      "desc": "Coste hora extra",
+      "tipo": "decimal"
+    },
+    {
+      "n": "costeHoraFestivo",
+      "desc": "Coste hora festivo",
+      "tipo": "decimal"
+    },
+    {
+      "n": "precioHora",
+      "desc": "Precio hora venta",
+      "tipo": "decimal"
+    }
+  ],
+  "repordutil": [
+    {
+      "n": "codOrden",
+      "req": true,
+      "tipo": "str",
+      "desc": "Orden de reparacion"
+    },
+    {
+      "n": "codRecurso",
+      "req": true,
+      "tipo": "str",
+      "desc": "Articulo o recurso"
+    },
+    {
+      "n": "tipo",
+      "tipo": "str",
+      "desc": "M=Material R=Recurso/hora"
+    },
+    {
+      "n": "cantidad",
+      "req": true,
+      "tipo": "decimal",
+      "desc": "Cantidad o horas"
+    },
+    {
+      "n": "coste",
+      "req": true,
+      "tipo": "decimal",
+      "desc": "Coste unitario"
+    },
+    {
+      "n": "precio",
+      "tipo": "decimal",
+      "desc": "Precio venta"
+    },
+    {
+      "n": "fecha",
+      "tipo": "date",
+      "desc": "Fecha uso AAAAMMDD"
+    },
+    {
+      "n": "duracion",
+      "tipo": "decimal",
+      "desc": "Duracion en minutos"
+    },
+    {
+      "n": "horaInicio",
+      "tipo": "time",
+      "desc": "Hora inicio"
+    },
+    {
+      "n": "horaFin",
+      "tipo": "time",
+      "desc": "Hora fin"
+    }
+  ],
+  "docpedcom": [
+    {
+      "req": true,
+      "n": "codDocumento",
+      "desc": "Numero pedido",
+      "tipo": "str"
+    },
+    {
+      "n": "proveedor",
+      "desc": "Proveedor",
+      "tipo": "str"
+    },
+    {
+      "n": "fecha",
+      "desc": "Fecha",
+      "tipo": "date"
+    },
+    {
+      "n": "estado",
+      "desc": "pendiente/parcial/completo",
+      "tipo": "str"
+    }
+  ],
+  "proveedores": [
+    {
+      "req": true,
+      "n": "codProv",
+      "desc": "Codigo",
+      "tipo": "str"
+    },
+    {
+      "n": "nombre",
+      "desc": "Razon social",
+      "tipo": "str"
+    },
+    {
+      "n": "cif",
+      "desc": "CIF/NIF",
+      "tipo": "str"
+    },
+    {
+      "n": "telefono",
+      "desc": "Telefono",
+      "tipo": "str"
+    },
+    {
+      "n": "email",
+      "desc": "Email",
+      "tipo": "str"
+    },
+    {
+      "n": "formaPago",
+      "desc": "Forma de pago",
+      "tipo": "str"
+    }
+  ],
+  "reporden": [
+    {
+      "n": "codOrden",
+      "req": true,
+      "tipo": "str",
+      "desc": "Codigo de la orden"
+    },
+    {
+      "n": "descripcion",
+      "tipo": "str",
+      "desc": "Descripcion del trabajo"
+    },
+    {
+      "n": "estado",
+      "tipo": "str",
+      "desc": "abierta/cerrada/en_proceso"
+    },
+    {
+      "n": "codObjeto",
+      "tipo": "str",
+      "desc": "Equipo a reparar"
+    },
+    {
+      "n": "codInst",
+      "tipo": "str",
+      "desc": "Instalacion"
+    },
+    {
+      "n": "tipoTrabajo",
+      "tipo": "str",
+      "desc": "Tipo de trabajo"
+    },
+    {
+      "n": "tecnico",
+      "tipo": "str",
+      "desc": "Tecnico asignado"
+    },
+    {
+      "n": "fechaApertura",
+      "tipo": "date",
+      "desc": "Fecha apertura AAAAMMDD"
+    },
+    {
+      "n": "fechaCierre",
+      "tipo": "date",
+      "desc": "Fecha cierre"
+    }
+  ],
+  "docalbcom": [
+    {
+      "req": true,
+      "n": "codDocumento",
+      "desc": "Numero albaran",
+      "tipo": "str"
+    },
+    {
+      "n": "proveedor",
+      "desc": "Proveedor",
+      "tipo": "str"
+    },
+    {
+      "n": "fecha",
+      "desc": "Fecha",
+      "tipo": "date"
+    },
+    {
+      "n": "total",
+      "desc": "Importe total",
+      "tipo": "decimal"
+    },
+    {
+      "n": "codProyecto",
+      "desc": "Proyecto imputado",
+      "tipo": "str"
+    },
+    {
+      "n": "codPartida",
+      "desc": "Partida imputada",
+      "tipo": "str"
+    }
+  ],
+  "clientes": [
+    {
+      "req": true,
+      "n": "codCliente",
+      "desc": "Codigo",
+      "tipo": "str"
+    },
+    {
+      "n": "nombre",
+      "desc": "Razon social",
+      "tipo": "str"
+    },
+    {
+      "n": "cif",
+      "desc": "CIF/NIF",
+      "tipo": "str"
+    },
+    {
+      "n": "telefono",
+      "desc": "Telefono",
+      "tipo": "str"
+    },
+    {
+      "n": "email",
+      "desc": "Email",
+      "tipo": "str"
+    }
+  ],
+  "partidas": [
+    {
+      "desc": "Proyecto padre",
+      "n": "codProyecto",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "Codigo partida (ej: 03.02)",
+      "n": "codPartida",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "Descripcion",
+      "n": "descripcion",
+      "tipo": "str"
+    },
+    {
+      "desc": "Nivel jerarquico",
+      "n": "nivel",
+      "tipo": "int"
+    },
+    {
+      "desc": "Importe previsto",
+      "n": "importePrevisto",
+      "tipo": "decimal"
+    },
+    {
+      "desc": "Importe realizado",
+      "n": "importeRealizado",
+      "tipo": "decimal"
+    }
+  ],
+  "ordenfab": [
+    {
+      "req": true,
+      "n": "codOrden",
+      "desc": "Codigo orden",
+      "tipo": "str"
+    },
+    {
+      "n": "articulo",
+      "desc": "Articulo a fabricar",
+      "tipo": "str"
+    },
+    {
+      "n": "cantidad",
+      "desc": "Cantidad",
+      "tipo": "decimal"
+    },
+    {
+      "n": "estado",
+      "desc": "Estado",
+      "tipo": "str"
+    },
+    {
+      "n": "fechaInicio",
+      "desc": "Fecha inicio",
+      "tipo": "date"
+    }
+  ],
+  "proordutil": [
+    {
+      "desc": "Proyecto destino",
+      "n": "codProyecto",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "Partida destino",
+      "n": "codPartida",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "M=Material R=Recurso/mano de obra",
+      "n": "tipo",
+      "tipo": "str",
+      "req": true
+    },
+    {
+      "desc": "Codigo articulo (si tipo=M)",
+      "n": "codArticulo",
+      "tipo": "str"
+    },
+    {
+      "desc": "Codigo recurso (si tipo=R)",
+      "n": "codRecurso",
+      "tipo": "str"
+    },
+    {
+      "desc": "Descripcion libre",
+      "n": "descripcion",
+      "tipo": "str"
+    },
+    {
+      "desc": "Cantidad consumida",
+      "n": "cantidad",
+      "tipo": "decimal",
+      "req": true
+    },
+    {
+      "desc": "Coste unitario euros",
+      "n": "coste",
+      "tipo": "decimal",
+      "req": true
+    },
+    {
+      "desc": "Precio venta unitario",
+      "n": "precio",
+      "tipo": "decimal"
+    },
+    {
+      "desc": "Unidad: m, ud, h, kg...",
+      "n": "unidad",
+      "tipo": "str"
+    },
+    {
+      "desc": "Fecha imputacion AAAAMMDD",
+      "n": "fecha",
+      "tipo": "date"
+    },
+    {
+      "desc": "Notas adicionales",
+      "n": "observaciones",
+      "tipo": "str"
+    },
+    {
+      "desc": "[solo lectura] ID asignado por servidor tras write",
+      "n": "codDocumento",
+      "tipo": "str"
+    }
+  ],
+  "proordprev": [
+    {
+      "n": "codProyecto",
+      "req": true,
+      "tipo": "str",
+      "desc": "Proyecto"
+    },
+    {
+      "n": "codPartida",
+      "req": true,
+      "tipo": "str",
+      "desc": "Partida"
+    },
+    {
+      "n": "tipo",
+      "tipo": "str",
+      "desc": "M=Material R=Recurso"
+    },
+    {
+      "n": "codArticulo",
+      "tipo": "str",
+      "desc": "Articulo (si tipo=M)"
+    },
+    {
+      "n": "codRecurso",
+      "tipo": "str",
+      "desc": "Recurso (si tipo=R)"
+    },
+    {
+      "n": "cantidad",
+      "tipo": "decimal",
+      "desc": "Cantidad prevista"
+    },
+    {
+      "n": "coste",
+      "tipo": "decimal",
+      "desc": "Coste unitario previsto"
+    },
+    {
+      "n": "precio",
+      "tipo": "decimal",
+      "desc": "Precio venta previsto"
+    }
+  ],
+  "docfaccom": [
+    {
+      "req": true,
+      "n": "codDocumento",
+      "desc": "Numero factura",
+      "tipo": "str"
+    },
+    {
+      "n": "proveedor",
+      "desc": "Proveedor",
+      "tipo": "str"
+    },
+    {
+      "n": "fecha",
+      "desc": "Fecha",
+      "tipo": "date"
+    },
+    {
+      "n": "total",
+      "desc": "Importe total",
+      "tipo": "decimal"
+    },
+    {
+      "n": "iva",
+      "desc": "IVA",
+      "tipo": "decimal"
+    },
+    {
+      "n": "baseImponible",
+      "desc": "Base imponible",
+      "tipo": "decimal"
+    }
+  ]
+}

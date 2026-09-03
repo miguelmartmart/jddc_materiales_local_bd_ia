@@ -1,0 +1,95 @@
+{
+  "permiso": {
+    "riesgo": 0,
+    "desc": "Consulta permisos del usuario sobre esta clase: browse/read/new/edit/write/cancel/delete.",
+    "notas": "Fundamental para auditar licencias. Ejecutar PRIMERO para saber que permite vuestra licencia.",
+    "params_req": [],
+    "params_opt": [],
+    "ejemplo_raw": "method=permiso&ssid1=XXX&ssid2=XXX&objectclass=proordutil"
+  },
+  "info": {
+    "riesgo": 0,
+    "desc": "Devuelve metadatos de campos: nombre, tipo, longitud, descripcion, si es obligatorio.",
+    "notas": "Descubre la estructura REAL de la clase en vuestro servidor. Puede diferir del PDF.",
+    "params_req": [],
+    "params_opt": [],
+    "ejemplo_raw": "method=info&ssid1=XXX&ssid2=XXX&objectclass=proyectos"
+  },
+  "browse": {
+    "riesgo": 0,
+    "desc": "Lista registros. Soporta filtros JSON, paginacion y seleccion de campos.",
+    "notas": "Devuelve {items:[...], total:N}. Paginacion nativa con page/pagesize.",
+    "params_req": [],
+    "params_opt": [
+      {"n":"filter",   "tipo":"json", "desc":"Filtros como objeto JSON: {campo: valor}"},
+      {"n":"columns",  "tipo":"json", "desc":"Campos a devolver: [\"campo1\",\"campo2\"]"},
+      {"n":"page",     "tipo":"int",  "desc":"Numero de pagina (desde 1)"},
+      {"n":"pagesize", "tipo":"int",  "desc":"Registros por pagina (defecto: 25)"},
+      {"n":"order",    "tipo":"str",  "desc":"Campo de ordenacion"}
+    ],
+    "ejemplo_raw": "method=browse&objectclass=proyectos&filter={\"estado\":\"activo\"}"
+  },
+  "read": {
+    "riesgo": 0,
+    "desc": "Lee un registro especifico por su identificador (objectid).",
+    "notas": "Devuelve el registro completo con todos sus campos.",
+    "params_req": [{"n":"objectid","tipo":"str","desc":"Identificador del registro","req":true}],
+    "params_opt": [{"n":"columns","tipo":"json","desc":"Campos a devolver"}],
+    "ejemplo_raw": "method=read&objectclass=proyectos&objectid=25/184"
+  },
+  "new": {
+    "riesgo": 1,
+    "desc": "Crea objeto TEMPORAL en sesion. NO persiste hasta que se llame a write.",
+    "notas": "Seguro: no modifica datos hasta write. Usar cancel para descartar sin persistir.",
+    "params_req": [],
+    "params_opt": [{"n":"objectid","tipo":"str","desc":"ID opcional (el servidor asigna 'new' si no se indica)"}],
+    "ejemplo_raw": "method=new&objectclass=proordutil&objectid=new"
+  },
+  "edit": {
+    "riesgo": 1,
+    "desc": "Carga registro existente en sesion para modificarlo. NO persiste hasta write.",
+    "notas": "Igual que new pero sobre un registro ya existente.",
+    "params_req": [{"n":"objectid","tipo":"str","desc":"ID del registro a editar","req":true}],
+    "params_opt": [],
+    "ejemplo_raw": "method=edit&objectclass=proordutil&objectid=DOC123"
+  },
+  "write": {
+    "riesgo": 2,
+    "desc": "PERSISTE en SQL Obras el objeto temporal de new/edit. IRREVERSIBLE.",
+    "notas": "Tras write el servidor devuelve codDocumento definitivo. No se puede deshacer.",
+    "params_req": [
+      {"n":"objectid","tipo":"str", "desc":"ID del objeto temporal","req":true},
+      {"n":"data",    "tipo":"json","desc":"Datos del registro como objeto JSON","req":true}
+    ],
+    "params_opt": [],
+    "ejemplo_raw": "method=write&objectclass=proordutil&objectid=new&data={...}"
+  },
+  "cancel": {
+    "riesgo": 0,
+    "desc": "Descarta el objeto temporal de la sesion. No persiste nada. Siempre seguro.",
+    "notas": "Usar siempre que se haga new/edit y no se quiera persistir.",
+    "params_req": [{"n":"objectid","tipo":"str","desc":"ID del objeto temporal","req":true}],
+    "params_opt": [],
+    "ejemplo_raw": "method=cancel&objectclass=proordutil&objectid=new"
+  },
+  "delete": {
+    "riesgo": 3,
+    "desc": "Elimina un registro de SQL Obras. DESTRUCTIVO e IRREVERSIBLE.",
+    "notas": "No disponible en todas las clases. Verificar permiso antes. Doble confirmacion.",
+    "params_req": [{"n":"objectid","tipo":"str","desc":"ID del registro a eliminar","req":true}],
+    "params_opt": [],
+    "ejemplo_raw": "method=delete&objectclass=proordutil&objectid=DOC123"
+  },
+  "imputaPro": {
+    "riesgo": 2,
+    "desc": "Vincula una linea de compra directamente a un proyecto/partida como coste real.",
+    "notas": "Documentado EXPLICITAMENTE para docalbcom y docfaccom. Para docpedcom usa 'previsiblemente' — NO CONFIRMADO. Se ejecuta via exec+action=imputaPro.",
+    "params_req": [
+      {"n":"codMaestro",  "tipo":"str","desc":"Codigo del proyecto destino","req":true},
+      {"n":"codDetalle",  "tipo":"str","desc":"Codigo de la partida destino","req":true},
+      {"n":"subcontrata", "tipo":"str","desc":"T=es subcontrata  F=no es subcontrata","req":true}
+    ],
+    "params_opt": [],
+    "ejemplo_raw": "method=exec&action=imputaPro&params={\"codMaestro\":\"25/184\",\"codDetalle\":\"03.02\",\"subcontrata\":\"F\"}"
+  }
+}

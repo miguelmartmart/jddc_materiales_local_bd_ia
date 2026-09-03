@@ -579,6 +579,107 @@ class ApiExplorerService:
 
 
 
+
+    def discover_all(self) -> dict:
+        """
+        Descubrimiento COMPLETO de la API: ejecuta permiso+info+browse en TODAS las clases.
+        Solo se ejecuta si hay sesion activa. Solo lectura, sin riesgo.
+        Devuelve para cada clase: permisos reales, campos reales (info), y muestra de datos (browse).
+        """
+        from backend.modules.api_explorer.api_catalogue_full import get_catalogue, get_campos_clase, CODIGOS_RESPUESTA
+
+        if not self.session_active:
+            return {"success": False, "error": "Sin sesion activa. Haz login primero."}
+
+        catalogue = get_catalogue()
+        campos_doc = get_campos_clase()
+
+        # Recopilar todas las clases del catalogo
+        todas_clases = []
+        for mod_data in catalogue.values():
+            todas_clases.extend(mod_data.get("clases", []))
+
+        resultados = {}
+        resumen = {"total": 0, "con_permiso": 0, "sin_permiso": 0, "sin_licencia": 0, "error": 0}
+
+        for clase in todas_clases:
+            resumen["total"] += 1
+            entry = {
+                "clase": clase,
+                "permiso_raw": None,
+                "permiso_ops": {},
+                "info_raw": None,
+                "campos_reales": [],
+                "browse_raw": None,
+                "muestra": [],
+                "total_registros": None,
+                "estado": "pendiente",
+                "error": None,
+            }
+
+            # 1. permiso — saber qué operaciones permite la licencia
+            try:
+                raw_p, ms_p = self._client().permiso(self.ssid1, self.ssid2, clase)
+                code_p = raw_p.get("code")
+                entry["permiso_raw"] = {k: v for k, v in raw_p.items() if k != "_http_status"}
+                if code_p == 0:
+                    # extraer flags de permiso (browse, read, new, write, etc.)
+                    entry["permiso_ops"] = {
+                        k: v for k, v in raw_p.items()
+                        if k in ("browse","read","new","edit","write","cancel","delete","imputaPro")
+                        and isinstance(v, bool)
+                    }
+                    entry["estado"] = "con_permiso"
+                    resumen["con_permiso"] += 1
+                elif code_p == 1:
+                    entry["estado"] = "sin_licencia"; resumen["sin_licencia"] += 1
+                elif code_p == 2:
+                    entry["estado"] = "sin_permiso"; resumen["sin_permiso"] += 1
+                else:
+                    entry["estado"] = "error"; resumen["error"] += 1
+            except Exception as e:
+                entry["estado"] = "error"; entry["error"] = str(e)[:100]; resumen["error"] += 1
+
+            # 2. info — campos reales del servidor (solo si tenemos acceso)
+            if entry["estado"] == "con_permiso":
+                try:
+                    raw_i, _ = self._client().info(self.ssid1, self.ssid2, clase)
+                    entry["info_raw"] = {k: v for k, v in raw_i.items() if k != "_http_status"}
+                    # extraer lista de campos
+                    fields = raw_i.get("fields") or raw_i.get("data") or raw_i.get("columns") or []
+                    if isinstance(fields, list):
+                        entry["campos_reales"] = fields[:50]
+                except Exception as e:
+                    entry["info_error"] = str(e)[:80]
+
+                # 3. browse — muestra de datos reales (solo si permiso browse=True o no hay info de permisos)
+                puede_browse = entry["permiso_ops"].get("browse", True)
+                if puede_browse:
+                    try:
+                        raw_b, _ = self._client().browse(self.ssid1, self.ssid2, clase, {})
+                        entry["browse_raw"] = {k: v for k, v in raw_b.items() if k != "_http_status"}
+                        items = raw_b.get("items") or raw_b.get("data") or []
+                        entry["muestra"] = items[:5]  # máx 5 registros de muestra
+                        entry["total_registros"] = raw_b.get("total")
+                    except Exception as e:
+                        entry["browse_error"] = str(e)[:80]
+
+            # Añadir campos documentados para comparación
+            entry["campos_doc"] = campos_doc.get(clase, [])
+            resultados[clase] = entry
+            time.sleep(0.15)  # pausa mínima entre clases para no saturar
+
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "sesion": {"empresa": self.session_empresa, "usuario": self.session_usuario},
+            "use_mock": self.use_mock,
+            "resumen": resumen,
+            "clases": resultados,
+            "catalogue": catalogue,
+        }
+
+
 _svc:Optional[ApiExplorerService]=None
 def get_service()->ApiExplorerService:
     global _svc

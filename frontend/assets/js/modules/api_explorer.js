@@ -1,5 +1,5 @@
-/**
- * api_explorer.js v5 — Modulo API Explorer de DEVIA.
+ /**
+ * api_explorer.js v6 — Modulo API Explorer de DEVIA. Inspector API completo.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -10,7 +10,11 @@ let _state = {
   history: [], matrix: {}, currentTab: "conexion",
   selectedModulo: null, selectedClase: null, selectedOp: null,
   paramValues: {},
-  loginMsg: null,   // {type: "ok"|"error"|"info", html: string} — persiste entre renders
+  loginMsg: null,
+  catalogueFull: null,      // catálogo completo documentado (operaciones, campos, codigos)
+  discoverResult: null,     // resultado del discover-all (permisos+info+browse reales)
+  inspectorClase: null,     // clase seleccionada en el Inspector
+  inspectorTab: "resumen",  // sub-pestaña del Inspector: resumen | clase | operaciones | codigos
 };
 
 async function _fetch(path, opts = {}) {
@@ -229,7 +233,7 @@ function renderMain() {
       ? `<div style="background:#dcfce7;border-left:4px solid #16a34a;padding:8px 14px;border-radius:4px;margin-bottom:10px;font-size:0.85em;color:#166534">🟢 <strong>API Real conectada</strong> — Los datos que ves son REALES de SQL Obras.</div>`
       : "");
 
-  const TABS = [["conexion","🔌 Conexion"],["explorador","🔬 Explorador"],["permisos","🔍 Permisos"],["matriz","📊 Matriz"],["historial","📜 Historial"],["escritura","🟠 Escritura"]];
+  const TABS = [["conexion","🔌 Conexion"],["inspector","🔍 Inspector API"],["explorador","⚙️ Explorador"],["permisos","📋 Permisos"],["matriz","📊 Matriz"],["historial","📜 Historial"],["escritura","🟠 Escritura"]];
   const tabBar = `<div style="display:flex;gap:2px;margin-bottom:18px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
     ${TABS.map(([id,lbl])=>`<button onclick="ApiExplorerModule.setTab('${id}')" style="padding:8px 14px;border:none;background:${_state.currentTab===id?'#3b82f6':'transparent'};color:${_state.currentTab===id?'white':'#64748b'};border-radius:6px 6px 0 0;cursor:pointer;font-size:0.88em;font-weight:${_state.currentTab===id?'600':'400'};transition:all 0.15s">${lbl}</button>`).join('')}
   </div>`;
@@ -260,6 +264,7 @@ function renderTab(s) {
   hist.forEach(r=>{if(resumen[r.estado]!==undefined)resumen[r.estado]++;});
 
   if (_state.currentTab === "conexion") return renderConexion(s, cfg);
+  if (_state.currentTab === "inspector") return renderInspector(s);
   if (_state.currentTab === "explorador") return renderExplorador(s, modulos, mod, clases, cls, ops, op, riesgo, RLBL);
   if (_state.currentTab === "permisos") return !s.session_active ? noSesion() : renderPermisos(CLASSES, ops_cols, permisoR);
   if (_state.currentTab === "matriz") return renderMatriz(catalogue, mat);
@@ -346,28 +351,6 @@ function renderConexion(s, cfg) {
           </div>
           <div id="ae-discover-result" style="margin-top:6px"></div>
           <div id="ae-discover-db-result" style="margin-top:6px"></div>
-          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 12px;margin-top:6px">
-            <p style="font-size:0.73em;color:#92400e;font-weight:600;margin:0 0 4px">3️⃣ Probar credenciales por defecto (opcional)</p>
-            <p style="font-size:0.71em;color:#b45309;margin:0 0 6px">
-              Prueba hasta 10 combinaciones predeterminadas (SYSDBA/masterkey, admin/admin...) con 1s entre cada intento.
-              No es un ataque — son valores de fábrica documentados. Para al primer éxito.
-            </p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-              <div>
-                <label style="font-size:0.72em;color:#92400e;display:block;margin-bottom:2px">URL del servidor mPYME</label>
-                <input id="ae-cred-url" type="text" placeholder="http://192.168.0.254:8081/" class="form-control" style="font-size:0.76em;width:100%">
-              </div>
-              <div>
-                <label style="font-size:0.72em;color:#92400e;display:block;margin-bottom:2px">Empresa (puede quedar vacía)</label>
-                <input id="ae-cred-empresa" type="text" placeholder="JUANDEDI o 1" class="form-control" style="font-size:0.76em;width:100%">
-              </div>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <input id="ae-cred-confirm" type="text" placeholder='Escribe: PROBAR CREDENCIALES' class="form-control" style="font-size:0.76em;flex:1;min-width:180px">
-              <button onclick="ApiExplorerModule.doDiscoverCreds()" class="btn secondary" style="font-size:0.76em;background:#fff7ed;border-color:#fed7aa;color:#92400e;white-space:nowrap">🔐 Probar defaults</button>
-            </div>
-            <div id="ae-discover-creds-result" style="margin-top:6px"></div>
-          </div>
         </div>
       </div>`;
 
@@ -402,6 +385,264 @@ function renderConexion(s, cfg) {
     ssid2: <code style="background:#f0fdf4;padding:1px 5px;border-radius:3px">${s.ssid2_masked}</code>
     <span style="color:#94a3b8;font-size:0.85em">&nbsp;(enmascarados)</span>
   </div>`:''}`;
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// INSPECTOR API — descubrimiento completo con datos reales
+// ═══════════════════════════════════════════════════════════════
+function renderInspector(s) {
+  const cf  = _state.catalogueFull;
+  const dr  = _state.discoverResult;
+  const iTab = _state.inspectorTab || "resumen";
+  const cls  = _state.inspectorClase;
+
+  // Sub-pestañas del Inspector
+  const ITABS = [["resumen","📋 Resumen"],["clase","🗂️ Por Clase"],["operaciones","⚙️ Operaciones"],["codigos","🔢 Códigos"]];
+  const itabBar = `<div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid #f1f5f9;padding-bottom:10px">
+    ${ITABS.map(([id,lbl]) => `<button onclick="ApiExplorerModule.setInspectorTab('${id}')"
+      style="padding:5px 13px;border:1px solid ${iTab===id?'#3b82f6':'#e2e8f0'};background:${iTab===id?'#3b82f6':'white'};color:${iTab===id?'white':'#64748b'};border-radius:6px;cursor:pointer;font-size:0.82em;transition:all 0.15s">${lbl}</button>`).join('')}
+  </div>`;
+
+  // Número de clases del catálogo
+  const nCls = cf ? Object.values(cf.catalogue||{}).reduce((a,m)=>a+(m.clases?.length||0),0) : 17;
+
+  // Banner de acción principal
+  const btnD = `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <p style="margin:0;font-weight:600;font-size:0.95em">🔍 Descubrir todo — permiso + info + datos reales</p>
+        <p style="margin:3px 0 0;font-size:0.79em;color:#64748b">
+          Consulta las ${nCls} clases documentadas: permisos reales, campos del servidor y muestra de datos.
+          Solo lectura. ${s.session_active
+            ? `<strong style="color:#166534">Sesión activa ✅</strong>`
+            : `<span style="color:#991b1b">Requiere login primero.</span>`}
+        </p>
+      </div>
+      <button onclick="ApiExplorerModule.doDiscoverAll()" class="btn primary"
+        ${!s.session_active?'disabled':''} style="white-space:nowrap;font-size:0.85em">
+        ${dr ? '🔄 Repetir descubrimiento' : '🚀 Descubrir todo'}</button>
+      ${dr ? `<span style="font-size:0.77em;color:#94a3b8">Último: ${(dr.timestamp||'').slice(0,19).replace('T',' ')}</span>` : ''}
+    </div>
+    <div id="ae-dap-wrap" style="display:none;margin-top:10px">
+      <div style="background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden">
+        <div id="ae-dap-bar" style="background:#3b82f6;height:100%;width:0%;transition:width 0.4s"></div>
+      </div>
+      <p id="ae-dap-msg" style="font-size:0.79em;color:#64748b;margin:5px 0 0">Iniciando…</p>
+    </div>
+    ${dr ? `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
+      ${[['✅','Con acceso','con_permiso','#dcfce7','#166534'],['🚫','Sin licencia','sin_licencia','#fef2f2','#991b1b'],
+         ['🔒','Sin permiso','sin_permiso','#f8fafc','#64748b'],['⚠️','Error','error','#fef9c3','#92400e']]
+        .map(([ic,lbl,key,bg,cl]) => `<div style="background:${bg};border-radius:8px;padding:8px 10px;text-align:center">
+          <p style="margin:0;font-size:1.3em">${ic}</p>
+          <p style="margin:2px 0 0;font-size:0.75em;font-weight:700;color:${cl}">${Object.values(dr.clases||{}).filter(c=>c.estado===key).length}</p>
+          <p style="margin:0;font-size:0.7em;color:${cl}">${lbl}</p>
+        </div>`).join('')}
+    </div>` : ''}
+  </div>`;
+
+  if (!cf) {
+    return btnD + `<div style="background:#fef9c3;border-radius:8px;padding:12px;font-size:0.84em;color:#92400e">
+      ⏳ Cargando catálogo documentado…</div>`;
+  }
+
+  const cat = cf.catalogue || {};
+  let content = '';
+  if (iTab === 'resumen')    content = _inspResumen(cat, dr);
+  else if (iTab === 'clase') content = _inspClase(cat, cf, dr, cls);
+  else if (iTab === 'operaciones') content = _inspOps(cf);
+  else if (iTab === 'codigos')     content = _inspCodes(cf);
+
+  return btnD + itabBar + content;
+}
+
+
+
+// ── Inspector: RESUMEN ─────────────────────────────────────────
+function _inspResumen(cat, dr) {
+  const BADGE = {
+    con_permiso:  `<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.74em">✅ Acceso</span>`,
+    sin_licencia: `<span style="background:#fef2f2;color:#991b1b;border-radius:10px;padding:1px 8px;font-size:0.74em">🚫 Sin licencia</span>`,
+    sin_permiso:  `<span style="background:#f8fafc;color:#64748b;border-radius:10px;padding:1px 8px;font-size:0.74em">🔒 Sin permiso</span>`,
+    error:        `<span style="background:#fef9c3;color:#92400e;border-radius:10px;padding:1px 8px;font-size:0.74em">⚠️ Error</span>`,
+  };
+  const noBadge = `<span style="background:#f1f5f9;color:#94a3b8;border-radius:10px;padding:1px 8px;font-size:0.74em">⬜ No probado</span>`;
+  return Object.entries(cat).map(([mod,md]) => {
+    const rows = (md.clases||[]).map(cls => {
+      const ops = (md.clases_operaciones||{})[cls]||[];
+      const desc = (md.clases_desc||{})[cls]||{};
+      const drC = dr?.clases?.[cls];
+      const badge = drC?(BADGE[drC.estado]||noBadge):noBadge;
+      const tot = drC?.total_registros!=null?`<span style="font-size:0.72em;color:#3b82f6;margin-left:4px">${drC.total_registros} reg.</span>`:'';
+      return `<div onclick="ApiExplorerModule.setInspectorClase('${cls}')"
+        style="display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid #f8fafc;cursor:pointer"
+        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <span style="font-size:0.88em;min-width:22px">${desc.emoji||'📦'}</span>
+        <span style="font-size:0.84em;font-weight:500;flex:1">${cls}</span>
+        ${badge}${tot}
+        <span style="font-size:0.72em;color:#94a3b8">${ops.length} ops →</span>
+      </div>`;
+    }).join('');
+    const docB = md.doc_status==='confirmado'
+      ? `<span style="font-size:0.71em;color:#166534;background:#dcfce7;border-radius:8px;padding:1px 6px">✅ Confirmado</span>`
+      : `<span style="font-size:0.71em;color:#92400e;background:#fef9c3;border-radius:8px;padding:1px 6px">⚠️ Parcial</span>`;
+    return `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#f8fafc;padding:9px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.1em">${md.emoji||'📦'}</span>
+        <span style="font-weight:600;font-size:0.88em">${mod}</span>
+        <span style="font-size:0.77em;color:#64748b;flex:1">${md.desc||''}</span>
+        ${docB}
+      </div>${rows}</div>`;
+  }).join('');
+}
+
+
+
+// ── Inspector: POR CLASE (parte 1: selector + cabecera + ops + permisos) ──────
+function _inspClase(cat, cf, dr, isCls) {
+  const allCls=Object.values(cat).flatMap(m=>m.clases||[]);
+  const cls=isCls||allCls[0];
+  const drC=dr?.clases?.[cls];
+  const camposDoc=(cf.campos_clase||{})[cls]||[];
+  const camposReal=drC?.campos_reales||[];
+  const muestra=drC?.muestra||[];
+  let modName='',clsDesc={};
+  Object.entries(cat).forEach(([m,md])=>{if((md.clases||[]).includes(cls)){modName=m;clsDesc=(md.clases_desc||{})[cls]||{};}});
+  const ops=(cat[modName]?.clases_operaciones||{})[cls]||[];
+
+  const sel=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">${allCls.map(c=>`<button onclick="ApiExplorerModule.setInspectorClase('${c}')" style="padding:3px 9px;border:1px solid ${c===cls?'#3b82f6':'#e2e8f0'};background:${c===cls?'#3b82f6':'white'};color:${c===cls?'white':'#64748b'};border-radius:10px;cursor:pointer;font-size:0.74em">${c}</button>`).join('')}</div>`;
+
+  const stBg={con_permiso:'#dcfce7',sin_licencia:'#fef2f2',sin_permiso:'#f8fafc',error:'#fef9c3'};
+  const stCl={con_permiso:'#166534',sin_licencia:'#991b1b',sin_permiso:'#64748b',error:'#92400e'};
+  const stLb={con_permiso:'✅ Acceso',sin_licencia:'🚫 Sin licencia',sin_permiso:'🔒 Sin permiso',error:'⚠️ Error'};
+  const hdr=`<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span style="font-size:1.4em">${clsDesc.emoji||'📦'}</span>
+      <div style="flex:1"><p style="margin:0;font-weight:700;font-size:0.95em">${cls}</p>
+        <p style="margin:2px 0 0;font-size:0.79em;color:#64748b">${clsDesc.desc||''}</p></div>
+      <span style="background:${drC?stBg[drC.estado]||'#f1f5f9':'#f1f5f9'};color:${drC?stCl[drC.estado]||'#94a3b8':'#94a3b8'};border-radius:8px;padding:3px 10px;font-size:0.79em">
+        ${drC?stLb[drC.estado]||'':'⬜ No probado'}</span></div>
+    ${clsDesc.notas?`<div style="background:#f0f9ff;border-left:3px solid #38bdf8;border-radius:0 5px 5px 0;padding:5px 9px;font-size:0.79em;color:#0369a1">💡 ${clsDesc.notas}</div>`:''}
+  </div>`;
+
+  const ROP={browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:0,write:2,imputaPro:2,delete:3};
+  const RC=['#16a34a','#ca8a04','#ea580c','#dc2626'];
+  const opsH=`<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <p style="margin:0 0 8px;font-weight:600;font-size:0.84em">Operaciones disponibles</p>
+    <div style="display:flex;flex-wrap:wrap;gap:5px">
+      ${ops.map(op=>{const r=ROP[op]||0;const p=drC?.permiso_ops?.[op];const pb=p===true?'✅':p===false?'🔒':'';
+        return `<div style="border:1px solid #e2e8f0;border-left:3px solid ${RC[r]};border-radius:6px;padding:4px 10px;font-size:0.79em;background:#f8fafc"><strong>${op}</strong> ${pb}<br><span style="color:#64748b;font-size:0.82em">${['Lectura','Temporal','Escritura','Destructivo'][r]}</span></div>`;
+      }).join('')}
+    </div></div>`;
+
+  const permH=(drC?.permiso_ops&&Object.keys(drC.permiso_ops).length)?
+    `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px"><p style="margin:0 0 8px;font-weight:600;font-size:0.84em">Permisos reales del servidor</p><div style="display:flex;flex-wrap:wrap;gap:5px">${Object.entries(drC.permiso_ops).map(([op,v])=>`<span style="background:${v?'#dcfce7':'#fef2f2'};color:${v?'#166534':'#991b1b'};border-radius:6px;padding:3px 10px;font-size:0.8em">${v?'✅':'❌'} ${op}</span>`).join('')}</div></div>` : '';
+
+  return sel+hdr+opsH+permH+_inspClasetabla(drC,camposDoc,camposReal)+_inspClasemuestra(drC,muestra);
+}
+
+
+
+// ── Inspector: tabla campos y muestra ─────────────────────────
+function _inspClasetabla(drC, camposDoc, camposReal) {
+  const rM={};camposReal.forEach(f=>{rM[(f.nombre||f.name||f.n||'').toUpperCase()]=f;});
+  const dM={};camposDoc.forEach(f=>{dM[(f.n||'').toUpperCase()]=f;});
+  const allK=[...new Set([...Object.keys(dM),...Object.keys(rM)])];
+  if(!allK.length) return '';
+  return `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <p style="margin:0 0 8px;font-weight:600;font-size:0.84em">Campos documentados vs reales
+      <span style="font-size:0.78em;font-weight:400;color:${camposReal.length?'#3b82f6':'#94a3b8'};margin-left:5px">
+        ${camposReal.length?camposReal.length+' campos reales del servidor':'ejecuta Descubrir todo para ver los reales'}</span>
+    </p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.77em">
+      <thead><tr style="background:#f8fafc">
+        <th style="padding:4px 8px;border-bottom:1px solid #e2e8f0">Campo</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0">Tipo doc</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0">Tipo real</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0">Req</th>
+        <th style="padding:4px 8px;border-bottom:1px solid #e2e8f0">Descripción</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0">≡</th>
+      </tr></thead><tbody>
+      ${allK.map(k=>{const d=dM[k],r=rM[k],ed=!!d,er=!!r;
+        const est=ed&&er?'✅':ed?'🟡':'🔵',bg=ed&&er?'':ed?'#fefce8':'#f0f9ff';
+        return `<tr style="border-bottom:1px solid #f8fafc;background:${bg}">
+          <td style="padding:3px 7px;font-family:monospace;font-weight:${d?.req?700:400}">${(d?.n||k).toLowerCase()}${d?.req?' <span style="color:#dc2626">*</span>':''}</td>
+          <td style="padding:3px 7px;text-align:center;color:#64748b">${d?.tipo||'—'}</td>
+          <td style="padding:3px 7px;text-align:center;color:#3b82f6">${r?.tipo||r?.type||'—'}</td>
+          <td style="padding:3px 7px;text-align:center">${d?.req?'✱':''}</td>
+          <td style="padding:3px 7px;color:#475569;max-width:250px">${d?.desc||''}</td>
+          <td style="padding:3px 7px;text-align:center">${est}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+      <p style="margin:5px 0 0;font-size:0.74em;color:#94a3b8">✅ Doc y servidor  🟡 Solo en doc  🔵 Solo en servidor</p>
+    </div></div>`;
+}
+function _inspClasemuestra(drC, muestra) {
+  if(!muestra.length) return '';
+  const keys=Object.keys(muestra[0]);
+  return `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <p style="margin:0 0 7px;font-weight:600;font-size:0.84em">🟢 Datos reales de SQL Obras
+      <span style="font-size:0.79em;font-weight:400;color:#16a34a;margin-left:5px">${muestra.length} registros mostrados / ${drC?.total_registros??'?'} totales</span>
+    </p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.77em">
+      <thead><tr style="background:#f0fdf4">${keys.map(k=>`<th style="padding:3px 8px;text-align:left;border-bottom:1px solid #e2e8f0;color:#166534;white-space:nowrap">${k}</th>`).join('')}</tr></thead>
+      <tbody>${muestra.map(row=>`<tr style="border-bottom:1px solid #f8fafc">${keys.map(k=>`<td style="padding:3px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(row[k]??'')}">${row[k]??'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div></div>`;
+}
+
+
+
+// ── Inspector: OPERACIONES globales ───────────────────────────
+function _inspOps(cf) {
+  const ops=cf.operaciones_globales||{},rCfg=cf.riesgo||{};
+  const RC=['#16a34a','#ca8a04','#ea580c','#dc2626'],RB=['#f0fdf4','#fefce8','#fff7ed','#fef2f2'];
+  return `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+    <p style="margin:0 0 4px;font-weight:600;font-size:0.9em">Operaciones globales — API mPYME v1.2</p>
+    <p style="margin:0 0 12px;font-size:0.79em;color:#64748b">Disponibles en cualquier clase. Parámetros específicos varían por clase.</p>
+    ${Object.entries(ops).map(([opN,op])=>{const r=op.riesgo||0,rc=rCfg[String(r)]||{};
+      return `<details style="margin-bottom:6px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <summary style="padding:9px 14px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none">
+          <span style="background:${RB[r]};color:${RC[r]};border-radius:4px;padding:2px 8px;font-size:0.72em;font-weight:600;white-space:nowrap">${rc.emoji||''} ${rc.label||''}</span>
+          <code style="font-size:0.88em;font-weight:700">${opN}</code>
+          <span style="font-size:0.79em;color:#475569;flex:1">${op.desc}</span>
+          <span style="color:#94a3b8;font-size:0.75em">▾</span>
+        </summary>
+        <div style="padding:10px 14px;border-top:1px solid #f1f5f9">
+          ${op.notas?`<div style="background:#f0f9ff;border-left:3px solid #38bdf8;border-radius:0 5px 5px 0;padding:5px 9px;font-size:0.79em;color:#0369a1;margin-bottom:8px">💡 ${op.notas}</div>`:''}
+          ${(op.params_req||[]).length?`<p style="font-size:0.77em;font-weight:600;color:#dc2626;margin:0 0 4px">Requeridos:</p>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${(op.params_req||[]).map(p=>`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:3px 8px;font-size:0.75em"><code>${p.n}</code> <span style="color:#94a3b8">${p.tipo}</span><br><span style="color:#64748b">${p.desc}</span></div>`).join('')}</div>`:''}
+          ${(op.params_opt||[]).length?`<p style="font-size:0.77em;font-weight:600;color:#64748b;margin:0 0 4px">Opcionales:</p>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${(op.params_opt||[]).map(p=>`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;font-size:0.75em"><code>${p.n}</code> <span style="color:#94a3b8">${p.tipo}</span><br><span style="color:#64748b">${p.desc}</span></div>`).join('')}</div>`:''}
+          ${op.ejemplo_raw?`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.76em;color:#64748b">Ver ejemplo raw</summary>
+            <code style="display:block;background:#1e293b;color:#e2e8f0;padding:7px 10px;border-radius:5px;font-size:0.75em;margin-top:4px;overflow-x:auto;white-space:pre-wrap">${op.ejemplo_raw}</code></details>`:''}
+        </div></details>`;
+    }).join('')}</div>`;
+}
+
+// ── Inspector: CÓDIGOS de respuesta ───────────────────────────
+function _inspCodes(cf) {
+  const codes=cf.codigos_respuesta||{};
+  return `<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+    <p style="margin:0 0 4px;font-weight:600;font-size:0.9em">Códigos de respuesta — API mPYME v1.2</p>
+    <p style="margin:0 0 12px;font-size:0.79em;color:#64748b">El campo <code>code</code> siempre aparece en la respuesta JSON.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:0.84em">
+      <thead><tr style="background:#f8fafc">
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0;width:60px">Code</th>
+        <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0;width:50px">Icono</th>
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Significado</th>
+      </tr></thead><tbody>
+      ${Object.entries(codes).map(([c,v])=>`<tr style="border-bottom:1px solid #f8fafc">
+        <td style="padding:6px 10px;font-family:monospace;font-weight:700;font-size:1.05em;color:${c==='0'?'#166534':c==='-1'?'#991b1b':'#475569'}">${c}</td>
+        <td style="padding:6px 10px;font-size:1.3em;text-align:center">${v.icon}</td>
+        <td style="padding:6px 10px;color:#475569">${v.desc}</td>
+      </tr>`).join('')}
+      </tbody></table>
+    <div style="margin-top:12px;background:#f0f9ff;border-radius:6px;padding:9px 12px;font-size:0.79em;color:#0369a1">
+      💡 <strong>code=0</strong> → éxito. <strong>code≠0</strong> con HTTP 200 → operación fallida con ese código.
+      <strong>code=-1</strong> → error de conexión o excepción del servidor.
+    </div></div>`;
 }
 
 
@@ -553,8 +794,13 @@ const ApiExplorerModule = {
     const root=document.getElementById("api-explorer-root");
     if(root) root.innerHTML=`<div style="text-align:center;padding:40px;color:#64748b">Cargando...</div>`;
     try {
-      const [s,c,cat,hd]=await Promise.all([_fetch("/status"),_fetch("/config"),_fetch("/catalogue"),_fetch("/history")]);
-      _state.status=s;_state.config=c;_state.catalogue=cat;_state.history=hd.history||[];_state.matrix=hd.matrix||{};
+      const [s,c,cat,hd,catFull]=await Promise.all([
+        _fetch("/status"),_fetch("/config"),_fetch("/catalogue"),_fetch("/history"),
+        _fetch("/catalogue-full").catch(()=>null)
+      ]);
+      _state.status=s;_state.config=c;_state.catalogue=cat;
+      _state.history=hd.history||[];_state.matrix=hd.matrix||{};
+      if(catFull) _state.catalogueFull=catFull;
     } catch(e) {
       if(root) root.innerHTML=`<div style="padding:24px;color:#dc2626;background:#fef2f2;border-radius:8px"><strong>Error al cargar</strong><br>${e.message}</div>`;
       return;
@@ -562,6 +808,8 @@ const ApiExplorerModule = {
     renderMain();
   },
   setTab(t){_state.currentTab=t;renderMain();},
+  setInspectorTab(t){_state.inspectorTab=t;renderMain();},
+  setInspectorClase(c){_state.inspectorClase=c;_state.inspectorTab='clase';renderMain();},
   onModuloChange(){const el=document.getElementById("ae-modulo");if(el){_state.selectedModulo=el.value;_state.selectedClase=null;_state.selectedOp=null;}renderMain();},
   onClaseChange(){const el=document.getElementById("ae-clase");if(el){_state.selectedClase=el.value;_state.selectedOp=null;}renderMain();},
   onOpChange(){const el=document.getElementById("ae-op");if(el)_state.selectedOp=el.value;renderMain();},
@@ -679,160 +927,42 @@ const ApiExplorerModule = {
     }
   },
 
-  async doDiscoverDb() {
-    const resultDiv = document.getElementById("ae-discover-db-result");
-    if (resultDiv) resultDiv.innerHTML = `<div style="color:#64748b;font-size:0.82em;padding:6px 0">👤 Consultando Firebird... (solo SELECT, sin escrituras)</div>`;
-    try {
-      const resp = await fetch("/api/api-explorer/discover-db", { method: "POST", headers: {"Content-Type":"application/json"} });
-      const r = await resp.json();
-      if (!resultDiv) return;
-      if (r.error && !r.success) {
-        resultDiv.innerHTML = `<div style="background:#fef2f2;border-left:3px solid #dc3545;border-radius:5px;padding:8px 12px;font-size:0.82em;color:#991b1b">
-          <strong>❌ Error al conectar con Firebird</strong><br>${r.error}<br>
-          <span style="font-size:0.9em;color:#64748b">Verifica DB_HOST, DB_NAME, DB_USER y DB_PASSWORD en el .env</span></div>`;
-        return;
-      }
-      let html = `<div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:5px;padding:7px 12px;font-size:0.82em;color:#166534;margin-bottom:6px">
-        <strong>✅ Consulta Firebird OK</strong> — ${r.tablas_inspeccionadas} tablas inspeccionadas
-        <span style="color:#94a3b8;font-size:0.85em"> | Solo lectura. Sin modificaciones.</span></div>`;
-      if (r.usuarios_firebird && r.usuarios_firebird.length) {
-        html += `<div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.82em">
-          <p style="margin:0 0 5px;font-weight:600;color:#374151">👥 Usuarios Firebird (RDB$USERS)</p>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">
-            ${r.usuarios_firebird.map(u => {
-              const sys = u.toUpperCase()==="SYSDBA";
-              const bg = sys?"#fee2e2":"#dbeafe"; const txt = sys?"#991b1b":"#1e40af";
-              return `<span style="background:${bg};color:${txt};border-radius:12px;padding:2px 8px;font-size:0.9em;cursor:pointer"
-                onclick="document.getElementById('ae-usuario').value='${u}'" title="Clic para usar como SQLOB_USUARIO">${u} ${sys?"⚠️":"👆"}</span>`;
-            }).join("")}
-          </div>
-          <p style="margin:5px 0 0;font-size:0.82em;color:#94a3b8">Clic en un usuario para rellenar el campo. No uses SYSDBA para la API.</p></div>`;
-      }
-      if (r.usuarios_sqlobras && r.usuarios_sqlobras.length) {
-        const keys = Object.keys(r.usuarios_sqlobras[0]);
-        html += `<div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.82em">
-          <p style="margin:0 0 5px;font-weight:600;color:#374151">🏢 Usuarios SQL Obras (${r.tabla_usuarios_encontrada})</p>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88em">
-            <thead><tr style="background:#f8fafc">${keys.map(k=>`<th style="padding:3px 8px;text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}<th style="padding:3px 8px;color:#64748b;border-bottom:1px solid #e2e8f0">Usar</th></tr></thead>
-            <tbody>${r.usuarios_sqlobras.slice(0,20).map(row=>`<tr style="border-bottom:1px solid #f1f5f9">
-              ${keys.map(k=>`<td style="padding:3px 8px">${row[k]||"—"}</td>`).join("")}
-              <td style="padding:3px 8px"><button onclick="document.getElementById('ae-usuario').value='${Object.values(row)[0]}'" class="btn secondary" style="font-size:0.75em;padding:1px 6px">👆 Usar</button></td>
-            </tr>`).join("")}</tbody>
-          </table></div></div>`;
-      }
-      if (r.empresa_inferida) {
-        html += `<div style="background:#fefce8;border:1px solid #fde047;border-radius:6px;padding:7px 12px;margin-bottom:6px;font-size:0.82em">
-          <strong>🏢 Empresa inferida:</strong>
-          <code style="background:white;padding:2px 6px;border-radius:3px;margin:0 6px;cursor:pointer"
-            onclick="document.getElementById('ae-empresa').value='${r.empresa_inferida}'" title="Clic para usar">${r.empresa_inferida} 👆</code>
-          <span style="color:#92400e;font-size:0.9em">Confirmar con Distrito K el codigo exacto</span></div>`;
-      }
-      html += `<div>`;
-      for (const rec of (r.recomendaciones || [])) {
-        const colors = {advertencia:["#fff7ed","#fb923c"], ok:["#f0fdf4","#16a34a"], clave:["#fef2f2","#dc3545"], info:["#f0f9ff","#38bdf8"]};
-        const [bg, br] = colors[rec.nivel] || colors.info;
-        html += `<div style="background:${bg};border-left:3px solid ${br};border-radius:4px;padding:6px 10px;margin-bottom:4px;font-size:0.8em">
-          ${rec.icono} ${rec.texto}`;
-        if (rec.usuarios_candidatos && rec.usuarios_candidatos.length) {
-          html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
-            ${rec.usuarios_candidatos.map(u=>`<code style="background:white;padding:1px 6px;border-radius:10px;font-size:0.9em;cursor:pointer"
-              onclick="document.getElementById('ae-usuario').value='${u}'" title="Usar como usuario">${u}</code>`).join("")}</div>`;
-        }
-        html += `</div>`;
-      }
-      html += `</div>`;
-      resultDiv.innerHTML = html;
-    } catch(e) {
-      if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">❌ Error: ${e.message}</div>`;
+  async doDiscoverAll() {
+    // Carga catálogo full si no está
+    if (!_state.catalogueFull) {
+      try { _state.catalogueFull = await _fetch("/catalogue-full"); } catch(e) {}
     }
-  },
-
-
-
-  async doDiscoverCreds() {
-    const url = document.getElementById("ae-cred-url")?.value?.trim() || "";
-    const empresa = document.getElementById("ae-cred-empresa")?.value?.trim() || "";
-    const confirm = document.getElementById("ae-cred-confirm")?.value?.trim() || "";
-    const resultDiv = document.getElementById("ae-discover-creds-result");
-
-    if (confirm !== "PROBAR CREDENCIALES") {
-      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fef2f2;border-left:3px solid #dc3545;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#991b1b">
-        ⛔ Escribe exactamente <strong>PROBAR CREDENCIALES</strong> en el campo de confirmación para ejecutar.</div>`;
-      return;
-    }
-    if (!url) {
-      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fef9c3;border-left:3px solid #fde047;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#92400e">
-        ⚠️ Introduce la URL del servidor mPYME. Usa primero <strong>🔍 Descubrir URL</strong> para encontrarla.</div>`;
-      return;
-    }
-
-    if (resultDiv) resultDiv.innerHTML = `<div style="color:#92400e;font-size:0.82em;padding:6px 0">
-      🔐 Probando credenciales predeterminadas... (hasta 10 intentos, 1s entre cada uno)</div>`;
+    // Mostrar barra de progreso
+    const wrap=document.getElementById("ae-dap-wrap");
+    const bar=document.getElementById("ae-dap-bar");
+    const msg=document.getElementById("ae-dap-msg");
+    if(wrap) wrap.style.display="block";
+    if(bar)  bar.style.width="5%";
+    if(msg)  msg.textContent="Iniciando descubrimiento…";
 
     try {
-      const resp = await fetch("/api/api-explorer/discover-credentials", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({empresa, url, confirmacion: "PROBAR CREDENCIALES"}),
-      });
-      const r = await resp.json();
-      if (!resultDiv) return;
-
-      let html = "";
-      // Resultado principal
-      if (r.encontrado) {
-        html += `<div style="background:#fef2f2;border:2px solid #dc3545;border-radius:6px;padding:10px 14px;margin-bottom:8px">
-          <p style="margin:0 0 5px;font-weight:700;color:#991b1b;font-size:0.9em">🚨 CREDENCIALES POR DEFECTO FUNCIONAN</p>
-          <p style="margin:0;font-size:0.85em;color:#991b1b">
-            Usuario: <code style="background:#fee2e2;padding:1px 5px;border-radius:3px">${r.encontrado.usuario}</code>
-            &nbsp; Password: <code style="background:#fee2e2;padding:1px 5px;border-radius:3px">${r.encontrado.password || "(sin password)"}</code>
-          </p>
-          <p style="margin:6px 0 0;font-size:0.82em;color:#7f1d1d">Riesgo de seguridad. Cambia la contraseña inmediatamente.</p>
-          <button onclick="document.getElementById('ae-usuario').value='${r.encontrado.usuario}';document.getElementById('ae-password').value='${r.encontrado.password}'"
-            class="btn secondary" style="font-size:0.76em;margin-top:6px;background:#fee2e2;border-color:#dc3545;color:#991b1b">
-            👆 Usar estos datos para conectar ahora
-          </button>
-        </div>`;
-      } else {
-        const esBueno = r.intentos && r.intentos.every(i => i.estado === "rechazado");
-        html += `<div style="background:${esBueno?"#f0fdf4":"#fefce8"};border-left:3px solid ${esBueno?"#16a34a":"#fde047"};border-radius:5px;padding:8px 12px;margin-bottom:8px;font-size:0.82em">
-          ${esBueno?"✅":"ℹ️"} ${r.recomendacion}</div>`;
-      }
-
-      // Nota de seguridad
-      html += `<div style="background:#f8fafc;border-radius:4px;padding:6px 10px;font-size:0.77em;color:#64748b;margin-bottom:6px">
-        🛡️ ${r.nota_seguridad}</div>`;
-
-      // Tabla de intentos
-      if (r.intentos && r.intentos.length) {
-        html += `<details style="margin-bottom:4px"><summary style="cursor:pointer;font-size:0.8em;color:#64748b;user-select:none">
-          Ver detalle de intentos (${r.total_intentos} / ${r.max_intentos} máximo)</summary>
-          <div style="overflow-x:auto;margin-top:5px"><table style="width:100%;border-collapse:collapse;font-size:0.78em">
-            <thead><tr style="background:#f8fafc">
-              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">#</th>
-              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Usuario</th>
-              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Password</th>
-              <th style="padding:3px 6px;text-align:center;border-bottom:1px solid #e2e8f0">Estado</th>
-              <th style="padding:3px 6px;text-align:left;border-bottom:1px solid #e2e8f0">Detalle</th>
-              <th style="padding:3px 6px;text-align:right;border-bottom:1px solid #e2e8f0">ms</th>
-            </tr></thead><tbody>
-            ${r.intentos.map(it => {
-              const icon = it.estado==="ok"?"✅":it.estado==="rechazado"?"❌":it.estado==="timeout"?"⏱️":it.estado==="sin_conexion"?"🔌":"⚠️";
-              const bg = it.estado==="ok"?"#fef2f2":"";
-              return `<tr style="border-bottom:1px solid #f1f5f9;background:${bg}">
-                <td style="padding:3px 6px;color:#94a3b8">${it.n}</td>
-                <td style="padding:3px 6px;font-family:monospace">${it.usuario}</td>
-                <td style="padding:3px 6px;font-family:monospace;color:#94a3b8">${it.password_display}</td>
-                <td style="padding:3px 6px;text-align:center">${icon} ${it.estado}</td>
-                <td style="padding:3px 6px;color:#64748b">${it.mensaje||"—"}</td>
-                <td style="padding:3px 6px;text-align:right;color:#94a3b8">${it.ms||"—"}</td>
-              </tr>`;
-            }).join("")}
-            </tbody></table></div></details>`;
-      }
-      resultDiv.innerHTML = html;
+      // Lanzar discover-all al backend (hace permiso+info+browse en todas las clases)
+      const r = await fetch(API+"/discover-all",{method:"POST",headers:{"Content-Type":"application/json"}});
+      if(bar) bar.style.width="90%";
+      if(msg) msg.textContent="Procesando respuesta…";
+      if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||`HTTP ${r.status}`);}
+      const data = await r.json();
+      _state.discoverResult = data;
+      if(data.catalogue) _state.catalogueFull = {...(_state.catalogueFull||{}), catalogue: data.catalogue};
+      if(bar) bar.style.width="100%";
+      if(msg) msg.textContent=`✅ Completado — ${data.resumen?.total||0} clases consultadas`;
+      await new Promise(r=>setTimeout(r,800));
+      if(wrap) wrap.style.display="none";
+      // Recargar también el catálogo full completo (para tener codigos/operaciones)
+      try { _state.catalogueFull = await _fetch("/catalogue-full"); } catch(e) {}
+      // Ir a la pestaña resumen del inspector
+      _state.currentTab = "inspector";
+      _state.inspectorTab = "resumen";
+      renderMain();
     } catch(e) {
-      if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">❌ Error: ${e.message}</div>`;
+      if(msg) msg.textContent=`❌ Error: ${e.message}`;
+      if(bar) bar.style.background="#dc2626";
+      setTimeout(()=>{ if(wrap)wrap.style.display="none";renderMain(); }, 3000);
     }
   },
 

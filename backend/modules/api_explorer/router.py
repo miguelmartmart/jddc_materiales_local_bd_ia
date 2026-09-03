@@ -151,6 +151,40 @@ async def discover_credentials(request: DiscoverCredentialsRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/catalogue-full")
+async def get_catalogue_full():
+    """
+    Catalogo completo documentado: modulos, clases, operaciones globales, campos y codigos de respuesta.
+    Fuente: documentacion oficial mPYME v1.2 de Distrito K.
+    """
+    try:
+        from backend.modules.api_explorer.api_catalogue_full import (
+            get_catalogue, get_campos_clase, get_operaciones_globales, RIESGO, CODIGOS_RESPUESTA
+        )
+        return {
+            "catalogue": get_catalogue(),
+            "campos_clase": get_campos_clase(),
+            "operaciones_globales": get_operaciones_globales(),
+            "riesgo": {str(k): v for k, v in RIESGO.items()},
+            "codigos_respuesta": {str(k): v for k, v in CODIGOS_RESPUESTA.items()},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/discover-all")
+async def discover_all():
+    """
+    Descubrimiento COMPLETO de la API.
+    Ejecuta permiso + info + browse en TODAS las clases documentadas.
+    Requiere sesion activa (login previo).
+    Solo lectura — no modifica ningun dato.
+    Devuelve: permisos reales, campos reales del servidor, muestra de datos reales.
+    """
+    try:
+        return get_service().discover_all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/discover-db")
 async def discover_from_db():
     """

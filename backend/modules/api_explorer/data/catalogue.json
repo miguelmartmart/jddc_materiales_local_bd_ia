@@ -1,0 +1,288 @@
+{
+  "Reparaciones": {
+    "clases_desc": {
+      "reporden": {
+        "desc": "Ordenes de reparacion.",
+        "notas": "codOrden se usa en repordutil.",
+        "doc_status": "confirmado",
+        "emoji": "🔧"
+      },
+      "repinst": {
+        "desc": "Instalaciones fisicas.",
+        "notas": "Jerarquia: instalacion > equipos > ordenes.",
+        "doc_status": "confirmado",
+        "emoji": "🏢"
+      },
+      "repobjetos": {
+        "desc": "Equipos reparables.",
+        "notas": "Solo lectura normalmente.",
+        "doc_status": "confirmado",
+        "emoji": "⚙️"
+      },
+      "tipostrabajo": {
+        "desc": "Tipos de trabajo.",
+        "notas": "Tabla maestra solo lectura.",
+        "doc_status": "confirmado",
+        "emoji": "🏷️"
+      },
+      "repordutil": {
+        "desc": "Materiales y horas en una reparacion.",
+        "notas": "Analogo a proordutil. Documentado con ejemplo real.",
+        "doc_status": "confirmado",
+        "emoji": "🔩"
+      }
+    },
+    "doc_status": "confirmado",
+    "clases_operaciones": {
+      "reporden": [
+        "browse",
+        "read",
+        "new",
+        "write",
+        "cancel",
+        "permiso",
+        "info"
+      ],
+      "repinst": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ],
+      "repobjetos": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ],
+      "tipostrabajo": [
+        "browse",
+        "permiso",
+        "info"
+      ],
+      "repordutil": [
+        "browse",
+        "new",
+        "write",
+        "cancel",
+        "permiso",
+        "info"
+      ]
+    },
+    "clases": [
+      "reporden",
+      "repobjetos",
+      "repinst",
+      "tipostrabajo",
+      "repordutil"
+    ],
+    "emoji": "🔧",
+    "desc": "Ordenes de mantenimiento y reparacion."
+  },
+  "Gestion de Proyectos": {
+    "clases_desc": {
+      "proordprev": {
+        "desc": "Costes PREVISTOS/presupuestados.",
+        "notas": "Comparar con proordutil para control de costes.",
+        "doc_status": "confirmado",
+        "emoji": "📐"
+      },
+      "proordutil": {
+        "desc": "CLAVE: Imputacion REAL de costes. Materiales y recursos consumidos.",
+        "notas": "Flujo: new -> rellenar -> write -> servidor asigna codDocumento.",
+        "doc_status": "confirmado",
+        "emoji": "⚡"
+      },
+      "partidas": {
+        "desc": "Capitulos/partidas de una obra.",
+        "notas": "Siempre requiere codProyecto.",
+        "doc_status": "confirmado",
+        "emoji": "📋"
+      },
+      "proyectos": {
+        "desc": "Obras/proyectos del ERP.",
+        "notas": "Punto de entrada: obtener codProyecto para usar en partidas y proordutil.",
+        "doc_status": "confirmado",
+        "emoji": "🏗️"
+      }
+    },
+    "doc_status": "confirmado",
+    "clases_operaciones": {
+      "proordprev": [
+        "browse",
+        "read",
+        "new",
+        "write",
+        "cancel",
+        "permiso",
+        "info"
+      ],
+      "proordutil": [
+        "browse",
+        "read",
+        "new",
+        "edit",
+        "write",
+        "cancel",
+        "permiso",
+        "info"
+      ],
+      "partidas": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ],
+      "proyectos": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ]
+    },
+    "clases": [
+      "proyectos",
+      "partidas",
+      "proordutil",
+      "proordprev"
+    ],
+    "emoji": "🏗️",
+    "desc": "Ciclo de vida de proyectos/obras: previsiones, imputaciones reales, partidas."
+  },
+  "Fabricacion": {
+    "clases_desc": {
+      "ordenfab": {
+        "desc": "Ordenes de fabricacion.",
+        "notas": "Sin licencia de fabricacion devuelve code=1.",
+        "doc_status": "confirmado",
+        "emoji": "🏭"
+      }
+    },
+    "doc_status": "confirmado",
+    "clases_operaciones": {
+      "ordenfab": [
+        "browse",
+        "permiso",
+        "info"
+      ]
+    },
+    "clases": [
+      "ordenfab"
+    ],
+    "emoji": "🏭",
+    "desc": "Ordenes de fabricacion. Requiere modulo de fabricacion."
+  },
+  "Documentos de Compra": {
+    "clases_desc": {
+      "docalbcom": {
+        "desc": "Albaranes de compra. imputaPro EXPLICITAMENTE documentado.",
+        "notas": "Vincula compra a obra/partida sin crear utilizados manualmente.",
+        "doc_status": "confirmado",
+        "emoji": "📄"
+      },
+      "docpedcom": {
+        "desc": "Pedidos de compra. imputaPro INCIERTO.",
+        "notas": "⚠️ Doc usa previsiblemente. NO CONFIRMADO. Verificar empiricamente.",
+        "doc_status": "incierto",
+        "emoji": "📝"
+      },
+      "docfaccom": {
+        "desc": "Facturas de compra. imputaPro EXPLICITAMENTE documentado.",
+        "notas": "Igual que docalbcom para facturas.",
+        "doc_status": "confirmado",
+        "emoji": "🧾"
+      }
+    },
+    "doc_status": "confirmado",
+    "clases_operaciones": {
+      "docalbcom": [
+        "browse",
+        "read",
+        "imputaPro",
+        "permiso",
+        "info"
+      ],
+      "docpedcom": [
+        "browse",
+        "imputaPro",
+        "permiso",
+        "info"
+      ],
+      "docfaccom": [
+        "browse",
+        "read",
+        "imputaPro",
+        "permiso",
+        "info"
+      ]
+    },
+    "clases": [
+      "docalbcom",
+      "docfaccom",
+      "docpedcom"
+    ],
+    "emoji": "📄",
+    "desc": "Albaranes, facturas, pedidos. imputaPro vincula lineas a proyectos."
+  },
+  "Maestros": {
+    "clases_desc": {
+      "proveedores": {
+        "desc": "Catalogo de proveedores.",
+        "notas": "Filtrar docalbcom por proveedor.",
+        "doc_status": "confirmado",
+        "emoji": "🏭"
+      },
+      "articulos": {
+        "desc": "Catalogo de articulos.",
+        "notas": "Obtener codArticulo para usar en proordutil.write.",
+        "doc_status": "confirmado",
+        "emoji": "📦"
+      },
+      "clientes": {
+        "desc": "Catalogo de clientes.",
+        "notas": "Los proyectos pertenecen a clientes.",
+        "doc_status": "confirmado",
+        "emoji": "🤝"
+      },
+      "recursos": {
+        "desc": "Empleados y maquinaria. Distintas tarifas por tipo de hora.",
+        "notas": "No solo personas: maquinaria y costes varios.",
+        "doc_status": "confirmado",
+        "emoji": "👷"
+      }
+    },
+    "doc_status": "confirmado",
+    "clases_operaciones": {
+      "proveedores": [
+        "browse",
+        "permiso",
+        "info"
+      ],
+      "articulos": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ],
+      "clientes": [
+        "browse",
+        "permiso",
+        "info"
+      ],
+      "recursos": [
+        "browse",
+        "read",
+        "permiso",
+        "info"
+      ]
+    },
+    "clases": [
+      "articulos",
+      "recursos",
+      "proveedores",
+      "clientes"
+    ],
+    "emoji": "📦",
+    "desc": "Tablas maestras: articulos, recursos, proveedores, clientes."
+  }
+}
