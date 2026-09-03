@@ -83,31 +83,137 @@ class MockApiClient:
 
 
 class RealApiClient:
-    def __init__(self,url,emp,tout,ssl):
-        self.url=url.rstrip("/"); self.emp=emp; self.tout=tout; self.ssl=ssl; self._s1=""; self._s2=""
-    def _post(self,ep,params):
+    """
+    Cliente HTTP real para la API mPYME de Distrito K.
+
+    Protocolo segun documentacion oficial v1.2:
+    - Todas las peticiones son POST a la URL base (no a sub-rutas)
+    - Content-Type: application/x-www-form-urlencoded  (NO JSON)
+    - Parametros como form fields: method=login&empr=1&user=admin&pass=HASH
+    - Password: SHA1 del password en texto plano, codificado en Base64 (url-encoded)
+    - Empresa: parametro "empr" (NO "empresa")
+    - Clase: parametro "objectclass" (minusculas, NO "objectClass")
+    - Sesion: ssid1 + ssid2 obtenidos del login
+    """
+    def __init__(self, url, emp, tout, ssl_verify):
+        self.url = url.rstrip("/")
+        self.emp = emp
+        self.tout = tout
+        self.ssl = ssl_verify
+        self._s1 = ""
+        self._s2 = ""
+
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        """SHA1 del password -> Base64. Formato exacto documentado por Distrito K."""
+        import hashlib, base64
+        sha1 = hashlib.sha1(password.encode("utf-8")).digest()
+        return base64.b64encode(sha1).decode("ascii")
+
+    def _post(self, fields: dict):
+        """
+        POST a la URL base con application/x-www-form-urlencoded.
+        La API mPYME usa siempre la misma URL (raiz), distinguiendo por 'method'.
+        """
+        import requests
+        t0 = time.monotonic()
         try:
-            import requests; t0=time.monotonic()
-            r=requests.post(f"{self.url}/{ep}",json=params,timeout=self.tout,verify=self.ssl)
-            ms=(time.monotonic()-t0)*1000
-            try: d=r.json()
-            except Exception: d={"raw":r.text}
-            d["_http_status"]=r.status_code; return d,ms
-        except Exception as e: return {"code":-1,"error":str(e)},0.0
-    def _b(self): return {"ssid1":self._s1,"ssid2":self._s2,"empresa":self.emp}
-    def login(self,e,u,p):
-        d,ms=self._post("login",{"empresa":e,"usuario":u,"password":p})
-        if d.get("code")==0: self._s1=d.get("ssid1",""); self._s2=d.get("ssid2","")
-        return d,ms
-    def logout(self,s1,s2): return self._post("logout",self._b())
-    def permiso(self,s1,s2,c): return self._post("permiso",{**self._b(),"objectClass":c,"operacion":"permiso"})
-    def info(self,s1,s2,c): return self._post("info",{**self._b(),"objectClass":c,"operacion":"info"})
-    def browse(self,s1,s2,c,p): return self._post("browse",{**self._b(),"objectClass":c,"operacion":"browse",**p})
-    def read(self,s1,s2,c,p): return self._post("read",{**self._b(),"objectClass":c,"operacion":"read",**p})
-    def new(self,s1,s2,c,p): return self._post("new",{**self._b(),"objectClass":c,"operacion":"new",**p})
-    def write(self,s1,s2,c,p): return self._post("write",{**self._b(),"objectClass":c,"operacion":"write",**p})
-    def cancel(self,s1,s2,c,p): return self._post("cancel",{**self._b(),"objectClass":c,"operacion":"cancel",**p})
-    def imputa_pro(self,s1,s2,c,p): return self._post("imputaPro",{**self._b(),"objectClass":c,"operacion":"imputaPro",**p})
+            r = requests.post(
+                self.url,
+                data=fields,              # form-urlencoded, NO json=
+                timeout=self.tout,
+                verify=self.ssl,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                allow_redirects=True,     # maneja 302 automaticamente
+            )
+            ms = (time.monotonic() - t0) * 1000
+            try:
+                d = r.json()
+            except Exception:
+                d = {"raw": r.text[:500]}
+            d["_http_status"] = r.status_code
+            return d, ms
+        except Exception as e:
+            ms = (time.monotonic() - t0) * 1000
+            return {"code": -1, "error": str(e), "_http_status": 0}, ms
+
+    def _base(self) -> dict:
+        """Campos comunes: ssid1, ssid2."""
+        return {"ssid1": self._s1, "ssid2": self._s2}
+
+    def login(self, empresa, usuario, password):
+        """
+        Login segun doc: method=login&empr=<n>&user=<u>&pass=<sha1_base64>
+        'empr' puede ser numero de empresa o codigo. Si es texto, se envia tal cual.
+        """
+        pw_hash = self._hash_password(password)
+        fields = {
+            "method": "login",
+            "user": usuario,
+            "pass": pw_hash,
+        }
+        # 'empr' es el numero/codigo de empresa — puede ser 1, "JDDC", etc.
+        if empresa:
+            fields["empr"] = empresa
+        d, ms = self._post(fields)
+        if d.get("code") == 0:
+            data = d.get("data", {})
+            self._s1 = data.get("ssid1", "")
+            self._s2 = data.get("ssid2", "")
+        return d, ms
+
+    def logout(self, s1, s2):
+        return self._post({**self._base(), "method": "logout"})
+
+    def permiso(self, s1, s2, cls):
+        return self._post({**self._base(), "method": "permiso", "objectclass": cls})
+
+    def info(self, s1, s2, cls):
+        return self._post({**self._base(), "method": "info", "objectclass": cls})
+
+    def browse(self, s1, s2, cls, params):
+        import json
+        fields = {**self._base(), "method": "browse", "objectclass": cls}
+        # Parametros adicionales como campos form individuales o como 'filter'/'columns'
+        for k, v in params.items():
+            fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+        return self._post(fields)
+
+    def read(self, s1, s2, cls, params):
+        import json
+        oid = params.pop("objectid", params.pop("id", ""))
+        fields = {**self._base(), "method": "read", "objectclass": cls, "objectid": oid}
+        for k, v in params.items():
+            fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+        return self._post(fields)
+
+    def new(self, s1, s2, cls, params):
+        import json
+        oid = params.pop("objectid", "new")
+        fields = {**self._base(), "method": "new", "objectclass": cls, "objectid": oid}
+        for k, v in params.items():
+            fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+        return self._post(fields)
+
+    def write(self, s1, s2, cls, params):
+        import json
+        oid = params.pop("objectid", "new")
+        data = {k: v for k, v in params.items()}
+        fields = {**self._base(), "method": "write", "objectclass": cls,
+                  "objectid": oid, "data": json.dumps(data)}
+        return self._post(fields)
+
+    def cancel(self, s1, s2, cls, params):
+        oid = params.get("objectid", "new")
+        return self._post({**self._base(), "method": "cancel", "objectclass": cls, "objectid": oid})
+
+    def imputa_pro(self, s1, s2, cls, params):
+        import json
+        oid = params.pop("objectid", "new")
+        fields = {**self._base(), "method": "exec", "objectclass": cls,
+                  "objectid": oid, "action": "imputaPro",
+                  "params": json.dumps(params)}
+        return self._post(fields)
 
 
 class ApiExplorerService:
