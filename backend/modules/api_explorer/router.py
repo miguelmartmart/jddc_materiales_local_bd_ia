@@ -124,3 +124,18 @@ async def discover_url(request: DiscoverRequest):
         return get_service().discover_url(extra_host=request.host)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/discover-db")
+async def discover_from_db():
+    """
+    Autodescubrimiento seguro desde Firebird.
+    Lee usuarios del motor (RDB$USERS) y de SQL Obras (USDLOGIN, USUARIS, etc.)
+    mediante SELECT de solo lectura.
+    Sin escrituras. Sin ataques de fuerza bruta.
+    La password no puede descubrirse automaticamente.
+    Requiere que DB_HOST, DB_NAME, DB_USER y DB_PASSWORD esten configurados en .env.
+    """
+    try:
+        return get_service().discover_from_db()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -384,6 +384,118 @@ class ApiExplorerService:
     def resumen_historial(self): return {"total":len(self._history),"ok":sum(1 for r in self._history if r["estado"]=="ok"),"falla":sum(1 for r in self._history if r["estado"]=="falla"),"sin_permiso":sum(1 for r in self._history if r["estado"]=="sin_permiso"),"sin_licencia":sum(1 for r in self._history if r["estado"]=="sin_licencia")}
 
 
+    def discover_from_db(self) -> dict:
+        """Autodescubrimiento seguro: solo SELECT. Sin escrituras. Password no descubrible."""
+        import re, os
+        result = {
+            "success": False, "usuarios_firebird": [], "usuarios_sqlobras": [],
+            "tabla_usuarios_encontrada": None, "tablas_config": {},
+            "empresa_inferida": None, "tablas_inspeccionadas": 0,
+            "recomendaciones": [],
+            "nota_seguridad": "Solo SELECT de solo lectura. Sin modificaciones. Contrasenas no descubribles.",
+            "error": None,
+        }
+        try:
+            from backend.core.factory.db_factory import DBFactory
+            from backend.core.abstract.database import DBConfig
+            from backend.core.utils.constants import DBConstants
+            if not settings.DB_HOST or not settings.DB_NAME:
+                result["error"] = "DB_HOST o DB_NAME no configurados en .env."
+                return result
+            config = DBConfig(
+                host=settings.DB_HOST, port=settings.DB_PORT,
+                database=settings.DB_NAME, user=settings.DB_USER,
+                password=settings.DB_PASSWORD, charset="utf8",
+            )
+            driver = DBFactory.get_driver(DBConstants.TYPE_FIREBIRD.value)
+            try:
+                driver.connect(config)
+                # 1. Usuarios Firebird (RDB$USERS)
+                try:
+                    rows = driver.execute_query(
+                        "SELECT TRIM(RDB$USER_NAME) AS USUARIO FROM RDB$USERS ORDER BY RDB$USER_NAME"
+                    )
+                    result["usuarios_firebird"] = [
+                        str(r.get("USUARIO") or r.get("usuario") or "").strip()
+                        for r in (rows or []) if r
+                    ]
+                except Exception as e:
+                    logger.warning(f"[discover_from_db] RDB$USERS: {e}")
+                # 2. Listar todas las tablas de usuario
+                tablas_existentes = []
+                try:
+                    rows = driver.execute_query(
+                        "SELECT TRIM(RDB$RELATION_NAME) AS TABLA FROM RDB$RELATIONS "
+                        "WHERE RDB$SYSTEM_FLAG = 0 ORDER BY RDB$RELATION_NAME"
+                    )
+                    tablas_existentes = [
+                        str(r.get("TABLA") or r.get("tabla") or "").strip()
+                        for r in (rows or []) if r
+                    ]
+                    result["tablas_inspeccionadas"] = len(tablas_existentes)
+                except Exception as e:
+                    logger.warning(f"[discover_from_db] RDB$RELATIONS: {e}")
+                # 3. Tablas de usuarios de SQL Obras
+                for tabla in ["USDLOGIN","USUARIS","USUARIOS","USDUSERS","SIS_USUARIOS","APIUSERS","DK_USUARIOS","DK_USERS"]:
+                    if tabla in tablas_existentes:
+                        try:
+                            rows = driver.execute_query(f"SELECT FIRST 100 * FROM {tabla}")
+                            if rows:
+                                result["tabla_usuarios_encontrada"] = tabla
+                                all_keys = list(rows[0].keys())
+                                uc = [k for k in all_keys if any(p in k.upper() for p in ["USER","LOGIN","USUA","NOM","NAME"])] or all_keys[:4]
+                                result["usuarios_sqlobras"] = [{c: str(row.get(c) or "").strip() for c in uc} for row in rows]
+                        except Exception as e:
+                            logger.warning(f"[discover_from_db] {tabla}: {e}")
+                        break  # Solo la primera tabla encontrada
+                # 4. Tablas de configuracion / empresa
+                for tabla in ["SIS_EMPRESA","EMPRESA","CONFIGURACION","CONFIG","SIS_CONFIG","DK_CONFIG"]:
+                    if tabla in tablas_existentes:
+                        try:
+                            rows = driver.execute_query(f"SELECT FIRST 5 * FROM {tabla}")
+                            if rows: result["tablas_config"][tabla] = rows[:3]
+                        except Exception: pass
+                # 5. Inferir empresa desde path de BD
+                db_path = settings.DB_NAME or ""
+                m = re.search(r'[/\\]([A-Z][A-Z0-9_]{1,20})[/\\][0-9]{4}\.fdb$', db_path, re.IGNORECASE)
+                if m:
+                    result["empresa_inferida"] = m.group(1).upper()
+                else:
+                    base = os.path.splitext(os.path.basename(db_path))[0]
+                    if base and not base.isdigit():
+                        result["empresa_inferida"] = base.upper()
+                result["success"] = True
+            finally:
+                try: driver.disconnect()
+                except Exception: pass
+        except Exception as e:
+            result["error"] = str(e)
+            logger.error(f"[discover_from_db] error: {e}")
+        # 6. Recomendaciones
+        fb = result["usuarios_firebird"]
+        no_sysdba = [u for u in fb if u.upper() != "SYSDBA"]
+        sqlogins: List[str] = []
+        for u in result["usuarios_sqlobras"]:
+            for v in u.values():
+                v = (v or "").strip()
+                if v and len(v) < 30 and v not in sqlogins: sqlogins.append(v)
+        if "SYSDBA" in fb:
+            result["recomendaciones"].append({"nivel":"advertencia","icono":"⚠️",
+                "texto":"SYSDBA detectado. NO uses SYSDBA para la API mPYME. Pide un usuario dedicado con permisos minimos."})
+        if no_sysdba:
+            result["recomendaciones"].append({"nivel":"info","icono":"ℹ️","usuarios_candidatos":no_sysdba[:10],
+                "texto":f"Usuarios Firebird (excl. SYSDBA): {', '.join(no_sysdba[:8])}. Pregunta al admin cual tiene acceso a la API."})
+        if sqlogins:
+            result["recomendaciones"].append({"nivel":"ok","icono":"✅","usuarios_candidatos":sqlogins[:10],
+                "texto":f"SQL Obras logins: {', '.join(sqlogins[:8])}. El usuario API sera uno de estos."})
+        if result["empresa_inferida"]:
+            result["recomendaciones"].append({"nivel":"info","icono":"🏢",
+                "texto":f"Empresa inferida del path: '{result['empresa_inferida']}'. Confirma con Distrito K el codigo correcto."})
+        result["recomendaciones"].append({"nivel":"clave","icono":"🔑",
+            "texto":"La contrasena NO puede descubrirse. El administrador o Distrito K deben proporcionarla."})
+        return result
+
+
 _svc:Optional[ApiExplorerService]=None
 def get_service()->ApiExplorerService:
     global _svc

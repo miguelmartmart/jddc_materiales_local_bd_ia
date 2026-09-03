@@ -1,5 +1,5 @@
 /**
- * api_explorer.js v3 — Modulo API Explorer de DEVIA.
+ * api_explorer.js v4 — Modulo API Explorer de DEVIA.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -328,12 +328,24 @@ function renderConexion(s, cfg) {
           </ol>
         </div>`:`<div style="margin-top:8px;background:#dcfce7;border-radius:5px;padding:7px;font-size:0.82em;color:#166534;font-weight:600">✅ Configuracion completa</div>`}
         <div style="margin-top:10px;border-top:1px solid #f1f5f9;padding-top:10px">
-          <p style="font-size:0.78em;color:#64748b;margin:0 0 5px">Autodescubrimiento — prueba http://${dbHint} en puertos 8081, 8080, 80, 443...</p>
-          <div style="display:flex;gap:6px">
-            <button onclick="ApiExplorerModule.doDiscover()" class="btn secondary" style="font-size:0.82em;white-space:nowrap">🔍 Descubrir URL</button>
-            <input id="ae-discover-host" type="text" placeholder="IP extra (opcional)" class="form-control" style="font-size:0.8em;flex:1">
+          <p style="font-size:0.78em;color:#64748b;font-weight:600;margin:0 0 6px">🔎 Autodescubrimiento inteligente</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+            <div style="background:#f8fafc;border-radius:6px;padding:8px">
+              <p style="font-size:0.73em;color:#64748b;margin:0 0 5px;font-weight:600">1️⃣ URL del servidor mPYME</p>
+              <p style="font-size:0.71em;color:#94a3b8;margin:0 0 5px">Prueba puertos 8081, 8080, 80, 443 en ${dbHint}</p>
+              <div style="display:flex;gap:4px">
+                <button onclick="ApiExplorerModule.doDiscover()" class="btn secondary" style="font-size:0.76em;white-space:nowrap">🔍 Descubrir URL</button>
+                <input id="ae-discover-host" type="text" placeholder="IP extra (opcional)" class="form-control" style="font-size:0.76em;flex:1">
+              </div>
+            </div>
+            <div style="background:#f8fafc;border-radius:6px;padding:8px">
+              <p style="font-size:0.73em;color:#64748b;margin:0 0 5px;font-weight:600">2️⃣ Usuarios desde Firebird</p>
+              <p style="font-size:0.71em;color:#94a3b8;margin:0 0 5px">Solo SELECT. Sin escrituras. Password no descubrible.</p>
+              <button onclick="ApiExplorerModule.doDiscoverDb()" class="btn secondary" style="font-size:0.76em;width:100%">👤 Descubrir usuarios y empresa</button>
+            </div>
           </div>
-          <div id="ae-discover-result" style="margin-top:8px"></div>
+          <div id="ae-discover-result" style="margin-top:6px"></div>
+          <div id="ae-discover-db-result" style="margin-top:6px"></div>
         </div>
       </div>`;
 
@@ -644,6 +656,76 @@ const ApiExplorerModule = {
       if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">Error: ${e.message}</div>`;
     }
   },
+
+  async doDiscoverDb() {
+    const resultDiv = document.getElementById("ae-discover-db-result");
+    if (resultDiv) resultDiv.innerHTML = `<div style="color:#64748b;font-size:0.82em;padding:6px 0">👤 Consultando Firebird... (solo SELECT, sin escrituras)</div>`;
+    try {
+      const resp = await fetch("/api/api-explorer/discover-db", { method: "POST", headers: {"Content-Type":"application/json"} });
+      const r = await resp.json();
+      if (!resultDiv) return;
+      if (r.error && !r.success) {
+        resultDiv.innerHTML = `<div style="background:#fef2f2;border-left:3px solid #dc3545;border-radius:5px;padding:8px 12px;font-size:0.82em;color:#991b1b">
+          <strong>❌ Error al conectar con Firebird</strong><br>${r.error}<br>
+          <span style="font-size:0.9em;color:#64748b">Verifica DB_HOST, DB_NAME, DB_USER y DB_PASSWORD en el .env</span></div>`;
+        return;
+      }
+      let html = `<div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:5px;padding:7px 12px;font-size:0.82em;color:#166534;margin-bottom:6px">
+        <strong>✅ Consulta Firebird OK</strong> — ${r.tablas_inspeccionadas} tablas inspeccionadas
+        <span style="color:#94a3b8;font-size:0.85em"> | Solo lectura. Sin modificaciones.</span></div>`;
+      if (r.usuarios_firebird && r.usuarios_firebird.length) {
+        html += `<div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.82em">
+          <p style="margin:0 0 5px;font-weight:600;color:#374151">👥 Usuarios Firebird (RDB$USERS)</p>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${r.usuarios_firebird.map(u => {
+              const sys = u.toUpperCase()==="SYSDBA";
+              const bg = sys?"#fee2e2":"#dbeafe"; const txt = sys?"#991b1b":"#1e40af";
+              return `<span style="background:${bg};color:${txt};border-radius:12px;padding:2px 8px;font-size:0.9em;cursor:pointer"
+                onclick="document.getElementById('ae-usuario').value='${u}'" title="Clic para usar como SQLOB_USUARIO">${u} ${sys?"⚠️":"👆"}</span>`;
+            }).join("")}
+          </div>
+          <p style="margin:5px 0 0;font-size:0.82em;color:#94a3b8">Clic en un usuario para rellenar el campo. No uses SYSDBA para la API.</p></div>`;
+      }
+      if (r.usuarios_sqlobras && r.usuarios_sqlobras.length) {
+        const keys = Object.keys(r.usuarios_sqlobras[0]);
+        html += `<div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.82em">
+          <p style="margin:0 0 5px;font-weight:600;color:#374151">🏢 Usuarios SQL Obras (${r.tabla_usuarios_encontrada})</p>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.88em">
+            <thead><tr style="background:#f8fafc">${keys.map(k=>`<th style="padding:3px 8px;text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}<th style="padding:3px 8px;color:#64748b;border-bottom:1px solid #e2e8f0">Usar</th></tr></thead>
+            <tbody>${r.usuarios_sqlobras.slice(0,20).map(row=>`<tr style="border-bottom:1px solid #f1f5f9">
+              ${keys.map(k=>`<td style="padding:3px 8px">${row[k]||"—"}</td>`).join("")}
+              <td style="padding:3px 8px"><button onclick="document.getElementById('ae-usuario').value='${Object.values(row)[0]}'" class="btn secondary" style="font-size:0.75em;padding:1px 6px">👆 Usar</button></td>
+            </tr>`).join("")}</tbody>
+          </table></div></div>`;
+      }
+      if (r.empresa_inferida) {
+        html += `<div style="background:#fefce8;border:1px solid #fde047;border-radius:6px;padding:7px 12px;margin-bottom:6px;font-size:0.82em">
+          <strong>🏢 Empresa inferida:</strong>
+          <code style="background:white;padding:2px 6px;border-radius:3px;margin:0 6px;cursor:pointer"
+            onclick="document.getElementById('ae-empresa').value='${r.empresa_inferida}'" title="Clic para usar">${r.empresa_inferida} 👆</code>
+          <span style="color:#92400e;font-size:0.9em">Confirmar con Distrito K el codigo exacto</span></div>`;
+      }
+      html += `<div>`;
+      for (const rec of (r.recomendaciones || [])) {
+        const colors = {advertencia:["#fff7ed","#fb923c"], ok:["#f0fdf4","#16a34a"], clave:["#fef2f2","#dc3545"], info:["#f0f9ff","#38bdf8"]};
+        const [bg, br] = colors[rec.nivel] || colors.info;
+        html += `<div style="background:${bg};border-left:3px solid ${br};border-radius:4px;padding:6px 10px;margin-bottom:4px;font-size:0.8em">
+          ${rec.icono} ${rec.texto}`;
+        if (rec.usuarios_candidatos && rec.usuarios_candidatos.length) {
+          html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+            ${rec.usuarios_candidatos.map(u=>`<code style="background:white;padding:1px 6px;border-radius:10px;font-size:0.9em;cursor:pointer"
+              onclick="document.getElementById('ae-usuario').value='${u}'" title="Usar como usuario">${u}</code>`).join("")}</div>`;
+        }
+        html += `</div>`;
+      }
+      html += `</div>`;
+      resultDiv.innerHTML = html;
+    } catch(e) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="color:#dc3545;font-size:0.82em">❌ Error: ${e.message}</div>`;
+    }
+  },
+
+
   async doEjecutar(needsConfirm){
     const clase=document.getElementById("ae-clase")?.value||_state.selectedClase||"",op=document.getElementById("ae-op")?.value||_state.selectedOp||"";
     if(needsConfirm&&document.getElementById("ae-confirm-word")?.value!=="CONFIRMAR"){alert("Escribe exactamente: CONFIRMAR");return;}
