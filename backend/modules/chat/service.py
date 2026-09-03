@@ -464,6 +464,98 @@ class ChatService:
         ]
         return any(k in msg for k in deep_keywords)
 
+    def _extract_entity_context_from_history(self, recent_history: list) -> str:
+        """
+        FIX BUG-SQLCHAT-001B: Extrae entidades mencionadas en el historial de
+        conversación y las devuelve como una sección estructurada para el system_prompt.
+
+        Sin este método, el segundo turno no puede referenciar el proyecto/cliente
+        mostrado en el turno anterior porque el historial se pasa solo como texto plano.
+
+        Entidades extraídas:
+        - CODPROYECTO: códigos de proyecto (OBRA-YYYY-NNN, PRY-NNN, PROY-NNN, OBR-NNN)
+        - CODCLIENTE: códigos numéricos de cliente mencionados en contexto de cliente
+        - TIPO de documento: si el turno anterior habló de facturas, presupuestos, etc.
+
+        Devuelve una cadena vacía si no hay entidades relevantes (no contamina el prompt).
+
+        DISEÑO: Ultra-resiliente — si falla, devuelve "" y el flujo continúa sin cambios.
+        """
+        import re as _re_ent
+        if not recent_history:
+            return ""
+
+        try:
+            codproyectos: list = []
+            codclientes: list = []
+            tipo_doc: str = ""
+
+            for msg in recent_history:
+                content = msg.get("content", "")
+                if not content:
+                    continue
+
+                # ── CODPROYECTO: patrones habituales en JDDC ─────────────────
+                # Ejemplos: OBRA-2024-001, OBRA2024001, PRY-001, PROY-2025-003, OBR-001
+                proyectos_found = _re_ent.findall(
+                    r'\b(?:OBRA|PRY|PROY|PROYECTO|OBR)-?\d{2,4}-?\d{0,3}\b',
+                    content,
+                    _re_ent.IGNORECASE,
+                )
+                codproyectos.extend(p.upper() for p in proyectos_found)
+
+                # ── TIPO de documento (del turno anterior) ────────────────────
+                # Solo si aún no se ha detectado
+                if not tipo_doc:
+                    content_lower = content.lower()
+                    if "factura" in content_lower and "proveedor" not in content_lower:
+                        tipo_doc = "TIPO=3 (factura cliente)"
+                    elif "presupuesto" in content_lower:
+                        tipo_doc = "TIPO=0 (presupuesto cliente)"
+                    elif "albarán" in content_lower or "albaran" in content_lower:
+                        tipo_doc = "TIPO=2 (albarán cliente)"
+                    elif "pedido" in content_lower:
+                        tipo_doc = "TIPO=1 (pedido cliente)"
+                    elif "factura proveedor" in content_lower:
+                        tipo_doc = "TIPO=13 (factura proveedor)"
+
+            # Deduplicar manteniendo orden de aparición
+            codproyectos = list(dict.fromkeys(codproyectos))
+            codclientes = list(dict.fromkeys(codclientes))
+
+            # Si no hay entidades relevantes, no añadir nada al prompt
+            if not codproyectos and not codclientes and not tipo_doc:
+                return ""
+
+            # Construir sección estructurada
+            lines = [
+                "\n=== CONTEXTO DE ENTIDADES (turno anterior) ===",
+                "INSTRUCCIÓN: Si el usuario hace referencia a 'el primero', 'ese proyecto',",
+                "'el anterior', 'el mismo', 'ese cliente', usa las entidades indicadas abajo",
+                "como filtros en el SQL (WHERE CODPROYECTO = '...' o WHERE CODCLIENTE = ...).",
+            ]
+            if codproyectos:
+                lines.append(f"- CODPROYECTO mencionado: {codproyectos[0]}")
+                if len(codproyectos) > 1:
+                    lines.append(f"  (otros proyectos en contexto: {', '.join(codproyectos[1:])})")
+            if codclientes:
+                lines.append(f"- CODCLIENTE mencionado: {codclientes[0]}")
+            if tipo_doc:
+                lines.append(f"- Tipo de documento en contexto: {tipo_doc}")
+            lines.append("=== FIN CONTEXTO DE ENTIDADES ===\n")
+
+            result = "\n".join(lines)
+            logger.info(
+                f"[ENTITY_CONTEXT] Entidades extraídas del historial: "
+                f"proyectos={codproyectos}, clientes={codclientes}, tipo={tipo_doc!r}"
+            )
+            return result
+
+        except Exception as _ent_err:
+            # Ultra-resiliente: nunca fallar por extracción de entidades
+            logger.warning(f"[ENTITY_CONTEXT] Extracción de entidades falló (no crítico): {_ent_err}")
+            return ""
+
     async def _chat_no_db(self, message: str, context: Dict[str, Any]) -> str:
         """
         Modo chat conversacional puro sin BD (o con simulador activo sin parámetros reales).
@@ -983,6 +1075,14 @@ class ChatService:
                     history_context += f"Asistente: {content}\n"
             history_context += "=== FIN DEL CONTEXTO ===\n"
             logger.info(f"[CHAT] Incluyendo {len(recent_history)} mensajes de historial en el contexto")
+
+        # FIX BUG-SQLCHAT-001B: Extraer entidades del historial y añadirlas como
+        # contexto estructurado al system_prompt. Sin esto, el segundo turno no puede
+        # referenciar el proyecto/cliente mostrado en el turno anterior.
+        _entity_context_section = self._extract_entity_context_from_history(recent_history)
+        if _entity_context_section:
+            history_context += _entity_context_section
+            logger.info(f"[CHAT] Contexto de entidades añadido al historial")
         
         # 3. Intent Detection & Prompt Engineering
         # Check for visual intent keywords

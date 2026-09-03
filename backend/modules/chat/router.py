@@ -3,8 +3,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 import json
+import time
 from backend.modules.chat.service import ChatService
 from backend.modules.chat.chat_history_service import ChatHistoryService
+from backend.modules.chat.progress_tracker import tracker as progress_tracker
 
 router = APIRouter()
 service = ChatService()
@@ -28,6 +30,64 @@ class ChatRequest(BaseModel):
 class ConfigRequest(BaseModel):
     max_sql_retries: int
     ai_local_only: Optional[bool] = None  # None = no cambiar el valor actual
+
+
+@router.get("/ping")
+async def ping():
+    """
+    Endpoint de heartbeat para chat-recovery.js.
+    Responde 200 OK si el backend está activo.
+    Ultra-ligero: sin lógica, sin BD, sin IA.
+    DEVIA: chat-recovery.js usa este endpoint para verificar que el backend
+    sigue vivo durante peticiones largas (análisis profundo).
+    """
+    return {
+        "status": "alive",
+        "service": "DEVIA-chat",
+        "timestamp": time.time(),
+    }
+
+
+@router.get("/progress/{request_id}")
+async def get_progress(request_id: str, since: int = 0):
+    """
+    Endpoint de polling de progreso para el frontend.
+
+    El frontend llama a este endpoint cada 2s durante el procesamiento IA.
+    Devuelve las fases nuevas desde el índice 'since' (polling incremental).
+
+    DEVIA — Ultra-resiliente:
+    - Si el request_id no existe (aún no se ha creado o ya expiró): 404
+    - Si finished=True: el frontend deja de hacer polling
+    - TTL automático: las entradas se limpian tras 10 minutos
+
+    Args:
+        request_id: ID de la petición (devuelto por /send en el campo request_id)
+        since: Índice de la última fase ya recibida (para polling incremental)
+
+    Returns:
+        {
+            "request_id": "abc123",
+            "phases": [{"phase": "...", "detail": "...", "ts": 1234567890}],
+            "finished": false,
+            "success": null,
+            "total_phases": 3
+        }
+    """
+    data = progress_tracker.get_since(request_id, since_index=since)
+    if data is None:
+        # request_id no encontrado — puede que aún no se haya creado
+        # Devolver 200 con finished=False en lugar de 404 para evitar
+        # que el frontend muestre un error al hacer polling muy rápido
+        return {
+            "request_id": request_id,
+            "phases": [],
+            "finished": False,
+            "success": None,
+            "total_phases": 0,
+            "not_found": True,
+        }
+    return data
 
 
 @router.get("/history")
@@ -133,9 +193,18 @@ async def send_message(request: ChatRequest):
         
         history_service.add_message(session_id, "user", request.message, user_meta)
         
-        # 3. Process with AI
-        # Pass the full request dict which includes confirm_data_sending
-        response_text = await service.process_message(request.message, request.dict())
+        # 3. Crear request_id para tracking de progreso en tiempo real
+        # El frontend hace polling a GET /api/chat/progress/{request_id}
+        # para mostrar las fases del procesamiento IA en el bubble "Pensando..."
+        request_id = progress_tracker.new_request()
+        
+        # 4. Process with AI — pasar request_id en el contexto
+        ctx = request.dict()
+        ctx['_progress_request_id'] = request_id
+        response_text = await service.process_message(request.message, ctx)
+        
+        # Marcar como terminado (éxito) — el service puede haberlo marcado ya
+        progress_tracker.finish(request_id, success=True)
 
         # ── Disclaimer de simulación (server-side) ───────────────────────────
         # Si el simulador está activo, se antepone un aviso claro al usuario
@@ -206,13 +275,32 @@ async def send_message(request: ChatRequest):
         # Only save if it's a real response or confirmation request, not if it totally failed? 
         # For now, save everything.
         history_service.add_message(session_id, "assistant", final_response_text, assistant_meta)
+
+        trace_payload = ctx.get('_request_trace')
+        model_requested = request.preferred_model_id or request.model_id
+        model_actual = None
+        if isinstance(trace_payload, dict):
+            try:
+                for p in reversed(trace_payload.get("phases", [])):
+                    if p.get("model_actual"):
+                        model_actual = p.get("model_actual")
+                        break
+            except Exception:
+                model_actual = None
         
         return {
             "success": True, 
             "response": response_text,
-            "session_id": session_id 
+            "session_id": session_id,
+            "request_id": request_id,  # Para polling de progreso en el frontend
+            "trace_id": ctx.get('_trace_id'),
+            "trace": trace_payload,
+            "model_requested": model_requested,
+            "model_actual": model_actual,
         }
     except Exception as e:
+        if 'request_id' in locals():
+            progress_tracker.finish(request_id, success=False)
         if request.session_id:
              history_service.add_message(request.session_id, "assistant", f"Error: {str(e)}", {"is_error": True})
         return {"success": False, "response": f"Error: {str(e)}"}

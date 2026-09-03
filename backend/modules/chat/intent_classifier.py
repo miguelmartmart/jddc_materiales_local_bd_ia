@@ -130,6 +130,7 @@ FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
         self,
         message: str,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
+        preferred_model_id: Optional[str] = None,
     ) -> IntentResult:
         """
         Clasifica la intención del mensaje usando IA + fallback determinista.
@@ -155,7 +156,11 @@ FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
         # 3. Llamada a IA para clasificación
         if self.orchestrator:
             try:
-                result = await self._classify_with_ai(message, history_summary)
+                result = await self._classify_with_ai(
+                    message,
+                    history_summary,
+                    preferred_model_id=preferred_model_id,
+                )
                 if result:
                     logger.info(
                         f"[INTENT] IA → {result.intent} "
@@ -174,7 +179,10 @@ FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
         return result
 
     async def _classify_with_ai(
-        self, message: str, history_summary: str
+        self,
+        message: str,
+        history_summary: str,
+        preferred_model_id: Optional[str] = None,
     ) -> Optional[IntentResult]:
         """Llama al modelo IA y parsea la respuesta JSON."""
         user_message = f"HISTORIAL RECIENTE:\n{history_summary}\n\nMENSAJE ACTUAL: {message}"
@@ -182,7 +190,7 @@ FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):
         response, _ = await self.orchestrator.execute_with_fallback(
             system_prompt=self._SYSTEM_PROMPT,
             user_message=user_message,
-            preferred_model_id="jddcia-qwen3-30b",
+            preferred_model_id=preferred_model_id or "jddcia-qwen3-30b",
         )
 
         if not response:

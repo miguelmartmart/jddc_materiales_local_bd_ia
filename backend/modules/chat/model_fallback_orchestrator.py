@@ -126,6 +126,15 @@ class ModelFallbackOrchestrator:
         self.model_manager = _model_manager_singleton  # singleton — no crear instancia nueva
         self.retry_delay = ModelFallbackConfig.RETRY_DELAY_SECONDS
         self.max_retries_per_model = ModelFallbackConfig.MAX_RETRIES_PER_MODEL
+        self.preferred_model_id: Optional[str] = None
+        self.last_execution_stats: Dict[str, Any] = {
+            "attempts": 0,
+            "retries": 0,
+            "fallbacks": 0,
+            "models_tried": [],
+            "model_used": None,
+            "aborted_by_deadline": False,
+        }
 
     def _get_prioritized_models(self, preferred_model_id: str = None) -> List[Dict[str, Any]]:
         """
@@ -258,6 +267,10 @@ class ModelFallbackOrchestrator:
         user_message: str,
         images: Optional[List[str]] = None,
         feedback_callback: Optional[callable] = None,
+        max_retries_override: Optional[int] = None,
+        max_models_override: Optional[int] = None,
+        deadline_monotonic: Optional[float] = None,
+        stats: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Modo AI_LOCAL_ONLY: reintenta SOLO los modelos LAN hasta lan_max_retries rondas.
@@ -282,7 +295,7 @@ class ModelFallbackOrchestrator:
             logger.warning(f"[LAN_ONLY] Anonymizer skipped: {anon_err}")
 
         # Leer lan_max_retries de config.json en cada llamada (sin reiniciar el servidor)
-        max_retries = _load_lan_max_retries()
+        max_retries = max_retries_override if max_retries_override is not None else _load_lan_max_retries()
         logger.info(
             f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Máximo de rondas: {max_retries} "
             f"(config.json → lan_max_retries)"
@@ -305,6 +318,8 @@ class ModelFallbackOrchestrator:
 
             # Filtrar modelos que ya fallaron permanentemente
             active_models = [m for m in local_models if m.get('id', '') not in _permanently_failed]
+            if max_models_override is not None:
+                active_models = active_models[:max_models_override]
             if not active_models:
                 logger.error(
                     f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ❌ Todos los modelos LAN fallaron permanentemente. "
@@ -318,8 +333,18 @@ class ModelFallbackOrchestrator:
             )
 
             for model_config in active_models:
+                if deadline_monotonic is not None and asyncio.get_running_loop().time() >= deadline_monotonic:
+                    logger.warning("[LAN_ONLY] Deadline agotado antes de intentar otro modelo")
+                    if stats is not None:
+                        stats["aborted_by_deadline"] = True
+                    return None, None
+
                 model_name = model_config.get('name', 'Unknown')
                 model_id = model_config.get('id', '')
+                if stats is not None:
+                    stats["attempts"] = int(stats.get("attempts", 0)) + 1
+                    if model_id not in stats.get("models_tried", []):
+                        stats.setdefault("models_tried", []).append(model_id)
 
                 logger.info(
                     f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] Intentando {model_name} "
@@ -365,6 +390,8 @@ class ModelFallbackOrchestrator:
                         f"{LogPrefixes.AI_PROVIDER} 🔒 [LAN_ONLY] ✅ Respuesta de {model_name} "
                         f"en ronda {attempt_global}"
                     )
+                    if stats is not None:
+                        stats["model_used"] = model_id
                     return response, model_id
 
                 # Detectar fallo permanente desde _try_model (captura interna)
@@ -413,7 +440,9 @@ class ModelFallbackOrchestrator:
         user_message: str,
         images: Optional[List[str]] = None,
         feedback_callback: Optional[callable] = None,
-        preferred_model_id: str = None
+        preferred_model_id: str = None,
+        execution_policy: Optional[Dict[str, int]] = None,
+        deadline_monotonic: Optional[float] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Ejecuta generación de respuesta con fallback entre modelos.
@@ -427,7 +456,27 @@ class ModelFallbackOrchestrator:
         Returns:
             Tupla (respuesta, model_id) o (None, None) si todos fallan
         """
+        self.preferred_model_id = preferred_model_id
+        stats: Dict[str, Any] = {
+            "attempts": 0,
+            "retries": 0,
+            "fallbacks": 0,
+            "models_tried": [],
+            "model_used": None,
+            "aborted_by_deadline": False,
+        }
+
+        max_retries_override = None
+        max_models_override = None
+        if execution_policy:
+            if execution_policy.get("max_retries_per_model") is not None:
+                max_retries_override = max(0, int(execution_policy["max_retries_per_model"]))
+            if execution_policy.get("max_models") is not None:
+                max_models_override = max(1, int(execution_policy["max_models"]))
+
         prioritized_models = self._get_prioritized_models(preferred_model_id)
+        if max_models_override is not None:
+            prioritized_models = prioritized_models[:max_models_override]
 
         if not prioritized_models:
             logger.error(f"{LogPrefixes.AI_PROVIDER} {LogEmojis.ERROR} No hay modelos disponibles")
@@ -451,13 +500,19 @@ class ModelFallbackOrchestrator:
                     f"{LogPrefixes.AI_PROVIDER} 🔒 Modo AI_LOCAL_ONLY activo — "
                     f"usando SOLO modelos LAN (sin fallback a internet): {[m['name'] for m in local_models]}"
                 )
-                return await self._execute_lan_only(
+                result = await self._execute_lan_only(
                     local_models=local_models,
                     system_prompt=system_prompt,
                     user_message=user_message,
                     images=images,
-                    feedback_callback=feedback_callback
+                    feedback_callback=feedback_callback,
+                    max_retries_override=max_retries_override,
+                    max_models_override=max_models_override,
+                    deadline_monotonic=deadline_monotonic,
+                    stats=stats,
                 )
+                self.last_execution_stats = stats
+                return result
             else:
                 logger.error(
                     f"{LogPrefixes.AI_PROVIDER} ❌ Modo AI_LOCAL_ONLY activo pero "
@@ -484,9 +539,25 @@ class ModelFallbackOrchestrator:
         # -------------------------------------
 
         # Iterar por cada modelo
+        retries_per_model = (
+            max_retries_override
+            if max_retries_override is not None
+            else self.max_retries_per_model
+        )
+
         for model_idx, model_config in enumerate(prioritized_models):
+            if deadline_monotonic is not None and asyncio.get_running_loop().time() >= deadline_monotonic:
+                logger.warning("[FALLBACK] Deadline agotado antes de cambiar de modelo")
+                stats["aborted_by_deadline"] = True
+                self.last_execution_stats = stats
+                return None, None
+
             model_name = model_config.get('name', 'Unknown')
             model_id = model_config.get('id', '')
+            if model_idx > 0:
+                stats["fallbacks"] = int(stats.get("fallbacks", 0)) + 1
+            if model_id not in stats.get("models_tried", []):
+                stats.setdefault("models_tried", []).append(model_id)
 
             # Notificar cambio de modelo (excepto el primero)
             if model_idx > 0 and feedback_callback:
@@ -495,7 +566,16 @@ class ModelFallbackOrchestrator:
                 )
 
             # Intentar con este modelo (1 intento inicial + reintentos)
-            for attempt in range(1, self.max_retries_per_model + 2):
+            for attempt in range(1, retries_per_model + 2):
+                if deadline_monotonic is not None and asyncio.get_running_loop().time() >= deadline_monotonic:
+                    logger.warning("[FALLBACK] Deadline agotado antes de nuevo intento")
+                    stats["aborted_by_deadline"] = True
+                    self.last_execution_stats = stats
+                    return None, None
+
+                stats["attempts"] = int(stats.get("attempts", 0)) + 1
+                if attempt > 1:
+                    stats["retries"] = int(stats.get("retries", 0)) + 1
                 # Feedback al usuario
                 if feedback_callback:
                     if attempt == 1:
@@ -507,7 +587,7 @@ class ModelFallbackOrchestrator:
                             UserFeedbackMessages.RETRYING_MODEL.format(
                                 model_name=model_name,
                                 attempt=attempt,
-                                max_attempts=self.max_retries_per_model + 1
+                                max_attempts=retries_per_model + 1
                             )
                         )
 
@@ -526,10 +606,12 @@ class ModelFallbackOrchestrator:
                         feedback_callback(
                             UserFeedbackMessages.SUCCESS.format(model_name=model_name)
                         )
+                    stats["model_used"] = model_id
+                    self.last_execution_stats = stats
                     return response, model_id
 
                 # Si falló y quedan reintentos, esperar
-                if attempt < self.max_retries_per_model + 1:
+                if attempt < retries_per_model + 1:
                     logger.info(
                         f"{LogPrefixes.AI_PROVIDER} ⏳ "
                         f"Esperando {self.retry_delay}s antes de reintentar..."
@@ -547,5 +629,5 @@ class ModelFallbackOrchestrator:
         )
         if feedback_callback:
             feedback_callback(UserFeedbackMessages.ALL_MODELS_FAILED)
-
+        self.last_execution_stats = stats
         return None, None

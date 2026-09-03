@@ -333,8 +333,13 @@ _TIPO_NOMBRES: Dict[int, str] = {
     13: "Factura proveedor",
     21: "Movimiento almacén",
     51: "Certificación de obra",
-    61: "Documento especial",
+    61: "Certificación subcontrata",
 }
+
+# Tipos considerados certificación "confirmada" en la clasificación estricta.
+# El conteo principal del bloque usa documentos vinculados a proyecto (CODPROYECTO),
+# y este set permite distinguirlos de la pestaña funcional de certificaciones.
+_CERTIFICACION_TIPOS_ESTRICTOS = {51, 61}
 
 _TIPORETENCION_NOMBRES: Dict[int, str] = {
     0: "Sin retención",
@@ -390,6 +395,67 @@ class AdaptiveResilienceEngine:
                 return domain, tables
         return _Domain.GENERAL, []
 
+    @staticmethod
+    def _detect_cardinality(question: str) -> Optional[int]:
+        """
+        Extrae la cardinalidad explícita de la pregunta del usuario.
+
+        Detecta expresiones como:
+          - "un único proyecto", "una sola certificación", "un solo"
+          - "dame 3 proyectos", "muéstrame 5 certificaciones"
+          - "el primero", "la primera"
+          - dígitos explícitos: "2 proyectos", "10 obras"
+
+        Devuelve:
+          - 1  si la pregunta pide exactamente uno ("un único", "uno solo", "el primero"…)
+          - N  si la pregunta pide N explícitamente (N >= 2)
+          - None si no hay cardinalidad explícita (mostrar todos los disponibles)
+
+        Principio de fallo seguro: ante cualquier duda devuelve None (sin restricción).
+        """
+        import re as _re
+        msg = question.lower()
+
+        # Patrones que indican "exactamente uno"
+        _ONE_PATTERNS = [
+            r'\bun[ao]?\s+[úu]nic[ao]\b',      # "un único", "una única"
+            r'\bun[ao]?\s+sol[ao]\b',            # "un solo", "una sola"
+            r'\bel\s+primero?\b',                # "el primero", "el primer"
+            r'\bla\s+primera?\b',                # "la primera"
+            r'\bun\s+ejemplo\b',                 # "un ejemplo"
+            r'\bcualquiera\b',                   # "uno cualquiera"
+            r'\bun[ao]?\s+cualquiera\b',         # "uno cualquiera"
+        ]
+        for pat in _ONE_PATTERNS:
+            if _re.search(pat, msg):
+                return 1
+
+        # Patrones que indican N explícito (número seguido de sustantivo de dominio)
+        _N_PATTERN = _re.compile(
+            r'\b(\d+)\s+'
+            r'(?:proyecto|proyectos|obra|obras|certificaci[oó]n|certificaciones|'
+            r'retencion|retenciones|documento|documentos|articulo|art[ií]culos|'
+            r'cliente|clientes|factura|facturas|resultado|resultados|registro|registros|'
+            r'ejemplo|ejemplos|instalaci[oó]n|instalaciones)\b'
+        )
+        m = _N_PATTERN.search(msg)
+        if m:
+            n = int(m.group(1))
+            if 1 <= n <= 1000:   # sanidad: ignorar números absurdos
+                return n
+
+        # "dame N", "muéstrame N", "pon N", "lista N"
+        _VERB_N_PATTERN = _re.compile(
+            r'\b(?:dame|mu[eé]strame|pon|lista|muestra|dime|trae)\s+(\d+)\b'
+        )
+        m2 = _VERB_N_PATTERN.search(msg)
+        if m2:
+            n = int(m2.group(1))
+            if 1 <= n <= 1000:
+                return n
+
+        return None
+
     async def _execute_sql(self, sql: str) -> List[Dict]:
         """
         Ejecuta un SQL usando el executor configurado o el simulador directo.
@@ -434,10 +500,19 @@ class AdaptiveResilienceEngine:
 
     def _tipo_nombre(self, tipo: Any) -> str:
         """Devuelve el nombre legible de un tipo de documento."""
+        if tipo is None:
+            return "Sin tipo (NULL)"
         try:
             return _TIPO_NOMBRES.get(int(tipo), f"Tipo {tipo}")
         except (TypeError, ValueError):
             return f"Tipo {tipo}"
+
+    def _is_tipo_certificacion_estricta(self, tipo: Any) -> bool:
+        """True si el tipo pertenece al conjunto estricto de certificaciones."""
+        try:
+            return int(tipo) in _CERTIFICACION_TIPOS_ESTRICTOS
+        except (TypeError, ValueError):
+            return False
 
     def _tiporetencion_nombre(self, tipo: Any) -> str:
         """Devuelve el nombre legible de un tipo de retención."""
@@ -451,7 +526,7 @@ class AdaptiveResilienceEngine:
     def _build_certificaciones_response(
         self, question: str, data: Dict[str, List[Dict]]
     ) -> str:
-        """Genera respuesta de calidad para preguntas de certificaciones."""
+        """Genera respuesta para certificaciones sin confundirlas con documentos genéricos."""
         lines = ["## 📋 Certificaciones por proyecto\n"]
 
         cert_data = data.get("cert_por_proyecto_resumen", [])
@@ -462,7 +537,7 @@ class AdaptiveResilienceEngine:
             if proyectos_data:
                 lines.append(
                     f"Se encontraron **{len(proyectos_data)} proyectos** en la base de datos, "
-                    f"pero ninguno tiene certificaciones (documentos con CODPROYECTO) registradas.\n"
+                    f"pero ninguno tiene documentos vinculados por `CODPROYECTO` registrados.\n"
                 )
                 lines.append("\n**Proyectos disponibles:**")
                 for p in proyectos_data[:10]:
@@ -476,14 +551,22 @@ class AdaptiveResilienceEngine:
                 )
             return "\n".join(lines)
 
-        # Agrupar por proyecto
+        # Agrupar por proyecto separando:
+        # 1) documentos vinculados por CODPROYECTO (conteo amplio)
+        # 2) certificaciones estrictas por tipo (51/61)
         proyectos: Dict[str, Dict] = {}
         for row in cert_data:
             cod = str(row.get("COD_PROYECTO") or row.get("cod_proyecto") or "")
             nombre = str(row.get("NOMBRE_PROYECTO") or row.get("nombre_proyecto") or cod)
             tipo = row.get("TIPO") or row.get("tipo")
             n = int(row.get("N_CERTIFICACIONES") or row.get("n_certificaciones") or 0)
-            total = row.get("TOTAL_CERTIFICADO_EUR") or row.get("total_certificado_eur") or 0
+            total = (
+                row.get("TOTAL_CERTIFICADO_EUR")
+                or row.get("total_certificado_eur")
+                or row.get("TOTAL_EUR")
+                or row.get("total_eur")
+                or 0
+            )
             primera = row.get("PRIMERA") or row.get("primera") or ""
             ultima = row.get("ULTIMA") or row.get("ultima") or ""
 
@@ -491,39 +574,73 @@ class AdaptiveResilienceEngine:
                 proyectos[cod] = {
                     "nombre": nombre,
                     "tipos": [],
-                    "total_certs": 0,
-                    "total_eur": 0.0,
+                    "total_docs_vinculados": 0,
+                    "total_docs_eur": 0.0,
+                    "total_certs_estrictas": 0,
+                    "total_certs_estrictas_eur": 0.0,
                     "primera": primera,
                     "ultima": ultima,
                 }
+            total_float = float(total) if total else 0.0
             proyectos[cod]["tipos"].append({
                 "tipo": tipo,
                 "n": n,
-                "total": float(total) if total else 0.0,
+                "total": total_float,
             })
-            proyectos[cod]["total_certs"] += n
-            proyectos[cod]["total_eur"] += float(total) if total else 0.0
+            proyectos[cod]["total_docs_vinculados"] += n
+            proyectos[cod]["total_docs_eur"] += total_float
+            if self._is_tipo_certificacion_estricta(tipo):
+                proyectos[cod]["total_certs_estrictas"] += n
+                proyectos[cod]["total_certs_estrictas_eur"] += total_float
             if primera and (not proyectos[cod]["primera"] or primera < proyectos[cod]["primera"]):
                 proyectos[cod]["primera"] = primera
             if ultima and ultima > proyectos[cod]["ultima"]:
                 proyectos[cod]["ultima"] = ultima
 
         total_proyectos = len(proyectos)
-        total_certs = sum(p["total_certs"] for p in proyectos.values())
-        total_eur = sum(p["total_eur"] for p in proyectos.values())
+        total_docs_vinculados = sum(p["total_docs_vinculados"] for p in proyectos.values())
+        total_docs_eur = sum(p["total_docs_eur"] for p in proyectos.values())
+        total_certs_estrictas = sum(p["total_certs_estrictas"] for p in proyectos.values())
+        total_certs_estrictas_eur = sum(p["total_certs_estrictas_eur"] for p in proyectos.values())
 
         lines.append(
             f"Se encontraron **{total_proyectos} proyectos** con un total de "
-            f"**{total_certs} certificaciones** por un importe total de "
-            f"**{self._fmt_eur(total_eur)}**.\n"
+            f"**{total_docs_vinculados} documentos vinculados** por `CODPROYECTO` "
+            f"por un importe total de **{self._fmt_eur(total_docs_eur)}**.\n"
         )
+        if total_certs_estrictas > 0:
+            lines.append(
+                f"Certificaciones confirmadas por tipo estricto (51/61): "
+                f"**{total_certs_estrictas}** | **{self._fmt_eur(total_certs_estrictas_eur)}**.\n"
+            )
+        else:
+            lines.append(
+                "No se detectaron certificaciones por tipo estricto (51/61). "
+                "Los datos anteriores corresponden a documentos vinculados al proyecto.\n"
+            )
 
-        for cod, proy in sorted(proyectos.items(), key=lambda x: x[1]["nombre"]):
+        # Aplicar cardinalidad: si el usuario pidió "un único", "3 proyectos", etc.
+        cardinality = self._detect_cardinality(question)
+        proyectos_ordenados = sorted(proyectos.items(), key=lambda x: x[1]["nombre"])
+        if cardinality is not None:
+            proyectos_ordenados = proyectos_ordenados[:cardinality]
+            if cardinality < total_proyectos:
+                lines.append(
+                    f"*(Mostrando {len(proyectos_ordenados)} de {total_proyectos} proyectos "
+                    f"según lo solicitado)*\n"
+                )
+
+        for cod, proy in proyectos_ordenados:
             lines.append(f"\n### 🏗️ {proy['nombre']} (código: {cod})")
             lines.append(
-                f"- **Total certificaciones:** {proy['total_certs']} "
-                f"| **Importe total:** {self._fmt_eur(proy['total_eur'])}"
+                f"- **Total documentos vinculados:** {proy['total_docs_vinculados']} "
+                f"| **Importe total:** {self._fmt_eur(proy['total_docs_eur'])}"
             )
+            if proy["total_certs_estrictas"] > 0:
+                lines.append(
+                    f"- **Certificaciones estrictas (51/61):** {proy['total_certs_estrictas']} "
+                    f"| **Importe:** {self._fmt_eur(proy['total_certs_estrictas_eur'])}"
+                )
             if proy["primera"]:
                 lines.append(
                     f"- **Período:** {self._fmt_date(proy['primera'])} → "
@@ -537,9 +654,9 @@ class AdaptiveResilienceEngine:
 
         # Añadir nota sobre tipos de documento
         lines.append(
-            "\n> 💡 **Nota:** Las certificaciones son documentos vinculados a un proyecto "
-            "(DOCCAB con CODPROYECTO). En JDDC, el tipo 3 = factura cliente (certificación "
-            "estándar) y el tipo 51 = certificación específica de obra."
+            "\n> 💡 **Nota:** Este bloque se construye desde `DOCCAB` usando `CODPROYECTO`. "
+            "No todo documento vinculado equivale a certificación funcional del ERP. "
+            "Por eso se separan documentos vinculados y certificaciones estrictas (51/61)."
         )
 
         return "\n".join(lines)
@@ -557,7 +674,17 @@ class AdaptiveResilienceEngine:
             lines.append("No se encontraron proyectos en la base de datos simulada.")
             return "\n".join(lines)
 
-        lines.append(f"Se encontraron **{len(proyectos_data)} proyectos**:\n")
+        total_disponibles = len(proyectos_data)
+
+        # Aplicar cardinalidad: si el usuario pidió "un único proyecto", "3 obras", etc.
+        cardinality = self._detect_cardinality(question)
+        if cardinality is not None:
+            proyectos_data = proyectos_data[:cardinality]
+
+        lines.append(f"Se encontraron **{total_disponibles} proyectos**")
+        if cardinality is not None and cardinality < total_disponibles:
+            lines.append(f" *(mostrando {len(proyectos_data)} según lo solicitado)*")
+        lines.append(":\n")
 
         # Crear mapa de facturado por proyecto
         facturado_map: Dict[str, float] = {}
