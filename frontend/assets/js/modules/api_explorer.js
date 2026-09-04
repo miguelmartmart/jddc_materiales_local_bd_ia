@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v8 — Modulo API Explorer de DEVIA. Inspector API completo.
+ * api_explorer.js v9 — Modulo API Explorer de DEVIA. Inspector API completo.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -27,10 +27,10 @@ async function _fetch(path, opts = {}) {
 }
 
 function estadoIcon(e) {
-  return { ok:"✅", falla:"❌", sin_permiso:"🔒", sin_licencia:"🚫", bloqueado:"⛔", no_probado:"⬜" }[e] || "❓";
+  return { ok:"✅", falla:"❌", sin_permiso:"🔒", sin_licencia:"🚫", bloqueado:"⛔", no_probado:"⬜", precisa_params:"ℹ️" }[e] || "❓";
 }
 function estadoColor(e) {
-  return { ok:"#28a745", falla:"#dc3545", sin_permiso:"#6c757d", sin_licencia:"#dc3545", bloqueado:"#fd7e14" }[e] || "#6c757d";
+  return { ok:"#28a745", falla:"#dc3545", sin_permiso:"#6c757d", sin_licencia:"#dc3545", bloqueado:"#fd7e14", precisa_params:"#0d6efd" }[e] || "#6c757d";
 }
 
 // ─── Renderizar datos de respuesta en tabla legible ───────────────────────────
@@ -399,7 +399,7 @@ function renderInspector(s) {
   const cls  = _state.inspectorClase;
 
   // Sub-pestañas del Inspector
-  const ITABS = [["resumen","📋 Resumen"],["clase","🗂️ Por Clase"],["operaciones","⚙️ Operaciones"],["codigos","🔢 Códigos"]];
+  const ITABS = [["resumen","📋 Resumen"],["clase","🗂️ Por Clase"],["operaciones","⚙️ Operaciones"],["codigos","🔢 Códigos"],["informe","📑 Informe"]];
   const itabBar = `<div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid #f1f5f9;padding-bottom:10px">
     ${ITABS.map(([id,lbl]) => `<button onclick="ApiExplorerModule.setInspectorTab('${id}')"
       style="padding:5px 13px;border:1px solid ${iTab===id?'#3b82f6':'#e2e8f0'};background:${iTab===id?'#3b82f6':'white'};color:${iTab===id?'white':'#64748b'};border-radius:6px;cursor:pointer;font-size:0.82em;transition:all 0.15s">${lbl}</button>`).join('')}
@@ -433,7 +433,7 @@ function renderInspector(s) {
     </div>
     ${dr ? `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
       ${[['✅','Con acceso','con_permiso','#dcfce7','#166534'],['🚫','Sin licencia','sin_licencia','#fef2f2','#991b1b'],
-         ['🔒','Sin permiso','sin_permiso','#f8fafc','#64748b'],['⚠️','Error','error','#fef9c3','#92400e']]
+         ['🔒','Sin permiso','sin_permiso','#f8fafc','#64748b'],['ℹ️','Requiere params','precisa_params','#dbeafe','#1d4ed8'],['⚠️','Error','error','#fef9c3','#92400e']]
         .map(([ic,lbl,key,bg,cl]) => `<div style="background:${bg};border-radius:8px;padding:8px 10px;text-align:center">
           <p style="margin:0;font-size:1.3em">${ic}</p>
           <p style="margin:2px 0 0;font-size:0.75em;font-weight:700;color:${cl}">${Object.values(dr.clases||{}).filter(c=>c.estado===key).length}</p>
@@ -453,6 +453,7 @@ function renderInspector(s) {
   else if (iTab === 'clase') content = _inspClase(cat, cf, dr, cls);
   else if (iTab === 'operaciones') content = _inspOps(cf);
   else if (iTab === 'codigos')     content = _inspCodes(cf);
+  else if (iTab === 'informe')     content = _inspInforme();
 
   return btnD + itabBar + content;
 }
@@ -462,10 +463,11 @@ function renderInspector(s) {
 // ── Inspector: RESUMEN ─────────────────────────────────────────
 function _inspResumen(cat, dr) {
   const BADGE = {
-    con_permiso:  `<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.74em">✅ Acceso</span>`,
-    sin_licencia: `<span style="background:#fef2f2;color:#991b1b;border-radius:10px;padding:1px 8px;font-size:0.74em">🚫 Sin licencia</span>`,
-    sin_permiso:  `<span style="background:#f8fafc;color:#64748b;border-radius:10px;padding:1px 8px;font-size:0.74em">🔒 Sin permiso</span>`,
-    error:        `<span style="background:#fef9c3;color:#92400e;border-radius:10px;padding:1px 8px;font-size:0.74em">⚠️ Error</span>`,
+    con_permiso:    `<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.74em">✅ Acceso</span>`,
+    sin_licencia:   `<span style="background:#fef2f2;color:#991b1b;border-radius:10px;padding:1px 8px;font-size:0.74em">🚫 Sin licencia</span>`,
+    sin_permiso:    `<span style="background:#f8fafc;color:#64748b;border-radius:10px;padding:1px 8px;font-size:0.74em">🔒 Sin permiso</span>`,
+    error:          `<span style="background:#fef9c3;color:#92400e;border-radius:10px;padding:1px 8px;font-size:0.74em">⚠️ Error</span>`,
+    precisa_params: `<span style="background:#dbeafe;color:#1d4ed8;border-radius:10px;padding:1px 8px;font-size:0.74em">ℹ️ Requiere params</span>`,
   };
   const noBadge = `<span style="background:#f1f5f9;color:#94a3b8;border-radius:10px;padding:1px 8px;font-size:0.74em">⬜ No probado</span>`;
   return Object.entries(cat).map(([mod,md]) => {
@@ -513,9 +515,9 @@ function _inspClase(cat, cf, dr, isCls) {
 
   const sel=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">${allCls.map(c=>`<button onclick="ApiExplorerModule.setInspectorClase('${c}')" style="padding:3px 9px;border:1px solid ${c===cls?'#3b82f6':'#e2e8f0'};background:${c===cls?'#3b82f6':'white'};color:${c===cls?'white':'#64748b'};border-radius:10px;cursor:pointer;font-size:0.74em">${c}</button>`).join('')}</div>`;
 
-  const stBg={con_permiso:'#dcfce7',sin_licencia:'#fef2f2',sin_permiso:'#f8fafc',error:'#fef9c3'};
-  const stCl={con_permiso:'#166534',sin_licencia:'#991b1b',sin_permiso:'#64748b',error:'#92400e'};
-  const stLb={con_permiso:'✅ Acceso',sin_licencia:'🚫 Sin licencia',sin_permiso:'🔒 Sin permiso',error:'⚠️ Diagnóstico'};
+  const stBg={con_permiso:'#dcfce7',sin_licencia:'#fef2f2',sin_permiso:'#f8fafc',error:'#fef9c3',precisa_params:'#dbeafe'};
+  const stCl={con_permiso:'#166534',sin_licencia:'#991b1b',sin_permiso:'#64748b',error:'#92400e',precisa_params:'#1d4ed8'};
+  const stLb={con_permiso:'✅ Acceso',sin_licencia:'🚫 Sin licencia',sin_permiso:'🔒 Sin permiso',error:'⚠️ Diagnóstico',precisa_params:'ℹ️ Requiere parámetros'};
 
   // Diagnóstico detallado cuando el servidor devolvió código inesperado
   let diagH='';
@@ -675,6 +677,24 @@ function _inspCodes(cf) {
     </div></div>`;
 }
 
+
+// ── Inspector: INFORME multi-nivel ────────────────────────────
+function _inspInforme() {
+  const isMock = _state.status && _state.status.use_mock;
+  const origenNote = isMock
+    ? `<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#1d4ed8;margin-bottom:10px">🔵 Modo BD Simulada. El informe refleja datos simulados, no la licencia real.</div>`
+    : `<div style="background:#dcfce7;border-left:3px solid #16a34a;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#166534;margin-bottom:10px">🟢 API Real. El informe refleja lo que vuestra licencia permite realmente.</div>`;
+  const nota = `<div style="background:#fef9c3;border-left:3px solid #fbbf24;padding:8px 12px;border-radius:6px;font-size:0.82em;color:#92400e;margin-bottom:12px">
+    ℹ️ El informe se genera a partir del <strong>último descubrimiento</strong>. Si no has ejecutado "Descubrir todo" aún, hazlo primero.</div>`;
+  return `<div>
+    ${origenNote}${nota}
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button onclick="ApiExplorerModule.doInforme()" class="btn primary" style="font-size:0.88em">📑 Generar informe completo</button>
+      <button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="font-size:0.88em">💾 Exportar TXT</button>
+    </div>
+    <div id="ae-informe-result" style="margin-top:8px"></div>
+  </div>`;
+}
 
 function renderExplorador(s, modulos, mod, clases, cls, ops, op, riesgo, RLBL) {
   if (!s.session_active) return noSesion();
@@ -1061,6 +1081,42 @@ const ApiExplorerModule = {
     try{const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:"proordutil",operacion:"cancel",params:{objectId:oid}})});if(result)result.innerHTML=renderResult(r);window._ae_objectId=null;const s=document.getElementById("ae-wr-oid-section");if(s)s.style.display="none";}
     catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
   },
+
+  async doInforme(){
+    const div=document.getElementById("ae-informe-result");
+    if(div) div.innerHTML=`<p style="color:#64748b;font-size:0.85em">Generando informe…</p>`;
+    try{
+      const r=await _fetch("/informe");
+      if(r.error){
+        if(div) div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:10px 14px;color:#991b1b">${r.error}</div>`;
+        return;
+      }
+      window._ae_informe_txt = r.texto || "";
+      const meta=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px">
+        <div style="background:#dcfce7;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">✅</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#166534">${r.clases_con_acceso}</p><p style="margin:0;font-size:0.7em;color:#166534">Con acceso</p></div>
+        <div style="background:#fef2f2;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">🚫</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#991b1b">${r.clases_sin_licencia}</p><p style="margin:0;font-size:0.7em;color:#991b1b">Sin licencia</p></div>
+        <div style="background:#fef9c3;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">⚠️</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#92400e">${r.clases_error}</p><p style="margin:0;font-size:0.7em;color:#92400e">Error/pendiente</p></div>
+        <div style="background:#f8fafc;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:0.72em;color:#64748b">${r.modo}</p><p style="margin:2px 0 0;font-size:0.7em;color:#94a3b8">${r.timestamp||''}</p></div>
+      </div>`;
+      if(div) div.innerHTML=meta+`<pre style="background:#1e293b;color:#e2e8f0;border-radius:8px;padding:14px;font-size:0.78em;overflow-x:auto;white-space:pre-wrap;max-height:500px;overflow-y:auto">${(r.texto||'').replace(/</g,'&lt;')}</pre>
+        <button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="margin-top:8px;font-size:0.85em">💾 Exportar TXT</button>`;
+    }catch(e){
+      if(div) div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:10px 14px;color:#991b1b">Error: ${e.message}</div>`;
+    }
+  },
+
+  exportarInforme(){
+    const txt=window._ae_informe_txt||"";
+    if(!txt){alert("Genera el informe primero.");return;}
+    const blob=new Blob([txt],{type:"text/plain;charset=utf-8"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`informe_api_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  },
+
+
 };
 
 window.ApiExplorerModule = ApiExplorerModule;

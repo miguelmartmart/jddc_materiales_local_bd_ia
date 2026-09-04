@@ -238,15 +238,19 @@ class ApiExplorerService:
 
     def _build(self,clase,op,params,raw,ms):
         hs=raw.pop("_http_status",200); code=raw.get("code")
-        if raw.get("error") and code==-1: e="falla"; m=f"Error: {raw.get('error')}"
+        if raw.get("error") and code==-1: e="falla"; m=f"Error de conexion: {raw.get('error')}"
         elif hs==401: e="sin_permiso"; m="Sin autorizacion (401)"
         elif hs==403: e="sin_permiso"; m="Acceso denegado (403)"
         elif hs not in (200,201): e="falla"; m=f"HTTP {hs}"
         elif code==0: e="ok"; m="Operacion exitosa. code=0"
-        elif code==1: e="sin_licencia"; m="Sin licencia (code=1)."
-        elif code==2: e="sin_permiso"; m="Sin permiso (code=2)."
-        elif code is not None: e="falla"; m=f"Error: code={code}"
-        else: e="ok"; m="HTTP 200 sin code interno."
+        elif code==1: e="sin_licencia"; m="Sin licencia para este modulo/clase (code=1). Vuestra licencia no incluye esta funcion."
+        elif code==2: e="sin_permiso"; m="Sin permiso (code=2). El usuario API no tiene acceso a esta operacion."
+        elif code==3: e="falla"; m="Error de validacion (code=3). Parametros enviados no son validos segun el servidor."
+        elif code==5: e="falla"; m="Parametros incompletos (code=5). Faltan campos requeridos. Comprueba usuario, empresa y password."
+        elif code==6: e="precisa_params"; m="Esta operacion requiere parametros adicionales (code=6). Proporciona el ID o clave del objeto."
+        elif code==10: e="falla"; m="No encontrado (code=10). El objeto solicitado no existe en la BD."
+        elif code is not None: e="falla"; m=f"Error servidor: code={code}. Consulta la tabla de codigos."
+        else: e="ok"; m="HTTP 200 sin code interno (respuesta no estandar)."
         r={"id":str(uuid.uuid4())[:8],"timestamp":datetime.now().isoformat(),"clase":clase,"operacion":op,"params":params,"http_status":hs,"code":code,"json":raw,"duracion_ms":round(ms,1),"estado":e,"mensaje":m,"use_mock":self.use_mock,"nota_doc":NOTAS_DOC.get((clase,op),""),"nota_seguridad":NOTAS_SEGURIDAD.get((clase,op),"")}
         self._history.append(r)
         if len(self._history)>200: self._history=self._history[-200:]
@@ -702,8 +706,20 @@ class ApiExplorerService:
                             f"pero browse OK — datos reales disponibles"
                         )
                 else:
-                    entry["browse_error_code"] = raw_b.get("code")
-                    entry["browse_error_msg"] = raw_b.get("error") or raw_b.get("msg") or f"code={raw_b.get('code')}"
+                    browse_code = raw_b.get("code")
+                    entry["browse_error_code"] = browse_code
+                    entry["browse_error_msg"] = raw_b.get("error") or raw_b.get("msg") or f"code={browse_code}"
+                    # code=6 = requiere params obligatorios: la clase EXISTE y está accesible
+                    # pero browse sin filtro no funciona para esta clase (necesita codProyecto, etc.)
+                    if browse_code == 6:
+                        if entry["estado"] == "error":
+                            entry["estado"] = "con_permiso"
+                            resumen["error"] -= 1
+                            resumen["con_permiso"] += 1
+                        entry["nota_permiso"] = (
+                            entry.get("nota_permiso", "") +
+                            " browse(code=6): clase accesible pero requiere parametros (ej: codProyecto)."
+                        ).strip()
             except Exception as e:
                 entry["browse_error"] = str(e)[:80]
 
@@ -721,6 +737,99 @@ class ApiExplorerService:
             "clases": resultados,
             "catalogue": catalogue,
         }
+
+
+    def generar_informe(self) -> dict:
+        """Genera informe completo multi-nivel. Requiere discover_all() previo."""
+        dr = getattr(self, '_last_discover', None)
+        if not dr:
+            return {"error": "Ejecuta primero 'Descubrir todo'.", "texto": ""}
+        clases = dr.get("clases", {})
+        ts = dr.get("timestamp", "")[:19].replace("T", " ")
+        empresa = dr.get("sesion", {}).get("empresa", "?")
+        usuario = dr.get("sesion", {}).get("usuario", "?")
+        use_mock = dr.get("use_mock", True)
+        modo = "BD SIMULADA" if use_mock else "API REAL"
+        con_acceso = [c for c, d in clases.items() if d.get("estado") == "con_permiso"]
+        sin_lic = [c for c, d in clases.items() if d.get("estado") == "sin_licencia"]
+        sin_perm = [c for c, d in clases.items() if d.get("estado") == "sin_permiso"]
+        error = [c for c, d in clases.items() if d.get("estado") == "error"]
+        DESC = {
+            "proyectos":"Obras / Proyectos","partidas":"Capitulos y Partidas",
+            "proordutil":"Costes reales imputados (utilizados)","proordprev":"Costes previstos",
+            "reporden":"Ordenes de reparacion","repobjetos":"Equipos reparables",
+            "repinst":"Instalaciones","tipostrabajo":"Tipos de trabajo",
+            "repordutil":"Materiales y horas en reparaciones","articulos":"Catalogo articulos",
+            "recursos":"Recursos","proveedores":"Proveedores","clientes":"Clientes",
+            "docalbcom":"Albaranes de compra","docfaccom":"Facturas de compra",
+            "docpedcom":"Pedidos de compra","ordenfab":"Ordenes de fabricacion",
+        }
+        def ops_str(c):
+            ops = list(clases.get(c, {}).get("permiso_ops", {}).keys())
+            return ", ".join(ops) if ops else "browse, read"
+        sep = "=" * 70
+        txt = f"{sep}\nINFORME API mPYME v1.2 — DISTRITO K / SQL OBRAS\n{sep}\n"
+        txt += f"Fecha: {ts} | Empresa: {empresa} | Usuario: {usuario} | Modo: {modo}\n{sep}\n"
+        txt += "\n== RESUMEN EJECUTIVO ==\nCon nuestra licencia PODEMOS acceder a:\n"
+        for c in con_acceso: txt += f"  OK: {DESC.get(c,c)}\n"
+        if not con_acceso: txt += "  (ninguna confirmada)\n"
+        txt += "\nSIN LICENCIA (no disponible):\n"
+        for c in sin_lic: txt += f"  NO: {DESC.get(c,c)}\n"
+        if not sin_lic: txt += "  (ninguna sin licencia)\n"
+        if error:
+            txt += "\nPENDIENTE INVESTIGAR:\n"
+            for c in error: txt += f"  ?: {DESC.get(c,c)} — {clases[c].get('error','')[:80]}\n"
+        txt += f"\n{sep}\n== PARA EL EMPLEADO ==\nQue puede hacer la app:\n"
+        if "proordutil" in con_acceso:
+            txt += "  - Registrar materiales y horas reales en una obra (utilizados)\n"
+        if "proyectos" in con_acceso: txt += "  - Ver listado de obras activas\n"
+        if "partidas" in con_acceso: txt += "  - Ver partidas de cada obra\n"
+        if "reporden" in con_acceso: txt += "  - Gestionar ordenes de reparacion\n"
+        if "repobjetos" in con_acceso: txt += "  - Ver equipos reparables\n"
+        if "repordutil" in con_acceso: txt += "  - Imputar materiales/horas a reparaciones\n"
+        if "docalbcom" in con_acceso or "docfaccom" in con_acceso:
+            txt += "  - Vincular albaranes/facturas directamente a obras\n"
+        if "clientes" in con_acceso: txt += "  - Consultar clientes\n"
+        if "ordenfab" in con_acceso: txt += "  - Ver ordenes de fabricacion\n"
+        txt += self._informe_parte2(clases, con_acceso, sin_lic, sin_perm, error, DESC, ops_str, sep)
+        return {"texto": txt, "timestamp": ts,
+                "clases_con_acceso": len(con_acceso), "clases_sin_licencia": len(sin_lic),
+                "clases_error": len(error), "modo": modo}
+
+    def _informe_parte2(self, clases, con_acceso, sin_lic, sin_perm, error, DESC, ops_str, sep) -> str:
+        txt = f"\n{sep}\n== NIVEL TECNICO: clases, operaciones y campos ==\n"
+        for c in con_acceso:
+            d = clases[c]; reg = d.get("total_registros")
+            txt += f"\n  [{c}] {DESC.get(c,'')} {f'({reg} registros)' if reg is not None else ''}\n"
+            txt += f"    Operaciones: {ops_str(c)}\n"
+            campos = d.get("campos_reales", [])
+            if campos:
+                nombres = [str(cf.get("n") or cf.get("nombre") or list(cf.values())[0]) for cf in campos[:12]]
+                txt += f"    Campos: {', '.join(nombres)}\n"
+            nota = d.get("nota_permiso", "")
+            if nota: txt += f"    Nota: {nota}\n"
+        txt += f"\n{sep}\n== CLASES NO DISPONIBLES ==\n"
+        for c in sin_lic: txt += f"  SIN_LICENCIA: [{c}] — code=1\n"
+        for c in sin_perm: txt += f"  SIN_PERMISO:  [{c}] — code=2\n"
+        for c in error: txt += f"  ERROR:        [{c}] — {clases[c].get('error','')[:80]}\n"
+        txt += f"\n{sep}\n== PARA GERENCIA: aplicaciones posibles ==\n"
+        if "proordutil" in con_acceso:
+            txt += "  1. APP OPERARIO: el trabajador imputa costes desde el movil\n"
+        if "reporden" in con_acceso:
+            txt += "  2. APP MANTENIMIENTO: gestion de reparaciones en campo\n"
+        if "docalbcom" in con_acceso or "docfaccom" in con_acceso:
+            txt += "  3. COMPRAS->OBRA: vincular albaranes/facturas a proyectos\n"
+        if "proyectos" in con_acceso and "proordutil" in con_acceso:
+            txt += "  4. CUADRO DE MANDO: costes reales vs previstos por obra\n"
+        txt += "  5. INTEGRACION IA: la IA consulta y resume el estado de obras\n"
+        txt += f"\n{sep}\nCODIGOS: 0=OK  1=SinLicencia  2=SinPermiso  3=Validacion  "
+        txt += "5=ParamsIncompletos  6=RequiereParams  10=NoEncontrado  -1=ErrorConexion\n"
+        txt += f"{sep}\nFIN DEL INFORME\n{sep}\n"
+        return txt
+
+    def guardar_discover(self, result: dict):
+        """Guarda el resultado de discover_all para informes."""
+        self._last_discover = result
 
 
 _svc:Optional[ApiExplorerService]=None

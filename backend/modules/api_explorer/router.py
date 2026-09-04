@@ -181,7 +181,22 @@ async def discover_all():
     Devuelve: permisos reales, campos reales del servidor, muestra de datos reales.
     """
     try:
-        return get_service().discover_all()
+        svc = get_service()
+        result = svc.discover_all()
+        svc.guardar_discover(result)  # guarda para generar_informe posterior
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/informe")
+async def get_informe():
+    """
+    Genera informe completo multi-nivel de capacidades de la API.
+    Requiere que se haya ejecutado discover-all antes.
+    Devuelve texto plano exportable + metadatos de resumen.
+    """
+    try:
+        return get_service().generar_informe()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

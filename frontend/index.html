@@ -18,7 +18,8 @@
         <aside class="sidebar" id="main-sidebar">
             <!-- Botón toggle: pliega/despliega el sidebar -->
             <button class="sidebar-toggle-btn" id="btn-sidebar-toggle"
-                title="Plegar/Desplegar menú" aria-label="Plegar menú lateral">◀</button>
+                title="Plegar/Desplegar menú" aria-label="Plegar menú lateral"
+                onclick="(function(){var s=document.getElementById('main-sidebar');if(s){var c=s.classList.toggle('collapsed');localStorage.setItem('devia_sidebar_collapsed',c);this.title=c?'Desplegar menú':'Plegar menú';}}).call(this)">◀</button>
             <div class="logo">
                 <h1>🚀 DEVIA</h1>
             </div>
@@ -1363,7 +1364,7 @@
     <!-- SIUO: módulo ES con imports de siuo_constants.js y siuo_render.js -->
     <script type="module" src="assets/js/modules/siuo.js?v=2"></script>
     <!-- API Explorer: modulo ES para el explorador/validador API Distrito K -->
-    <script type="module" src="assets/js/modules/api_explorer.js?v=8"></script>
+    <script type="module" src="assets/js/modules/api_explorer.js?v=9"></script>
     <script type="module" src="assets/js/core/app.js?v=7"></script>
 </body>
 
