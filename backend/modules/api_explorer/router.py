@@ -284,6 +284,79 @@ async def get_discover_cache():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sondas")
+async def get_sondas(limit: int = 100):
+    """Historial completo de sondas ejecutadas (persiste entre reinicios)."""
+    try:
+        svc = get_service()
+        return {
+            "sondas": svc.get_sondas(limit),
+            "total": len(svc._sondas),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/exportar-todo")
+async def exportar_todo():
+    """
+    Exporta TODO el conocimiento acumulado en un solo JSON:
+    - Último discover (con causa_real recalculada)
+    - Historial completo de llamadas
+    - Historial de sondas
+    - Matriz de capacidades
+    - Metadatos de sesión y configuración
+    Ideal para enviar como evidencia o para análisis posterior.
+    """
+    try:
+        svc = get_service()
+        svc._cargar_discover_cache()
+        dr = getattr(svc, '_last_discover', None)
+
+        # Recalcular causa_real en el discover con la lógica actual
+        clases_recalc = {}
+        if dr:
+            for cls, d in dr.get("clases", {}).items():
+                d2 = dict(d)
+                d2["causa_real"] = _clasificar_causa(d2)
+                d2["causa_explicacion"] = _explicar_causa(d2, dr.get("use_mock", True))
+                clases_recalc[cls] = d2
+
+        from datetime import datetime as _dt
+        return {
+            "exportado_en": _dt.now().isoformat(),
+            "version_exportacion": "1.0",
+            "descripcion": "Exportacion completa del modulo API Explorer DEVIA — JDDC",
+            "discover": {
+                "disponible": bool(dr),
+                "timestamp": dr.get("timestamp", "") if dr else "",
+                "empresa": dr.get("sesion", {}).get("empresa", "") if dr else "",
+                "usuario": dr.get("sesion", {}).get("usuario", "") if dr else "",
+                "modo": "mock" if (dr or {}).get("use_mock") else "real",
+                "resumen": dr.get("resumen", {}) if dr else {},
+                "clases": clases_recalc,
+                "catalogue": dr.get("catalogue", {}) if dr else {},
+            },
+            "historial": {
+                "total": len(svc._history),
+                "llamadas": svc.get_history(500),
+                "resumen": svc.resumen_historial(),
+            },
+            "sondas": {
+                "total": len(svc._sondas),
+                "resultados": svc.get_sondas(200),
+            },
+            "matriz": svc.get_matrix(),
+            "config": {
+                "api_url": svc.get_config_env().get("api_url", ""),
+                "empresa_env": svc.get_config_env().get("empresa", ""),
+                "usuario_env": svc.get_config_env().get("usuario", ""),
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/perfiles-niveles")
 async def get_perfiles_niveles():
     """Devuelve los perfiles y niveles disponibles para el selector de la UI."""

@@ -5,8 +5,33 @@ from datetime import datetime
 from pathlib import Path
 from backend.core.config.settings import settings
 
-# Ruta de persistencia del último discover (sobrevive reinicios del servidor)
-_DISCOVER_CACHE_FILE = Path(__file__).parent / "data" / "_discover_cache.json"
+# ── Archivos de persistencia (todos en data/ — sobreviven reinicios) ──────────
+_DATA_DIR            = Path(__file__).parent / "data"
+_DISCOVER_CACHE_FILE = _DATA_DIR / "_discover_cache.json"
+_HISTORY_FILE        = _DATA_DIR / "_history.json"
+_MATRIX_FILE         = _DATA_DIR / "_matrix.json"
+_SONDAS_FILE         = _DATA_DIR / "_sondas.json"
+
+
+def _guardar_json(path: Path, data) -> None:
+    """Escribe JSON a disco de forma segura (escritura atómica básica)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, default=str, indent=2), encoding="utf-8")
+        tmp.replace(path)
+    except Exception as e:
+        logger.warning(f"[api_explorer] No se pudo guardar {path.name}: {e}")
+
+
+def _cargar_json(path: Path, default):
+    """Carga JSON desde disco. Devuelve default si no existe o hay error."""
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning(f"[api_explorer] No se pudo cargar {path.name}: {e}")
+    return default
 
 logger = logging.getLogger(__name__)
 
@@ -421,7 +446,14 @@ class ApiExplorerService:
         self.session_empresa=""; self.session_usuario=""; self.session_started=None
         self.use_mock=True; self.modo_escritura=False
         self._mock=MockApiClient(); self._real:Optional[RealApiClient]=None
-        self._history:List[Dict]=[]; self._matrix:Dict[str,Dict]={}
+        # Cargar historial, matriz y sondas desde disco al arrancar
+        raw_hist = _cargar_json(_HISTORY_FILE, [])
+        self._history: List[Dict] = raw_hist if isinstance(raw_hist, list) else []
+        raw_mat = _cargar_json(_MATRIX_FILE, {})
+        self._matrix: Dict[str, Dict] = raw_mat if isinstance(raw_mat, dict) else {}
+        raw_sond = _cargar_json(_SONDAS_FILE, [])
+        self._sondas: List[Dict] = raw_sond if isinstance(raw_sond, list) else []
+        self._last_discover: Optional[Dict] = None  # se carga bajo demanda
 
     def _client(self):
         if self.use_mock: return self._mock
@@ -453,6 +485,10 @@ class ApiExplorerService:
         self._history.append(r)
         if len(self._history)>200: self._history=self._history[-200:]
         if clase not in self._matrix: self._matrix[clase]={}
+        # Persistir a disco — sobrevive reinicios del servidor
+        _guardar_json(_HISTORY_FILE, self._history)
+        _guardar_json(_MATRIX_FILE, self._matrix)
+
         self._matrix[clase][op]={"estado":e,"ts":r["timestamp"]}
         return r
 
@@ -579,11 +615,42 @@ class ApiExplorerService:
             "recomendacion": found[0] if found else "",
             "resultados": results,
         }
-    def get_history(self,limit=50): return list(reversed(self._history))[:limit]
-    def get_matrix(self): return self._matrix
-    def get_catalogue(self): return CLASES_POR_MODULO
-    def clear_history(self): self._history.clear()
-    def resumen_historial(self): return {"total":len(self._history),"ok":sum(1 for r in self._history if r["estado"]=="ok"),"falla":sum(1 for r in self._history if r["estado"]=="falla"),"sin_permiso":sum(1 for r in self._history if r["estado"]=="sin_permiso"),"sin_licencia":sum(1 for r in self._history if r["estado"]=="sin_licencia")}
+    def get_history(self, limit=200):
+        return list(reversed(self._history))[:limit]
+
+    def get_sondas(self, limit=100):
+        return list(reversed(self._sondas))[:limit]
+
+    def get_matrix(self):
+        return self._matrix
+
+    def get_catalogue(self):
+        return CLASES_POR_MODULO
+
+    def clear_history(self):
+        self._history.clear()
+        self._sondas.clear()
+        _guardar_json(_HISTORY_FILE, [])
+        _guardar_json(_SONDAS_FILE, [])
+
+    def resumen_historial(self):
+        tot = len(self._history)
+        return {
+            "total": tot,
+            "ok": sum(1 for r in self._history if r["estado"] == "ok"),
+            "falla": sum(1 for r in self._history if r["estado"] == "falla"),
+            "sin_permiso": sum(1 for r in self._history if r["estado"] == "sin_permiso"),
+            "sin_licencia": sum(1 for r in self._history if r["estado"] == "sin_licencia"),
+            "precisa_params": sum(1 for r in self._history if r["estado"] == "precisa_params"),
+            "sondas": len(self._sondas),
+        }
+
+    def _registrar_sonda(self, resultado: dict) -> None:
+        """Guarda el resultado de una sonda en el log de sondas persistente."""
+        self._sondas.append(resultado)
+        if len(self._sondas) > 200:
+            self._sondas = self._sondas[-200:]
+        _guardar_json(_SONDAS_FILE, self._sondas)
 
 
     def discover_from_db(self) -> dict:
@@ -1264,8 +1331,11 @@ class ApiExplorerService:
         last_b=next((x for x in reversed(res["intentos"]) if x["operacion"]=="browse"),{})
         info_i=next((x for x in res["intentos"] if x["operacion"]=="info"),{})
         ef={"permiso_code":first.get("code"),"permiso_raw":{"data":first.get("data_raw","")},"browse_code":last_b.get("code"),"browse_raw":{"data":last_b.get("data_raw","")},"info_code":info_i.get("code"),"muestra":res["datos_reales"],"campos_reales":res["campos_servidor"]}
-        res["causa_final"]=_clasificar_causa(ef); res["explicacion_final"]=_explicar_causa(ef,self.use_mock)
-        res["success"]=True
+        res["causa_final"] = _clasificar_causa(ef)
+        res["explicacion_final"] = _explicar_causa(ef, self.use_mock)
+        res["success"] = True
+        # Guardar en log de sondas persistente
+        self._registrar_sonda(res)
         return res
 
     # ──────────────────────────────────────────────────────────────────

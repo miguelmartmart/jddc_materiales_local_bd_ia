@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v13 — Persistencia discover a disco, fix code=6 azul, panel prueba por clase, cache restaurado al arrancar.
+ * api_explorer.js v14 — Persistencia total a disco (historial+sondas+matriz+discover), exportación JSON completa.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -869,16 +869,30 @@ function renderMatriz(catalogue, mat) {
 }
 
 function renderHistorial(hist, resumen) {
-  let h=`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px">${Object.entries(resumen).map(([k,v])=>`<div style="background:white;border-radius:8px;border:1px solid #e2e8f0;padding:8px;text-align:center"><div style="font-size:1.4em;font-weight:700">${v}</div><div style="font-size:0.74em;color:#64748b">${k}</div></div>`).join('')}</div>
-  <div style="text-align:right;margin-bottom:10px"><button onclick="ApiExplorerModule.doClearHistory()" class="btn secondary" style="font-size:0.85em">🗑️ Limpiar historial</button></div>`;
-  if(!hist.length) return h+`<div style="text-align:center;color:#64748b;padding:40px">Sin pruebas. Ve al Explorador y ejecuta operaciones.</div>`;
-  return h+hist.slice(0,50).map(r=>`<details style="margin-bottom:8px;background:white;border-radius:8px;border:1px solid #e2e8f0">
-    <summary style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+  const cols = Object.keys(resumen).length;
+  let h=`<div style="display:grid;grid-template-columns:repeat(${Math.min(cols,6)},1fr);gap:8px;margin-bottom:12px">
+    ${Object.entries(resumen).map(([k,v])=>`<div style="background:white;border-radius:8px;border:1px solid #e2e8f0;padding:8px;text-align:center">
+      <div style="font-size:1.3em;font-weight:700">${v}</div>
+      <div style="font-size:0.72em;color:#64748b">${k}</div>
+    </div>`).join('')}
+  </div>
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.82em;color:#166534">
+    💾 <strong>Persistencia total activada</strong> — Historial, sondas, discover y matriz se guardan en disco y sobreviven reinicios de DEVIA.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button onclick="ApiExplorerModule.doExportarTodo()" class="btn primary" style="font-size:0.84em">
+      📤 Exportar todo (JSON completo)
+    </button>
+    <button onclick="ApiExplorerModule.doClearHistory()" class="btn secondary" style="font-size:0.84em">🗑️ Limpiar historial</button>
+  </div>`;
+  if(!hist.length) return h+`<div style="text-align:center;color:#64748b;padding:30px">Sin llamadas registradas aún. Ve al Explorador y ejecuta operaciones.</div>`;
+  return h+hist.slice(0,100).map(r=>`<details style="margin-bottom:6px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+    <summary style="cursor:pointer;padding:9px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>${estadoIcon(r.estado)}</span>
-      <code style="font-size:0.88em;background:#f1f5f9;padding:2px 6px;border-radius:4px">${r.clase}.${r.operacion}</code>
-      <span style="color:#64748b;font-size:0.8em;margin-left:auto">${(r.timestamp||'').slice(11,19)} | ${r.duracion_ms}ms | ${r.use_mock?'🔵 Mock':'🟠 Real'}</span>
+      <code style="font-size:0.86em;background:#f1f5f9;padding:1px 6px;border-radius:4px">${r.clase}.${r.operacion}</code>
+      <span style="color:#64748b;font-size:0.78em;margin-left:auto">${(r.timestamp||'').slice(0,19).replace('T',' ')} | ${r.duracion_ms}ms | ${r.use_mock?'🔵 Mock':'🟠 Real'}</span>
     </summary>
-    <div style="padding:12px 14px;border-top:1px solid #f1f5f9">${renderResult(r)}</div>
+    <div style="padding:10px 14px;border-top:1px solid #f1f5f9">${renderResult(r)}</div>
   </details>`).join('');
 }
 
@@ -1312,6 +1326,32 @@ const ApiExplorerModule = {
     });
     const desc = document.getElementById("ae-nivel-desc");
     if (desc) desc.textContent = _NIVELES[nivel]?.desc || '';
+  },
+
+  async doExportarTodo() {
+    const btn = event?.target;
+    if (btn) { btn.textContent = '⏳ Generando…'; btn.disabled = true; }
+    try {
+      const r = await _fetch('/exportar-todo');
+      const txt = JSON.stringify(r, null, 2);
+      const blob = new Blob([txt], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const fecha = new Date().toISOString().slice(0, 10);
+      a.download = `devia_api_explorer_export_${fecha}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      // Mostrar resumen de lo exportado
+      const nLlamadas = r.historial?.total || 0;
+      const nSondas   = r.sondas?.total || 0;
+      const nClases   = Object.keys(r.discover?.clases || {}).length;
+      const ts        = r.discover?.timestamp?.slice(0,19) || 'sin discover';
+      alert(`✅ Exportado correctamente.\n\nContenido:\n• Discover: ${nClases} clases (${ts})\n• Historial: ${nLlamadas} llamadas\n• Sondas: ${nSondas} sondas\n• Matriz de capacidades\n\nArchivo: ${a.download}`);
+    } catch(e) {
+      alert(`Error al exportar: ${e.message}`);
+    } finally {
+      if (btn) { btn.textContent = '📤 Exportar todo (JSON completo)'; btn.disabled = false; }
+    }
   },
 
   async doSondaClase(clase, paramsExtra) {
