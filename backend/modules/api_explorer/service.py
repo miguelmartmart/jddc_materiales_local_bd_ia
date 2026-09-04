@@ -992,13 +992,17 @@ class ApiExplorerService:
             entry["campos_doc"] = campos_doc.get(clase, [])
 
             # ── Segunda pasada inteligente para clases code=6 ─────────────────
-            # Si browse sin params devolvió code=6, intentar con variantes de params
-            # documentadas — sin escritura, solo lectura
+            # Si browse sin params devolvió code=6, intentar con variantes de params.
+            # Salta variantes con "?" (requieren valor real desconocido en este punto).
+            # Prueba más variantes para clases simples (tipostrabajo, repobjetos, etc.)
             if entry.get("browse_code") == 6 or entry.get("permiso_code") == 6:
-                variantes = self._SONDA_PARAMS.get(clase, [{"num": 20}])
-                for prm in variantes[:3]:  # máx 3 variantes en discover (no sobrecargar)
-                    if not prm:  # skip {} que ya se probó
-                        continue
+                variantes = self._SONDA_PARAMS.get(clase, [{"num": 20}, {"nReg": 20}])
+                # Filtrar variantes sin "?" — solo las que podemos probar sin datos previos
+                variantes_sin_interr = [
+                    prm for prm in variantes
+                    if prm and "?" not in str(list(prm.values()))
+                ]
+                for prm in variantes_sin_interr[:5]:  # máx 5 variantes en discover
                     try:
                         raw_b2, _ = self._client().browse(self.ssid1, self.ssid2, clase, dict(prm))
                         bc2 = raw_b2.get("code")
@@ -1014,8 +1018,9 @@ class ApiExplorerService:
                                     entry["estado"] = "con_permiso"
                                     resumen["error"] -= 1
                                     resumen["con_permiso"] += 1
+                                logger.info(f"[discover] {clase}: datos con params={prm}")
                                 break  # datos obtenidos — no seguir probando
-                        time.sleep(0.1)
+                        time.sleep(0.12)
                     except Exception:
                         pass
 
@@ -1271,21 +1276,60 @@ class ApiExplorerService:
             logger.warning(f"[api_explorer] No se pudo cargar discover cache: {e}")
 
     # Parámetros de sonda por clase (browse solo lectura, múltiples estrategias)
+    # Variantes de parámetros para sonda/discover.
+    # La API mPYME v1.2 usa distintos nombres según la clase:
+    # - num / nReg / nregs / max  (paginación)
+    # - pag / pagina / page       (número de página)
+    # - filtro / filter / where   (filtro genérico)
+    # Las clases con "?" en params requieren valor real (codProyecto, codOrden...)
     _SONDA_PARAMS: dict = {
-        "proyectos":   [{"num": 20}, {"pag": 1, "num": 20}, {"estado": "activo"}, {}],
-        "partidas":    [{"codProyecto": "?"}, {"num": 50}, {}],
-        "proordutil":  [{"codProyecto": "?"}, {"num": 20}, {}],
-        "proordprev":  [{"codProyecto": "?"}, {"num": 20}, {}],
-        "reporden":    [{"num": 20}, {"pag": 1, "num": 20}, {}],
-        "repordutil":  [{"num": 20}, {}],
-        "repobjetos":  [{"num": 50}, {}],
-        "repinst":     [{"num": 50}, {}],
-        "tipostrabajo":[{"num": 100}, {}],
-        "clientes":    [{"num": 50}, {"pag": 1, "num": 50}, {}],
-        "articulos":   [{"num": 50}, {}],
-        "recursos":    [{"num": 50}, {}],
-        "proveedores": [{"num": 50}, {}],
-        "ordenfab":    [{"num": 20}, {}],
+        "proyectos":   [
+            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {"pag": 1, "nReg": 20},
+            {"estado": "activo"}, {"estado": "abierto"}, {}
+        ],
+        "partidas":    [
+            {"codProyecto": "?", "num": 50}, {"codProyecto": "?"},
+            {"num": 50}, {"nReg": 50}, {}
+        ],
+        "proordutil":  [
+            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
+            {"num": 20}, {"nReg": 20}, {}
+        ],
+        "proordprev":  [
+            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
+            {"num": 20}, {"nReg": 20}, {}
+        ],
+        "reporden":    [
+            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {"pag": 1, "nReg": 20},
+            {"estado": "abierta"}, {}
+        ],
+        "repordutil":  [
+            {"codOrden": "?", "num": 20}, {"codOrden": "?"}, {"num": 20}, {"nReg": 20}, {}
+        ],
+        "repobjetos":  [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50}, {}
+        ],
+        "repinst":     [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
+        ],
+        "tipostrabajo": [
+            {"num": 100}, {"nReg": 100}, {"pag": 1, "num": 100}, {"pag": 1, "nReg": 100}, {}
+        ],
+        "clientes":    [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50}, {}
+        ],
+        "articulos":   [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
+        ],
+        "recursos":    [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
+        ],
+        "proveedores": [
+            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
+        ],
+        "ordenfab":    [
+            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {}
+        ],
     }
     def sonda_clase(self, clase: str, params_extra: dict = None) -> dict:
         """Solo lectura: permiso+info+browse(variantes). Nunca escribe."""

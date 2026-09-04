@@ -1039,8 +1039,7 @@ function _renderPlan(r) {
           <code style="background:#1e293b;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.78em">${paramsStr}</code>
           ${tieneInterrogante
             ? `<span style="font-size:0.75em;color:#f59e0b">⚠️ ${p.nota_params}</span>`
-            : `<button onclick="ApiExplorerModule.doEjecutarPrueba('${p.clase}','${p.operacion}','${paramsStr.replace(/'/g,"\\'")}');ApiExplorerModule.setInspectorTab('resumen')"
-                class="btn primary" style="font-size:0.78em;padding:3px 10px">▶ Ejecutar ahora</button>`}
+            : `<button class="btn primary ae-plan-run" data-clase="${p.clase}" data-op="${p.operacion}" data-params="${paramsStr.replace(/"/g,'&quot;')}" style="font-size:0.78em;padding:3px 10px">▶ Ejecutar ahora</button>`}
         </div>
       </div>`;
     });
@@ -1593,8 +1592,135 @@ const ApiExplorerModule = {
     URL.revokeObjectURL(a.href);
   },
 
+  // ── Ejecutar prueba del Plan inline (delegación de eventos) ────────────────
+  // Lanza sonda-rapida y muestra resultado en la tarjeta sin modal
+  async _ejecutarPlanPruebaInspector(clase, op, params) {
+    if (op !== 'browse') {
+      // Para read/new/etc: navegar al Explorador
+      _state.selectedClase = clase;
+      _state.selectedOp = op;
+      _state.currentTab = 'explorador';
+      renderMain();
+      return;
+    }
+    // Encontrar el botón activo y su tarjeta padre
+    const activeBtn = document.querySelector(
+      `.ae-plan-run[data-clase="${clase}"][data-op="${op}"]`
+    );
+    // Buscar o crear div de resultado dentro de la tarjeta
+    const card = activeBtn
+      ? activeBtn.closest('div[style*="border-radius"]') || activeBtn.parentElement
+      : null;
+    let rd = null;
+    if (card) {
+      rd = card.querySelector('.ae-plan-result');
+      if (!rd) {
+        rd = document.createElement('div');
+        rd.className = 'ae-plan-result';
+        rd.style.cssText = [
+          'margin-top:8px', 'padding:8px 10px', 'border-radius:6px',
+          'background:#f8fafc', 'border:1px solid #e2e8f0', 'font-size:0.8em'
+        ].join(';');
+        card.appendChild(rd);
+      }
+    }
+    if (rd) rd.innerHTML = '<span style="color:#64748b">&#9203; Consultando API&hellip;</span>';
+    if (activeBtn) { activeBtn.disabled = true; activeBtn.textContent = '…'; }
+
+    try {
+      const resp = await fetch(API + '/sonda-rapida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clase, op, params })
+      });
+      const d = await resp.json();
+
+      if (!rd) {
+        // Sin card visible: abrir sonda completa como fallback
+        await this.doSondaClase(clase, params);
+        return;
+      }
+      if (!d.success) {
+        rd.innerHTML = `<span style="color:#dc3545">&#10060; ${d.error || 'Error'}</span>`;
+        return;
+      }
+
+      if (d.n_items > 0) {
+        const cols = Object.keys(d.datos[0] || {});
+        const rows = d.datos.slice(0, 5).map(row =>
+          '<tr>' + cols.map(c =>
+            `<td style="padding:2px 6px;border-bottom:1px solid #f1f5f9;white-space:nowrap">${row[c] ?? ''}</td>`
+          ).join('') + '</tr>'
+        ).join('');
+        rd.innerHTML = `
+          <div style="background:#dcfce7;border-left:3px solid #16a34a;border-radius:4px;padding:5px 10px;margin-bottom:6px">
+            &#x2705; <b>Datos reales obtenidos</b> &mdash; ${d.n_items} registros &middot; ${d.duracion_ms}ms
+            &middot; modo: <strong>${d.modo}</strong>
+          </div>
+          <div style="overflow-x:auto;max-height:200px">
+            <table style="width:100%;border-collapse:collapse;font-size:0.78em;border:1px solid #e2e8f0;border-radius:4px">
+              <thead><tr style="background:#f8fafc">
+                ${cols.map(c => `<th style="padding:3px 8px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap">${c}</th>`).join('')}
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <div style="margin-top:6px">
+            <button onclick="ApiExplorerModule.doSondaClase('${clase}')" class="btn secondary" style="font-size:0.75em;padding:2px 8px">
+              &#x1f52c; Ver sonda completa
+            </button>
+          </div>`;
+      } else {
+        const codeColor = d.code === 6 ? '#3b82f6' : d.code === 0 ? '#16a34a' : '#dc3545';
+        const codeIcon  = d.code === 0 ? '✅' : d.code === 6 ? '🔵' : '❌';
+        rd.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="color:${codeColor};font-weight:700">${codeIcon} code=${d.code}</span>
+            <span style="color:#64748b">${(d.raw_data || '').slice(0, 120)}</span>
+            <span style="color:#94a3b8;font-size:0.85em">${d.duracion_ms}ms</span>
+          </div>
+          ${d.code === 6
+            ? `<p style="margin:4px 0 0;color:#64748b;font-size:0.85em">
+                &#x1F4C4; <em>code=6: la clase necesita parámetros adicionales (ej: codProyecto real).
+                Úsala en la pestaña <b>Sondear</b> con un valor real.</em>
+               </p>`
+            : ''}
+          <div style="margin-top:4px">
+            <button onclick="ApiExplorerModule.doSondaClase('${clase}')" class="btn secondary" style="font-size:0.75em;padding:2px 8px">
+              &#x1f52c; Sonda completa
+            </button>
+          </div>`;
+      }
+    } catch (e) {
+      if (rd) rd.innerHTML = `<span style="color:#dc3545">&#10060; Error: ${e.message}</span>`;
+    } finally {
+      if (activeBtn) {
+        activeBtn.disabled = false;
+        activeBtn.textContent = '▶ Ejecutar ahora';
+      }
+    }
+  },
 
 };
 
 window.ApiExplorerModule = ApiExplorerModule;
+
+// ── Event delegation para botones ae-plan-run (Plan de pruebas) ──────────
+// Evita problemas con comillas en onclick inline
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.ae-plan-run');
+  if (!btn) return;
+  e.preventDefault();
+  const clase = btn.dataset.clase || '';
+  const op    = btn.dataset.op   || 'browse';
+  let params  = {};
+  try {
+    // Desescapar &quot; antes de parsear
+    const raw = (btn.dataset.params || '{}').replace(/&quot;/g, '"');
+    params = JSON.parse(raw);
+  } catch(err) { console.warn('ae-plan-run: params inválidos', err); }
+  // Ejecutar sonda directamente en el Inspector > Resumen
+  ApiExplorerModule._ejecutarPlanPruebaInspector(clase, op, params);
+});
+
 

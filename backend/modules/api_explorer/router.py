@@ -244,6 +244,58 @@ async def sonda_clase(request: SondaRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/sonda-rapida")
+async def sonda_rapida(body: dict):
+    """
+    Versión ligera de sonda para el Plan de pruebas:
+    lanza browse(params) directamente y devuelve código, datos y causa.
+    Solo lectura. Sin modal — resultado inline en el Plan.
+    """
+    try:
+        svc = get_service()
+        if not svc.session_active:
+            return {"success": False, "error": "Sin sesión activa. Haz login primero."}
+        clase = (body.get("clase") or "").strip()
+        op    = (body.get("op") or "browse").strip()
+        params = body.get("params") or {}
+        if not clase:
+            return {"success": False, "error": "Parámetro 'clase' requerido."}
+        if op != "browse":
+            return {"success": False, "error": f"sonda-rapida solo admite 'browse' (op={op})."}
+        # Filtrar params con "?" — no ejecutar con valores placeholder
+        params_limpios = {k: v for k, v in params.items() if v != "?"}
+        raw, ms = svc._client().browse(svc.ssid1, svc.ssid2, clase, params_limpios)
+        code = raw.get("code")
+        data = raw.get("data") or raw.get("items") or []
+        items = data if isinstance(data, list) else []
+        from backend.modules.api_explorer.service import _clasificar_causa, _explicar_causa
+        entry = {
+            "permiso_code": None,
+            "browse_code": code,
+            "browse_raw": {"data": str(raw.get("data", ""))[:200]},
+            "info_code": None,
+            "muestra": items[:5],
+            "campos_reales": [],
+        }
+        causa = _clasificar_causa(entry)
+        expl  = _explicar_causa(entry, svc.use_mock)
+        return {
+            "success": True,
+            "clase": clase,
+            "params_enviados": params_limpios,
+            "code": code,
+            "duracion_ms": round(ms, 1),
+            "n_items": len(items),
+            "datos": items[:10],
+            "causa": causa,
+            "explicacion": expl,
+            "raw_data": str(raw.get("data", ""))[:300],
+            "modo": "mock" if svc.use_mock else "real",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/discover-cache")
 async def get_discover_cache():
     """
