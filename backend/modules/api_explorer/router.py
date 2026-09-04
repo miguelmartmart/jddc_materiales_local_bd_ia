@@ -219,6 +219,28 @@ async def get_informe_perfil(request: InformePerfilRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class SondaRequest(BaseModel):
+    clase: str
+    params_extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/sonda-clase")
+async def sonda_clase(request: SondaRequest):
+    """
+    Prueba exhaustiva solo lectura de UNA clase:
+    permiso + info + browse con múltiples estrategias de parámetros.
+    NUNCA ejecuta new/write/edit/delete.
+    Para clases code=6 (requiere_parametros), prueba variantes documentadas.
+    """
+    try:
+        return get_service().sonda_clase(
+            request.clase,
+            params_extra=request.params_extra if request.params_extra else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/perfiles-niveles")
 async def get_perfiles_niveles():
     """Devuelve los perfiles y niveles disponibles para el selector de la UI."""

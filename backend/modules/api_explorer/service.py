@@ -1147,6 +1147,99 @@ class ApiExplorerService:
         """Guarda el resultado de discover_all para informes."""
         self._last_discover = result
 
+    # Parámetros de sonda por clase (browse solo lectura, múltiples estrategias)
+    _SONDA_PARAMS: dict = {
+        "proyectos":   [{"num": 20}, {"pag": 1, "num": 20}, {"estado": "activo"}, {}],
+        "partidas":    [{"codProyecto": "?"}, {"num": 50}, {}],
+        "proordutil":  [{"codProyecto": "?"}, {"num": 20}, {}],
+        "proordprev":  [{"codProyecto": "?"}, {"num": 20}, {}],
+        "reporden":    [{"num": 20}, {"pag": 1, "num": 20}, {}],
+        "repordutil":  [{"num": 20}, {}],
+        "repobjetos":  [{"num": 50}, {}],
+        "repinst":     [{"num": 50}, {}],
+        "tipostrabajo":[{"num": 100}, {}],
+        "clientes":    [{"num": 50}, {"pag": 1, "num": 50}, {}],
+        "articulos":   [{"num": 50}, {}],
+        "recursos":    [{"num": 50}, {}],
+        "proveedores": [{"num": 50}, {}],
+        "ordenfab":    [{"num": 20}, {}],
+    }
+    def sonda_clase(self, clase: str, params_extra: dict = None) -> dict:
+        """Solo lectura: permiso+info+browse(variantes). Nunca escribe."""
+        if not self.session_active:
+            return {"success": False, "error": "Sin sesión activa."}
+        from backend.modules.api_explorer.api_catalogue_full import get_campos_clase
+        _NL = ("licencia", "no dispone", "sin licencia")
+        res = {"clase":clase,"timestamp":datetime.now().isoformat(),"modo":"mock" if self.use_mock else "real",
+               "empresa":self.session_empresa,"usuario":self.session_usuario,
+               "intentos":[],"mejor_resultado":None,"datos_reales":[],"campos_servidor":[],
+               "total_registros":None,"operaciones_confirmadas":[],"causa_final":"","explicacion_final":"",
+               "campos_doc":get_campos_clase().get(clase,[])}
+        # permiso
+        try:
+            raw_p,ms=self._client().permiso(self.ssid1,self.ssid2,clase)
+            pc=raw_p.get("code"); pd=str(raw_p.get("data",""))
+            if pc==0:
+                tip="✅ Permiso OK — licencia y acceso confirmados"
+                d2=raw_p.get("data",{}); ops=d2 if isinstance(d2,dict) else raw_p
+                for op in ("browse","read","new","edit","write","cancel","delete","imputaPro"):
+                    if ops.get(op) is True: res["operaciones_confirmadas"].append(op)
+            elif pc==1: tip="🚫 SIN LICENCIA (code=1)"
+            elif pc==2: tip="🔒 SIN PERMISO USUARIO (code=2)"
+            elif pc==5: tip=("🚫 SIN LICENCIA: " if any(k in pd.lower() for k in _NL) else "⚙️ code=5: ")+pd[:120]
+            elif pc==6: tip="🔵 Accesible — browse necesita parámetros (code=6)"
+            else: tip=f"⚠️ code={pc}: {pd[:100]}"
+            res["intentos"].append({"operacion":"permiso","params":{},"code":pc,"data_raw":pd[:200],"ms":round(ms),"interpretacion":tip,"n_items":0})
+        except Exception as e:
+            res["intentos"].append({"operacion":"permiso","params":{},"code":-1,"data_raw":str(e)[:150],"ms":0,"interpretacion":f"❌ {e}","n_items":0})
+        # info
+        try:
+            raw_i,ms=self._client().info(self.ssid1,self.ssid2,clase)
+            ic=raw_i.get("code")
+            if ic==0:
+                fl=raw_i.get("fields") or raw_i.get("data") or raw_i.get("columns") or []
+                if isinstance(fl,list): res["campos_servidor"]=fl[:50]; ti=f"✅ INFO OK — {len(fl)} campos reales del servidor"
+                elif isinstance(fl,dict): res["campos_servidor"]=[{"n":k,"tipo":str(v)} for k,v in fl.items()][:50]; ti=f"✅ INFO OK — {len(fl)} campos"
+                else: ti="✅ INFO OK (estructura no estándar)"
+            else: ti=f"ℹ️ info code={ic}: {str(raw_i.get('data',''))[:100]}"
+            res["intentos"].append({"operacion":"info","params":{},"code":ic,"data_raw":str(raw_i.get("data",""))[:300],"ms":round(ms),"interpretacion":ti,"n_items":0})
+        except Exception as e:
+            res["intentos"].append({"operacion":"info","params":{},"code":-1,"data_raw":str(e)[:150],"ms":0,"interpretacion":f"❌ {e}","n_items":0})
+        # browse variantes
+        estrategias=list(self._SONDA_PARAMS.get(clase,[{"num":20},{}]))
+        if params_extra: estrategias.insert(0,params_extra)
+        ok=False
+        for prm in estrategias:
+            if ok: break
+            try:
+                raw_b,ms=self._client().browse(self.ssid1,self.ssid2,clase,dict(prm))
+                bc=raw_b.get("code"); items=raw_b.get("items") or raw_b.get("data") or []
+                total=raw_b.get("total"); n=len(items) if isinstance(items,list) else 0
+                bd=str(raw_b.get("data",""))
+                if bc==0:
+                    tb=f"✅ DATOS REALES — {n} registros"+(f" (total BD: {total})" if total is not None else "")
+                    if isinstance(items,list) and items:
+                        res["datos_reales"]=items[:10]; res["total_registros"]=total; res["mejor_resultado"]=prm; ok=True
+                elif bc==6: tb=f"🔵 code=6 — '{bd[:80]}'"
+                elif bc==5:
+                    tb=("🚫 SIN LICENCIA: " if any(k in bd.lower() for k in _NL) else "⚙️ code=5: ")+bd[:100]
+                    res["intentos"].append({"operacion":"browse","params":prm,"code":bc,"data_raw":bd[:200],"ms":round(ms),"interpretacion":tb,"n_items":n})
+                    if any(k in bd.lower() for k in _NL): break
+                    continue
+                else: tb=f"⚠️ code={bc}: {bd[:100]}"
+                res["intentos"].append({"operacion":"browse","params":prm,"code":bc,"data_raw":bd[:200],"ms":round(ms),"interpretacion":tb,"n_items":n})
+                time.sleep(0.1)
+            except Exception as e:
+                res["intentos"].append({"operacion":"browse","params":prm,"code":-1,"data_raw":str(e)[:150],"ms":0,"interpretacion":f"❌ {e}","n_items":0})
+        # clasificación final
+        first=res["intentos"][0] if res["intentos"] else {}
+        last_b=next((x for x in reversed(res["intentos"]) if x["operacion"]=="browse"),{})
+        info_i=next((x for x in res["intentos"] if x["operacion"]=="info"),{})
+        ef={"permiso_code":first.get("code"),"permiso_raw":{"data":first.get("data_raw","")},"browse_code":last_b.get("code"),"browse_raw":{"data":last_b.get("data_raw","")},"info_code":info_i.get("code"),"muestra":res["datos_reales"],"campos_reales":res["campos_servidor"]}
+        res["causa_final"]=_clasificar_causa(ef); res["explicacion_final"]=_explicar_causa(ef,self.use_mock)
+        res["success"]=True
+        return res
+
     # ──────────────────────────────────────────────────────────────────
     # PERFILES: qué clases/módulos son relevantes para cada rol
     # ──────────────────────────────────────────────────────────────────

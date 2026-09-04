@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v11 — Modulo API Explorer de DEVIA. Informes por Perfil + Nivel.
+ * api_explorer.js v12 — Sonda exhaustiva por clase, clasificacion correcta sin_licencia/requiere_params.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -481,13 +481,21 @@ function _inspResumen(cat, dr) {
       const drC = dr?.clases?.[cls];
       const badge = drC?(BADGE[drC.estado]||noBadge):noBadge;
       const tot = drC?.total_registros!=null?`<span style="font-size:0.72em;color:#3b82f6;margin-left:4px">${drC.total_registros} reg.</span>`:'';
-      return `<div onclick="ApiExplorerModule.setInspectorClase('${cls}')"
-        style="display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid #f8fafc;cursor:pointer"
-        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <span style="font-size:0.88em;min-width:22px">${desc.emoji||'📦'}</span>
-        <span style="font-size:0.84em;font-weight:500;flex:1">${cls}</span>
-        ${badge}${tot}
-        <span style="font-size:0.72em;color:#94a3b8">${ops.length} ops →</span>
+      const causa = drC?.causa_real||'';
+      const sondaBtn = causa==='requiere_parametros'||causa===''||!drC
+        ? `<button onclick="event.stopPropagation();ApiExplorerModule.doSondaClase('${cls}')"
+            title="Prueba exhaustiva solo lectura — varios params"
+            style="border:1px solid #3b82f6;background:#eff6ff;color:#1d4ed8;border-radius:8px;padding:2px 7px;cursor:pointer;font-size:0.71em;white-space:nowrap">🔬 Sondear</button>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid #f8fafc">
+        <span onclick="ApiExplorerModule.setInspectorClase('${cls}')" style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer"
+          onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+          <span style="font-size:0.88em;min-width:22px">${desc.emoji||'📦'}</span>
+          <span style="font-size:0.84em;font-weight:500;flex:1">${cls}</span>
+          ${badge}${tot}
+          <span style="font-size:0.72em;color:#94a3b8">${ops.length} ops →</span>
+        </span>
+        ${sondaBtn}
       </div>`;
     }).join('');
     const docB = md.doc_status==='confirmado'
@@ -943,6 +951,57 @@ function _renderInforme(r) {
 
 
 
+// ── Render resultado de sonda exhaustiva ──────────────────────────
+function _renderSondaResultado(r) {
+  const CA = {'🔵':'#dbeafe','✅':'#dcfce7','🚫':'#fef2f2','🔒':'#f8fafc','⚠️':'#fef9c3','❌':'#fef2f2','ℹ️':'#f0f9ff'};
+  const iconCausa = {'acceso_confirmado':'✅','requiere_parametros':'🔵','sin_licencia':'🚫','sin_permiso_usuario':'🔒','config_incompleta':'⚙️','respuesta_inesperada':'⚠️'};
+  const ic = iconCausa[r.causa_final] || '❓';
+  let h = `<div style="background:${CA[ic]||'#f8fafc'};border-radius:8px;padding:12px 14px;margin-bottom:12px">
+    <b style="font-size:0.95em">${ic} ${r.causa_final||'?'}</b>
+    <p style="margin:4px 0 0;font-size:0.82em;color:#475569">${r.explicacion_final||''}</p>
+    ${r.operaciones_confirmadas.length?`<p style="margin:4px 0 0;font-size:0.8em;color:#166534">Operaciones confirmadas: <code>${r.operaciones_confirmadas.join(', ')}</code></p>`:''}
+  </div>`;
+  // tabla de intentos
+  h+=`<table style="width:100%;border-collapse:collapse;font-size:0.8em;margin-bottom:10px">
+    <thead><tr style="background:#f1f5f9">
+      <th style="padding:5px 8px;text-align:left">Operación</th>
+      <th style="padding:5px 8px;text-align:left">Params</th>
+      <th style="padding:5px 8px;text-align:center">Code</th>
+      <th style="padding:5px 8px;text-align:center">ms</th>
+      <th style="padding:5px 8px;text-align:left">Interpretación</th>
+    </tr></thead><tbody>`;
+  (r.intentos||[]).forEach(it=>{
+    const bg=it.code===0?'#f0fdf4':it.code===6?'#eff6ff':it.code>0?'#fef9c3':'';
+    h+=`<tr style="border-bottom:1px solid #f1f5f9;background:${bg}">
+      <td style="padding:4px 8px;font-family:monospace;font-weight:600">${it.operacion}</td>
+      <td style="padding:4px 8px;font-size:0.88em;color:#64748b">${JSON.stringify(it.params||{})}</td>
+      <td style="padding:4px 8px;text-align:center"><code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${it.code??'?'}</code></td>
+      <td style="padding:4px 8px;text-align:center;color:#64748b">${it.ms||0}</td>
+      <td style="padding:4px 8px">${it.interpretacion||''}</td>
+    </tr>`;
+  });
+  h+=`</tbody></table>`;
+  // datos reales
+  if (r.datos_reales&&r.datos_reales.length) {
+    h+=`<details open><summary style="cursor:pointer;font-weight:600;font-size:0.88em;padding:6px 0;color:#166534">✅ Datos reales obtenidos (${r.datos_reales.length} registros${r.total_registros?` de ${r.total_registros} totales`:''})</summary><div style="overflow-x:auto;margin-top:6px">`;
+    const cols=Object.keys(r.datos_reales[0]);
+    h+=`<table style="width:100%;border-collapse:collapse;font-size:0.78em"><thead><tr style="background:#f8fafc">${cols.map(c=>`<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0">${c}</th>`).join('')}</tr></thead><tbody>`;
+    r.datos_reales.forEach(row=>{ h+=`<tr style="border-bottom:1px solid #f8fafc">${cols.map(c=>`<td style="padding:3px 8px;font-size:0.92em">${row[c]??''}</td>`).join('')}</tr>`; });
+    h+=`</tbody></table></div></details>`;
+  }
+  // campos del servidor
+  if (r.campos_servidor&&r.campos_servidor.length) {
+    h+=`<details><summary style="cursor:pointer;font-weight:600;font-size:0.88em;padding:6px 0;color:#1d4ed8">ℹ️ Campos reales del servidor (${r.campos_servidor.length})</summary><div style="font-size:0.8em;color:#475569;padding:6px 0">${r.campos_servidor.map(f=>`<span style="background:#eff6ff;border-radius:4px;padding:1px 6px;margin:2px 2px 2px 0;display:inline-block">${f.n||JSON.stringify(f)}</span>`).join('')}</div></details>`;
+  }
+  // campos documentados
+  if (r.campos_doc&&r.campos_doc.length) {
+    h+=`<details><summary style="cursor:pointer;font-weight:600;font-size:0.88em;padding:6px 0;color:#6d28d9">📋 Campos documentados (${r.campos_doc.length})</summary><div style="font-size:0.8em;padding:4px 0">`;
+    r.campos_doc.forEach(f=>{ h+=`<div style="display:inline-block;margin:2px;padding:2px 8px;background:${f.req?'#fef3c7':'#f1f5f9'};border-radius:4px;font-size:0.92em">${f.req?'<b>*</b> ':''}${f.n} <span style="color:#94a3b8">(${f.tipo})</span></div>`; });
+    h+=`</div></details>`;
+  }
+  return h;
+}
+
 const ApiExplorerModule = {
   async onEnter() {
     const root=document.getElementById("api-explorer-root");
@@ -1220,6 +1279,72 @@ const ApiExplorerModule = {
     });
     const desc = document.getElementById("ae-nivel-desc");
     if (desc) desc.textContent = _NIVELES[nivel]?.desc || '';
+  },
+
+  async doSondaClase(clase, paramsExtra) {
+    // Muestra modal/panel de sonda. Solo lectura — nunca escribe.
+    const existente = document.getElementById('ae-sonda-panel');
+    if (existente) existente.remove();
+    const panel = document.createElement('div');
+    panel.id = 'ae-sonda-panel';
+    panel.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    panel.innerHTML = `<div style="background:white;border-radius:12px;padding:20px;max-width:700px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <h3 style="margin:0;font-size:1.05em">🔬 Sonda exhaustiva — <code>${clase}</code></h3>
+          <p style="margin:2px 0 0;font-size:0.78em;color:#64748b">Solo lectura • permiso + info + browse(variantes) • sin escrituras</p>
+        </div>
+        <button onclick="document.getElementById('ae-sonda-panel').remove()" style="border:none;background:#f1f5f9;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:0.9em">✕</button>
+      </div>
+      <div style="background:#fef9c3;border-left:3px solid #fbbf24;border-radius:4px;padding:7px 12px;font-size:0.8em;color:#92400e;margin-bottom:12px">
+        🔒 Esta operación es <strong>100% solo lectura</strong>. Prueba múltiples estrategias de parámetros para descubrir si la clase devuelve datos reales.
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:0.83em;color:#374151;display:block;margin-bottom:4px">Parámetros extra (JSON, opcional — ej: <code>{"codProyecto":"25/184"}</code>)</label>
+        <input id="ae-sonda-params" type="text" class="form-control" placeholder='{"codProyecto":"25/184"}' style="width:100%;font-family:monospace;font-size:0.84em">
+      </div>
+      <button onclick="ApiExplorerModule._ejecutarSonda('${clase}')" class="btn primary" style="width:100%;margin-bottom:14px">🔬 Ejecutar sonda ahora</button>
+      <div id="ae-sonda-result"><p style="color:#64748b;text-align:center;font-size:0.85em">Pulsa el botón para iniciar la sonda.</p></div>
+    </div>`;
+    document.body.appendChild(panel);
+  },
+
+  async _ejecutarSonda(clase) {
+    const res_div = document.getElementById('ae-sonda-result');
+    if (!res_div) return;
+    res_div.innerHTML = `<p style="color:#64748b;text-align:center;padding:12px">⏳ Sondeando <code>${clase}</code>…</p>`;
+    let params_extra = {};
+    const inp = document.getElementById('ae-sonda-params');
+    if (inp && inp.value.trim()) {
+      try { params_extra = JSON.parse(inp.value.trim()); }
+      catch(e) { res_div.innerHTML=`<div style="color:#dc3545">Error en JSON de parámetros: ${e.message}</div>`; return; }
+    }
+    try {
+      const r = await _fetch('/sonda-clase', { method:'POST', body: JSON.stringify({clase, params_extra}) });
+      if (!r.success) { res_div.innerHTML=`<div style="color:#dc3545">Error: ${r.error}</div>`; return; }
+      res_div.innerHTML = _renderSondaResultado(r);
+    } catch(e) {
+      res_div.innerHTML = `<div style="color:#dc3545">Error: ${e.message}</div>`;
+    }
+  },
+
+  async doSondaTodasRequeridas() {
+    // Sonda automática de todas las clases 'requiere_parametros'
+    const dr = _state.discoverResult;
+    if (!dr) { alert('Ejecuta Descubrir todo primero.'); return; }
+    const clases = Object.entries(dr.clases||{})
+      .filter(([,d]) => d.causa_real === 'requiere_parametros')
+      .map(([c]) => c);
+    if (!clases.length) { alert('No hay clases requiere_parametros para sondear.'); return; }
+    const panel = document.getElementById('ae-sonda-auto-result');
+    if (panel) panel.innerHTML = `<p style="color:#64748b;font-size:0.84em">⏳ Sondeando ${clases.length} clases…</p>`;
+    for (const clase of clases) {
+      try {
+        await _fetch('/sonda-clase', {method:'POST', body: JSON.stringify({clase, params_extra:{}})});
+      } catch(e) { /* continuar */ }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (panel) panel.innerHTML = `<p style="color:#166534">✅ Sonda completada para: ${clases.join(', ')}</p>`;
   },
 
   async doInformePerfil() {
