@@ -232,15 +232,30 @@ class RealApiClient:
 def _clasificar_causa(entry: dict) -> str:
     """
     Clasifica la causa real del estado de una clase tras discover_all.
-    Retorna una cadena unívoca para el informe. Orden de prioridad:
-    1. datos reales disponibles (browse=OK) => acceso_confirmado
-    2. info OK => acceso_confirmado (campos del servidor disponibles)
-    3. permiso code=0 => acceso_confirmado
-    4. permiso code=1 => sin_licencia
-    5. permiso code=2 => sin_permiso_usuario
-    6. browse code=6 => requiere_parametros (accesible pero browse vacío sin filtro)
-    7. permiso code=5 => config_incompleta (empresa/usuario no enviados)
-    8. cualquier otro code inesperado => respuesta_inesperada
+    Basada en los códigos reales que devuelve el servidor mPYME de Distrito K.
+
+    IMPORTANTE — El servidor usa code=5 para DOS cosas distintas:
+      - "No dispone de licencia para el módulo X" → sin_licencia real
+      - "Petición no reconocida"                 → operación no soportada
+    Hay que parsear el data para distinguirlas.
+
+    IMPORTANTE — code=6 ("No es posible acceder a la base de datos en este momento")
+    NO es un error de BD: es la forma en que el servidor indica que la operación
+    necesita parámetros adicionales (ej: codProyecto para partidas).
+
+    Prioridad:
+      1. datos reales (browse=0 / muestra / campos_reales) → acceso_confirmado
+      2. info OK (icode=0) → acceso_confirmado
+      3. permiso=0 → acceso_confirmado (definitivo)
+      4. permiso=1 → sin_licencia
+      5. permiso=2 → sin_permiso_usuario
+      6. permiso=5 con mensaje "licencia/No dispone" → sin_licencia
+      7. permiso=6 → requiere_parametros (clase accesible, pide parámetros)
+      8. browse=6 → requiere_parametros
+      9. permiso=5 con mensaje neutro (Petición no reconocida) + permiso=0 previo → ya capturado
+      10. bcode=5 con pcode=0 → acceso_confirmado (browse no soportado pero clase OK)
+      11. cualquier 5 restante → config_incompleta (empresa no enviada, etc.)
+      12. otro → respuesta_inesperada
     """
     pcode = entry.get("permiso_code")
     icode = entry.get("info_code")
@@ -248,44 +263,69 @@ def _clasificar_causa(entry: dict) -> str:
     muestra = entry.get("muestra", [])
     campos_reales = entry.get("campos_reales", [])
 
-    # Datos reales obtenidos → confirmado sin ambigüedad
+    # Obtener los textos reales del servidor para distinguir code=5
+    pdata = str((entry.get("permiso_raw") or {}).get("data", "")).lower()
+    bdata = str((entry.get("browse_raw") or {}).get("data", "")).lower()
+
+    # 1-3. Datos reales o permiso OK → confirmado sin ambigüedad
     if muestra or campos_reales:
         return "acceso_confirmado"
-    # browse OK pero sin items (tabla vacía)
     if bcode == 0:
         return "acceso_confirmado"
-    # info OK (campos del servidor)
     if icode == 0:
         return "acceso_confirmado"
-    # permiso OK
     if pcode == 0:
         return "acceso_confirmado"
-    # sin licencia — definitivo
+
+    # 4. Sin licencia contractual explícita
     if pcode == 1:
         return "sin_licencia"
-    # sin permiso de usuario
+
+    # 5. Sin permiso de usuario
     if pcode == 2:
         return "sin_permiso_usuario"
-    # browse requiere parámetros → clase existe y es accesible
-    if bcode == 6:
+
+    # 6. permiso=5 con mensaje explícito de licencia del servidor
+    #    Ej: "No dispone de licencia para el módulo Documentos. (Función \"docalbcom\")"
+    _NO_LICENCIA_KEYWORDS = ("licencia", "no dispone", "sin licencia", "module not licensed")
+    if pcode == 5 and any(kw in pdata for kw in _NO_LICENCIA_KEYWORDS):
+        return "sin_licencia"
+
+    # 7. permiso=6 → el servidor pide parámetros (clase accesible pero browse sin filtros falla)
+    #    Mensaje habitual: "No es posible acceder a la base de datos en este momento"
+    #    NO es un error de BD — es el modo en que mPYME indica parámetros obligatorios
+    if pcode == 6:
         return "requiere_parametros"
-    # parámetros incompletos (empresa no enviada, etc.)
+
+    # 8. browse=6 con permiso distinto de 5 → requiere parámetros
+    if bcode == 6 and pcode != 5:
+        return "requiere_parametros"
+
+    # 10. browse=5 ("Petición no reconocida") con permiso=0 o icode=0 ya capturado arriba.
+    #     Si llegamos aquí con pcode=5 y bcode=5 sin mensaje de licencia → config incompleta
     if pcode == 5 or bcode == 5:
         return "config_incompleta"
-    # respuesta inesperada del servidor
+
+    # 12. Cualquier otro código no documentado
     return "respuesta_inesperada"
 
 
 def _explicar_causa(entry: dict, use_mock: bool) -> str:
     """
-    Explicación en lenguaje natural de la causa real. Clara, sin ambigüedades.
-    Indica exactamente qué falló y por qué, y si hay algo que hacer.
+    Explicación en lenguaje natural de la causa real.
+    Usa los textos reales que devuelve el servidor mPYME para dar información precisa.
+    Sin ambigüedades. Indica exactamente qué ocurre y qué hacer.
     """
     causa = _clasificar_causa(entry)
     pcode = entry.get("permiso_code")
     bcode = entry.get("browse_code")
     icode = entry.get("info_code")
     modo = "BD Simulada" if use_mock else "API Real"
+
+    # Textos reales del servidor (para incluirlos en las explicaciones)
+    pdata = str((entry.get("permiso_raw") or {}).get("data", ""))
+    bdata = str((entry.get("browse_raw") or {}).get("data", ""))
+    idata = str((entry.get("info_raw") or {}).get("data", ""))
 
     if causa == "acceso_confirmado":
         n = len(entry.get("muestra", []))
@@ -296,52 +336,78 @@ def _explicar_causa(entry: dict, use_mock: bool) -> str:
                 base += f" (total en BD: {reg})"
             base += ". La clase funciona correctamente."
         elif entry.get("campos_reales"):
-            base = f"Acceso CONFIRMADO ({modo}). El servidor devuelve los campos de la clase. Tabla posiblemente vacía o browse requiere parámetros."
+            base = (f"Acceso CONFIRMADO ({modo}). El servidor devuelve los metadatos de la clase "
+                    f"(info→code=0). La tabla puede estar vacía o browse requiere parámetros.")
+        elif icode == 0:
+            base = (f"Acceso CONFIRMADO ({modo}). La operación 'info' respondió OK (code=0). "
+                    f"La clase existe y es accesible.")
         else:
-            base = f"Acceso CONFIRMADO ({modo}). permiso devolvió code=0."
+            base = f"Acceso CONFIRMADO ({modo}). permiso devolvió code=0 — licencia y permisos OK."
         nota = entry.get("nota_permiso", "")
         if nota:
-            base += f" Nota: {nota}"
+            base += f" | {nota}"
         return base
 
     if causa == "sin_licencia":
-        return (
-            f"SIN LICENCIA (code=1). Vuestra licencia NO incluye esta clase. "
-            f"Para activarla debéis contactar con Distrito K y ampliar el contrato. "
-            f"No es un error de configuración — es una restricción contractual."
-        )
+        # Distinguir si fue code=1 o code=5 con mensaje de licencia
+        if pcode == 1:
+            msg_servidor = pdata[:120] if pdata else "code=1"
+            return (
+                f"SIN LICENCIA CONTRACTUAL (code=1). "
+                f"Vuestra licencia NO incluye esta clase. "
+                f"Para activarla contactad con Distrito K. "
+                f"Mensaje del servidor: \"{msg_servidor}\""
+            )
+        else:
+            # pcode=5 con mensaje de licencia
+            msg_servidor = pdata[:180] if pdata else "No dispone de licencia"
+            return (
+                f"SIN LICENCIA (code=5, mensaje de licencia). "
+                f"El servidor rechazó la petición indicando explícitamente falta de licencia. "
+                f"Esto NO es un error de configuración — es una restricción contractual. "
+                f"Contactad con Distrito K para ampliar. "
+                f"Mensaje exacto del servidor: \"{msg_servidor}\""
+            )
 
     if causa == "sin_permiso_usuario":
         clase_nombre = entry.get("clase", "?")
+        usuario_api = entry.get("sesion_usuario", "API")
         return (
             f"SIN PERMISO DE USUARIO (code=2). La licencia puede incluir esta clase, "
-            f"pero el usuario API no tiene acceso a '{clase_nombre}' configurado en SQL Obras. "
+            f"pero el usuario '{usuario_api}' no tiene acceso "
+            f"a '{clase_nombre}' configurado en SQL Obras. "
             f"Solución: pedir al administrador de SQL Obras que asigne permisos al usuario API."
         )
 
     if causa == "requiere_parametros":
+        # El mensaje "No es posible acceder a la base de datos en este momento" (code=6)
+        # NO es un error de BD — es la forma de mPYME de indicar parámetros obligatorios
+        msg_real = bdata[:100] if bdata and bdata != "none" else (pdata[:100] if pdata else "code=6")
         return (
-            f"CLASE ACCESIBLE pero browse() sin filtros devuelve code=6. "
-            f"Esto es normal para clases que requieren un identificador (ej: codProyecto para partidas). "
-            f"Para ver datos usa el Explorador con los parámetros requeridos."
+            f"CLASE ACCESIBLE — requiere parámetros para browse (code=6). "
+            f"El servidor responde code=6 a browse() sin filtros. "
+            f"Esto NO significa que la BD esté caída: es el comportamiento documentado "
+            f"para clases que necesitan un identificador obligatorio (ej: codProyecto para partidas, "
+            f"codOrden para repordutil). "
+            f"Para ver datos: usa el Explorador con los parámetros correctos. "
+            f"Mensaje del servidor: \"{msg_real}\""
         )
 
     if causa == "config_incompleta":
         return (
-            f"CONFIGURACIÓN INCOMPLETA (code=5). El servidor rechazó la petición porque faltan "
-            f"campos obligatorios. Probable causa: 'empr' (empresa) no se envía correctamente. "
-            f"Verifica que SQLOB_EMPRESA esté configurado en .env y que el valor sea correcto."
+            f"CONFIG INCOMPLETA (code=5, mensaje genérico). "
+            f"El servidor respondió code=5 sin mensaje de licencia. "
+            f"Causas posibles: (1) el campo 'empr' (empresa) no se envía o tiene valor incorrecto — "
+            f"verifica SQLOB_EMPRESA en .env; (2) la operación no está soportada para esta clase "
+            f"en vuestra instalación ('Petición no reconocida'). "
+            f"Mensaje permiso: \"{pdata[:100]}\". Mensaje browse: \"{bdata[:100]}\""
         )
 
     # respuesta_inesperada
-    p_raw = str(entry.get("permiso_raw", ""))[:120]
-    b_raw = str(entry.get("browse_raw", ""))[:120]
     return (
         f"RESPUESTA INESPERADA. permiso→code={pcode}, info→code={icode}, browse→code={bcode}. "
-        f"El servidor respondió con un código no documentado en mPYME v1.2. "
-        f"Puede ser: versión diferente del servidor, clase no disponible en esta instalación, "
-        f"o comportamiento específico de vuestra configuración. "
-        f"Respuesta permiso: {p_raw[:80]}. Respuesta browse: {b_raw[:80]}."
+        f"El servidor devolvió un código no cubierto por los patrones conocidos de mPYME v1.2. "
+        f"Respuesta permiso: \"{pdata[:100]}\". Respuesta browse: \"{bdata[:100]}\"."
     )
 
 
