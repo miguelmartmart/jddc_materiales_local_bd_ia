@@ -991,6 +991,34 @@ class ApiExplorerService:
             # Añadir campos documentados para comparación
             entry["campos_doc"] = campos_doc.get(clase, [])
 
+            # ── Segunda pasada inteligente para clases code=6 ─────────────────
+            # Si browse sin params devolvió code=6, intentar con variantes de params
+            # documentadas — sin escritura, solo lectura
+            if entry.get("browse_code") == 6 or entry.get("permiso_code") == 6:
+                variantes = self._SONDA_PARAMS.get(clase, [{"num": 20}])
+                for prm in variantes[:3]:  # máx 3 variantes en discover (no sobrecargar)
+                    if not prm:  # skip {} que ya se probó
+                        continue
+                    try:
+                        raw_b2, _ = self._client().browse(self.ssid1, self.ssid2, clase, dict(prm))
+                        bc2 = raw_b2.get("code")
+                        if bc2 == 0:
+                            items2 = raw_b2.get("items") or raw_b2.get("data") or []
+                            if isinstance(items2, list) and items2:
+                                entry["muestra"] = items2[:5]
+                                entry["total_registros"] = raw_b2.get("total")
+                                entry["browse_raw"] = {k: v for k, v in raw_b2.items() if k != "_http_status"}
+                                entry["browse_code"] = 0
+                                entry["browse_params_exitosos"] = prm
+                                if entry["estado"] == "error":
+                                    entry["estado"] = "con_permiso"
+                                    resumen["error"] -= 1
+                                    resumen["con_permiso"] += 1
+                                break  # datos obtenidos — no seguir probando
+                        time.sleep(0.1)
+                    except Exception:
+                        pass
+
             # Causa real unívoca — explicación inequívoca del estado
             entry["causa_real"] = _clasificar_causa(entry)
             entry["causa_explicacion"] = _explicar_causa(entry, self.use_mock)

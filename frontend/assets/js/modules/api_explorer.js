@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v14 — Persistencia total a disco (historial+sondas+matriz+discover), exportación JSON completa.
+ * api_explorer.js v15 — Plan de pruebas pendientes, segunda pasada en discover, hallazgos del servidor.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -403,7 +403,7 @@ function renderInspector(s) {
   const cls  = _state.inspectorClase;
 
   // Sub-pestañas del Inspector
-  const ITABS = [["resumen","📋 Resumen"],["clase","🗂️ Por Clase"],["operaciones","⚙️ Operaciones"],["codigos","🔢 Códigos"],["informe","📑 Informe"]];
+  const ITABS = [["resumen","📋 Resumen"],["clase","🗂️ Por Clase"],["plan","🎯 Plan pruebas"],["operaciones","⚙️ Operaciones"],["codigos","🔢 Códigos"],["informe","📑 Informe"]];
   const itabBar = `<div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid #f1f5f9;padding-bottom:10px">
     ${ITABS.map(([id,lbl]) => `<button onclick="ApiExplorerModule.setInspectorTab('${id}')"
       style="padding:5px 13px;border:1px solid ${iTab===id?'#3b82f6':'#e2e8f0'};background:${iTab===id?'#3b82f6':'white'};color:${iTab===id?'white':'#64748b'};border-radius:6px;cursor:pointer;font-size:0.82em;transition:all 0.15s">${lbl}</button>`).join('')}
@@ -453,8 +453,9 @@ function renderInspector(s) {
 
   const cat = cf.catalogue || {};
   let content = '';
-  if (iTab === 'resumen')    content = _inspResumen(cat, dr);
-  else if (iTab === 'clase') content = _inspClase(cat, cf, dr, cls);
+  if (iTab === 'resumen')         content = _inspResumen(cat, dr);
+  else if (iTab === 'clase')      content = _inspClase(cat, cf, dr, cls);
+  else if (iTab === 'plan')       content = `<div id="ae-plan-root"><p style="color:#64748b;font-size:0.85em;padding:12px">⏳ Cargando plan…</p></div>`;
   else if (iTab === 'operaciones') content = _inspOps(cf);
   else if (iTab === 'codigos')     content = _inspCodes(cf);
   else if (iTab === 'informe')     content = _inspInforme();
@@ -991,6 +992,77 @@ function _renderInforme(r) {
 
 
 
+// ── Render del plan de pruebas pendientes ─────────────────────────
+function _renderPlan(r) {
+  const obs = r.observaciones_fijas || [];
+  const pendientes = r.pruebas_pendientes || [];
+  const completadas = r.pruebas_completadas || [];
+  const pBg = {'🔴':'#fef2f2','🟡':'#fef9c3','🟠':'#fff7ed','⚪':'#f8fafc'};
+  const pCl = {'🔴':'#991b1b','🟡':'#92400e','🟠':'#9a3412','⚪':'#64748b'};
+
+  // Contadores
+  let h = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px">
+    <div style="background:#fef2f2;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">⏳</div><b style="color:#991b1b">${pendientes.length}</b><div style="font-size:0.7em;color:#991b1b">Pendientes</div></div>
+    <div style="background:#dcfce7;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">✅</div><b style="color:#166534">${completadas.length}</b><div style="font-size:0.7em;color:#166534">Completadas</div></div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">📊</div><b style="color:#475569">${r.total_pruebas||0}</b><div style="font-size:0.7em;color:#64748b">Total</div></div>
+    ${r.discover_timestamp?`<div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center;font-size:0.72em;color:#64748b"><div>📅 Discover</div><div>${r.discover_timestamp}</div><div>${r.empresa||''}</div></div>`:''}
+  </div>`;
+
+  // Observaciones del servidor (hallazgos del JSON analizado)
+  h += `<details open><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#1e293b">🔍 Hallazgos del servidor (del análisis del JSON exportado)</summary><div style="padding:4px 0 8px">`;
+  obs.forEach(o => {
+    h += `<div style="background:#f8fafc;border-left:4px solid ${o.icono==='✅'?'#22c55e':o.icono==='🚫'?'#dc2626':'#f59e0b'};border-radius:0 6px 6px 0;padding:9px 13px;margin:5px 0">
+      <b style="font-size:0.87em">${o.icono} ${o.titulo}</b>
+      <p style="margin:3px 0;font-size:0.82em;color:#475569">${o.detalle}</p>
+      <p style="margin:0;font-size:0.78em;color:#166534">→ ${o.accion}</p>
+    </div>`;
+  });
+  h += `</div></details>`;
+
+  // Pruebas pendientes
+  h += `<details open><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#1e293b">⏳ Pruebas pendientes (${pendientes.length}) — en orden de prioridad</summary><div style="padding:4px 0 8px">`;
+  if (!pendientes.length) {
+    h += `<p style="color:#166534;font-size:0.84em;padding:8px">✅ ¡Todas las pruebas completadas!</p>`;
+  } else {
+    pendientes.forEach(p => {
+      const paramsStr = JSON.stringify(p.params_sugeridos||{});
+      const tieneInterrogante = paramsStr.includes('"?"');
+      h += `<div style="background:${pBg[p.prioridad]||'#f8fafc'};border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin:5px 0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:1em">${p.prioridad}</span>
+          <code style="background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:4px;font-size:0.85em">${p.clase}.${p.operacion}</code>
+          <b style="font-size:0.87em;color:${pCl[p.prioridad]||'#374151'}">${p.descripcion}</b>
+          <span style="margin-left:auto;font-size:0.75em;color:#94a3b8">${p.causa_actual||''}</span>
+        </div>
+        <p style="margin:2px 0;font-size:0.8em;color:#64748b">${p.por_que}</p>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <code style="background:#1e293b;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.78em">${paramsStr}</code>
+          ${tieneInterrogante
+            ? `<span style="font-size:0.75em;color:#f59e0b">⚠️ ${p.nota_params}</span>`
+            : `<button onclick="ApiExplorerModule.doEjecutarPrueba('${p.clase}','${p.operacion}','${paramsStr.replace(/'/g,"\\'")}');ApiExplorerModule.setInspectorTab('resumen')"
+                class="btn primary" style="font-size:0.78em;padding:3px 10px">▶ Ejecutar ahora</button>`}
+        </div>
+      </div>`;
+    });
+  }
+  h += `</div></details>`;
+
+  // Completadas
+  if (completadas.length) {
+    h += `<details><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#166534">✅ Pruebas completadas (${completadas.length})</summary><div style="padding:4px 0 8px">`;
+    completadas.forEach(p => {
+      h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:4px 0;display:flex;gap:8px;align-items:center">
+        <code style="font-size:0.82em;color:#166534">${p.clase}.${p.operacion}</code>
+        <span style="font-size:0.8em;color:#475569">${p.descripcion}</span>
+        <span style="font-size:0.78em;color:#94a3b8;margin-left:auto">${p.tiene_sonda?'🔬 Sondeado':'📊 Discover'}</span>
+      </div>`;
+    });
+    h += `</div></details>`;
+  }
+
+  return h;
+}
+
 // ── Render resultado de sonda exhaustiva ──────────────────────────
 function _renderSondaResultado(r) {
   const CA = {'🔵':'#dbeafe','✅':'#dcfce7','🚫':'#fef2f2','🔒':'#f8fafc','⚠️':'#fef9c3','❌':'#fef2f2','ℹ️':'#f0f9ff'};
@@ -1068,7 +1140,10 @@ const ApiExplorerModule = {
     renderMain();
   },
   setTab(t){_state.currentTab=t;renderMain();},
-  setInspectorTab(t){_state.inspectorTab=t;renderMain();},
+  setInspectorTab(t){
+    _state.inspectorTab=t; renderMain();
+    if(t==='plan') setTimeout(()=>ApiExplorerModule._cargarPlan(), 100);
+  },
   setInspectorClase(c){_state.inspectorClase=c;_state.inspectorTab='clase';renderMain();},
   onModuloChange(){const el=document.getElementById("ae-modulo");if(el){_state.selectedModulo=el.value;_state.selectedClase=null;_state.selectedOp=null;}renderMain();},
   onClaseChange(){const el=document.getElementById("ae-clase");if(el){_state.selectedClase=el.value;_state.selectedOp=null;}renderMain();},
@@ -1326,6 +1401,32 @@ const ApiExplorerModule = {
     });
     const desc = document.getElementById("ae-nivel-desc");
     if (desc) desc.textContent = _NIVELES[nivel]?.desc || '';
+  },
+
+  async _cargarPlan() {
+    const root = document.getElementById('ae-plan-root');
+    if (!root) return;
+    try {
+      const r = await _fetch('/plan-pruebas');
+      root.innerHTML = _renderPlan(r);
+    } catch(e) {
+      root.innerHTML = `<div style="color:#dc3545;padding:12px">Error cargando plan: ${e.message}</div>`;
+    }
+  },
+
+  async doEjecutarPrueba(clase, op, paramsJson) {
+    // Lanza una sonda de solo lectura directamente desde el plan de pruebas
+    let params = {};
+    try { params = JSON.parse(paramsJson||'{}'); } catch(e) {}
+    if (op === 'browse') {
+      await this.doSondaClase(clase, params);
+    } else {
+      // Para read/new: abrir el Explorador con esa clase y operación pre-seleccionadas
+      _state.selectedClase = clase;
+      _state.selectedOp = op;
+      _state.currentTab = 'explorador';
+      renderMain();
+    }
   },
 
   async doExportarTodo() {
