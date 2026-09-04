@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v9 — Modulo API Explorer de DEVIA. Inspector API completo.
+ * api_explorer.js v10 — Modulo API Explorer de DEVIA. Inspector API completo.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -85,7 +85,11 @@ function renderDatos(json, clase, op) {
 
 function renderResult(r) {
   const color = estadoColor(r.estado);
-  const bg = r.estado === "ok" ? "#e8f5e9" : r.estado === "bloqueado" ? "#fff3e0" : ["sin_permiso","sin_licencia"].includes(r.estado) ? "#f3e5f5" : "#ffebee";
+  const bg = r.estado === "ok" ? "#e8f5e9"
+    : r.estado === "bloqueado" ? "#fff3e0"
+    : r.estado === "precisa_params" ? "#dbeafe"
+    : ["sin_permiso","sin_licencia"].includes(r.estado) ? "#f3e5f5"
+    : "#ffebee";
   const modo = r.use_mock ? "🔵 Mock" : "🟠 Real";
   let html = `<div style="background:${bg};border-left:4px solid ${color};padding:10px 14px;border-radius:6px;margin:8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <strong>${estadoIcon(r.estado)} ${r.estado.toUpperCase()}</strong>
@@ -839,6 +843,57 @@ function renderEscritura(s) {
 }
 
 
+// ─── _renderInforme (parte 1/2) ──────────────────────────────
+function _renderInforme(r) {
+  const t=r.totales||{},s=r.secciones||{},d=r.detalles||{},apps=r.apps||[];
+  const conA=s.con_acceso||[],reqP=s.requiere_parametros||[];
+  const sinL=s.sin_licencia||[],sinP=s.sin_permiso||[];
+  const cfgI=s.config_incompleta||[],ines=s.respuesta_inesperada||[];
+  const cnt=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(98px,1fr));gap:7px;margin-bottom:13px">
+    <div style="background:#dcfce7;border-radius:8px;padding:7px;text-align:center"><div style="font-size:1.2em">✅</div><b style="color:#166534">${t.con_acceso||0}</b><div style="font-size:0.7em;color:#166534">Confirmado</div></div>
+    <div style="background:#dbeafe;border-radius:8px;padding:7px;text-align:center"><div style="font-size:1.2em">🔵</div><b style="color:#1e40af">${t.requiere_parametros||0}</b><div style="font-size:0.7em;color:#1e40af">Req. params</div></div>
+    <div style="background:#fef2f2;border-radius:8px;padding:7px;text-align:center"><div style="font-size:1.2em">🚫</div><b style="color:#991b1b">${t.sin_licencia||0}</b><div style="font-size:0.7em;color:#991b1b">Sin licencia</div></div>
+    <div style="background:#fef9c3;border-radius:8px;padding:7px;text-align:center"><div style="font-size:1.2em">🔒</div><b style="color:#92400e">${t.sin_permiso||0}</b><div style="font-size:0.7em;color:#92400e">Sin permiso</div></div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:7px;text-align:center;font-size:0.7em;color:#64748b"><div>${r.modo||''}</div><div>${r.timestamp||''}</div><div>${r.empresa||''}&nbsp;·&nbsp;${r.usuario||''}</div></div>
+  </div>`;
+  let n1=`<details open><summary style="cursor:pointer;font-weight:700;font-size:0.94em;padding:8px 0;color:#1e293b">👤 NIVEL 1 — Para cualquier persona</summary><div style="font-size:0.88em;padding:4px 0 8px">`;
+  if(conA.length+reqP.length>0){
+    n1+=`<p style="font-weight:600;color:#166534;margin:4px 0">✅ SÍ podemos hacer (probado):</p><ul style="margin:0 0 6px;padding-left:18px">`;
+    conA.forEach(c=>{const e=d[c]||{};n1+=`<li style="color:#166534;margin:2px 0"><b>${e.desc||c}</b>${e.total_registros!=null?` <span style="color:#64748b;font-size:0.81em">· ${e.total_registros} regs</span>`:''}${e.operaciones&&e.operaciones.length?` <span style="color:#94a3b8;font-size:0.77em">(${e.operaciones.join(', ')})</span>`:''}</li>`;});
+    reqP.forEach(c=>{const e=d[c]||{};n1+=`<li style="color:#1e40af;margin:2px 0"><b>${e.desc||c}</b> <span style="color:#64748b;font-size:0.81em">· requiere parámetros</span></li>`;});
+    n1+=`</ul>`;
+  }else{n1+=`<p style="color:#64748b">Sin acceso confirmado aún. Ejecuta 🚀 Descubrir todo primero.</p>`;}
+  if(sinL.length+sinP.length+cfgI.length+ines.length>0){
+    n1+=`<p style="font-weight:600;color:#991b1b;margin:7px 0 4px">❌ NO podemos hacer — causa exacta verificada:</p><ul style="margin:0;padding-left:18px">`;
+    const _li=(c,ico,lab)=>{const e=d[c]||{};return`<li style="margin:2px 0"><b>${ico} ${e.desc||c}</b> <span style="font-size:0.8em;color:#64748b">— ${lab}</span><details style="font-size:0.79em"><summary style="color:#94a3b8;cursor:pointer">Detalle técnico</summary><span style="color:#475569">${e.causa_explicacion||''}</span></details></li>`;};
+    sinL.forEach(c=>n1+=_li(c,'🚫','Sin licencia — no contratada con Distrito K'));
+    sinP.forEach(c=>n1+=_li(c,'🔒','Sin permiso — usuario sin acceso en SQL Obras'));
+    cfgI.forEach(c=>n1+=_li(c,'⚙️','Config incompleta — faltan valores en .env'));
+    ines.forEach(c=>n1+=_li(c,'⚠️','Respuesta inesperada — posible error en la documentación'));
+    n1+=`</ul>`;}
+  n1+=`</div></details>`;
+  // N2 — empleado
+  let n2=`<details><summary style="cursor:pointer;font-weight:700;font-size:0.94em;padding:8px 0;color:#1e293b">👷 NIVEL 2 — Para el empleado</summary><div style="padding:4px 0 8px">`;
+  apps.forEach(a=>{const ok=a.disponible;n2+=`<div style="border-left:4px solid ${ok?'#22c55e':'#cbd5e1'};background:${ok?'#f0fdf4':'#f8fafc'};border-radius:0 6px 6px 0;padding:9px 13px;margin:5px 0"><b style="color:${ok?'#166534':'#64748b'};font-size:0.87em">${ok?'✅':'⬜'} ${a.nombre}</b><p style="margin:3px 0;font-size:0.83em;color:#475569">${a.desc}</p><p style="margin:0;font-size:0.75em;color:#94a3b8">Requiere: ${(a.requiere||[]).join(' · ')}</p></div>`;});
+  n2+=`</div></details>`;
+  // N3 — técnico
+  let n3=`<details><summary style="cursor:pointer;font-weight:700;font-size:0.94em;padding:8px 0;color:#1e293b">🔧 NIVEL 3 — Para el técnico</summary><div style="padding:4px 0 8px">`;
+  [...conA,...reqP].forEach(c=>{const e=d[c]||{};const reg=e.total_registros;
+    n3+=`<details style="margin:3px 0;border:1px solid #e2e8f0;border-radius:6px"><summary style="cursor:pointer;padding:7px 12px;font-weight:600;font-size:0.87em;color:#1e293b"><code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${c}</code>&nbsp;${e.desc||''}${reg!=null?`<span style="float:right;font-size:0.74em;color:#64748b;font-weight:400">${reg} regs</span>`:''}</summary><div style="padding:8px 14px;font-size:0.82em;color:#475569"><b>Causa:</b> <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">${e.causa_real||''}</code><br><b>Explicación:</b> ${e.causa_explicacion||''}<br>${e.operaciones&&e.operaciones.length?`<b>Ops:</b> <code>${e.operaciones.join(', ')}</code><br>`:''}${e.campos&&e.campos.length?`<b>Campos servidor:</b> <code style="font-size:0.88em">${e.campos.join(', ')}</code><br>`:''}${e.muestra_n>0?`<b>Muestra:</b> ${e.muestra_n} regs<br>`:''}<b>Códigos:</b> permiso=${e.permiso_code??'?'} browse=${e.browse_code??'?'} info=${e.info_code??'?'}</div></details>`;});
+  n3+=`</div></details>`;
+  // N4 — gerencia
+  let n4=`<details><summary style="cursor:pointer;font-weight:700;font-size:0.94em;padding:8px 0;color:#1e293b">📊 NIVEL 4 — Para gerencia</summary><div style="padding:4px 0 8px">`;
+  apps.forEach((a,i)=>{const ok=a.disponible;n4+=`<div style="background:${ok?'#ecfdf5':'#f8fafc'};border:1px solid ${ok?'#bbf7d0':'#e2e8f0'};border-radius:8px;padding:10px 14px;margin:5px 0"><b style="color:${ok?'#166534':'#64748b'};font-size:0.87em">${i+1}. ${a.nombre} — ${ok?'✅ DISPONIBLE AHORA':'⬜ Ampliar licencia'}</b><p style="margin:3px 0;font-size:0.83em;color:#1e293b">${a.desc}</p><p style="margin:0;font-size:0.75em;color:#94a3b8">Requiere: ${(a.requiere||[]).join(' · ')}</p></div>`;});
+  n4+=`</div></details>`;
+  // Ref. códigos
+  const codes=`<details><summary style="cursor:pointer;font-weight:700;font-size:0.94em;padding:8px 0;color:#1e293b">🔢 Referencia de códigos mPYME</summary><table style="width:100%;border-collapse:collapse;font-size:0.81em;margin-top:4px"><thead><tr style="background:#f1f5f9"><th style="padding:5px 10px;text-align:left">Code</th><th style="padding:5px 10px;text-align:left">Significado</th><th style="padding:5px 10px;text-align:left">Acción</th></tr></thead><tbody><tr><td style="padding:4px 10px"><b>0</b></td><td>Éxito</td><td style="color:#166534">OK</td></tr><tr style="background:#f8fafc"><td style="padding:4px 10px"><b>1</b></td><td>Sin licencia</td><td style="color:#991b1b">Contactar Distrito K</td></tr><tr><td style="padding:4px 10px"><b>2</b></td><td>Sin permiso</td><td style="color:#c2410c">Revisar permisos SQL Obras</td></tr><tr style="background:#f8fafc"><td style="padding:4px 10px"><b>3</b></td><td>Error validación</td><td>Revisar parámetros</td></tr><tr><td style="padding:4px 10px"><b>5</b></td><td>Config incompleta</td><td>Completar .env</td></tr><tr style="background:#f8fafc"><td style="padding:4px 10px"><b>6</b></td><td>Requiere params</td><td style="color:#1e40af">Normal — la clase necesita datos</td></tr><tr><td style="padding:4px 10px"><b>10</b></td><td>No encontrado</td><td>Registro no existe</td></tr><tr style="background:#f8fafc"><td style="padding:4px 10px"><b>-1</b></td><td>Error red</td><td>Verificar URL y conexión</td></tr></tbody></table></details>`;
+  // Botones
+  const btns=`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="font-size:0.83em">💾 Exportar TXT</button><button onclick="document.querySelectorAll('#ae-informe-result details').forEach(el=>el.open=true)" class="btn secondary" style="font-size:0.83em">📂 Expandir todo</button><button onclick="document.querySelectorAll('#ae-informe-result details').forEach(el=>el.open=false)" class="btn secondary" style="font-size:0.83em">📁 Colapsar todo</button></div>`;
+  return cnt+n1+n2+n3+n4+codes+btns;
+}
+
+
+
 const ApiExplorerModule = {
   async onEnter() {
     const root=document.getElementById("api-explorer-root");
@@ -1084,24 +1139,19 @@ const ApiExplorerModule = {
 
   async doInforme(){
     const div=document.getElementById("ae-informe-result");
-    if(div) div.innerHTML=`<p style="color:#64748b;font-size:0.85em">Generando informe…</p>`;
+    if(!div)return;
+    div.innerHTML=`<p style="color:#64748b;font-size:0.85em;padding:12px">⏳ Generando informe…</p>`;
     try{
       const r=await _fetch("/informe");
       if(r.error){
-        if(div) div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:10px 14px;color:#991b1b">${r.error}</div>`;
+        div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px 16px;color:#991b1b">
+          ⚠️ ${r.error}<br><small style="color:#64748b">Ejecuta primero 🚀 Descubrir todo en la pestaña Inspector.</small></div>`;
         return;
       }
       window._ae_informe_txt = r.texto || "";
-      const meta=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px">
-        <div style="background:#dcfce7;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">✅</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#166534">${r.clases_con_acceso}</p><p style="margin:0;font-size:0.7em;color:#166534">Con acceso</p></div>
-        <div style="background:#fef2f2;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">🚫</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#991b1b">${r.clases_sin_licencia}</p><p style="margin:0;font-size:0.7em;color:#991b1b">Sin licencia</p></div>
-        <div style="background:#fef9c3;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:1.4em">⚠️</p><p style="margin:2px 0 0;font-size:0.72em;font-weight:700;color:#92400e">${r.clases_error}</p><p style="margin:0;font-size:0.7em;color:#92400e">Error/pendiente</p></div>
-        <div style="background:#f8fafc;border-radius:8px;padding:8px 10px;text-align:center"><p style="margin:0;font-size:0.72em;color:#64748b">${r.modo}</p><p style="margin:2px 0 0;font-size:0.7em;color:#94a3b8">${r.timestamp||''}</p></div>
-      </div>`;
-      if(div) div.innerHTML=meta+`<pre style="background:#1e293b;color:#e2e8f0;border-radius:8px;padding:14px;font-size:0.78em;overflow-x:auto;white-space:pre-wrap;max-height:500px;overflow-y:auto">${(r.texto||'').replace(/</g,'&lt;')}</pre>
-        <button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="margin-top:8px;font-size:0.85em">💾 Exportar TXT</button>`;
+      div.innerHTML = _renderInforme(r);
     }catch(e){
-      if(div) div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:10px 14px;color:#991b1b">Error: ${e.message}</div>`;
+      div.innerHTML=`<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px;color:#991b1b">Error: ${e.message}</div>`;
     }
   },
 

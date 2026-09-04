@@ -98,7 +98,7 @@ class RealApiClient:
     """
     def __init__(self, url, emp, tout, ssl_verify):
         self.url = url.rstrip("/")
-        self.emp = emp
+        self.emp = emp  # empresa — se incluye en _base() de todas las llamadas
         self.tout = tout
         self.ssl = ssl_verify
         self._s1 = ""
@@ -139,13 +139,22 @@ class RealApiClient:
             return {"code": -1, "error": str(e), "_http_status": 0}, ms
 
     def _base(self) -> dict:
-        """Campos comunes: ssid1, ssid2."""
-        return {"ssid1": self._s1, "ssid2": self._s2}
+        """
+        Campos comunes: ssid1, ssid2 y empr.
+        IMPORTANTE: la API mPYME puede requerir 'empr' en CADA peticion,
+        no solo en login. Incluirlo siempre evita code=5 por parametros incompletos.
+        """
+        base = {"ssid1": self._s1, "ssid2": self._s2}
+        if self.emp:
+            base["empr"] = self.emp
+        return base
 
     def login(self, empresa, usuario, password):
         """
         Login segun doc: method=login&empr=<n>&user=<u>&pass=<sha1_base64>
         'empr' puede ser numero de empresa o codigo. Si es texto, se envia tal cual.
+        Tras login exitoso guardamos emp para incluirlo en TODAS las llamadas
+        posteriores (evita code=5 por empresa no enviada).
         """
         pw_hash = self._hash_password(password)
         fields = {
@@ -161,6 +170,9 @@ class RealApiClient:
             data = d.get("data", {})
             self._s1 = data.get("ssid1", "")
             self._s2 = data.get("ssid2", "")
+            # Guardar empresa para incluirla en _base() de todas las llamadas
+            if empresa:
+                self.emp = empresa
         return d, ms
 
     def logout(self, s1, s2):
@@ -215,6 +227,122 @@ class RealApiClient:
                   "objectid": oid, "action": "imputaPro",
                   "params": json.dumps(params)}
         return self._post(fields)
+
+
+def _clasificar_causa(entry: dict) -> str:
+    """
+    Clasifica la causa real del estado de una clase tras discover_all.
+    Retorna una cadena unívoca para el informe. Orden de prioridad:
+    1. datos reales disponibles (browse=OK) => acceso_confirmado
+    2. info OK => acceso_confirmado (campos del servidor disponibles)
+    3. permiso code=0 => acceso_confirmado
+    4. permiso code=1 => sin_licencia
+    5. permiso code=2 => sin_permiso_usuario
+    6. browse code=6 => requiere_parametros (accesible pero browse vacío sin filtro)
+    7. permiso code=5 => config_incompleta (empresa/usuario no enviados)
+    8. cualquier otro code inesperado => respuesta_inesperada
+    """
+    pcode = entry.get("permiso_code")
+    icode = entry.get("info_code")
+    bcode = entry.get("browse_code")
+    muestra = entry.get("muestra", [])
+    campos_reales = entry.get("campos_reales", [])
+
+    # Datos reales obtenidos → confirmado sin ambigüedad
+    if muestra or campos_reales:
+        return "acceso_confirmado"
+    # browse OK pero sin items (tabla vacía)
+    if bcode == 0:
+        return "acceso_confirmado"
+    # info OK (campos del servidor)
+    if icode == 0:
+        return "acceso_confirmado"
+    # permiso OK
+    if pcode == 0:
+        return "acceso_confirmado"
+    # sin licencia — definitivo
+    if pcode == 1:
+        return "sin_licencia"
+    # sin permiso de usuario
+    if pcode == 2:
+        return "sin_permiso_usuario"
+    # browse requiere parámetros → clase existe y es accesible
+    if bcode == 6:
+        return "requiere_parametros"
+    # parámetros incompletos (empresa no enviada, etc.)
+    if pcode == 5 or bcode == 5:
+        return "config_incompleta"
+    # respuesta inesperada del servidor
+    return "respuesta_inesperada"
+
+
+def _explicar_causa(entry: dict, use_mock: bool) -> str:
+    """
+    Explicación en lenguaje natural de la causa real. Clara, sin ambigüedades.
+    Indica exactamente qué falló y por qué, y si hay algo que hacer.
+    """
+    causa = _clasificar_causa(entry)
+    pcode = entry.get("permiso_code")
+    bcode = entry.get("browse_code")
+    icode = entry.get("info_code")
+    modo = "BD Simulada" if use_mock else "API Real"
+
+    if causa == "acceso_confirmado":
+        n = len(entry.get("muestra", []))
+        reg = entry.get("total_registros")
+        if n > 0:
+            base = f"Acceso CONFIRMADO ({modo}). Se han obtenido {n} registros reales"
+            if reg is not None:
+                base += f" (total en BD: {reg})"
+            base += ". La clase funciona correctamente."
+        elif entry.get("campos_reales"):
+            base = f"Acceso CONFIRMADO ({modo}). El servidor devuelve los campos de la clase. Tabla posiblemente vacía o browse requiere parámetros."
+        else:
+            base = f"Acceso CONFIRMADO ({modo}). permiso devolvió code=0."
+        nota = entry.get("nota_permiso", "")
+        if nota:
+            base += f" Nota: {nota}"
+        return base
+
+    if causa == "sin_licencia":
+        return (
+            f"SIN LICENCIA (code=1). Vuestra licencia NO incluye esta clase. "
+            f"Para activarla debéis contactar con Distrito K y ampliar el contrato. "
+            f"No es un error de configuración — es una restricción contractual."
+        )
+
+    if causa == "sin_permiso_usuario":
+        clase_nombre = entry.get("clase", "?")
+        return (
+            f"SIN PERMISO DE USUARIO (code=2). La licencia puede incluir esta clase, "
+            f"pero el usuario API no tiene acceso a '{clase_nombre}' configurado en SQL Obras. "
+            f"Solución: pedir al administrador de SQL Obras que asigne permisos al usuario API."
+        )
+
+    if causa == "requiere_parametros":
+        return (
+            f"CLASE ACCESIBLE pero browse() sin filtros devuelve code=6. "
+            f"Esto es normal para clases que requieren un identificador (ej: codProyecto para partidas). "
+            f"Para ver datos usa el Explorador con los parámetros requeridos."
+        )
+
+    if causa == "config_incompleta":
+        return (
+            f"CONFIGURACIÓN INCOMPLETA (code=5). El servidor rechazó la petición porque faltan "
+            f"campos obligatorios. Probable causa: 'empr' (empresa) no se envía correctamente. "
+            f"Verifica que SQLOB_EMPRESA esté configurado en .env y que el valor sea correcto."
+        )
+
+    # respuesta_inesperada
+    p_raw = str(entry.get("permiso_raw", ""))[:120]
+    b_raw = str(entry.get("browse_raw", ""))[:120]
+    return (
+        f"RESPUESTA INESPERADA. permiso→code={pcode}, info→code={icode}, browse→code={bcode}. "
+        f"El servidor respondió con un código no documentado en mPYME v1.2. "
+        f"Puede ser: versión diferente del servidor, clase no disponible en esta instalación, "
+        f"o comportamiento específico de vuestra configuración. "
+        f"Respuesta permiso: {p_raw[:80]}. Respuesta browse: {b_raw[:80]}."
+    )
 
 
 class ApiExplorerService:
@@ -725,6 +853,11 @@ class ApiExplorerService:
 
             # Añadir campos documentados para comparación
             entry["campos_doc"] = campos_doc.get(clase, [])
+
+            # Causa real unívoca — explicación inequívoca del estado
+            entry["causa_real"] = _clasificar_causa(entry)
+            entry["causa_explicacion"] = _explicar_causa(entry, self.use_mock)
+
             resultados[clase] = entry
             time.sleep(0.15)  # pausa mínima entre clases para no saturar
 
@@ -740,91 +873,208 @@ class ApiExplorerService:
 
 
     def generar_informe(self) -> dict:
-        """Genera informe completo multi-nivel. Requiere discover_all() previo."""
+        """
+        Informe multi-nivel basado en causa_real. Requiere discover_all() previo.
+        Devuelve texto TXT + secciones estructuradas para HTML en frontend.
+        """
         dr = getattr(self, '_last_discover', None)
         if not dr:
-            return {"error": "Ejecuta primero 'Descubrir todo'.", "texto": ""}
+            return {"error": "Ejecuta primero 'Descubrir todo' en la pestana Inspector.", "texto": ""}
+
         clases = dr.get("clases", {})
         ts = dr.get("timestamp", "")[:19].replace("T", " ")
         empresa = dr.get("sesion", {}).get("empresa", "?")
         usuario = dr.get("sesion", {}).get("usuario", "?")
         use_mock = dr.get("use_mock", True)
-        modo = "BD SIMULADA" if use_mock else "API REAL"
-        con_acceso = [c for c, d in clases.items() if d.get("estado") == "con_permiso"]
-        sin_lic = [c for c, d in clases.items() if d.get("estado") == "sin_licencia"]
-        sin_perm = [c for c, d in clases.items() if d.get("estado") == "sin_permiso"]
-        error = [c for c, d in clases.items() if d.get("estado") == "error"]
-        DESC = {
-            "proyectos":"Obras / Proyectos","partidas":"Capitulos y Partidas",
-            "proordutil":"Costes reales imputados (utilizados)","proordprev":"Costes previstos",
-            "reporden":"Ordenes de reparacion","repobjetos":"Equipos reparables",
-            "repinst":"Instalaciones","tipostrabajo":"Tipos de trabajo",
-            "repordutil":"Materiales y horas en reparaciones","articulos":"Catalogo articulos",
-            "recursos":"Recursos","proveedores":"Proveedores","clientes":"Clientes",
-            "docalbcom":"Albaranes de compra","docfaccom":"Facturas de compra",
-            "docpedcom":"Pedidos de compra","ordenfab":"Ordenes de fabricacion",
-        }
-        def ops_str(c):
-            ops = list(clases.get(c, {}).get("permiso_ops", {}).keys())
-            return ", ".join(ops) if ops else "browse, read"
-        sep = "=" * 70
-        txt = f"{sep}\nINFORME API mPYME v1.2 — DISTRITO K / SQL OBRAS\n{sep}\n"
-        txt += f"Fecha: {ts} | Empresa: {empresa} | Usuario: {usuario} | Modo: {modo}\n{sep}\n"
-        txt += "\n== RESUMEN EJECUTIVO ==\nCon nuestra licencia PODEMOS acceder a:\n"
-        for c in con_acceso: txt += f"  OK: {DESC.get(c,c)}\n"
-        if not con_acceso: txt += "  (ninguna confirmada)\n"
-        txt += "\nSIN LICENCIA (no disponible):\n"
-        for c in sin_lic: txt += f"  NO: {DESC.get(c,c)}\n"
-        if not sin_lic: txt += "  (ninguna sin licencia)\n"
-        if error:
-            txt += "\nPENDIENTE INVESTIGAR:\n"
-            for c in error: txt += f"  ?: {DESC.get(c,c)} — {clases[c].get('error','')[:80]}\n"
-        txt += f"\n{sep}\n== PARA EL EMPLEADO ==\nQue puede hacer la app:\n"
-        if "proordutil" in con_acceso:
-            txt += "  - Registrar materiales y horas reales en una obra (utilizados)\n"
-        if "proyectos" in con_acceso: txt += "  - Ver listado de obras activas\n"
-        if "partidas" in con_acceso: txt += "  - Ver partidas de cada obra\n"
-        if "reporden" in con_acceso: txt += "  - Gestionar ordenes de reparacion\n"
-        if "repobjetos" in con_acceso: txt += "  - Ver equipos reparables\n"
-        if "repordutil" in con_acceso: txt += "  - Imputar materiales/horas a reparaciones\n"
-        if "docalbcom" in con_acceso or "docfaccom" in con_acceso:
-            txt += "  - Vincular albaranes/facturas directamente a obras\n"
-        if "clientes" in con_acceso: txt += "  - Consultar clientes\n"
-        if "ordenfab" in con_acceso: txt += "  - Ver ordenes de fabricacion\n"
-        txt += self._informe_parte2(clases, con_acceso, sin_lic, sin_perm, error, DESC, ops_str, sep)
-        return {"texto": txt, "timestamp": ts,
-                "clases_con_acceso": len(con_acceso), "clases_sin_licencia": len(sin_lic),
-                "clases_error": len(error), "modo": modo}
+        modo = "BD SIMULADA (datos de ejemplo)" if use_mock else "API REAL (SQL Obras produccion)"
 
-    def _informe_parte2(self, clases, con_acceso, sin_lic, sin_perm, error, DESC, ops_str, sep) -> str:
-        txt = f"\n{sep}\n== NIVEL TECNICO: clases, operaciones y campos ==\n"
-        for c in con_acceso:
-            d = clases[c]; reg = d.get("total_registros")
-            txt += f"\n  [{c}] {DESC.get(c,'')} {f'({reg} registros)' if reg is not None else ''}\n"
-            txt += f"    Operaciones: {ops_str(c)}\n"
-            campos = d.get("campos_reales", [])
-            if campos:
-                nombres = [str(cf.get("n") or cf.get("nombre") or list(cf.values())[0]) for cf in campos[:12]]
-                txt += f"    Campos: {', '.join(nombres)}\n"
-            nota = d.get("nota_permiso", "")
-            if nota: txt += f"    Nota: {nota}\n"
-        txt += f"\n{sep}\n== CLASES NO DISPONIBLES ==\n"
-        for c in sin_lic: txt += f"  SIN_LICENCIA: [{c}] — code=1\n"
-        for c in sin_perm: txt += f"  SIN_PERMISO:  [{c}] — code=2\n"
-        for c in error: txt += f"  ERROR:        [{c}] — {clases[c].get('error','')[:80]}\n"
-        txt += f"\n{sep}\n== PARA GERENCIA: aplicaciones posibles ==\n"
-        if "proordutil" in con_acceso:
-            txt += "  1. APP OPERARIO: el trabajador imputa costes desde el movil\n"
+        DESC = {
+            "proyectos":"Obras / Proyectos",
+            "partidas":"Capitulos y Partidas de una obra",
+            "proordutil":"Costes reales imputados a obra (utilizados)",
+            "proordprev":"Costes previstos / presupuesto",
+            "reporden":"Ordenes de reparacion / mantenimiento",
+            "repobjetos":"Equipos reparables (maquinaria...)",
+            "repinst":"Instalaciones de los equipos",
+            "tipostrabajo":"Tipos de trabajo (averia, preventivo...)",
+            "repordutil":"Materiales y horas en reparaciones",
+            "articulos":"Catalogo de articulos / materiales",
+            "recursos":"Recursos (instaladores, maquinaria...)",
+            "proveedores":"Proveedores",
+            "clientes":"Clientes",
+            "docalbcom":"Albaranes de compra (imputaPro disponible)",
+            "docfaccom":"Facturas de compra (imputaPro disponible)",
+            "docpedcom":"Pedidos de compra (imputaPro: doc. no concluyente)",
+            "ordenfab":"Ordenes de fabricacion",
+        }
+
+        # Agrupar por causa_real (no por estado, que era ambiguo)
+        grupos: dict = {}
+        for c, d in clases.items():
+            causa = d.get("causa_real", _clasificar_causa(d))
+            grupos.setdefault(causa, []).append(c)
+
+        con_acceso = grupos.get("acceso_confirmado", [])
+        req_params  = grupos.get("requiere_parametros", [])
+        sin_lic     = grupos.get("sin_licencia", [])
+        sin_perm    = grupos.get("sin_permiso_usuario", [])
+        cfg_inc     = grupos.get("config_incompleta", [])
+        inesperado  = grupos.get("respuesta_inesperada", [])
+
+        # Detalles técnicos por clase para el frontend
+        detalles = {}
+        for c, d in clases.items():
+            ops = list(d.get("permiso_ops", {}).keys())
+            campos_raw = d.get("campos_reales", [])
+            nombres_campos = []
+            for cf in campos_raw[:15]:
+                n = cf.get("n") or cf.get("nombre") or cf.get("field")
+                if not n and cf:
+                    vals = list(cf.values())
+                    n = str(vals[0]) if vals else ""
+                if n:
+                    nombres_campos.append(str(n))
+            detalles[c] = {
+                "desc": DESC.get(c, c),
+                "causa_real": d.get("causa_real", _clasificar_causa(d)),
+                "causa_explicacion": d.get("causa_explicacion", _explicar_causa(d, use_mock)),
+                "operaciones": ops,
+                "campos": nombres_campos,
+                "total_registros": d.get("total_registros"),
+                "muestra_n": len(d.get("muestra", [])),
+                "permiso_code": d.get("permiso_code"),
+                "browse_code": d.get("browse_code"),
+                "info_code": d.get("info_code"),
+            }
+
+        # Aplicaciones posibles basadas en acceso real
+        apps = self._calcular_apps(con_acceso, req_params)
+
+        secciones = {
+            "con_acceso": con_acceso, "requiere_parametros": req_params,
+            "sin_licencia": sin_lic, "sin_permiso": sin_perm,
+            "config_incompleta": cfg_inc, "respuesta_inesperada": inesperado,
+        }
+
+        sep = "=" * 72
+        txt = self._generar_txt(ts, empresa, usuario, modo,
+                                detalles, secciones, apps, DESC, sep)
+        return {
+            "texto": txt, "timestamp": ts, "empresa": empresa,
+            "usuario": usuario, "modo": modo, "use_mock": use_mock,
+            "secciones": secciones, "detalles": detalles, "apps": apps,
+            "totales": {
+                "con_acceso": len(con_acceso), "requiere_parametros": len(req_params),
+                "sin_licencia": len(sin_lic), "sin_permiso": len(sin_perm),
+                "config_incompleta": len(cfg_inc), "respuesta_inesperada": len(inesperado),
+                "total": len(clases),
+            },
+        }
+
+    def _calcular_apps(self, con_acceso: list, req_params: list) -> list:
+        """Calcula aplicaciones posibles basándose únicamente en acceso real verificado."""
+        todo = con_acceso + req_params
+        apps = []
+        if "proordutil" in todo:
+            apps.append({
+                "nombre": "App Operario — Imputacion de costes en campo",
+                "desc": ("El operario selecciona la obra y partida desde el movil, "
+                         "indica material/recurso y cantidad. "
+                         "La app registra el utilizado en SQL Obras sin papel."),
+                "requiere": ["proordutil (write)", "proyectos (browse)", "partidas (browse)"],
+                "disponible": True,
+            })
         if "reporden" in con_acceso:
-            txt += "  2. APP MANTENIMIENTO: gestion de reparaciones en campo\n"
+            apps.append({
+                "nombre": "App Mantenimiento — Reparaciones en campo",
+                "desc": ("El tecnico ve sus ordenes de reparacion en el movil, "
+                         "registra materiales usados y horas, y cierra la orden."),
+                "requiere": ["reporden (browse/new/write)", "repordutil (write)"],
+                "disponible": True,
+            })
         if "docalbcom" in con_acceso or "docfaccom" in con_acceso:
-            txt += "  3. COMPRAS->OBRA: vincular albaranes/facturas a proyectos\n"
-        if "proyectos" in con_acceso and "proordutil" in con_acceso:
-            txt += "  4. CUADRO DE MANDO: costes reales vs previstos por obra\n"
-        txt += "  5. INTEGRACION IA: la IA consulta y resume el estado de obras\n"
-        txt += f"\n{sep}\nCODIGOS: 0=OK  1=SinLicencia  2=SinPermiso  3=Validacion  "
-        txt += "5=ParamsIncompletos  6=RequiereParams  10=NoEncontrado  -1=ErrorConexion\n"
-        txt += f"{sep}\nFIN DEL INFORME\n{sep}\n"
+            apps.append({
+                "nombre": "Modulo Compras a Obra",
+                "desc": ("Al dar de alta un albaran, se vincula la linea al proyecto "
+                         "y partida mediante imputaPro. El coste aparece como utilizado."),
+                "requiere": ["docalbcom o docfaccom (imputaPro)"],
+                "disponible": True,
+            })
+        if "proyectos" in todo:
+            apps.append({
+                "nombre": "Cuadro de Mando de Obras",
+                "desc": ("Dashboard de costes reales vs previstos por obra y partida, "
+                         "actualizado desde SQL Obras."),
+                "requiere": ["proyectos", "partidas", "proordutil", "proordprev"],
+                "disponible": "proordutil" in todo,
+            })
+        apps.append({
+            "nombre": "Integracion IA",
+            "desc": ("La IA consulta obras, partidas y costes para responder: "
+                     "cuanto llevamos gastado en la obra 25/184."),
+            "requiere": ["Cualquier clase con browse activo"],
+            "disponible": len(con_acceso) > 0,
+        })
+        return apps
+
+    def _generar_txt(self, ts, empresa, usuario, modo,
+                     detalles, secciones, apps, DESC, sep) -> str:
+        """TXT multi-nivel fiable para exportar. Sin datos inventados."""
+        con_acceso = secciones.get("con_acceso", [])
+        req_params  = secciones.get("requiere_parametros", [])
+        sin_lic     = secciones.get("sin_licencia", [])
+        sin_perm    = secciones.get("sin_permiso", [])
+        cfg_inc     = secciones.get("config_incompleta", [])
+        inesperado  = secciones.get("respuesta_inesperada", [])
+        txt = (f"{sep}\nINFORME DE CAPACIDADES — API mPYME v1.2 — DISTRITO K\n"
+               f"{sep}\nGenerado: {ts}  Empresa: {empresa}  "
+               f"Usuario: {usuario}  Modo: {modo}\n{sep}\n")
+        txt += "\n=== N1: RESUMEN ===\nACCESO CONFIRMADO:\n"
+        for c in con_acceso:
+            txt += f"  [SI]  {DESC.get(c,c)}\n"
+        for c in req_params:
+            txt += f"  [SI*] {DESC.get(c,c)}  (* requiere params)\n"
+        if not con_acceso and not req_params:
+            txt += "  (ninguna confirmada aun)\n"
+        txt += "\nNO DISPONIBLE — causa exacta:\n"
+        for c in sin_lic:
+            txt += f"  [SIN LICENCIA] {DESC.get(c,c)}: {detalles[c]['causa_explicacion']}\n"
+        for c in sin_perm:
+            txt += f"  [SIN PERMISO]  {DESC.get(c,c)}: {detalles[c]['causa_explicacion']}\n"
+        for c in cfg_inc:
+            txt += f"  [CONFIG INCOMPLETA] {DESC.get(c,c)}: {detalles[c]['causa_explicacion']}\n"
+        for c in inesperado:
+            txt += f"  [RESP. INESPERADA] {DESC.get(c,c)}: {detalles[c]['causa_explicacion']}\n"
+        txt += f"\n{sep}\n=== N2: PARA EL EMPLEADO ===\n"
+        for app in apps:
+            txt += f"\n  [{'SI' if app['disponible'] else 'NO'}] {app['nombre']}\n  {app['desc']}\n  Requiere: {', '.join(app['requiere'])}\n"
+        txt += f"\n{sep}\n=== N3: PARA EL TECNICO ===\n"
+        for c in (con_acceso + req_params):
+            d = detalles[c]; reg = d.get("total_registros")
+            txt += f"\n  [{c}] {d['desc']}\n"
+            txt += f"  Causa: {d['causa_real']} — {d['causa_explicacion']}\n"
+            if d["operaciones"]: txt += f"  Ops:    {', '.join(d['operaciones'])}\n"
+            if d["campos"]:      txt += f"  Campos: {', '.join(d['campos'][:10])}\n"
+            if reg is not None:  txt += f"  Regs:   {reg}\n"
+            if d["muestra_n"]>0: txt += f"  Muestra: {d['muestra_n']} registros\n"
+        txt += f"\n{sep}\n=== CLASES NO DISPONIBLES — detalle verificado ===\n"
+        for grupo, label in [
+            (sin_lic, "SIN LICENCIA"),
+            (sin_perm, "SIN PERMISO USUARIO"),
+            (cfg_inc, "CONFIG INCOMPLETA"),
+            (inesperado, "RESPUESTA INESPERADA"),
+        ]:
+            for c in grupo:
+                txt += (f"\n  [{c}] {label}\n  {DESC.get(c,c)}\n"
+                        f"  {detalles[c]['causa_explicacion']}\n"
+                        f"  permiso_code={detalles[c]['permiso_code']} "
+                        f"browse_code={detalles[c]['browse_code']}\n")
+        txt += f"\n{sep}\n=== N4: PARA GERENCIA ===\n"
+        for i, app in enumerate(apps, 1):
+            txt += f"\n  {i}. {app['nombre']} [{'DISPONIBLE' if app['disponible'] else 'AMPLIAR LICENCIA'}]\n  {app['desc']}\n"
+        txt += (f"\n{sep}\nCODIGOS: 0=OK 1=SinLicencia 2=SinPermiso 3=Validacion "
+                "5=ParamsIncompletos 6=RequiereParams 10=NoEncontrado -1=ErrorRed\n"
+                f"{sep}\nFIN DEL INFORME\n{sep}\n")
         return txt
 
     def guardar_discover(self, result: dict):
