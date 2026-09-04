@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v10 — Modulo API Explorer de DEVIA. Inspector API completo.
+ * api_explorer.js v11 — Modulo API Explorer de DEVIA. Informes por Perfil + Nivel.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -682,19 +682,68 @@ function _inspCodes(cf) {
 }
 
 
-// ── Inspector: INFORME multi-nivel ────────────────────────────
+// ── Inspector: INFORME multi-nivel con Perfil + Nivel ────────────
+const _PERFILES = {
+  gerente:       {label:"Gerente / Dirección",  emoji:"📊", desc:"Resumen ejecutivo. Sin tecnicismos."},
+  ingeniero:     {label:"Ingeniero / Técnico",  emoji:"🔧", desc:"Detalle de clases, operaciones y campos."},
+  sas:           {label:"Administración / SAS", emoji:"📋", desc:"Permisos y configuración. Qué funciona."},
+  almacen:       {label:"Almacén / Compras",    emoji:"📦", desc:"Artículos, proveedores, albaranes, facturas."},
+  operario:      {label:"Operario / Campo",     emoji:"👷", desc:"Obras, partidas, utilizados. Uso diario."},
+  mantenimiento: {label:"Mantenimiento / SAT",  emoji:"🛠️", desc:"Reparaciones, equipos, instalaciones."},
+  desarrollador: {label:"Desarrollador",        emoji:"💻", desc:"Todo: campos, códigos, raw JSON."},
+};
+const _NIVELES = {
+  principiante: {label:"Principiante", emoji:"🟢", desc:"Sin términos técnicos. Solo lo esencial."},
+  normal:       {label:"Normal",       emoji:"🔵", desc:"Lenguaje accesible con algo de detalle."},
+  avanzado:     {label:"Avanzado",     emoji:"🟡", desc:"Operaciones, causas, registros. Sin raw."},
+  tecnico:      {label:"Técnico",      emoji:"🟠", desc:"Campos reales, códigos exactos, causas."},
+  raw:          {label:"Raw / Debug",  emoji:"🔴", desc:"JSON completo del discover_all."},
+};
+
 function _inspInforme() {
   const isMock = _state.status && _state.status.use_mock;
   const origenNote = isMock
-    ? `<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#1d4ed8;margin-bottom:10px">🔵 Modo BD Simulada. El informe refleja datos simulados, no la licencia real.</div>`
-    : `<div style="background:#dcfce7;border-left:3px solid #16a34a;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#166534;margin-bottom:10px">🟢 API Real. El informe refleja lo que vuestra licencia permite realmente.</div>`;
-  const nota = `<div style="background:#fef9c3;border-left:3px solid #fbbf24;padding:8px 12px;border-radius:6px;font-size:0.82em;color:#92400e;margin-bottom:12px">
-    ℹ️ El informe se genera a partir del <strong>último descubrimiento</strong>. Si no has ejecutado "Descubrir todo" aún, hazlo primero.</div>`;
+    ? `<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#1d4ed8;margin-bottom:10px">🔵 Modo BD Simulada — el informe refleja datos simulados, no la licencia real.</div>`
+    : `<div style="background:#dcfce7;border-left:3px solid #16a34a;padding:6px 12px;border-radius:4px;font-size:0.8em;color:#166534;margin-bottom:10px">🟢 API Real — el informe refleja lo que vuestra licencia permite realmente.</div>`;
+
+  // Chips de perfil
+  let perfilChips = Object.entries(_PERFILES).map(([k,v])=>
+    `<button id="chip-p-${k}" onclick="ApiExplorerModule.setPerfilInforme('${k}')"
+      title="${v.desc}"
+      style="border:2px solid #e2e8f0;background:#f8fafc;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:0.82em;transition:all .15s">
+      ${v.emoji} ${v.label}</button>`).join('');
+
+  // Chips de nivel
+  let nivelChips = Object.entries(_NIVELES).map(([k,v])=>
+    `<button id="chip-n-${k}" onclick="ApiExplorerModule.setNivelInforme('${k}')"
+      title="${v.desc}"
+      style="border:2px solid #e2e8f0;background:#f8fafc;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:0.82em;transition:all .15s">
+      ${v.emoji} ${v.label}</button>`).join('');
+
   return `<div>
-    ${origenNote}${nota}
+    ${origenNote}
+    <div style="background:#fef9c3;border-left:3px solid #fbbf24;padding:7px 12px;border-radius:6px;font-size:0.81em;color:#92400e;margin-bottom:14px">
+      ℹ️ El informe usa los datos del <strong>último Descubrir todo</strong>. Si no lo has ejecutado aún, hazlo primero en la sub-pestaña Resumen.
+    </div>
+
+    <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="margin-bottom:10px">
+        <p style="margin:0 0 6px;font-size:0.85em;font-weight:700;color:#374151">👤 Perfil — ¿Para quién es el informe?</p>
+        <div id="ae-perfil-chips" style="display:flex;flex-wrap:wrap;gap:6px">${perfilChips}</div>
+        <p id="ae-perfil-desc" style="margin:6px 0 0;font-size:0.78em;color:#64748b"></p>
+      </div>
+      <hr style="border:none;border-top:1px solid #f1f5f9;margin:10px 0">
+      <div>
+        <p style="margin:0 0 6px;font-size:0.85em;font-weight:700;color:#374151">📏 Nivel — ¿Cuánto detalle?</p>
+        <div id="ae-nivel-chips" style="display:flex;flex-wrap:wrap;gap:6px">${nivelChips}</div>
+        <p id="ae-nivel-desc" style="margin:6px 0 0;font-size:0.78em;color:#64748b"></p>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button onclick="ApiExplorerModule.doInforme()" class="btn primary" style="font-size:0.88em">📑 Generar informe completo</button>
-      <button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="font-size:0.88em">💾 Exportar TXT</button>
+      <button onclick="ApiExplorerModule.doInformePerfil()" class="btn primary" style="font-size:0.88em">📑 Generar informe por perfil/nivel</button>
+      <button onclick="ApiExplorerModule.doInforme()" class="btn secondary" style="font-size:0.84em">📋 Informe completo (todos)</button>
+      <button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="font-size:0.84em">💾 Exportar TXT</button>
     </div>
     <div id="ae-informe-result" style="margin-top:8px"></div>
   </div>`;
@@ -1135,6 +1184,85 @@ const ApiExplorerModule = {
     const result=document.getElementById("ae-wr-result");
     try{const r=await _fetch("/ejecutar",{method:"POST",body:JSON.stringify({clase:"proordutil",operacion:"cancel",params:{objectId:oid}})});if(result)result.innerHTML=renderResult(r);window._ae_objectId=null;const s=document.getElementById("ae-wr-oid-section");if(s)s.style.display="none";}
     catch(e){if(result)result.innerHTML=`<div style="color:#dc3545">${e.message}</div>`;}
+  },
+
+  // Estado selección perfil/nivel para el informe
+  _perfilActual: "gerente",
+  _nivelActual: "normal",
+
+  setPerfilInforme(perfil) {
+    this._perfilActual = perfil;
+    // Actualizar chips visuales
+    Object.keys(_PERFILES).forEach(k => {
+      const b = document.getElementById(`chip-p-${k}`);
+      if (b) {
+        b.style.background = k === perfil ? '#3b82f6' : '#f8fafc';
+        b.style.color = k === perfil ? '#fff' : '#374151';
+        b.style.borderColor = k === perfil ? '#3b82f6' : '#e2e8f0';
+        b.style.fontWeight = k === perfil ? '700' : '400';
+      }
+    });
+    const desc = document.getElementById("ae-perfil-desc");
+    if (desc) desc.textContent = _PERFILES[perfil]?.desc || '';
+  },
+
+  setNivelInforme(nivel) {
+    this._nivelActual = nivel;
+    const colores = {principiante:'#22c55e',normal:'#3b82f6',avanzado:'#f59e0b',tecnico:'#f97316',raw:'#ef4444'};
+    Object.keys(_NIVELES).forEach(k => {
+      const b = document.getElementById(`chip-n-${k}`);
+      if (b) {
+        b.style.background = k === nivel ? (colores[k] || '#3b82f6') : '#f8fafc';
+        b.style.color = k === nivel ? '#fff' : '#374151';
+        b.style.borderColor = k === nivel ? (colores[k] || '#3b82f6') : '#e2e8f0';
+        b.style.fontWeight = k === nivel ? '700' : '400';
+      }
+    });
+    const desc = document.getElementById("ae-nivel-desc");
+    if (desc) desc.textContent = _NIVELES[nivel]?.desc || '';
+  },
+
+  async doInformePerfil() {
+    const div = document.getElementById("ae-informe-result");
+    if (!div) return;
+    const perfil = this._perfilActual || 'gerente';
+    const nivel  = this._nivelActual  || 'normal';
+    const plab = _PERFILES[perfil]?.emoji + ' ' + _PERFILES[perfil]?.label;
+    const nlab = _NIVELES[nivel]?.emoji  + ' ' + _NIVELES[nivel]?.label;
+    div.innerHTML = `<p style="color:#64748b;font-size:0.85em;padding:12px">⏳ Generando informe ${plab} / ${nlab}…</p>`;
+    try {
+      const r = await _fetch("/informe-perfil", {
+        method: "POST",
+        body: JSON.stringify({ perfil, nivel })
+      });
+      if (r.error) {
+        div.innerHTML = `<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px 16px;color:#991b1b">
+          ⚠️ ${r.error}<br><small style="color:#64748b">Ejecuta primero 🚀 Descubrir todo.</small></div>`;
+        return;
+      }
+      window._ae_informe_txt = r.texto || "";
+      // Badge del perfil/nivel en cabecera
+      const badge = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px 14px;background:linear-gradient(135deg,#f0fdf4,#f0f9ff);border-radius:8px;border:1px solid #e2e8f0">
+        <span style="font-size:1.1em">${r.perfil_emoji||''}</span>
+        <span style="font-weight:700;color:#1e293b">${r.perfil_label||''}</span>
+        <span style="color:#94a3b8">·</span>
+        <span>${r.nivel_emoji||''}</span>
+        <span style="font-weight:700;color:#1e293b">${r.nivel_label||''}</span>
+        ${r.totales?.total_filtrado < r.totales?.total_global
+          ? `<span style="font-size:0.78em;color:#64748b;margin-left:8px">Mostrando ${r.totales.total_filtrado} de ${r.totales.total_global} clases (foco de perfil)</span>`
+          : ''}
+        <span style="font-size:0.78em;color:#94a3b8;margin-left:auto">${r.timestamp||''} · ${r.empresa||''}</span>
+      </div>`;
+      // Si nivel=raw mostrar JSON en pre
+      if (r.es_raw) {
+        div.innerHTML = badge + `<pre style="background:#1e293b;color:#e2e8f0;border-radius:8px;padding:14px;font-size:0.76em;overflow-x:auto;white-space:pre-wrap;max-height:600px;overflow-y:auto">${JSON.stringify(r.raw_discover,null,2).replace(/</g,'&lt;').substring(0,80000)}</pre>
+          <div style="margin-top:8px"><button onclick="ApiExplorerModule.exportarInforme()" class="btn secondary" style="font-size:0.83em">💾 Exportar TXT</button></div>`;
+        return;
+      }
+      div.innerHTML = badge + _renderInforme(r);
+    } catch(e) {
+      div.innerHTML = `<div style="background:#fef2f2;border-left:4px solid #dc3545;border-radius:6px;padding:12px;color:#991b1b">Error: ${e.message}</div>`;
+    }
   },
 
   async doInforme(){

@@ -191,14 +191,44 @@ async def discover_all():
 @router.get("/informe")
 async def get_informe():
     """
-    Genera informe completo multi-nivel de capacidades de la API.
-    Requiere que se haya ejecutado discover-all antes.
-    Devuelve texto plano exportable + metadatos de resumen.
+    Genera informe completo multi-nivel (todos los perfiles y niveles combinados).
+    Requiere discover-all previo.
     """
     try:
         return get_service().generar_informe()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class InformePerfilRequest(BaseModel):
+    perfil: str = "gerente"   # gerente|ingeniero|sas|almacen|operario|mantenimiento|desarrollador
+    nivel: str  = "normal"    # principiante|normal|avanzado|tecnico|raw
+
+
+@router.post("/informe-perfil")
+async def get_informe_perfil(request: InformePerfilRequest):
+    """
+    Genera informe filtrado por perfil de usuario y nivel de detalle.
+    - perfil: qué clases/módulos son relevantes para ese rol
+    - nivel: profundidad del lenguaje y detalle técnico
+    Requiere discover-all previo. Nunca inventa datos.
+    """
+    try:
+        return get_service().generar_informe_perfil(request.perfil, request.nivel)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/perfiles-niveles")
+async def get_perfiles_niveles():
+    """Devuelve los perfiles y niveles disponibles para el selector de la UI."""
+    svc = get_service()
+    return {
+        "perfiles": {k: {"label": v["label"], "emoji": v["emoji"], "desc": v["desc"]}
+                     for k, v in svc.PERFILES.items()},
+        "niveles":  {k: {"label": v["label"], "emoji": v["emoji"], "desc": v["desc"]}
+                     for k, v in svc.NIVELES.items()},
+    }
 
 @router.post("/discover-db")
 async def discover_from_db():

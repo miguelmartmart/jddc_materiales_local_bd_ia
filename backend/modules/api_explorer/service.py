@@ -1081,6 +1081,184 @@ class ApiExplorerService:
         """Guarda el resultado de discover_all para informes."""
         self._last_discover = result
 
+    # ──────────────────────────────────────────────────────────────────
+    # PERFILES: qué clases/módulos son relevantes para cada rol
+    # ──────────────────────────────────────────────────────────────────
+    PERFILES = {
+        "gerente": {
+            "label": "Gerente / Dirección", "emoji": "📊",
+            "desc": "Resumen ejecutivo de valor de negocio y aplicaciones posibles. Sin tecnicismos.",
+            "clases_foco": [], "modulos_foco": [],
+            "incluir_apps": True, "incluir_tecnico": False, "incluir_raw": False,
+        },
+        "ingeniero": {
+            "label": "Ingeniero / Técnico", "emoji": "🔧",
+            "desc": "Detalle de clases, operaciones, campos reales y causas técnicas.",
+            "clases_foco": [], "modulos_foco": ["Gestión de Proyectos", "Reparaciones", "Maestros"],
+            "incluir_apps": True, "incluir_tecnico": True, "incluir_raw": True,
+        },
+        "sas": {
+            "label": "Administración / SAS", "emoji": "📋",
+            "desc": "Permisos, clases disponibles y configuración. Qué funciona y qué no.",
+            "clases_foco": [], "modulos_foco": [],
+            "incluir_apps": False, "incluir_tecnico": True, "incluir_raw": False,
+        },
+        "almacen": {
+            "label": "Almacén / Compras", "emoji": "📦",
+            "desc": "Foco en compras, materiales, artículos y vinculación a obras.",
+            "clases_foco": ["articulos", "proveedores", "docalbcom", "docfaccom", "docpedcom"],
+            "modulos_foco": ["Documentos de Compra", "Maestros"],
+            "incluir_apps": True, "incluir_tecnico": False, "incluir_raw": False,
+        },
+        "operario": {
+            "label": "Operario / Campo", "emoji": "👷",
+            "desc": "Qué puede hacer en su trabajo diario con la aplicación.",
+            "clases_foco": ["proyectos", "partidas", "proordutil", "articulos", "recursos"],
+            "modulos_foco": ["Gestión de Proyectos"],
+            "incluir_apps": True, "incluir_tecnico": False, "incluir_raw": False,
+        },
+        "mantenimiento": {
+            "label": "Mantenimiento / SAT", "emoji": "🛠️",
+            "desc": "Foco en reparaciones, equipos, instalaciones y tipos de trabajo.",
+            "clases_foco": ["reporden", "repobjetos", "repinst", "tipostrabajo", "repordutil"],
+            "modulos_foco": ["Reparaciones"],
+            "incluir_apps": True, "incluir_tecnico": False, "incluir_raw": False,
+        },
+        "desarrollador": {
+            "label": "Desarrollador / Integrador", "emoji": "💻",
+            "desc": "Todo: campos, códigos, operaciones, causas, raw JSON. Sin filtros.",
+            "clases_foco": [], "modulos_foco": [],
+            "incluir_apps": True, "incluir_tecnico": True, "incluir_raw": True,
+        },
+    }
+
+    # ──────────────────────────────────────────────────────────────────
+    # NIVELES: profundidad de detalle y lenguaje del informe
+    # ──────────────────────────────────────────────────────────────────
+    NIVELES = {
+        "principiante": {
+            "label": "Principiante", "emoji": "🟢",
+            "desc": "Lenguaje muy sencillo. Sin términos técnicos. Solo lo esencial.",
+            "mostrar_codigos": False, "mostrar_campos": False,
+            "mostrar_causa_tecnica": False, "mostrar_operaciones": False,
+            "max_clases_no_disp": 3,
+        },
+        "normal": {
+            "label": "Normal", "emoji": "🔵",
+            "desc": "Lenguaje accesible con algo de detalle.",
+            "mostrar_codigos": False, "mostrar_campos": False,
+            "mostrar_causa_tecnica": True, "mostrar_operaciones": False,
+            "max_clases_no_disp": 10,
+        },
+        "avanzado": {
+            "label": "Avanzado", "emoji": "🟡",
+            "desc": "Todo el detalle funcional: operaciones, causas, registros. Sin JSON raw.",
+            "mostrar_codigos": True, "mostrar_campos": True,
+            "mostrar_causa_tecnica": True, "mostrar_operaciones": True,
+            "max_clases_no_disp": 99,
+        },
+        "tecnico": {
+            "label": "Técnico", "emoji": "🟠",
+            "desc": "Máximo detalle: campos reales del servidor, códigos exactos, causas técnicas.",
+            "mostrar_codigos": True, "mostrar_campos": True,
+            "mostrar_causa_tecnica": True, "mostrar_operaciones": True,
+            "max_clases_no_disp": 99,
+        },
+        "raw": {
+            "label": "Raw / Debug", "emoji": "🔴",
+            "desc": "JSON completo del discover_all. Para depuración y auditoría exhaustiva.",
+            "mostrar_codigos": True, "mostrar_campos": True,
+            "mostrar_causa_tecnica": True, "mostrar_operaciones": True,
+            "max_clases_no_disp": 99,
+        },
+    }
+
+
+    def generar_informe_perfil(self, perfil: str, nivel: str) -> dict:
+        """Informe filtrado por perfil y nivel. Usa solo datos de discover_all real."""
+        dr = getattr(self, '_last_discover', None)
+        if not dr:
+            return {"error": "Ejecuta primero 'Descubrir todo'.", "texto": ""}
+        pcfg = self.PERFILES.get(perfil, self.PERFILES["gerente"])
+        ncfg = self.NIVELES.get(nivel, self.NIVELES["normal"])
+        clases_all = dr.get("clases", {})
+        ts = dr.get("timestamp", "")[:19].replace("T", " ")
+        empresa = dr.get("sesion", {}).get("empresa", "?")
+        usuario = dr.get("sesion", {}).get("usuario", "?")
+        use_mock = dr.get("use_mock", True)
+        modo = "BD SIMULADA" if use_mock else "API REAL"
+        DESC = {
+            "proyectos":"Obras/Proyectos","partidas":"Capítulos y Partidas",
+            "proordutil":"Costes reales imputados","proordprev":"Costes previstos",
+            "reporden":"Órdenes de reparación","repobjetos":"Equipos reparables",
+            "repinst":"Instalaciones","tipostrabajo":"Tipos de trabajo",
+            "repordutil":"Materiales y horas","articulos":"Artículos/materiales",
+            "recursos":"Recursos","proveedores":"Proveedores","clientes":"Clientes",
+            "docalbcom":"Albaranes de compra","docfaccom":"Facturas de compra",
+            "docpedcom":"Pedidos de compra","ordenfab":"Órdenes de fabricación",
+        }
+        foco = set(pcfg.get("clases_foco", []))
+        clases_f = {c: d for c, d in clases_all.items() if not foco or c in foco}
+        grupos: dict = {}
+        for c, d in clases_f.items():
+            grupos.setdefault(d.get("causa_real", _clasificar_causa(d)), []).append(c)
+        lim = ncfg["max_clases_no_disp"]
+        con_acc = grupos.get("acceso_confirmado", [])
+        req_p   = grupos.get("requiere_parametros", [])
+        sin_l   = grupos.get("sin_licencia", [])[:lim]
+        sin_p   = grupos.get("sin_permiso_usuario", [])[:lim]
+        cfg_i   = grupos.get("config_incompleta", [])[:lim]
+        ines    = grupos.get("respuesta_inesperada", [])[:lim]
+        det = {}
+        for c, d in clases_f.items():
+            ops = list(d.get("permiso_ops", {}).keys()) if ncfg["mostrar_operaciones"] else []
+            cr = d.get("campos_reales", []) if ncfg["mostrar_campos"] else []
+            nms = []
+            for cf in cr[:15]:
+                n = cf.get("n") or cf.get("nombre") or cf.get("field")
+                if not n and cf:
+                    v = list(cf.values()); n = str(v[0]) if v else ""
+                if n: nms.append(str(n))
+            det[c] = {
+                "desc": DESC.get(c, c),
+                "causa_real": d.get("causa_real", _clasificar_causa(d)),
+                "causa_explicacion": d.get("causa_explicacion", _explicar_causa(d, use_mock)) if ncfg["mostrar_causa_tecnica"] else "",
+                "operaciones": ops, "campos": nms,
+                "total_registros": d.get("total_registros"), "muestra_n": len(d.get("muestra", [])),
+                "permiso_code": d.get("permiso_code") if ncfg["mostrar_codigos"] else None,
+                "browse_code":  d.get("browse_code")  if ncfg["mostrar_codigos"] else None,
+                "info_code":    d.get("info_code")    if ncfg["mostrar_codigos"] else None,
+            }
+        apps = self._calcular_apps(con_acc, req_p) if pcfg["incluir_apps"] else []
+        secc = {"con_acceso":con_acc,"requiere_parametros":req_p,
+                "sin_licencia":sin_l,"sin_permiso":sin_p,
+                "config_incompleta":cfg_i,"respuesta_inesperada":ines}
+        sep = "="*72
+        cab = (f"{sep}\nINFORME — Perfil:{pcfg['emoji']}{pcfg['label']} | Nivel:{ncfg['emoji']}{ncfg['label']}\n"
+               f"Empresa:{empresa} Usuario:{usuario} Generado:{ts} Modo:{modo}\n"
+               f"{pcfg['desc']} / {ncfg['desc']}\n{sep}\n")
+        body = self._generar_txt(ts,empresa,usuario,modo,det,secc,apps,DESC,sep)
+        idx = body.find("\n=== "); txt = cab+(body[idx:] if idx>0 else body)
+        if nivel=="raw":
+            import json as _j
+            txt += f"\n{sep}\n=== RAW ===\n"+_j.dumps(dr,indent=2,ensure_ascii=False,default=str)[:40000]+f"\n{sep}\n"
+        gg:dict={}
+        for c,d in clases_all.items(): gg.setdefault(d.get("causa_real",_clasificar_causa(d)),[]).append(c)
+        return {
+            "texto":txt,"timestamp":ts,"empresa":empresa,"usuario":usuario,
+            "modo":modo,"use_mock":use_mock,
+            "perfil":perfil,"perfil_label":pcfg["label"],"perfil_emoji":pcfg["emoji"],"perfil_desc":pcfg["desc"],
+            "nivel":nivel,"nivel_label":ncfg["label"],"nivel_emoji":ncfg["emoji"],"nivel_desc":ncfg["desc"],
+            "secciones":secc,"detalles":det,"apps":apps,
+            "incluir_tecnico":pcfg["incluir_tecnico"],"mostrar_codigos":ncfg["mostrar_codigos"],
+            "es_raw":nivel=="raw","raw_discover":dr if nivel=="raw" else None,
+            "totales":{"con_acceso":len(con_acc),"requiere_parametros":len(req_p),
+                       "sin_licencia":len(gg.get("sin_licencia",[])),"sin_permiso":len(gg.get("sin_permiso_usuario",[])),
+                       "total_filtrado":len(clases_f),"total_global":len(clases_all)},
+            "perfiles_disponibles":{k:{"label":v["label"],"emoji":v["emoji"],"desc":v["desc"]} for k,v in self.PERFILES.items()},
+            "niveles_disponibles":{k:{"label":v["label"],"emoji":v["emoji"],"desc":v["desc"]} for k,v in self.NIVELES.items()},
+        }
+
 
 _svc:Optional[ApiExplorerService]=None
 def get_service()->ApiExplorerService:
