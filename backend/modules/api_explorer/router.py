@@ -2,7 +2,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
-from backend.modules.api_explorer.service import get_service, CLASES_POR_MODULO, ALL_OBJECT_CLASSES
+from backend.modules.api_explorer.service import (
+    get_service, CLASES_POR_MODULO, ALL_OBJECT_CLASSES,
+    _clasificar_causa, _explicar_causa
+)
 
 router = APIRouter()
 
@@ -237,6 +240,46 @@ async def sonda_clase(request: SondaRequest):
             request.clase,
             params_extra=request.params_extra if request.params_extra else None
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/discover-cache")
+async def get_discover_cache():
+    """
+    Devuelve el último discover guardado (en memoria o desde disco).
+    Permite al frontend mostrar datos anteriores sin volver a ejecutar discover-all.
+    """
+    try:
+        svc = get_service()
+        svc._cargar_discover_cache()
+        dr = getattr(svc, '_last_discover', None)
+        if not dr:
+            return {"cached": False, "mensaje": "Sin discover previo. Ejecuta 'Descubrir todo' primero."}
+        ts = dr.get("timestamp", "")[:19]
+        empresa = dr.get("sesion", {}).get("empresa", "?")
+        usuario = dr.get("sesion", {}).get("usuario", "?")
+        modo = "mock" if dr.get("use_mock") else "real"
+        resumen = dr.get("resumen", {})
+        # Recalcular causa_real con la lógica actual (puede haber mejorado)
+        clases_recalc = {}
+        for cls, d in dr.get("clases", {}).items():
+            d2 = dict(d)
+            d2["causa_real"] = _clasificar_causa(d2)
+            d2["causa_explicacion"] = _explicar_causa(d2, dr.get("use_mock", True))
+            clases_recalc[cls] = d2
+        return {
+            "cached": True,
+            "timestamp": ts,
+            "empresa": empresa,
+            "usuario": usuario,
+            "modo": modo,
+            "resumen": resumen,
+            "clases": clases_recalc,
+            "catalogue": dr.get("catalogue", {}),
+            "use_mock": dr.get("use_mock", True),
+            "success": True,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

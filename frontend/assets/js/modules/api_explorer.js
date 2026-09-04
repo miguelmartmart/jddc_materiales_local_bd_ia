@@ -1,5 +1,5 @@
  /**
- * api_explorer.js v12 — Sonda exhaustiva por clase, clasificacion correcta sin_licencia/requiere_params.
+ * api_explorer.js v13 — Persistencia discover a disco, fix code=6 azul, panel prueba por clase, cache restaurado al arrancar.
  * Explorador/Validador API Distrito K / SQL Obras (mPYME API 1.2).
  * MODO SOLO LECTURA por defecto.
  */
@@ -427,7 +427,7 @@ function renderInspector(s) {
       <button onclick="ApiExplorerModule.doDiscoverAll()" class="btn primary"
         ${!s.session_active?'disabled':''} style="white-space:nowrap;font-size:0.85em">
         ${dr ? '🔄 Repetir descubrimiento' : '🚀 Descubrir todo'}</button>
-      ${dr ? `<span style="font-size:0.77em;color:#94a3b8">Último: ${(dr.timestamp||'').slice(0,19).replace('T',' ')}</span>` : ''}
+      ${dr ? `<span style="font-size:0.77em;color:${_state._cacheRestored?'#f59e0b':'#94a3b8'}">${_state._cacheRestored?'📂 Cache disco':'✅ Sesión'}: ${(dr.timestamp||'').slice(0,19).replace('T',' ')} · ${dr.empresa||''} · ${dr.usuario||''}</span>` : ''}
     </div>
     <div id="ae-dap-wrap" style="display:none;margin-top:10px">
       <div style="background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden">
@@ -580,10 +580,36 @@ function _inspClase(cat, cf, dr, isCls) {
     ${drC.nota_permiso?`<p style="margin:0 0 6px;font-size:0.79em;color:#166534">ℹ️ ${drC.nota_permiso}</p>`:''}
     <div style="display:flex;flex-wrap:wrap;gap:5px">${Object.entries(drC.permiso_ops).map(([op,v])=>`<span style="background:${v?'#dcfce7':'#fef2f2'};color:${v?'#166534':'#991b1b'};border-radius:6px;padding:3px 10px;font-size:0.8em">${v?'✅':'❌'} ${op}</span>`).join('')}</div></div>` : '';
 
+  // ── Fix: code=6 no es error — es normal para clases que piden parámetros ─────
+  const causaCls = drC?.causa_real||'';
+  const browseEsNormal = causaCls==='requiere_parametros' || causaCls==='acceso_confirmado' || drC?.browse_error_code===6;
+
+  // code=6 es NORMAL (clase necesita parámetros) — mostrar azul informativo, no rojo
+  const browseErrH2 = browseEsNormal
+    ? (drC?.browse_error_code===6 ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:0.8em;color:#1d4ed8">🔵 browse sin filtros→code=6 (normal — clase necesita parámetros). Usa el botón 🔬 Sondear para obtener datos reales.</div>` : '')
+    : ((drC?.browse_error||drC?.browse_error_code!=null) ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.8em;color:#991b1b">⚠️ browse: ${drC?.browse_error||''} ${drC?.browse_error_msg||''} ${drC?.browse_error_code!=null?`(code=${drC.browse_error_code})`:''}</div>` : '');
+
   const browseErrH=(drC?.browse_error||drC?.browse_error_code!=null)?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.8em;color:#991b1b">⚠️ browse: ${drC.browse_error||''} ${drC.browse_error_msg||''} ${drC.browse_error_code!=null?`(code=${drC.browse_error_code})`:''}
   </div>`:'';
+  // Panel de prueba rápida — valores pre-rellenados con datos reales cuando existen
+  const sondaPanel = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <p style="margin:0;font-weight:600;font-size:0.84em;color:#166534">🔬 Probar esta clase con datos reales</p>
+      <span style="font-size:0.74em;color:#64748b">Solo lectura — sin escrituras</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button onclick="ApiExplorerModule.doSondaClase('${cls}')" class="btn primary" style="font-size:0.82em;background:#16a34a;border-color:#16a34a">
+        🔬 Sondear con múltiples params
+      </button>
+      <button onclick="ApiExplorerModule.setInspectorTab('conexion');setTimeout(()=>{const s=document.querySelector('#ae-modulo');if(s){const e=new Event('change');const opts=[...s.options];const i=opts.findIndex(o=>o.value.toLowerCase().includes('${modName.toLowerCase().split(' ')[0]}'));if(i>=0){s.selectedIndex=i;s.dispatchEvent(e);}const sc=document.querySelector('#ae-clase');if(sc){const j=[...sc.options].findIndex(o=>o.value==='${cls}');if(j>=0){sc.selectedIndex=j;sc.dispatchEvent(new Event('change'));}}}})" 
+        class="btn secondary" style="font-size:0.82em" title="Ir al Explorador con esta clase pre-seleccionada">
+        ⚙️ Abrir en Explorador
+      </button>
+    </div>
+  </div>`;
 
-  return sel+hdr+diagH+opsH+permH+browseErrH+_inspClasetabla(drC,camposDoc,camposReal)+_inspClasemuestra(drC,muestra);
+
+  return sel+hdr+diagH+opsH+permH+browseErrH2+sondaPanel+_inspClasetabla(drC,camposDoc,camposReal)+_inspClasemuestra(drC,muestra);
 }
 
 
@@ -1007,13 +1033,20 @@ const ApiExplorerModule = {
     const root=document.getElementById("api-explorer-root");
     if(root) root.innerHTML=`<div style="text-align:center;padding:40px;color:#64748b">Cargando...</div>`;
     try {
-      const [s,c,cat,hd,catFull]=await Promise.all([
+      const [s,c,cat,hd,catFull,cache]=await Promise.all([
         _fetch("/status"),_fetch("/config"),_fetch("/catalogue"),_fetch("/history"),
-        _fetch("/catalogue-full").catch(()=>null)
+        _fetch("/catalogue-full").catch(()=>null),
+        _fetch("/discover-cache").catch(()=>null)  // carga discover previo desde disco
       ]);
       _state.status=s;_state.config=c;_state.catalogue=cat;
       _state.history=hd.history||[];_state.matrix=hd.matrix||{};
       if(catFull) _state.catalogueFull=catFull;
+      // Restaurar discover previo desde disco (persiste entre reinicios de DEVIA)
+      if(cache&&cache.cached&&cache.clases) {
+        _state.discoverResult=cache;
+        _state._cacheRestored=true;
+        _state._cacheTs=cache.timestamp||'';
+      }
     } catch(e) {
       if(root) root.innerHTML=`<div style="padding:24px;color:#dc2626;background:#fef2f2;border-radius:8px"><strong>Error al cargar</strong><br>${e.message}</div>`;
       return;

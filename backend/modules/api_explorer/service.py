@@ -1,8 +1,12 @@
 """Servicio del modulo API Explorer para DEVIA. Sesion stateful + mock/real."""
-import logging, time, random, uuid, os
+import logging, time, random, uuid, os, json, re
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+from pathlib import Path
 from backend.core.config.settings import settings
+
+# Ruta de persistencia del último discover (sobrevive reinicios del servidor)
+_DISCOVER_CACHE_FILE = Path(__file__).parent / "data" / "_discover_cache.json"
 
 logger = logging.getLogger(__name__)
 
@@ -941,8 +945,10 @@ class ApiExplorerService:
     def generar_informe(self) -> dict:
         """
         Informe multi-nivel basado en causa_real. Requiere discover_all() previo.
+        Carga automáticamente desde disco si hay cache guardado.
         Devuelve texto TXT + secciones estructuradas para HTML en frontend.
         """
+        self._cargar_discover_cache()
         dr = getattr(self, '_last_discover', None)
         if not dr:
             return {"error": "Ejecuta primero 'Descubrir todo' en la pestana Inspector.", "texto": ""}
@@ -1144,8 +1150,30 @@ class ApiExplorerService:
         return txt
 
     def guardar_discover(self, result: dict):
-        """Guarda el resultado de discover_all para informes."""
+        """Guarda el discover en memoria Y en disco (persiste entre reinicios)."""
         self._last_discover = result
+        try:
+            _DISCOVER_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _DISCOVER_CACHE_FILE.write_text(
+                json.dumps(result, ensure_ascii=False, default=str, indent=2),
+                encoding="utf-8"
+            )
+            logger.info(f"[api_explorer] discover guardado en {_DISCOVER_CACHE_FILE}")
+        except Exception as e:
+            logger.warning(f"[api_explorer] No se pudo guardar discover cache: {e}")
+
+    def _cargar_discover_cache(self):
+        """Carga el último discover desde disco si existe y no hay uno en memoria."""
+        if self._last_discover:
+            return  # ya hay uno en memoria, no sobreescribir
+        try:
+            if _DISCOVER_CACHE_FILE.exists():
+                data = json.loads(_DISCOVER_CACHE_FILE.read_text(encoding="utf-8"))
+                self._last_discover = data
+                ts = data.get("timestamp", "")[:19]
+                logger.info(f"[api_explorer] discover cache cargado del {ts}")
+        except Exception as e:
+            logger.warning(f"[api_explorer] No se pudo cargar discover cache: {e}")
 
     # Parámetros de sonda por clase (browse solo lectura, múltiples estrategias)
     _SONDA_PARAMS: dict = {
@@ -1334,7 +1362,8 @@ class ApiExplorerService:
 
 
     def generar_informe_perfil(self, perfil: str, nivel: str) -> dict:
-        """Informe filtrado por perfil y nivel. Usa solo datos de discover_all real."""
+        """Informe filtrado por perfil y nivel. Carga cache desde disco si disponible."""
+        self._cargar_discover_cache()
         dr = getattr(self, '_last_discover', None)
         if not dr:
             return {"error": "Ejecuta primero 'Descubrir todo'.", "texto": ""}
