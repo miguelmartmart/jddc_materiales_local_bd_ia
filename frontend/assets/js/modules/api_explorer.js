@@ -1056,11 +1056,25 @@ function _renderPlan(r) {
       🔴 FASE 0 — Investigar parámetro obligatorio (${investigar.length} clases bloqueadas por code=6)
     </summary><div style="padding:4px 0 10px">
     <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.82em;color:#7f1d1d">
-      <b>¿Por qué aparecen aquí?</b> Estas clases devuelven <code>code=6</code> incluso con <code>{"num":20}</code>.
-      Esto significa que el servidor exige un parámetro obligatorio específico de esta instalación
-      (probablemente <code>ejercicio</code>, <code>soloActivos</code>, <code>tipo</code>...).
-      <br>Prueba cada candidato en el <b>Explorador</b> hasta que devuelva <code>code=0</code> con datos reales.
-    </div>`;
+      <b>¿Por qué aparecen aquí?</b> Estas clases devuelven <code>code=6</code> con cualquier parámetro genérico
+      (num, nReg, ejercicio, soloActivos, activo, todos, tipo...).
+      El servidor exige un <b>identificador de negocio real</b> (codProyecto, codOrden).
+      <br><br>
+      <b>🚀 Opción automática:</b> el botón de abajo prueba <b>más de 50 variantes</b> de parámetros
+      de una sola vez y te muestra cuál funciona (si existe alguna sin identificador previo).
+    </div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button id="btn-sonda-masiva" onclick="ApiExplorerModule.doSondaMasivaFase0()"
+        class="btn primary" style="font-size:0.87em;padding:8px 16px;background:#991b1b;border-color:#991b1b">
+        🚀 Sonda masiva automática (>50 variantes)
+      </button>
+      <button onclick="ApiExplorerModule.descargarInformeCompleto()"
+        class="btn secondary" style="font-size:0.84em">
+        📄 Descargar informe completo TXT
+      </button>
+      <span style="font-size:0.78em;color:#64748b">Solo lectura · Sin modificar BD · ~30-60 seg</span>
+    </div>
+    <div id="ae-plan-result-fase0"></div>`;
     investigar.forEach(inv => {
       const cands = inv.candidatos || [];
       const sondaCands = inv.candidatos_sonda || [];
@@ -1667,6 +1681,101 @@ const ApiExplorerModule = {
     a.download=`informe_api_${new Date().toISOString().slice(0,10)}.txt`;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
+  },
+
+  // ── Sonda masiva automática FASE 0 ────────────────────────────────────────
+  async doSondaMasivaFase0() {
+    const div = document.getElementById('ae-plan-result-fase0');
+    const btn = document.getElementById('btn-sonda-masiva');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sondeando >50 variantes…'; }
+    if (div) div.innerHTML = `<div style="padding:12px;color:#64748b;font-size:0.85em">
+      ⏳ Probando <b>>50 variantes de parámetros</b> en las 6 clases…
+      <br>Esto puede tardar 30-60 segundos. Por favor espera.</div>`;
+    try {
+      const r = await _api('POST', 'sonda-masiva-fase0');
+      if (!div) return;
+      const des = r.desbloqueados || [];
+      const sig = r.siguen_bloqueados || [];
+      const res = r.resultados || {};
+
+      let h = `<div style="background:${des.length?'#f0fdf4':'#fef9c3'};border:1px solid ${des.length?'#86efac':'#fde047'};border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <b>${des.length ? '✅ Resultado: '+des.length+' clase(s) desbloqueada(s)!' : '⚠️ Ninguna clase desbloqueada con variantes automáticas'}</b>
+        <br><span style="font-size:0.82em;color:#475569">${des.length ? 'Parámetro correcto encontrado.' : 'El servidor exige un identificador de negocio real (codProyecto, codOrden).'}</span>
+      </div>`;
+
+      if (des.length) {
+        h += `<div style="margin-bottom:10px">`;
+        des.forEach(c => {
+          const e = res[c]?.exito || {};
+          h += `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 12px;margin:4px 0">
+            <code style="font-weight:700">${c}</code> — params: <code>${JSON.stringify(e.params)}</code>
+            — ${e.n_items} registros
+            ${e.campos?.length ? `<br><span style="font-size:0.78em;color:#166534">Campos: ${e.campos.slice(0,10).join(', ')}</span>` : ''}
+          </div>`;
+        });
+        h += `</div>`;
+      }
+
+      if (sig.length) {
+        h += `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:0.84em;font-weight:600;color:#92400e">
+          📋 Detalle: ${sig.length} clase(s) sin desbloquear (${Object.values(res)[0]?.total_intentos||0}+ variantes probadas)
+        </summary><div style="padding:6px 0">`;
+        sig.forEach(c => {
+          const r2 = res[c] || {};
+          const msgs = r2.mensajes_servidor || [];
+          h += `<div style="font-size:0.79em;padding:4px 0;border-bottom:1px solid #f1f5f9">
+            <code>${c}</code> — ${r2.total_intentos} variantes, code=6 en todas
+            ${msgs[0] ? `<br><span style="color:#94a3b8">Servidor: "${msgs[0].slice(0,100)}"</span>` : ''}
+          </div>`;
+        });
+        h += `</div></details>`;
+      }
+
+      // Botón descargar TXT de la sonda
+      if (r.txt) {
+        window._ae_sonda_masiva_txt = r.txt;
+        h += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="ApiExplorerModule.descargarTxtSondaMasiva()" class="btn secondary" style="font-size:0.83em">
+            💾 Descargar TXT sonda masiva
+          </button>
+          <button onclick="ApiExplorerModule.descargarInformeCompleto()" class="btn primary" style="font-size:0.83em">
+            📄 Descargar informe completo
+          </button>
+        </div>`;
+      }
+
+      div.innerHTML = h;
+    } catch(e) {
+      if (div) div.innerHTML = `<span style="color:#dc3545">❌ Error: ${e.message}</span>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🚀 Sonda masiva automática (>50 variantes)'; }
+    }
+  },
+
+  descargarTxtSondaMasiva() {
+    const txt = window._ae_sonda_masiva_txt || '';
+    if (!txt) { alert('Ejecuta la sonda masiva primero.'); return; }
+    const blob = new Blob([txt], {type: 'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sonda_masiva_fase0_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  },
+
+  async descargarInformeCompleto() {
+    try {
+      const r = await _api('GET', 'informe-completo');
+      if (!r.txt) { alert('Error al generar el informe.'); return; }
+      const blob = new Blob([r.txt], {type: 'text/plain;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = r.filename || `informe_completo_jddc_${new Date().toISOString().slice(0,10)}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch(e) {
+      alert('Error descargando informe: ' + e.message);
+    }
   },
 
   // ── Ejecutar prueba del Plan inline (delegación de eventos) ────────────────

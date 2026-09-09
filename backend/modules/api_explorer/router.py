@@ -715,3 +715,40 @@ async def browse_con_params(request: BrowseParamsRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sonda-masiva-fase0")
+async def sonda_masiva_fase0():
+    """
+    Sonda masiva AUTOMATICA de solo lectura para las 6 clases FASE 0.
+    Prueba >50 variantes de parametros (ejercicio, anyo, soloActivos, activo,
+    todos, tipo, codEmpresa, filtro, estado, etc.) sin intervencion manual.
+    Nunca escribe. Devuelve resultado detallado + TXT exportable.
+    """
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesion activa.")
+    try:
+        return svc.sonda_masiva_fase0()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/informe-completo")
+async def get_informe_completo():
+    """
+    Genera y devuelve el informe TXT completo con todo lo aprendido:
+    - Clases accesibles / bloqueadas / con licencia
+    - Comportamiento tecnico verificado
+    - Variantes probadas automaticamente (FASE 0)
+    - Aplicaciones posibles
+    - Acciones requeridas
+    - Pregunta exacta para Distrito K
+    Descargable como archivo .txt
+    """
+    svc = get_service()
+    try:
+        return svc.generar_informe_completo()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
