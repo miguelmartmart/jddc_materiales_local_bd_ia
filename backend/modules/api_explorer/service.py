@@ -1307,61 +1307,125 @@ class ApiExplorerService:
             logger.warning(f"[api_explorer] No se pudo cargar discover cache: {e}")
 
     # Parámetros de sonda por clase (browse solo lectura, múltiples estrategias)
-    # Variantes de parámetros para sonda/discover.
-    # La API mPYME v1.2 usa distintos nombres según la clase:
-    # - num / nReg / nregs / max  (paginación)
-    # - pag / pagina / page       (número de página)
-    # - filtro / filter / where   (filtro genérico)
-    # Las clases con "?" en params requieren valor real (codProyecto, codOrden...)
+    # VERIFICADO (API Real JDDC, 2026-09-09):
+    # proyectos, reporden, recursos, repordutil, proordutil, proordprev
+    # devuelven code=6 con {"num":20} → necesitan param obligatorio diferente.
+    # Candidatos: ejercicio/anyo (año fiscal), soloActivos, activo, tipo, codEmpresa
     _SONDA_PARAMS: dict = {
-        "proyectos":   [
-            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {"pag": 1, "nReg": 20},
-            {"estado": "activo"}, {"estado": "abierto"}, {}
+        # Clases con code=6 incluso con num=20 — prueba amplia de parámetros obligatorios
+        "proyectos": [
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"anyo": 2026}, {"anyo": 2025},
+            {"soloActivos": True}, {"activos": True}, {"activo": True}, {"activo": 1},
+            {"todos": True}, {"todos": 1},
+            {"num": 20}, {"nReg": 20}, {"max": 20},
+            {"pag": 1, "num": 20},
+            {"ejercicio": 2026, "num": 20}, {"ejercicio": 2025, "num": 20},
+            {"soloActivos": True, "num": 20}, {}
         ],
-        "partidas":    [
+        "reporden": [
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"anyo": 2026}, {"anyo": 2025},
+            {"soloAbiertas": True}, {"estado": "A"}, {"estado": "abierta"},
+            {"activo": True}, {"todos": True},
+            {"num": 20}, {"nReg": 20}, {"max": 20},
+            {"pag": 1, "num": 20},
+            {"ejercicio": 2026, "num": 20}, {"ejercicio": 2025, "num": 20}, {}
+        ],
+        "recursos": [
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"tipo": "H"}, {"tipo": "M"},
+            {"tipoRecurso": "H"}, {"tipoRecurso": "M"},
+            {"num": 50}, {"nReg": 50}, {"max": 50},
+            {"pag": 1, "num": 50}, {"soloActivos": True}, {}
+        ],
+        "repordutil": [
+            {"codOrden": "?", "num": 20}, {"codOrden": "?"},
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"num": 20}, {"nReg": 20}, {}
+        ],
+        "proordutil": [
+            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"anyo": 2026}, {"num": 20}, {"nReg": 20}, {}
+        ],
+        "proordprev": [
+            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"anyo": 2026}, {"num": 20}, {"nReg": 20}, {}
+        ],
+        # Clases simples (browse sin parámetro especial obligatorio)
+        "partidas": [
             {"codProyecto": "?", "num": 50}, {"codProyecto": "?"},
             {"num": 50}, {"nReg": 50}, {}
         ],
-        "proordutil":  [
-            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
-            {"num": 20}, {"nReg": 20}, {}
+        "repobjetos": [
+            {"num": 50}, {"nReg": 50},
+            {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50},
+            {"soloActivos": True}, {}
         ],
-        "proordprev":  [
-            {"codProyecto": "?", "num": 20}, {"codProyecto": "?"},
-            {"num": 20}, {"nReg": 20}, {}
-        ],
-        "reporden":    [
-            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {"pag": 1, "nReg": 20},
-            {"estado": "abierta"}, {}
-        ],
-        "repordutil":  [
-            {"codOrden": "?", "num": 20}, {"codOrden": "?"}, {"num": 20}, {"nReg": 20}, {}
-        ],
-        "repobjetos":  [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50}, {}
-        ],
-        "repinst":     [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
-        ],
+        "repinst": [{"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}],
         "tipostrabajo": [
-            {"num": 100}, {"nReg": 100}, {"pag": 1, "num": 100}, {"pag": 1, "nReg": 100}, {}
+            {"num": 100}, {"nReg": 100},
+            {"pag": 1, "num": 100}, {"pag": 1, "nReg": 100}, {}
         ],
-        "clientes":    [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50}, {}
+        "clientes": [
+            {"num": 50}, {"nReg": 50},
+            {"pag": 1, "num": 50}, {"pag": 1, "nReg": 50}, {}
         ],
-        "articulos":   [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
-        ],
-        "recursos":    [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
-        ],
-        "proveedores": [
-            {"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}
-        ],
-        "ordenfab":    [
-            {"num": 20}, {"nReg": 20}, {"pag": 1, "num": 20}, {}
+        "articulos": [{"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}],
+        "recursos_lista": [{"num": 50}, {"nReg": 50}, {}],
+        "proveedores": [{"num": 50}, {"nReg": 50}, {"pag": 1, "num": 50}, {}],
+        "ordenfab": [
+            {"num": 20}, {"nReg": 20},
+            {"pag": 1, "num": 20}, {"ejercicio": 2026}, {}
         ],
     }
+
+    # Parámetros sugeridos para investigación manual en el Explorador
+    # (se muestran en la pestaña Plan para las clases que siguen en code=6)
+    _INVESTIGAR_PARAMS: dict = {
+        "proyectos": [
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"soloActivos": True}, {"activo": True}, {"todos": True}, {"num": 20},
+        ],
+        "reporden": [
+            {"ejercicio": 2026}, {"ejercicio": 2025},
+            {"soloAbiertas": True}, {"estado": "A"}, {"num": 20},
+        ],
+        "recursos": [
+            {"ejercicio": 2026}, {"tipo": "H"}, {"tipo": "M"},
+            {"soloActivos": True}, {"num": 50},
+        ],
+        "proordutil": [
+            {"ejercicio": 2026}, {"codProyecto": "PONER_AQUI"},
+            {"codProyecto": "PONER_AQUI", "num": 20},
+        ],
+        "proordprev": [{"ejercicio": 2026}, {"codProyecto": "PONER_AQUI"}],
+        "repordutil": [{"codOrden": "PONER_AQUI"}, {"ejercicio": 2026}],
+    }
+
+    def get_investigar_params(self, clase: str) -> dict:
+        """
+        Devuelve los parámetros candidatos para investigar una clase code=6.
+        Usado en el Plan de pruebas para mostrar qué probar en el Explorador.
+        """
+        candidatos = self._INVESTIGAR_PARAMS.get(clase, [])
+        sonda_sin_interr = [
+            p for p in self._SONDA_PARAMS.get(clase, [])
+            if p and "?" not in str(list(p.values()))
+        ]
+        return {
+            "clase": clase,
+            "candidatos_manuales": candidatos,
+            "candidatos_sonda": sonda_sin_interr[:8],
+            "nota": (
+                f"La clase '{clase}' devuelve code=6 incluso con {{num:20}}. "
+                "Esto significa que necesita un parámetro obligatorio específico de esta instalación. "
+                "Prueba los candidatos de arriba en el Explorador hasta que uno devuelva code=0."
+            )
+        }
+
     def sonda_clase(self, clase: str, params_extra: dict = None) -> dict:
         """Solo lectura: permiso+info+browse(variantes). Nunca escribe."""
         if not self.session_active:

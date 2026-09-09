@@ -487,32 +487,30 @@ async def get_plan_pruebas():
     clases = dr.get("clases", {})
     sondas_hechas = {s["clase"] for s in svc._sondas if s.get("datos_reales")}
 
-    # ── FASE 1: Browse sin parámetros de identidad (tablas maestras simples) ──
-    # ── FASE 2: Browse con parámetros de identidad reales ───────────────────
-    # ── FASE 3: Operaciones de preparación (new + cancel) — sin persistir ───
-    # Las de FASE 2 y 3 con "?" requieren valor real obtenido en FASE 1.
-    # Las de FASE 3 son "ensayo de escritura" — no persisten hasta write.
+    # FASE 0 (NUEVA 2026-09-09): clases que devuelven code=6 INCLUSO con num=20
+    # Necesitan parámetro obligatorio desconocido (ejercicio, soloActivos, tipo...)
+    CLASES_INVESTIGAR = ["proyectos", "reporden", "recursos", "proordutil", "proordprev", "repordutil"]
+    # FASE 1: clases simples con browse confirmado
+    # FASE 2: requieren identificador real (codProyecto/codOrden de FASE 0)
+    # FASE 3: ensayo escritura (new+cancel) — no persiste nunca
     PRUEBAS = [
-        # FASE 1 — tablas maestras y listados globales (no necesitan identificador)
-        ("proyectos",  "browse", {"num":20},           "📋 Listar obras/proyectos",                   "🔴", "PRIMERA PRIORIDAD — codProyecto es la clave de todo lo demás"),
-        ("reporden",   "browse", {"num":20},            "🔧 Listar órdenes de reparación abiertas",    "🔴", "PRIMERA PRIORIDAD — codOrden necesario para repordutil"),
-        ("recursos",   "browse", {"num":50},            "👷 Listar recursos (operarios/maquinaria)",   "🔴", "codRecurso necesario para imputar horas en proordutil/repordutil"),
-        ("clientes",   "browse", {"num":50},            "🤝 Listar clientes",                          "🟡", "Relaciona proyectos con clientes — útil para filtros"),
-        ("tipostrabajo","browse",{"num":100},           "🏷️ Listar tipos de trabajo",                  "🟡", "Tabla maestra para desplegable en app de reparaciones"),
-        ("repobjetos", "browse", {"num":50},            "⚙️ Listar equipos reparables",                "🟡", "Necesario para crear órdenes de reparación en campo"),
-        ("repinst",    "browse", {"num":50},            "🏢 Listar instalaciones",                     "🟡", "Jerarquía: instalación → equipo → orden de reparación"),
-        ("ordenfab",   "browse", {"num":20},            "🏭 Listar órdenes de fabricación",            "⚪", "permiso=0 confirmado — solo falta browse con params correctos"),
-        # FASE 2 — requieren identificador real obtenido en FASE 1
-        ("partidas",   "browse", {"codProyecto":"?"},  "📐 Partidas de una obra real",                "🟡", "Sustituir ? por codProyecto de la lista de obras (FASE 1)"),
-        ("proordutil", "browse", {"codProyecto":"?"},  "💰 Costes reales imputados a una obra",       "🟡", "Ver utilizados reales — sustituir ? por codProyecto"),
-        ("proordprev", "browse", {"codProyecto":"?"},  "📊 Previstos/presupuesto de una obra",        "🟡", "Comparar previsto vs real — sustituir ? por codProyecto"),
-        ("repordutil", "browse", {"codOrden":"?"},     "🔩 Materiales y horas de una reparación",     "🟠", "Sustituir ? por codOrden de la lista de reparaciones (FASE 1)"),
-        ("proyectos",  "read",   {"objectid":"?"},     "🔍 Leer detalle completo de una obra",        "🟠", "Sustituir ? por codProyecto — más campos que browse"),
-        ("reporden",   "read",   {"objectid":"?"},     "🔍 Leer detalle completo de una orden",       "🟠", "Sustituir ? por codOrden — todos los campos de la orden"),
-        # FASE 3 — ensayo de escritura (new + cancel): no persiste, cero riesgo
-        ("reporden",   "new",    {},                   "🧪 Ensayo: crear orden temporal (new+cancel)","🟠", "Crea objeto en sesión — cancel descarta sin escribir en BD"),
-        ("proordutil", "new",    {"codProyecto":"?","codPartida":"?","tipo":"M"},
-                                                       "🧪 Ensayo: crear utilizado temporal (new+cancel)","🟠","Verifica write disponible — cancel descarta. Sustituir ? por valores reales"),
+        # FASE 1
+        ("clientes",    "browse", {"num": 50},             "🤝 Listar clientes",                      "🟡", "Relaciona proyectos con clientes"),
+        ("tipostrabajo","browse", {"num": 100},            "🏷️ Tipos de trabajo",                     "🟡", "Tabla maestra para app reparaciones"),
+        ("repobjetos",  "browse", {"num": 50},             "⚙️ Equipos reparables",                   "🟡", "Necesario para crear órdenes de reparación"),
+        ("repinst",     "browse", {"num": 50},             "🏢 Instalaciones",                        "🟡", "Jerarquía: instalación → equipo → orden"),
+        ("ordenfab",    "browse", {"num": 20},             "🏭 Órdenes de fabricación",               "⚪", "permiso=0 confirmado"),
+        # FASE 2
+        ("partidas",    "browse", {"codProyecto": "?"},    "📐 Partidas de una obra real",            "🟡", "Sustituir ? por codProyecto (FASE 0)"),
+        ("proordutil",  "browse", {"codProyecto": "?"},    "💰 Costes reales imputados",              "🟡", "Sustituir ? por codProyecto"),
+        ("proordprev",  "browse", {"codProyecto": "?"},    "📊 Previstos/presupuesto",                "🟡", "Sustituir ? por codProyecto"),
+        ("repordutil",  "browse", {"codOrden": "?"},       "🔩 Materiales/horas de una reparación",   "🟠", "Sustituir ? por codOrden (FASE 0)"),
+        ("proyectos",   "read",   {"objectid": "?"},       "🔍 Detalle completo de una obra",         "🟠", "Sustituir ? por codProyecto"),
+        ("reporden",    "read",   {"objectid": "?"},       "🔍 Detalle completo de una orden",        "🟠", "Sustituir ? por codOrden"),
+        # FASE 3
+        ("reporden",    "new",    {},                      "🧪 Ensayo: crear orden temporal",         "🟠", "new+cancel — no persiste en BD"),
+        ("proordutil",  "new",    {"codProyecto": "?", "codPartida": "?", "tipo": "M"},
+                                                           "🧪 Ensayo: crear utilizado temporal",     "🟠", "new+cancel — ? = valores reales"),
     ]
 
     pendientes, completadas = [], []
@@ -521,32 +519,14 @@ async def get_plan_pruebas():
         tiene_datos = bool(drC.get("muestra") or drC.get("browse_params_exitosos"))
         tiene_sonda = clase in sondas_hechas
         tiene_interr = "?" in str(list(params.values()))
-        # Una prueba browse se considera completada si tiene datos reales o sonda con datos
-        # Las de FASE 2 (con ?) nunca se auto-completan — necesitan intervención manual
-        # Las de FASE 3 (new) nunca se auto-completan
-        completada = (
-            op == "browse"
-            and not tiene_interr
-            and (tiene_datos or tiene_sonda)
+        completada = (op == "browse" and not tiene_interr and (tiene_datos or tiene_sonda))
+        nota = (
+            "Sustituir ? por valor real. Usa el Explorador." if tiene_interr else
+            "Ensayo/lectura individual. Usar el Explorador." if op in ("new", "read") else ""
         )
-        # Nota de contexto según fase
-        if tiene_interr:
-            nota = (
-                "⚠️ Sustituir '?' por valor real obtenido en FASE 1. "
-                "Usa el Explorador o Sondear con el parámetro correcto."
-            )
-        elif op in ("new", "read"):
-            nota = (
-                "🧪 Operación de ensayo/lectura individual. "
-                "Sustituir '?' si aplica. Usar el Explorador."
-            )
-        else:
-            nota = ""
-
         fase = (
             "FASE 1" if not tiene_interr and op == "browse" else
-            "FASE 2" if tiene_interr and op == "browse" else
-            "FASE 3"
+            "FASE 2" if tiene_interr and op == "browse" else "FASE 3"
         )
         e = {
             "clase": clase, "operacion": op, "params_sugeridos": params,
@@ -557,9 +537,44 @@ async def get_plan_pruebas():
         }
         (completadas if completada else pendientes).append(e)
 
-    # Resumen de fases para el frontend
+    # Bloque FASE 0: clases code=6 — investigar param obligatorio
+    DESC_CLASE = {
+        "proyectos":  "Obras/Proyectos — clave del modulo obras",
+        "reporden":   "Ordenes de reparacion — clave modulo mantenimiento",
+        "recursos":   "Recursos (operarios/maquinaria) — para imputar horas",
+        "proordutil": "Costes reales imputados a obra",
+        "proordprev": "Costes previstos/presupuesto de obra",
+        "repordutil": "Materiales y horas de una reparacion",
+    }
+    investigar = []
+    for cl in CLASES_INVESTIGAR:
+        drC = clases.get(cl, {})
+        tiene_datos = bool(drC.get("muestra") or drC.get("browse_params_exitosos"))
+        tiene_sonda = cl in sondas_hechas
+        if tiene_datos or tiene_sonda:
+            completadas.append({
+                "clase": cl, "operacion": "browse", "params_sugeridos": {},
+                "descripcion": f"Desbloqueado: {DESC_CLASE.get(cl, cl)}",
+                "prioridad": "alta", "por_que": "Resuelto en FASE 0",
+                "causa_actual": "acceso_confirmado",
+                "tiene_datos": tiene_datos, "tiene_sonda": tiene_sonda,
+                "nota_params": "", "fase": "FASE 0",
+            })
+        else:
+            cands = svc.get_investigar_params(cl)
+            investigar.append({
+                "clase": cl,
+                "descripcion": DESC_CLASE.get(cl, cl),
+                "causa_actual": drC.get("causa_real", "requiere_parametros"),
+                "candidatos": cands.get("candidatos_manuales", []),
+                "candidatos_sonda": cands.get("candidatos_sonda", []),
+                "nota": cands.get("nota", ""),
+            })
+
+    f0_total = len(CLASES_INVESTIGAR)
+    f0_ok    = sum(1 for e in completadas if e.get("fase") == "FASE 0")
     f1_total = sum(1 for _, op, p, *_ in PRUEBAS if op == "browse" and "?" not in str(list(p.values())))
-    f1_ok    = sum(1 for e in completadas if e["fase"] == "FASE 1")
+    f1_ok    = sum(1 for e in completadas if e.get("fase") == "FASE 1")
     f2_total = sum(1 for _, op, p, *_ in PRUEBAS if op == "browse" and "?" in str(list(p.values())))
     f3_total = sum(1 for _, op, *_ in PRUEBAS if op in ("new", "read"))
 
@@ -567,17 +582,19 @@ async def get_plan_pruebas():
         "discover_disponible": True,
         "discover_timestamp": dr.get("timestamp", "")[:19],
         "empresa": dr.get("sesion", {}).get("empresa", ""),
-        "total_pruebas": len(PRUEBAS),
-        "pendientes": len(pendientes),
+        "total_pruebas": len(PRUEBAS) + f0_total,
+        "pendientes": len(pendientes) + len(investigar),
         "completadas": len(completadas),
         "fases": {
-            "f1": {"label": "FASE 1 — Browse sin parámetros", "total": f1_total, "ok": f1_ok},
-            "f2": {"label": "FASE 2 — Browse con identificador real", "total": f2_total, "ok": 0},
-            "f3": {"label": "FASE 3 — Ensayo escritura (new+cancel)", "total": f3_total, "ok": 0},
+            "f0": {"label": "FASE 0 - Investigar param obligatorio (6 clases code=6)", "total": f0_total, "ok": f0_ok},
+            "f1": {"label": "FASE 1 - Browse simple (tablas maestras)", "total": f1_total, "ok": f1_ok},
+            "f2": {"label": "FASE 2 - Browse con identificador real", "total": f2_total, "ok": 0},
+            "f3": {"label": "FASE 3 - Ensayo escritura (new+cancel)", "total": f3_total, "ok": 0},
         },
         "observaciones_fijas": obs_fijas,
         "pruebas_pendientes": pendientes,
         "pruebas_completadas": completadas,
+        "investigar": investigar,
     }
 
 
@@ -604,5 +621,97 @@ async def discover_from_db():
     """
     try:
         return get_service().discover_from_db()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/investigar-params/{clase}")
+async def get_investigar_params(clase: str):
+    """
+    Devuelve los parámetros candidatos para investigar una clase que devuelve code=6.
+    VERIFICADO (API Real JDDC 2026-09-09): proyectos, reporden, recursos,
+    proordutil, proordprev, repordutil siguen en code=6 incluso con num=20.
+    Necesitan un parámetro obligatorio específico de esta instalación.
+    Este endpoint devuelve los candidatos a probar en el Explorador.
+    """
+    svc = get_service()
+    return svc.get_investigar_params(clase)
+
+
+class BrowseParamsRequest(BaseModel):
+    clase: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/browse-params")
+async def browse_con_params(request: BrowseParamsRequest):
+    """
+    Ejecuta un browse de SOLO LECTURA con los parámetros indicados.
+    Usado desde el Plan para investigar qué parámetro desbloquea una clase code=6.
+    Registra el intento en el historial.
+    """
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesión activa. Inicia sesión primero.")
+    if not svc.session_active:
+        return {"success": False, "error": "Sin sesión activa"}
+    try:
+        import time as _time
+        t0 = _time.time()
+        raw, _ = svc._client().browse(svc.ssid1, svc.ssid2, request.clase, request.params)
+        ms = round((_time.time() - t0) * 1000)
+        code = raw.get("code")
+        items = raw.get("items") or raw.get("data") or []
+        total = raw.get("total")
+        n = len(items) if isinstance(items, list) else 0
+        data_raw = str(raw.get("data", ""))
+
+        if code == 0:
+            estado = "ok"
+            interpretacion = f"✅ DATOS REALES — {n} registros" + (f" (total BD: {total})" if total is not None else "")
+            # Guardar muestra con campos
+            muestra = items[:5] if isinstance(items, list) else []
+            campos = list(muestra[0].keys()) if muestra and isinstance(muestra[0], dict) else []
+        elif code == 6:
+            estado = "requiere_params"
+            interpretacion = f"🔵 code=6 — Todavía requiere parámetro. Mensaje: '{data_raw[:120]}'"
+            muestra, campos = [], []
+        elif code == 5 and any(k in data_raw.lower() for k in ("licencia", "no dispone", "sin licencia")):
+            estado = "sin_licencia"
+            interpretacion = f"🚫 SIN LICENCIA: {data_raw[:120]}"
+            muestra, campos = [], []
+        else:
+            estado = "error"
+            interpretacion = f"⚠️ code={code}: {data_raw[:120]}"
+            muestra, campos = [], []
+
+        # Registrar en historial
+        svc._history.insert(0, {
+            "timestamp": __import__("datetime").datetime.now().isoformat(),
+            "clase": request.clase,
+            "operacion": "browse",
+            "params": request.params,
+            "code": code,
+            "estado": estado,
+            "duracion_ms": ms,
+            "n_items": n,
+            "use_mock": svc.use_mock,
+        })
+        svc._history = svc._history[:500]
+
+        return {
+            "success": code == 0,
+            "clase": request.clase,
+            "params_usados": request.params,
+            "code": code,
+            "estado": estado,
+            "interpretacion": interpretacion,
+            "n_items": n,
+            "total": total,
+            "muestra": muestra,
+            "campos_detectados": campos,
+            "data_raw": data_raw[:300],
+            "ms": ms,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

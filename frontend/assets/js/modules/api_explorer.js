@@ -1002,30 +1002,37 @@ function _renderPlan(r) {
 
   // ── Contadores + barra de fases ──────────────────────────────────────
   const fases = r.fases || {};
+  const f0 = fases.f0 || {label:'FASE 0',total:0,ok:0};
   const f1 = fases.f1 || {label:'FASE 1',total:0,ok:0};
   const f2 = fases.f2 || {label:'FASE 2',total:0,ok:0};
   const f3 = fases.f3 || {label:'FASE 3',total:0,ok:0};
+  const investigar = r.investigar || [];
 
   let h = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px">
-    <div style="background:#fef2f2;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">⏳</div><b style="color:#991b1b">${pendientes.length}</b><div style="font-size:0.7em;color:#991b1b">Pendientes</div></div>
+    <div style="background:#fef2f2;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">⏳</div><b style="color:#991b1b">${r.pendientes||0}</b><div style="font-size:0.7em;color:#991b1b">Pendientes</div></div>
     <div style="background:#dcfce7;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">✅</div><b style="color:#166534">${completadas.length}</b><div style="font-size:0.7em;color:#166534">Completadas</div></div>
     <div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">📊</div><b style="color:#475569">${r.total_pruebas||0}</b><div style="font-size:0.7em;color:#64748b">Total</div></div>
     ${r.discover_timestamp?`<div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center;font-size:0.72em;color:#64748b"><div>📅 Discover</div><div>${r.discover_timestamp}</div><div>${r.empresa||''}</div></div>`:''}
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:12px">
+    <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:6px;padding:8px 10px">
+      <div style="font-size:0.75em;font-weight:700;color:#991b1b">🔴 FASE 0</div>
+      <div style="font-size:0.79em;color:#475569;margin-top:2px">Clases code=6 con num=20 — necesitan param obligatorio desconocido</div>
+      <div style="font-size:0.82em;color:#991b1b;margin-top:4px"><b>${f0.ok}/${f0.total}</b> desbloqueadas — ver sección abajo</div>
+    </div>
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 10px">
-      <div style="font-size:0.75em;font-weight:700;color:#166534">🟢 ${f1.label}</div>
-      <div style="font-size:0.8em;color:#475569;margin-top:2px">Browse sin parámetros de identidad</div>
-      <div style="font-size:0.82em;color:#166534;margin-top:4px"><b>${f1.ok}/${f1.total}</b> completadas — pulsa ▶ para ejecutar</div>
+      <div style="font-size:0.75em;font-weight:700;color:#166534">🟢 FASE 1</div>
+      <div style="font-size:0.79em;color:#475569;margin-top:2px">Browse simple (tablas maestras)</div>
+      <div style="font-size:0.82em;color:#166534;margin-top:4px"><b>${f1.ok}/${f1.total}</b> — pulsa ▶ para ejecutar</div>
     </div>
     <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:8px 10px">
-      <div style="font-size:0.75em;font-weight:700;color:#92400e">🟡 ${f2.label}</div>
-      <div style="font-size:0.8em;color:#475569;margin-top:2px">Necesitan codProyecto/codOrden real</div>
-      <div style="font-size:0.82em;color:#92400e;margin-top:4px"><b>0/${f2.total}</b> — usar Explorador con valor real</div>
+      <div style="font-size:0.75em;font-weight:700;color:#92400e">🟡 FASE 2</div>
+      <div style="font-size:0.79em;color:#475569;margin-top:2px">Necesitan codProyecto/codOrden real</div>
+      <div style="font-size:0.82em;color:#92400e;margin-top:4px"><b>0/${f2.total}</b> — usar Explorador</div>
     </div>
     <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 10px">
-      <div style="font-size:0.75em;font-weight:700;color:#9a3412">🟠 ${f3.label}</div>
-      <div style="font-size:0.8em;color:#475569;margin-top:2px">new+cancel — no persiste en BD</div>
+      <div style="font-size:0.75em;font-weight:700;color:#9a3412">🟠 FASE 3</div>
+      <div style="font-size:0.79em;color:#475569;margin-top:2px">new+cancel — no persiste en BD</div>
       <div style="font-size:0.82em;color:#9a3412;margin-top:4px"><b>0/${f3.total}</b> — usar Explorador</div>
     </div>
   </div>`;
@@ -1043,7 +1050,45 @@ function _renderPlan(r) {
   });
   h += `</div></details>`;
 
-  // Pruebas pendientes
+  // ── FASE 0: Clases code=6 — Investigar parámetro obligatorio ──────────
+  if (investigar.length > 0) {
+    h += `<details open><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#991b1b">
+      🔴 FASE 0 — Investigar parámetro obligatorio (${investigar.length} clases bloqueadas por code=6)
+    </summary><div style="padding:4px 0 10px">
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.82em;color:#7f1d1d">
+      <b>¿Por qué aparecen aquí?</b> Estas clases devuelven <code>code=6</code> incluso con <code>{"num":20}</code>.
+      Esto significa que el servidor exige un parámetro obligatorio específico de esta instalación
+      (probablemente <code>ejercicio</code>, <code>soloActivos</code>, <code>tipo</code>...).
+      <br>Prueba cada candidato en el <b>Explorador</b> hasta que devuelva <code>code=0</code> con datos reales.
+    </div>`;
+    investigar.forEach(inv => {
+      const cands = inv.candidatos || [];
+      const sondaCands = inv.candidatos_sonda || [];
+      h += `<div style="background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin:6px 0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="background:#fef2f2;color:#991b1b;border-radius:10px;padding:1px 8px;font-size:0.72em;font-weight:700">FASE 0</span>
+          <code style="font-size:0.88em;font-weight:700">${inv.clase}</code>
+          <span style="font-size:0.82em;color:#374151">${inv.descripcion}</span>
+        </div>
+        <p style="font-size:0.78em;color:#64748b;margin:0 0 8px">${inv.nota||''}</p>
+        <p style="font-size:0.78em;font-weight:600;color:#991b1b;margin:0 0 4px">Candidatos a probar en el Explorador (browse, solo lectura):</p>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${sondaCands.map(p => {
+            const ps = JSON.stringify(p);
+            const pe = ps.replace(/"/g,'&quot;');
+            return `<button class="ae-plan-run btn primary"
+              data-clase="${inv.clase}" data-op="browse" data-params="${pe}"
+              style="font-size:0.75em;padding:3px 9px;background:#991b1b;border-color:#991b1b">
+              ▶ ${ps}
+            </button>`;
+          }).join('')}
+        </div>
+      </div>`;
+    });
+    h += `</div></details>`;
+  }
+
+  // ── Pruebas pendientes (FASE 1 + 2 + 3) ─────────────────────────────
   h += `<details open><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#1e293b">⏳ Pruebas pendientes (${pendientes.length}) — en orden de prioridad</summary><div style="padding:4px 0 8px">`;
   if (!pendientes.length) {
     h += `<p style="color:#166534;font-size:0.84em;padding:8px">✅ ¡Todas las pruebas completadas!</p>`;
