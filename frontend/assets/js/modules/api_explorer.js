@@ -1000,18 +1000,42 @@ function _renderPlan(r) {
   const pBg = {'🔴':'#fef2f2','🟡':'#fef9c3','🟠':'#fff7ed','⚪':'#f8fafc'};
   const pCl = {'🔴':'#991b1b','🟡':'#92400e','🟠':'#9a3412','⚪':'#64748b'};
 
-  // Contadores
-  let h = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px">
+  // ── Contadores + barra de fases ──────────────────────────────────────
+  const fases = r.fases || {};
+  const f1 = fases.f1 || {label:'FASE 1',total:0,ok:0};
+  const f2 = fases.f2 || {label:'FASE 2',total:0,ok:0};
+  const f3 = fases.f3 || {label:'FASE 3',total:0,ok:0};
+
+  let h = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px">
     <div style="background:#fef2f2;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">⏳</div><b style="color:#991b1b">${pendientes.length}</b><div style="font-size:0.7em;color:#991b1b">Pendientes</div></div>
     <div style="background:#dcfce7;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">✅</div><b style="color:#166534">${completadas.length}</b><div style="font-size:0.7em;color:#166534">Completadas</div></div>
     <div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center"><div style="font-size:1.2em">📊</div><b style="color:#475569">${r.total_pruebas||0}</b><div style="font-size:0.7em;color:#64748b">Total</div></div>
     ${r.discover_timestamp?`<div style="background:#f1f5f9;border-radius:8px;padding:8px;text-align:center;font-size:0.72em;color:#64748b"><div>📅 Discover</div><div>${r.discover_timestamp}</div><div>${r.empresa||''}</div></div>`:''}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 10px">
+      <div style="font-size:0.75em;font-weight:700;color:#166534">🟢 ${f1.label}</div>
+      <div style="font-size:0.8em;color:#475569;margin-top:2px">Browse sin parámetros de identidad</div>
+      <div style="font-size:0.82em;color:#166534;margin-top:4px"><b>${f1.ok}/${f1.total}</b> completadas — pulsa ▶ para ejecutar</div>
+    </div>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:8px 10px">
+      <div style="font-size:0.75em;font-weight:700;color:#92400e">🟡 ${f2.label}</div>
+      <div style="font-size:0.8em;color:#475569;margin-top:2px">Necesitan codProyecto/codOrden real</div>
+      <div style="font-size:0.82em;color:#92400e;margin-top:4px"><b>0/${f2.total}</b> — usar Explorador con valor real</div>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 10px">
+      <div style="font-size:0.75em;font-weight:700;color:#9a3412">🟠 ${f3.label}</div>
+      <div style="font-size:0.8em;color:#475569;margin-top:2px">new+cancel — no persiste en BD</div>
+      <div style="font-size:0.82em;color:#9a3412;margin-top:4px"><b>0/${f3.total}</b> — usar Explorador</div>
+    </div>
   </div>`;
 
   // Observaciones del servidor (hallazgos del JSON analizado)
   h += `<details open><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#1e293b">🔍 Hallazgos del servidor (del análisis del JSON exportado)</summary><div style="padding:4px 0 8px">`;
   obs.forEach(o => {
-    h += `<div style="background:#f8fafc;border-left:4px solid ${o.icono==='✅'?'#22c55e':o.icono==='🚫'?'#dc2626':'#f59e0b'};border-radius:0 6px 6px 0;padding:9px 13px;margin:5px 0">
+    const bCol = o.icono==='✅'?'#22c55e':o.icono==='🚫'?'#dc2626':o.icono==='🔵'?'#3b82f6':o.icono==='🚀'?'#7c3aed':'#f59e0b';
+    const bgObs = o.icono==='✅'?'#f0fdf4':o.icono==='🚫'?'#fef2f2':o.icono==='🔵'?'#eff6ff':o.icono==='🚀'?'#f5f3ff':'#fffbeb';
+    h += `<div style="background:${bgObs};border-left:4px solid ${bCol};border-radius:0 6px 6px 0;padding:9px 13px;margin:5px 0">
       <b style="font-size:0.87em">${o.icono} ${o.titulo}</b>
       <p style="margin:3px 0;font-size:0.82em;color:#475569">${o.detalle}</p>
       <p style="margin:0;font-size:0.78em;color:#166534">→ ${o.accion}</p>
@@ -1027,19 +1051,25 @@ function _renderPlan(r) {
     pendientes.forEach(p => {
       const paramsStr = JSON.stringify(p.params_sugeridos||{});
       const tieneInterrogante = paramsStr.includes('"?"');
+      const paramsEsc = paramsStr.replace(/"/g,'&quot;');
+      // Etiqueta de fase (viene del backend, fallback calculado aquí)
+      const faseLbl = p.fase || (tieneInterrogante ? 'FASE 2' : (p.operacion==='browse' ? 'FASE 1' : 'FASE 3'));
+      const faseCol = faseLbl==='FASE 1' ? '#166534' : faseLbl==='FASE 2' ? '#92400e' : '#9a3412';
+      const faseBg  = faseLbl==='FASE 1' ? '#dcfce7' : faseLbl==='FASE 2' ? '#fef9c3' : '#fff7ed';
       h += `<div style="background:${pBg[p.prioridad]||'#f8fafc'};border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin:5px 0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-size:1em">${p.prioridad}</span>
-          <code style="background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:4px;font-size:0.85em">${p.clase}.${p.operacion}</code>
-          <b style="font-size:0.87em;color:${pCl[p.prioridad]||'#374151'}">${p.descripcion}</b>
-          <span style="margin-left:auto;font-size:0.75em;color:#94a3b8">${p.causa_actual||''}</span>
+          <span style="background:${faseBg};color:${faseCol};border-radius:10px;padding:1px 7px;font-size:0.7em;font-weight:700">${faseLbl}</span>
+          <code style="background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:4px;font-size:0.84em">${p.clase}.${p.operacion}</code>
+          <b style="font-size:0.86em;color:${pCl[p.prioridad]||'#374151'}">${p.descripcion}</b>
+          <span style="margin-left:auto;font-size:0.73em;color:#94a3b8">${p.causa_actual||''}</span>
         </div>
-        <p style="margin:2px 0;font-size:0.8em;color:#64748b">${p.por_que}</p>
+        <p style="margin:2px 0;font-size:0.79em;color:#64748b">${p.por_que}</p>
         <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
-          <code style="background:#1e293b;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.78em">${paramsStr}</code>
+          <code style="background:#1e293b;color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.77em">${paramsStr}</code>
           ${tieneInterrogante
-            ? `<span style="font-size:0.75em;color:#f59e0b">⚠️ ${p.nota_params}</span>`
-            : `<button class="btn primary ae-plan-run" data-clase="${p.clase}" data-op="${p.operacion}" data-params="${paramsStr.replace(/"/g,'&quot;')}" style="font-size:0.78em;padding:3px 10px">▶ Ejecutar ahora</button>`}
+            ? `<span style="font-size:0.75em;color:#f59e0b">⚠️ ${p.nota_params||'Sustituye ? por valor real en el Explorador'}</span>`
+            : `<button class="btn primary ae-plan-run" data-clase="${p.clase}" data-op="${p.operacion}" data-params="${paramsEsc}" style="font-size:0.78em;padding:3px 10px">▶ Ejecutar ahora</button>`}
         </div>
       </div>`;
     });
@@ -1050,7 +1080,9 @@ function _renderPlan(r) {
   if (completadas.length) {
     h += `<details><summary style="cursor:pointer;font-weight:700;font-size:0.92em;padding:8px 0;color:#166534">✅ Pruebas completadas (${completadas.length})</summary><div style="padding:4px 0 8px">`;
     completadas.forEach(p => {
-      h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:4px 0;display:flex;gap:8px;align-items:center">
+      const fl = p.fase || 'FASE 1';
+      h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 7px;font-size:0.7em;font-weight:700">${fl}</span>
         <code style="font-size:0.82em;color:#166534">${p.clase}.${p.operacion}</code>
         <span style="font-size:0.8em;color:#475569">${p.descripcion}</span>
         <span style="font-size:0.78em;color:#94a3b8;margin-left:auto">${p.tiene_sonda?'🔬 Sondeado':'📊 Discover'}</span>

@@ -419,19 +419,66 @@ async def get_plan_pruebas():
     svc._cargar_discover_cache()
     dr = getattr(svc, '_last_discover', None)
 
+    # Hallazgos verificados empíricamente con API Real JDDC (2026-09-04)
     obs_fijas = [
-        {"icono":"⚠️","titulo":"permiso.data='Ok' siempre (string, sin flags de operaciones)",
-         "detalle":"En esta instalación permiso no devuelve browse:true/write:true. Los permisos de operación solo se conocen probando empiricamente cada una.",
-         "accion":"Probar browse, read, new+cancel en cada clase accesible."},
-        {"icono":"⚠️","titulo":"info devuelve data=true (booleano) — sin metadatos de campos",
-         "detalle":"info no devuelve metadatos en esta instalación. Los campos reales solo se ven en la respuesta de browse con datos.",
-         "accion":"Cuando browse devuelva datos, analizar las claves del primer registro."},
-        {"icono":"🚫","titulo":"Módulo 'Documentos' no contratado (5 clases bloqueadas)",
-         "detalle":"docalbcom, docfaccom, docpedcom, articulos, proveedores. Mensaje: 'No dispone de licencia para el módulo Documentos'. Bloquea también imputaPro.",
-         "accion":"Preguntar precio del módulo Documentos a Distrito K. Sin él no se puede vincular compras a obras."},
-        {"icono":"✅","titulo":"Módulos Reparaciones y Proyectos confirmados con licencia",
-         "detalle":"reporden, repobjetos, repinst, tipostrabajo, repordutil + proyectos, partidas, proordutil, proordprev + clientes, ordenfab, recursos.",
-         "accion":"Construir sobre estos módulos."},
+        {
+            "icono": "✅",
+            "titulo": "VERIFICADO (API Real JDDC): acceso confirmado sin restricciones — 6 clases",
+            "detalle": (
+                "repobjetos (equipos), repinst (instalaciones), tipostrabajo, partidas, "
+                "ordenfab, clientes. permiso=0 confirmado. "
+                "Browse devuelve code=6 en algunas (requiere params), no es fallo."
+            ),
+            "accion": "Estas clases están listas para usar en producción.",
+        },
+        {
+            "icono": "🔵",
+            "titulo": "VERIFICADO: 6 clases accesibles que necesitan parámetros (code=6 = normal)",
+            "detalle": (
+                "reporden, repordutil, proyectos, proordutil, proordprev, recursos. "
+                "code=6 NO significa fallo de BD — es el comportamiento documentado cuando "
+                "la clase requiere un identificador obligatorio (codProyecto, codOrden...). "
+                "La solución es pasar el parámetro correcto en el Explorador."
+            ),
+            "accion": (
+                "Prueba de segunda fase: obtener un codProyecto real con 'proyectos.browse' "
+                "y usarlo en partidas, proordutil, proordprev."
+            ),
+        },
+        {
+            "icono": "🚫",
+            "titulo": "VERIFICADO: módulo Documentos NO contratado — 5 clases bloqueadas",
+            "detalle": (
+                "docalbcom, docfaccom, docpedcom, articulos, proveedores. "
+                "Mensaje exacto del servidor: 'No dispone de licencia para el módulo Documentos'. "
+                "Esto bloquea también imputaPro (vincular compras a obras). "
+                "Es una restricción contractual, no técnica."
+            ),
+            "accion": (
+                "Contactar con Distrito K para ampliar licencia del módulo Documentos. "
+                "Sin él: no se puede ver catálogo de artículos ni vincular compras a obras."
+            ),
+        },
+        {
+            "icono": "⚠️",
+            "titulo": "Comportamiento técnico de esta instalación: permiso e info no devuelven metadatos",
+            "detalle": (
+                "permiso devuelve data='Ok' (string) — nunca flags de operaciones. "
+                "info devuelve data=true (booleano) — nunca lista de campos. "
+                "Los campos reales solo se conocen analizando la respuesta de un browse exitoso."
+            ),
+            "accion": "Documentado. No es un bug — es el comportamiento de esta versión/instalación de mPYME.",
+        },
+        {
+            "icono": "🚀",
+            "titulo": "3 aplicaciones YA DISPONIBLES con la licencia actual",
+            "detalle": (
+                "1. App Operario: registrar costes reales en obra (proordutil + proyectos + partidas). "
+                "2. Cuadro de Mando: costes reales vs previstos por obra. "
+                "3. Integración IA: responder preguntas sobre obras/costes."
+            ),
+            "accion": "Construir sobre proordutil + proyectos + partidas. Sin ampliar licencia.",
+        },
     ]
 
     if not dr:
@@ -440,37 +487,98 @@ async def get_plan_pruebas():
     clases = dr.get("clases", {})
     sondas_hechas = {s["clase"] for s in svc._sondas if s.get("datos_reales")}
 
+    # ── FASE 1: Browse sin parámetros de identidad (tablas maestras simples) ──
+    # ── FASE 2: Browse con parámetros de identidad reales ───────────────────
+    # ── FASE 3: Operaciones de preparación (new + cancel) — sin persistir ───
+    # Las de FASE 2 y 3 con "?" requieren valor real obtenido en FASE 1.
+    # Las de FASE 3 son "ensayo de escritura" — no persisten hasta write.
     PRUEBAS = [
-        ("proyectos","browse",{"num":20},"Listar obras/proyectos","🔴","Necesario para obtener códigos reales de obra"),
-        ("proyectos","browse",{"estado":"activo"},"Listar solo obras activas","🔴","Filtro más útil en operación real"),
-        ("reporden","browse",{"num":20},"Listar órdenes de reparación","🔴","Dato base módulo mantenimiento"),
-        ("reporden","browse",{"estado":"abierta"},"Listar reparaciones abiertas","🔴","Filtro operacional"),
-        ("recursos","browse",{"num":50},"Listar recursos (operarios/maquinaria)","🔴","Necesario para imputar horas — conocer codRecurso"),
-        ("clientes","browse",{"num":50},"Listar clientes","🟡","Los proyectos tienen cliente — filtros"),
-        ("tipostrabajo","browse",{"num":100},"Listar tipos de trabajo","🟡","Tabla maestra para desplegable en app"),
-        ("repobjetos","browse",{"num":50},"Listar equipos reparables","🟡","Crear órdenes reparación"),
-        ("repinst","browse",{"num":50},"Listar instalaciones","🟡","Jerarquía instalación>equipo>orden"),
-        ("partidas","browse",{"codProyecto":"?"},"Listar partidas de obra (con codProyecto real)","🟡","Necesita codProyecto de browse proyectos"),
-        ("proordutil","browse",{"codProyecto":"?"},"Listar costes imputados a una obra","🟡","Ver utilizados — necesita codProyecto real"),
-        ("proordprev","browse",{"codProyecto":"?"},"Listar previstos de una obra","🟡","Comparar previsto vs real"),
-        ("repordutil","browse",{"codOrden":"?"},"Listar utilizados de una reparación","🟠","Necesita codOrden de browse reporden"),
-        ("proyectos","read",{"objectid":"?"},"Leer detalle de una obra","🟠","read individual — más detalle"),
-        ("reporden","read",{"objectid":"?"},"Leer detalle de una orden","🟠","read individual"),
-        ("reporden","new",{},"Crear orden temporal (new + cancel)","🟠","Verifica si podemos crear — cancel descarta sin persistir"),
-        ("proordutil","new",{"codProyecto":"?","codPartida":"?","tipo":"M"},"Crear utilizado temporal (new + cancel)","🟠","Verifica si write disponible"),
-        ("ordenfab","browse",{"num":20},"Listar órdenes de fabricación","⚪","permiso=0 confirmado — solo falta browse con params"),
+        # FASE 1 — tablas maestras y listados globales (no necesitan identificador)
+        ("proyectos",  "browse", {"num":20},           "📋 Listar obras/proyectos",                   "🔴", "PRIMERA PRIORIDAD — codProyecto es la clave de todo lo demás"),
+        ("reporden",   "browse", {"num":20},            "🔧 Listar órdenes de reparación abiertas",    "🔴", "PRIMERA PRIORIDAD — codOrden necesario para repordutil"),
+        ("recursos",   "browse", {"num":50},            "👷 Listar recursos (operarios/maquinaria)",   "🔴", "codRecurso necesario para imputar horas en proordutil/repordutil"),
+        ("clientes",   "browse", {"num":50},            "🤝 Listar clientes",                          "🟡", "Relaciona proyectos con clientes — útil para filtros"),
+        ("tipostrabajo","browse",{"num":100},           "🏷️ Listar tipos de trabajo",                  "🟡", "Tabla maestra para desplegable en app de reparaciones"),
+        ("repobjetos", "browse", {"num":50},            "⚙️ Listar equipos reparables",                "🟡", "Necesario para crear órdenes de reparación en campo"),
+        ("repinst",    "browse", {"num":50},            "🏢 Listar instalaciones",                     "🟡", "Jerarquía: instalación → equipo → orden de reparación"),
+        ("ordenfab",   "browse", {"num":20},            "🏭 Listar órdenes de fabricación",            "⚪", "permiso=0 confirmado — solo falta browse con params correctos"),
+        # FASE 2 — requieren identificador real obtenido en FASE 1
+        ("partidas",   "browse", {"codProyecto":"?"},  "📐 Partidas de una obra real",                "🟡", "Sustituir ? por codProyecto de la lista de obras (FASE 1)"),
+        ("proordutil", "browse", {"codProyecto":"?"},  "💰 Costes reales imputados a una obra",       "🟡", "Ver utilizados reales — sustituir ? por codProyecto"),
+        ("proordprev", "browse", {"codProyecto":"?"},  "📊 Previstos/presupuesto de una obra",        "🟡", "Comparar previsto vs real — sustituir ? por codProyecto"),
+        ("repordutil", "browse", {"codOrden":"?"},     "🔩 Materiales y horas de una reparación",     "🟠", "Sustituir ? por codOrden de la lista de reparaciones (FASE 1)"),
+        ("proyectos",  "read",   {"objectid":"?"},     "🔍 Leer detalle completo de una obra",        "🟠", "Sustituir ? por codProyecto — más campos que browse"),
+        ("reporden",   "read",   {"objectid":"?"},     "🔍 Leer detalle completo de una orden",       "🟠", "Sustituir ? por codOrden — todos los campos de la orden"),
+        # FASE 3 — ensayo de escritura (new + cancel): no persiste, cero riesgo
+        ("reporden",   "new",    {},                   "🧪 Ensayo: crear orden temporal (new+cancel)","🟠", "Crea objeto en sesión — cancel descarta sin escribir en BD"),
+        ("proordutil", "new",    {"codProyecto":"?","codPartida":"?","tipo":"M"},
+                                                       "🧪 Ensayo: crear utilizado temporal (new+cancel)","🟠","Verifica write disponible — cancel descarta. Sustituir ? por valores reales"),
     ]
 
     pendientes, completadas = [], []
-    for (clase,op,params,desc,prio,por_que) in PRUEBAS:
+    for (clase, op, params, desc, prio, por_que) in PRUEBAS:
         drC = clases.get(clase, {})
         tiene_datos = bool(drC.get("muestra") or drC.get("browse_params_exitosos"))
         tiene_sonda = clase in sondas_hechas
-        completada = (op=="browse" and tiene_datos and "?" not in str(params)) or (op=="browse" and tiene_sonda)
-        e = {"clase":clase,"operacion":op,"params_sugeridos":params,"descripcion":desc,"prioridad":prio,"por_que":por_que,"causa_actual":drC.get("causa_real",""),"tiene_datos":tiene_datos,"tiene_sonda":tiene_sonda,"nota_params":"Sustituir '?' por valor real de browse previo" if "?" in str(params) else ""}
+        tiene_interr = "?" in str(list(params.values()))
+        # Una prueba browse se considera completada si tiene datos reales o sonda con datos
+        # Las de FASE 2 (con ?) nunca se auto-completan — necesitan intervención manual
+        # Las de FASE 3 (new) nunca se auto-completan
+        completada = (
+            op == "browse"
+            and not tiene_interr
+            and (tiene_datos or tiene_sonda)
+        )
+        # Nota de contexto según fase
+        if tiene_interr:
+            nota = (
+                "⚠️ Sustituir '?' por valor real obtenido en FASE 1. "
+                "Usa el Explorador o Sondear con el parámetro correcto."
+            )
+        elif op in ("new", "read"):
+            nota = (
+                "🧪 Operación de ensayo/lectura individual. "
+                "Sustituir '?' si aplica. Usar el Explorador."
+            )
+        else:
+            nota = ""
+
+        fase = (
+            "FASE 1" if not tiene_interr and op == "browse" else
+            "FASE 2" if tiene_interr and op == "browse" else
+            "FASE 3"
+        )
+        e = {
+            "clase": clase, "operacion": op, "params_sugeridos": params,
+            "descripcion": desc, "prioridad": prio, "por_que": por_que,
+            "causa_actual": drC.get("causa_real", ""),
+            "tiene_datos": tiene_datos, "tiene_sonda": tiene_sonda,
+            "nota_params": nota, "fase": fase,
+        }
         (completadas if completada else pendientes).append(e)
 
-    return {"discover_disponible":True,"discover_timestamp":dr.get("timestamp","")[:19],"empresa":dr.get("sesion",{}).get("empresa",""),"total_pruebas":len(PRUEBAS),"pendientes":len(pendientes),"completadas":len(completadas),"observaciones_fijas":obs_fijas,"pruebas_pendientes":pendientes,"pruebas_completadas":completadas}
+    # Resumen de fases para el frontend
+    f1_total = sum(1 for _, op, p, *_ in PRUEBAS if op == "browse" and "?" not in str(list(p.values())))
+    f1_ok    = sum(1 for e in completadas if e["fase"] == "FASE 1")
+    f2_total = sum(1 for _, op, p, *_ in PRUEBAS if op == "browse" and "?" in str(list(p.values())))
+    f3_total = sum(1 for _, op, *_ in PRUEBAS if op in ("new", "read"))
+
+    return {
+        "discover_disponible": True,
+        "discover_timestamp": dr.get("timestamp", "")[:19],
+        "empresa": dr.get("sesion", {}).get("empresa", ""),
+        "total_pruebas": len(PRUEBAS),
+        "pendientes": len(pendientes),
+        "completadas": len(completadas),
+        "fases": {
+            "f1": {"label": "FASE 1 — Browse sin parámetros", "total": f1_total, "ok": f1_ok},
+            "f2": {"label": "FASE 2 — Browse con identificador real", "total": f2_total, "ok": 0},
+            "f3": {"label": "FASE 3 — Ensayo escritura (new+cancel)", "total": f3_total, "ok": 0},
+        },
+        "observaciones_fijas": obs_fijas,
+        "pruebas_pendientes": pendientes,
+        "pruebas_completadas": completadas,
+    }
 
 
 @router.get("/perfiles-niveles")

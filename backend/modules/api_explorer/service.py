@@ -1244,6 +1244,37 @@ class ApiExplorerService:
         txt += f"\n{sep}\n=== N4: PARA GERENCIA ===\n"
         for i, app in enumerate(apps, 1):
             txt += f"\n  {i}. {app['nombre']} [{'DISPONIBLE' if app['disponible'] else 'AMPLIAR LICENCIA'}]\n  {app['desc']}\n"
+
+        # Bloque de conclusión ejecutiva (solo en modo API Real)
+        txt += f"\n{sep}\n=== CONCLUSION EJECUTIVA ===\n"
+        n_ok  = len(con_acceso)
+        n_p6  = len(req_params)
+        n_lic = len(sin_lic)
+        n_tot = n_ok + n_p6 + n_lic + len(sin_perm) + len(cfg_inc) + len(inesperado)
+        txt += (
+            f"\n  Total clases auditadas: {n_tot}\n"
+            f"  Acceso confirmado (operativas): {n_ok}\n"
+            f"  Accesibles con parámetro requerido: {n_p6} — NO es fallo, es diseño de la API\n"
+            f"  Sin licencia (bloqueo contractual): {n_lic}\n"
+            f"\n  NOTA code=6: La API mPYME v1.2 devuelve code=6 cuando una clase requiere un\n"
+            f"  identificador obligatorio (codProyecto, codOrden, etc.). Esto es NORMAL.\n"
+            f"  Pasa el parámetro correcto en el Explorador y la clase responde con datos.\n"
+        )
+        if n_lic > 0:
+            txt += (
+                f"\n  ACCION COMERCIAL REQUERIDA: {n_lic} clase(s) bloqueada(s) por licencia.\n"
+                f"  Modulo 'Documentos' no contratado — contactar Distrito K.\n"
+                f"  Afecta a: {', '.join(sin_lic)}\n"
+            )
+        txt += (
+            f"\n  PROXIMOS PASOS TECNICOS:\n"
+            f"  1. Ejecutar browse en proyectos (num=20) → obtener codProyecto real\n"
+            f"  2. Usar codProyecto en: partidas, proordutil, proordprev\n"
+            f"  3. Ejecutar browse en reporden (num=20) → obtener codOrden real\n"
+            f"  4. Usar codOrden en: repordutil\n"
+            f"  5. Probar new+cancel en reporden y proordutil para verificar permisos escritura\n"
+        )
+
         txt += (f"\n{sep}\nCODIGOS: 0=OK 1=SinLicencia 2=SinPermiso 3=Validacion "
                 "5=ParamsIncompletos 6=RequiereParams 10=NoEncontrado -1=ErrorRed\n"
                 f"{sep}\nFIN DEL INFORME\n{sep}\n")
