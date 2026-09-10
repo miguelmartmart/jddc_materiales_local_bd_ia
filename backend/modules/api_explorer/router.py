@@ -874,58 +874,92 @@ async def obtener_ids_reales():
 
 
 
-# ─── Helpers Firebird: IDs reales para probar la API ─────────────────────────
-def _firebird_ids(clase: str, n: int = 5) -> dict:
-    """Obtiene hasta N IDs reales de Firebird. Devuelve lista para probar uno a uno."""
+# ─── Helpers Firebird: usan FirebirdDriver del proyecto ───────────────────────
+# Mismo driver que usa el chat y todos los demás módulos.
+# backend/drivers/db/firebird_driver.py + backend/core/factory/db_factory.py
+
+MAPA_FIREBIRD = {
+    "proyectos":   ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
+    "partidas":    ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
+    "proordutil":  ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
+    "proordprev":  ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
+    "reporden":    ("REPORDEN",   "CODORDEN",    "DESCRIPCION",  "codOrden"),
+    "repordutil":  ("REPORDEN",   "CODORDEN",    "DESCRIPCION",  "codOrden"),
+    "recursos":    ("RECURSOS",   "CODRECURSO",  "NOMBRE",       "codRecurso"),
+    "repobjetos":  ("REPOBJETOS", "CODOBJETO",   "DESCRIPCION",  "codObjeto"),
+    "repinst":     ("REPINST",    "CODINST",     "DESCRIPCION",  "codInst"),
+    "tipostrabajo":("TIPOSTRAB",  "CODTRABAJO",  "DESCRIPCION",  "codTrabajo"),
+    "articulos":   ("ARTICULO",   "CODARTICULO", "DESCRIP",      "codArticulo"),
+    "proveedores": ("PROVEEDORES","CODPROV",      "NOMBRE",       "codProv"),
+    "clientes":    ("CLIENTES",   "CODCLIENTE",  "NOMBRE",       "codCliente"),
+    "docalbcom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
+    "docfaccom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
+    "docpedcom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
+    "ordenfab":    ("ORDENFAB",   "CODORDEN",    "CODORDEN",     "codOrden"),
+}
+
+
+def _get_db_driver():
+    """Obtiene y conecta el FirebirdDriver del proyecto. Igual que el resto de módulos."""
     from backend.core.config.settings import settings
-    MAPA = {
-        "proyectos":  ("PROYECTOS",  "CODPROYE",   "codProyecto"),
-        "partidas":   ("PROYECTOS",  "CODPROYE",   "codProyecto"),
-        "proordutil": ("PROYECTOS",  "CODPROYE",   "codProyecto"),
-        "proordprev": ("PROYECTOS",  "CODPROYE",   "codProyecto"),
-        "reporden":   ("REPORDEN",   "CODORDEN",   "codOrden"),
-        "repordutil": ("REPORDEN",   "CODORDEN",   "codOrden"),
-        "recursos":   ("RECURSOS",   "CODRECURSO", "codRecurso"),
-        "repobjetos": ("REPOBJETOS", "CODOBJETO",  "codObjeto"),
-        "repinst":    ("REPINST",    "CODINST",    "codInst"),
-        "tipostrabajo":("TIPOSTRAB", "CODTRABAJO", "codTrabajo"),
-        "articulos":  ("ARTICULO",   "CODARTICULO","codArticulo"),
-        "proveedores":("PROVEEDORES","CODPROV",    "codProv"),
-        "clientes":   ("CLIENTES",   "CODCLIENTE", "codCliente"),
-        "docalbcom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
-        "docfaccom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
-        "docpedcom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
-        "ordenfab":   ("ORDENFAB",   "CODORDEN",   "codOrden"),
-    }
-    info = MAPA.get(clase)
-    if not info:
-        return {"ok": False, "error": f"clase no mapeada en Firebird"}
-    tabla, campo, param_api = info
+    from backend.core.abstract.database import DBConfig
+    from backend.core.factory.db_factory import DBFactory
     if not settings.DB_NAME:
-        return {"ok": False, "error": "DB_NAME no configurado en .env"}
+        raise ValueError("DB_NAME no configurado en el .env del servidor")
+    cfg = DBConfig(
+        host=settings.DB_HOST,
+        port=settings.DB_PORT,
+        database=settings.DB_NAME,
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+        charset="latin1",   # charset igual que el resto del proyecto
+    )
+    drv = DBFactory.get_driver("firebird")
+    drv.connect(cfg)
+    return drv
+
+
+def _firebird_ids(clase: str, n: int = 5) -> dict:
+    """
+    Obtiene hasta N IDs reales de Firebird usando el FirebirdDriver del proyecto.
+    Solo lectura. Sin modificar nada. Devuelve lista de valores para probar uno a uno.
+    """
+    from backend.core.config.settings import settings
+    info = MAPA_FIREBIRD.get(clase)
+    if not info:
+        return {"ok": False, "error": f"clase '{clase}' no tiene tabla mapeada"}
+    tabla, campo_id, campo_desc, param_api = info
+    if not settings.DB_NAME:
+        return {"ok": False, "error": "DB_NAME no configurado en el .env del servidor"}
     try:
-        import firebirdsql
-        con = firebirdsql.connect(
-            host=settings.DB_HOST, port=settings.DB_PORT,
-            database=settings.DB_NAME, user=settings.DB_USER,
-            password=settings.DB_PASSWORD, charset="UTF8"
-        )
-        cur = con.cursor()
-        cur.execute(f"SELECT FIRST {n} {campo} FROM {tabla} ORDER BY {campo}")
-        rows = cur.fetchall(); cur.close(); con.close()
-        valores = [str(r[0]).strip() for r in rows if r[0] is not None]
+        drv = _get_db_driver()
+        try:
+            sql = f"SELECT FIRST {n} {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+            rows = drv.execute_query(sql)
+        finally:
+            drv.disconnect()
+        if not rows:
+            return {"ok": False, "error": f"Tabla {tabla} vacía (sin registros)"}
+        valores = []
+        for row in rows:
+            vid = str(row.get(campo_id, row.get(campo_id.upper(), ""))).strip()
+            vdesc = str(row.get(campo_desc, row.get(campo_desc.upper(), ""))).strip()
+            if vid:
+                valores.append({"id": vid, "desc": vdesc})
         if not valores:
-            return {"ok": False, "error": f"Tabla {tabla} vacia (sin registros)"}
-        return {"ok": True, "param": param_api, "valores": valores, "tabla": tabla}
-    except ImportError:
-        return {"ok": False, "error": "firebirdsql no instalado. Ejecutar: pip install firebirdsql"}
+            return {"ok": False, "error": f"Tabla {tabla}: sin valor en campo {campo_id}"}
+        return {"ok": True, "param": param_api,
+                "valores": [v["id"] for v in valores],
+                "valores_desc": valores, "tabla": tabla}
     except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:200]}",
-                "db_host": settings.DB_HOST, "db_name": settings.DB_NAME}
+        from backend.core.config.settings import settings as _s
+        return {"ok": False,
+                "error": f"{type(exc).__name__}: {str(exc)[:250]}",
+                "db_host": _s.DB_HOST, "db_name": _s.DB_NAME}
 
 
 def _firebird_primer_id(clase: str) -> dict:
-    """Compatibilidad: devuelve el primer ID."""
+    """Compatibilidad con código anterior: devuelve solo el primer ID."""
     r = _firebird_ids(clase, n=3)
     if r.get("ok") and r.get("valores"):
         return {"ok": True, "param": r["param"], "valor": r["valores"][0]}
@@ -933,44 +967,43 @@ def _firebird_primer_id(clase: str) -> dict:
 
 
 def _firebird_diagnostico() -> dict:
-    """Diagnostico completo de la conexion Firebird."""
+    """
+    Diagnóstico completo usando el FirebirdDriver del proyecto.
+    Sin devolver valores de negocio — solo estados y conteos.
+    """
     from backend.core.config.settings import settings
     result = {
         "db_host": settings.DB_HOST, "db_port": settings.DB_PORT,
         "db_name": settings.DB_NAME, "db_user": settings.DB_USER,
         "db_name_configurado": bool(settings.DB_NAME),
+        "driver": "FirebirdDriver (backend/drivers/db/firebird_driver.py)",
         "firebirdsql_instalado": False, "conexion_ok": False,
         "error": None, "tablas_probadas": {},
     }
     if not settings.DB_NAME:
-        result["error"] = "DB_NAME vacio en .env. Añadir ruta del fichero .fdb"
+        result["error"] = "DB_NAME vacío en el .env. Añadir la ruta del fichero .fdb"
         return result
     try:
-        import firebirdsql
+        import firebirdsql  # noqa — solo verificar instalación
         result["firebirdsql_instalado"] = True
     except ImportError:
         result["error"] = "firebirdsql no instalado. Ejecutar: pip install firebirdsql"
         return result
     try:
-        con = firebirdsql.connect(
-            host=settings.DB_HOST, port=settings.DB_PORT,
-            database=settings.DB_NAME, user=settings.DB_USER,
-            password=settings.DB_PASSWORD, charset="UTF8"
-        )
+        drv = _get_db_driver()
         result["conexion_ok"] = True
-        cur = con.cursor()
-        for tabla, campo in [("PROYECTOS","CODPROYE"),("REPORDEN","CODORDEN"),
-                              ("ARTICULO","CODARTICULO"),("RECURSOS","CODRECURSO")]:
+        for tabla in ["PROYECTOS", "REPORDEN", "ARTICULO", "RECURSOS", "CLIENTES", "PROVEEDORES"]:
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {tabla}")
-                cnt = cur.fetchone()[0]
-                result["tablas_probadas"][tabla] = {"ok": True, "n_registros": cnt}
+                rows = drv.execute_query(f"SELECT COUNT(*) AS N FROM {tabla}")
+                cnt = rows[0].get("N", rows[0].get("COUNT", 0)) if rows else 0
+                result["tablas_probadas"][tabla] = {"ok": True, "n_registros": int(cnt)}
             except Exception as e:
-                result["tablas_probadas"][tabla] = {"ok": False, "error": str(e)[:100]}
-        cur.close(); con.close()
+                result["tablas_probadas"][tabla] = {"ok": False, "error": str(e)[:120]}
+        drv.disconnect()
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
     return result
+
 
 
 class AutoProbarRequest(BaseModel):
@@ -1191,57 +1224,52 @@ class ValoresParamRequest(BaseModel):
 async def valores_param(request: ValoresParamRequest):
     """
     Obtiene valores reales de Firebird para autocompletar un campo de parámetro.
+    Usa el FirebirdDriver del proyecto (mismo que el chat y otros módulos).
     Solo lectura. Devuelve máx. 10 valores: id + descripción.
-    Los valores SÍ se devuelven aquí (son para rellenar el formulario del Probador).
-    El usuario los ve para elegir cuál probar — no aparecen en informes.
+    Los valores SÍ se devuelven (para rellenar el formulario del Probador — no aparecen en informes).
     """
     from backend.core.config.settings import settings
-    import time as _t
-    # Mapeo param_api -> (tabla, campo_id, campo_desc, filtro_sql)
-    MAPA_VALORES = {
-        "codProyecto": ("PROYECTOS",   "CODPROYE",    "DENOMINACION",  None),
-        "codOrden":    ("REPORDEN",    "CODORDEN",    "DESCRIPCION",   None),
-        "codRecurso":  ("RECURSOS",    "CODRECURSO",  "NOMBRE",        None),
-        "codObjeto":   ("REPOBJETOS",  "CODOBJETO",   "DESCRIPCION",   None),
-        "codInst":     ("REPINST",     "CODINST",     "DESCRIPCION",   None),
-        "codTrabajo":  ("TIPOSTRAB",   "CODTRABAJO",  "DESCRIPCION",   None),
-        "codArticulo": ("ARTICULO",    "CODARTICULO", "DESCRIP",       None),
-        "codProv":     ("PROVEEDORES", "CODPROV",     "NOMBRE",        None),
-        "codCliente":  ("CLIENTES",    "CODCLIENTE",  "NOMBRE",        None),
-        "codDocumento":("DOCCAB",      "CODDOC",      "CODDOC",        None),
-        "codPartida":  ("PARTIDAS",    "CODPARTIDA",  "DESCRIPCION",   None),
+    # Usar MAPA_FIREBIRD que ya tiene toda la info necesaria
+    info_fb = MAPA_FIREBIRD.get(request.campo) or next(
+        (v for k, v in MAPA_FIREBIRD.items() if v[3] == request.campo), None
+    )
+    # Mapeo alternativo por nombre de campo API (los mapas de MAPA_FIREBIRD usan clase, no campo)
+    MAPA_CAMPO = {
+        "codProyecto": ("PROYECTOS",   "CODPROYE",    "DENOMINACION"),
+        "codOrden":    ("REPORDEN",    "CODORDEN",    "DESCRIPCION"),
+        "codRecurso":  ("RECURSOS",    "CODRECURSO",  "NOMBRE"),
+        "codObjeto":   ("REPOBJETOS",  "CODOBJETO",   "DESCRIPCION"),
+        "codInst":     ("REPINST",     "CODINST",     "DESCRIPCION"),
+        "codTrabajo":  ("TIPOSTRAB",   "CODTRABAJO",  "DESCRIPCION"),
+        "codArticulo": ("ARTICULO",    "CODARTICULO", "DESCRIP"),
+        "codProv":     ("PROVEEDORES", "CODPROV",     "NOMBRE"),
+        "codCliente":  ("CLIENTES",    "CODCLIENTE",  "NOMBRE"),
+        "codDocumento":("DOCCAB",      "CODDOC",      "CODDOC"),
+        "codPartida":  ("PARTIDAS",    "CODPARTIDA",  "DESCRIPCION"),
     }
-    info = MAPA_VALORES.get(request.campo)
+    info = MAPA_CAMPO.get(request.campo)
     if not info:
-        return {"ok": False, "campo": request.campo,
-                "valores": [], "error": f"Campo '{request.campo}' no tiene tabla mapeada"}
-    tabla, campo_id, campo_desc, filtro = info
+        return {"ok": False, "campo": request.campo, "valores": [],
+                "error": f"Campo '{request.campo}' no tiene tabla mapeada"}
+    tabla, campo_id, campo_desc = info
     if not settings.DB_NAME:
         return {"ok": False, "campo": request.campo, "valores": [],
-                "error": "DB_NAME no configurado"}
+                "error": "DB_NAME no configurado en el .env del servidor"}
     try:
-        import firebirdsql
-        con = firebirdsql.connect(
-            host=settings.DB_HOST, port=settings.DB_PORT,
-            database=settings.DB_NAME, user=settings.DB_USER,
-            password=settings.DB_PASSWORD, charset="UTF8",
-        )
-        cur = con.cursor()
-        sql = f"SELECT FIRST 10 {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
-        cur.execute(sql)
-        rows = cur.fetchall()
-        cur.close(); con.close()
+        drv = _get_db_driver()
+        try:
+            sql = f"SELECT FIRST 10 {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+            rows = drv.execute_query(sql)
+        finally:
+            drv.disconnect()
         valores = []
         for row in rows:
-            vid  = str(row[0]).strip() if row[0] is not None else ""
-            vdsc = str(row[1]).strip() if row[1] is not None else ""
+            vid  = str(row.get(campo_id,  row.get(campo_id.upper(),  ""))).strip()
+            vdsc = str(row.get(campo_desc, row.get(campo_desc.upper(), ""))).strip()
             if vid:
                 valores.append({"id": vid, "desc": vdsc})
         return {"ok": True, "campo": request.campo, "tabla": tabla, "valores": valores}
-    except ImportError:
-        return {"ok": False, "campo": request.campo, "valores": [],
-                "error": "firebirdsql no instalado"}
     except Exception as exc:
         return {"ok": False, "campo": request.campo, "valores": [],
-                "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+                "error": f"{type(exc).__name__}: {str(exc)[:250]}"}
 
