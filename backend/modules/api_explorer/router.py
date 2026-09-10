@@ -960,16 +960,24 @@ async def auto_probar(request: AutoProbarRequest):
     items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
     if not isinstance(items,list): items=[]
     n=len(items); campos=list(items[0].keys())[:20] if n>0 and isinstance(items[0],dict) else []
+    # Clasificar code=5 correctamente (licencia vs config)
+    _raw_data_txt = str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
+    _NO_LIC_KW = ("licencia","no dispone","sin licencia","module not licensed")
+    if code==5 and any(kw in _raw_data_txt for kw in _NO_LIC_KW):
+        code_estado = "sin_licencia"
+    else:
+        code_estado = None
     SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",
         6:"requiere_params",-1:"error",-99:"bloqueado"}
-    estado=SM.get(code,"error")
+    estado = code_estado or SM.get(code,"error")
+    _raw_msg = str(raw.get("data",raw.get("error","")))[:150] if isinstance(raw,dict) else ""
     MSGS={"ok":f"✅ {n} registro(s)"+(". ID auto-resuelto de BD (valor no mostrado)" if ires else ""),
-          "sin_licencia":"🚫 Sin licencia (code=1). Contactar Distrito K.",
-          "sin_permiso":"🔒 Sin permiso usuario (code=2).",
-          "config_incompleta":f"⚠️ Config incompleta (code=5): {str(raw.get('data',''))[:80]}",
-          "requiere_params":"🔵 Necesita ID real (code=6). "+("Firebird sin datos." if nid else "Usa 'Obtener IDs reales'."),
-          "error":f"❌ code={code}: {str(raw.get('data',''))[:100]}",
-          "bloqueado":"⛔ Escritura bloqueada."}
+          "sin_licencia":f"🚫 Sin licencia (code={code}). Servidor: {_raw_msg[:80]}. Contactar Distrito K.",
+          "sin_permiso":f"🔒 Sin permiso usuario (code=2). Servidor: {_raw_msg[:80]}",
+          "config_incompleta":f"⚠️ Posible config incompleta (code=5). Servidor: {_raw_msg[:100]}",
+          "requiere_params":f"🔵 Necesita ID real (code=6). Servidor: {_raw_msg[:80]}. "+("Auto-BD: fallo." if nid and not ires else ("Auto-BD: OK." if ires else "Usar botón 🔍 BD.")),
+          "error":f"❌ code={code}. Servidor: {_raw_msg[:100]}",
+          "bloqueado":"⛔ Escritura bloqueada — activar modo escritura."}
     svc._history.insert(0,{"timestamp":__import__("datetime").datetime.now().isoformat(),
         "clase":clase,"operacion":operacion,"params":params,"code":code,
         "estado":estado,"duracion_ms":round(ms),"n_items":n,"use_mock":svc.use_mock})
@@ -979,6 +987,7 @@ async def auto_probar(request: AutoProbarRequest):
             "n_items":n,"campos_detectados":campos,
             "necesito_id_real":nid,"id_resuelto":ires,
             "params_usados":params,"ms":round(ms),"use_mock":svc.use_mock,
+            "raw_servidor": _raw_msg,   # mensaje exacto del servidor para el informe/diagnóstico
             # items: lista real de registros para mostrar tabla en el Probador
             "items": items[:20] if isinstance(items, list) else [],
             "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {})}
@@ -1007,21 +1016,38 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
     resultados: dict = {}
     for clase,ops in CLASES_OPS.items():
         entrada={"clase":clase,"resultados_op":{}}
+        # Ejecutar permiso + info siempre para clasificar code=5 correctamente
+        praw,pms = {"code":-1},0
+        iraw,ims = {"code":-1},0
+        try: praw,pms = svc._client().permiso(svc.ssid1,svc.ssid2,clase)
+        except: pass
+        try: iraw,ims = svc._client().info(svc.ssid1,svc.ssid2,clase)
+        except: pass
+        def _estado_code5(raw_resp):
+            data_txt = str((raw_resp or {}).get("data","")).lower()
+            if any(kw in data_txt for kw in ("licencia","no dispone","sin licencia","module not licensed")):
+                return "sin_licencia", "Sin licencia — "+str((raw_resp or {}).get("data",""))[:100]
+            return "config_incompleta", "code=5: "+str((raw_resp or {}).get("data",""))[:100]
         for op in ops:
-            t0=_t.monotonic()
-            try:
-                if op=="browse": raw,ms=svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
-                elif op=="permiso": raw,ms=svc._client().permiso(svc.ssid1,svc.ssid2,clase)
-                elif op=="info": raw,ms=svc._client().info(svc.ssid1,svc.ssid2,clase)
-                elif op=="read": raw,ms=svc._client().read(svc.ssid1,svc.ssid2,clase,{})
-                else: continue
-            except Exception:
-                entrada["resultados_op"][op]={"code":-1,"estado":"error","ok":False,
-                    "ms":round((_t.monotonic()-t0)*1000),"n_items":0,"campos":[],
-                    "necesito_id":False,"id_resuelto":False}; continue
+            if op == "permiso":
+                raw,ms = (praw if isinstance(praw,dict) else {"code":-1}),pms
+            elif op == "info":
+                raw,ms = (iraw if isinstance(iraw,dict) else {"code":-1}),ims
+            else:
+                t0=_t.monotonic()
+                try:
+                    if op=="browse": raw,ms=svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
+                    elif op=="read": raw,ms=svc._client().read(svc.ssid1,svc.ssid2,clase,{})
+                    else: continue
+                except Exception as exc:
+                    entrada["resultados_op"][op]={"code":-1,"estado":"error","ok":False,
+                        "ms":round((_t.monotonic()-t0)*1000),"n_items":0,"campos":[],
+                        "necesito_id":False,"id_resuelto":False,
+                        "mensaje":f"Excepcion: {str(exc)[:100]}"}; continue
             code=raw.get("code") if isinstance(raw,dict) else -1
-            nid=False; ires=False
+            nid=False; ires=False; msg_servidor=""
             if code==6 and op=="browse":
+                msg_servidor = str(raw.get("data",""))[:120]
                 fb=_firebird_primer_id(clase)
                 if fb.get("ok"):
                     nid=True
@@ -1030,19 +1056,28 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                         if isinstance(raw2,dict) and raw2.get("code")==0:
                             raw,ms,code=raw2,ms2,0; ires=True
                     except: pass
+                else:
+                    msg_servidor += " | Firebird: "+fb.get("error","no disponible")
+            if code==0: estado="ok"; msg=""
+            elif code==1: estado="sin_licencia"; msg=str(raw.get("data",""))[:120]
+            elif code==2: estado="sin_permiso"; msg=str(raw.get("data",""))[:120]
+            elif code==5: estado,msg=_estado_code5(raw)
+            elif code==6: estado="requiere_params"; msg=msg_servidor or str(raw.get("data",""))[:120]
+            elif code==-1: estado="error"; msg=str(raw.get("error",raw.get("data","")))[:120]
+            else: estado="error"; msg=f"code={code}: {str(raw.get('data',''))[:100]}"
             items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
             if not isinstance(items,list): items=[]
             n=len(items); campos=list(items[0].keys())[:15] if n>0 and isinstance(items[0],dict) else []
-            SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",6:"requiere_params",-1:"error"}
-            estado=SM.get(code,"error")
             entrada["resultados_op"][op]={"code":code,"estado":estado,"ok":code==0,
-                "ms":round(ms),"n_items":n,"campos":campos,"necesito_id":nid,"id_resuelto":ires}
+                "ms":round(ms),"n_items":n,"campos":campos,"necesito_id":nid,"id_resuelto":ires,
+                "mensaje":msg}
             _t.sleep(0.05)
         ops_r=entrada["resultados_op"]
         if any(v.get("ok") for v in ops_r.values()): entrada["estado_global"]="ok"
         elif any(v.get("estado")=="requiere_params" for v in ops_r.values()): entrada["estado_global"]="requiere_params"
         elif any(v.get("estado")=="sin_licencia" for v in ops_r.values()): entrada["estado_global"]="sin_licencia"
         elif any(v.get("estado")=="sin_permiso" for v in ops_r.values()): entrada["estado_global"]="sin_permiso"
+        elif any(v.get("estado")=="config_incompleta" for v in ops_r.values()): entrada["estado_global"]="config_incompleta"
         else: entrada["estado_global"]="error"
         resultados[clase]=entrada
     ts=__import__("datetime").datetime.now().isoformat()

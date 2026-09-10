@@ -844,6 +844,7 @@ function _mkOpCard(clase, op, sesion) {
       </div>
       <div style="font-size:0.76em;color:#64748b;margin-bottom:3px">${codeExp}</div>
       <div style="font-size:0.8em;padding:5px 8px;background:${ec.bg};border-left:3px solid ${ec.border};border-radius:0 4px 4px 0">${res.mensaje||""}</div>
+      ${res.raw_servidor?`<div style="margin-top:4px;background:#f1f5f9;border-left:3px solid #94a3b8;border-radius:3px;padding:4px 9px;font-size:0.74em;color:#475569;font-family:monospace">Servidor: ${String(res.raw_servidor).slice(0,200)}</div>`:""}
       ${res.necesito_id_real&&!res.id_resuelto?`<div style="margin-top:5px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;padding:5px 10px;font-size:0.77em;color:#1e40af">
         🔵 <b>Requiere identificador real</b> — El sistema intentó obtener un ID de la BD pero no pudo (Firebird no configurado o tabla vacía).<br>
         <span style="color:#374151">Solución: rellena el campo <b>codProyecto</b> (u otro) con el botón <b>🔍 BD</b> o escríbelo manualmente y pulsa <b>▶ Ejecutar</b> de nuevo.</span>
@@ -2618,18 +2619,25 @@ const ApiExplorerModule = {
           const etiq = r?(ELBL[r.estado]||r.estado):"SIN PROBAR";
           ln("     ["+etiq+"]"+risg+" "+OPLN[op]||op);
           if (r) {
-            ln("       code    : "+r.code+"   tiempo: "+(r.ms||0)+"ms   registros obtenidos: "+(r.n_items||0));
-            if (r.n_items>0) ln("       DATOS   : Se obtuvieron "+(r.n_items||0)+" registros reales de SQL Obras (valores no mostrados por privacidad)");
-            if (r.id_resuelto) ln("       AUTO-ID : SI - El sistema obtuvo automaticamente un ID real de Firebird y reintento. Resultado exitoso.");
-            if (r.necesito_id_real&&!r.id_resuelto) ln("       AUTO-ID : FALLO - Firebird no disponible o tabla vacia. Introducir ID manualmente con boton BD.");
-            if (r.params_usados && Object.keys(r.params_usados||{}).length)
-              ln("       PARAMS  : "+JSON.stringify(r.params_usados));
+            ln("       code         : "+r.code+"   tiempo: "+(r.ms||0)+"ms   registros obtenidos: "+(r.n_items||0));
+            if (r.n_items>0) ln("       DATOS        : Se obtuvieron "+(r.n_items||0)+" registros reales de SQL Obras (valores no mostrados por privacidad)");
             if (r.campos_detectados?.length)
-              ln("       CAMPOS  : "+r.campos_detectados.join(", "));
+              ln("       CAMPOS BD    : "+r.campos_detectados.join(", "));
             if (r.muestra_tipos && Object.keys(r.muestra_tipos||{}).length)
-              ln("       TIPOS   : "+Object.entries(r.muestra_tipos).map(([k,v])=>k+":"+v).join(", "));
+              ln("       TIPOS        : "+Object.entries(r.muestra_tipos).map(([k,v])=>k+":"+v).join(", "));
+            if (r.id_resuelto) ln("       AUTO-ID      : SI - El sistema obtuvo automaticamente un ID real de Firebird y reintento con exito.");
+            if (r.necesito_id_real&&!r.id_resuelto) ln("       AUTO-ID      : FALLO - Firebird no disponible o tabla vacia. Introducir ID manualmente con boton BD.");
+            if (r.params_usados && Object.keys(r.params_usados||{}).length)
+              ln("       PARAMS USADOS: "+JSON.stringify(r.params_usados));
+            const rawSrv = (r.raw_servidor||"").trim();
+            if (rawSrv) ln("       RESP.SERVIDOR: "+rawSrv.slice(0,250)+(rawSrv.length>250?"...":""));
             const msg = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
-            if (msg) ln("       MENSAJE : "+msg.slice(0,300)+(msg.length>300?"...":""));
+            if (msg) ln("       MENSAJE      : "+msg.slice(0,300)+(msg.length>300?"...":""));
+            // Explicacion adicional segun estado
+            if (r.estado==="sin_licencia") ln("       ACCION       : Contactar Distrito K para ampliar la licencia del modulo.");
+            if (r.estado==="config_incompleta") ln("       ACCION       : Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en el .env del servidor.");
+            if (r.estado==="requiere_params"&&!r.id_resuelto) ln("       ACCION       : Pulsar boton BD en el formulario del Probador o configurar Firebird en el .env.");
+            if (r.estado==="error") ln("       ACCION       : Verificar que el servidor mPYME esta arrancado y accesible desde DEVIA.");
           } else {
             ln("       (operacion no probada - ejecutar manualmente con el formulario)");
           }
