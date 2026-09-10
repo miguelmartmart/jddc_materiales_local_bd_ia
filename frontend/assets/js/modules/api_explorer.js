@@ -828,10 +828,10 @@ function _mkOpCard(clase, op, sesion) {
              style="border:1px solid #fde68a;background:#fefce8;color:#92400e;border-radius:4px;padding:2px 7px;font-size:0.74em;cursor:pointer">❓ Ayuda</button>`
         : "";
       const input = f.t==="select"
-        ? `<select id="ap-${clase}-${op}-${f.n}" style="width:100%;border:2px solid ${isReq?'#fca5a5':'#e2e8f0'};border-radius:5px;padding:5px 8px;font-size:0.83em;background:white">
+        ? `<select id="ap-${clase}-${op}-${f.n}" data-param="${f.n}" style="width:100%;border:2px solid ${isReq?'#fca5a5':'#e2e8f0'};border-radius:5px;padding:5px 8px;font-size:0.83em;background:white">
              ${(f.opts||[]).map(o=>`<option value="${o}">${o||"(todos — sin filtro)"}</option>`).join("")}
            </select>`
-        : `<input id="ap-${clase}-${op}-${f.n}" type="${f.t||"text"}" placeholder="${f.ph||pi?.ej||""}"
+        : `<input id="ap-${clase}-${op}-${f.n}" data-param="${f.n}" type="${f.t||"text"}" placeholder="${f.ph||pi?.ej||""}"
              style="width:100%;border:2px solid ${isReq?'#fca5a5':'#e2e8f0'};border-radius:5px;padding:5px 8px;font-size:0.83em;transition:border-color .15s"
              oninput="this.style.borderColor=this.value?'#86efac':'${isReq?'#fca5a5':'#e2e8f0'}'">`;
       const helpPanel = pi ? `<div id="ap-help-${clase}-${op}-${f.n}" style="display:none;border:1px solid #fde68a;border-radius:5px;overflow:hidden;margin-top:3px">
@@ -908,7 +908,7 @@ function _mkOpCard(clase, op, sesion) {
       ${res?`<span style="font-size:0.73em;color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</span>`:`<span style="font-size:0.71em;color:#94a3b8">⬜ Sin probar</span>`}
       ${bloqueadoPorEsc
         ? `<span style="font-size:0.79em;padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:5px;color:#991b1b;font-weight:600">🔒 Bloqueada — activar escritura</span>`
-        : `<button onclick="ApiExplorerModule.doEjecutarProbador('${clase}','${op}')"
+        : `<button onclick="ApiExplorerModule.doEjecutarProbador('${clase}','${op}')" data-exec="1"
              ${!sesion?"disabled":""}
              style="font-size:0.8em;padding:4px 14px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">
              ${esW?"⚠️ Ejecutar (escritura)":"▶ Ejecutar"}
@@ -3018,6 +3018,67 @@ const ApiExplorerModule = {
     delete window._ae_export_ctx_temp;
   },
 
+
+  async doEjecutarProbador(clase, op) {
+    // Ejecuta manualmente con los params del formulario de la tarjeta
+    const key = `${clase}.${op}`;
+    const card = document.getElementById(`ae-prob-${clase}-${op}`);
+
+    // Recoger todos los valores de los inputs del formulario de esta tarjeta
+    const params = {};
+    if (card) {
+      card.querySelectorAll('input[data-param], select[data-param]').forEach(function(inp) {
+        const pname = inp.getAttribute('data-param');
+        const val = inp.value.trim();
+        if (pname && val) params[pname] = val;
+      });
+      // Deshabilitar boton mientras se ejecuta
+      const btn = card.querySelector('button[data-exec]');
+      if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+    }
+
+    // Confirmacion si es escritura
+    const RIESGO_OP = {browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:0,write:2,imputaPro:2,delete:3};
+    if ((RIESGO_OP[op]||0) >= 2) {
+      const modoEsc = (_state.status||{}).modo_escritura;
+      if (!modoEsc) {
+        alert('Esta operacion requiere activar el Modo Escritura en la pestana Escritura.');
+        if (card) { const btn=card.querySelector('button[data-exec]'); if(btn){btn.textContent='⚠️ Ejecutar (escritura)';btn.disabled=false;} }
+        return;
+      }
+      if (!confirm('CONFIRMACION REQUERIDA\n\nVas a ejecutar ' + clase + '.' + op + '() que MODIFICARA SQL Obras.\nEsta accion puede ser irreversible.\n\n¿Continuar?')) {
+        if (card) { const btn=card.querySelector('button[data-exec]'); if(btn){btn.textContent='⚠️ Ejecutar (escritura)';btn.disabled=false;} }
+        return;
+      }
+    }
+
+    _probLoad[clase] = true;
+    try {
+      const r = await _fetch('/auto-probar', {method:'POST', body: JSON.stringify({clase, operacion:op, params})});
+      // Generar tabla HTML si hay items
+      if (r.items && Array.isArray(r.items) && r.items.length > 0) {
+        const keys = Object.keys(r.items[0]);
+        r.tabla_html = '<div style="margin-top:6px;overflow-x:auto;border-radius:5px;border:1px solid #e2e8f0">'
+          + '<table style="width:100%;border-collapse:collapse;background:white">'
+          + '<thead style="background:#f8fafc"><tr>'
+          + keys.map(function(k){return '<th style="padding:3px 7px;text-align:left;font-size:0.73em;color:#64748b;border-bottom:1px solid #e2e8f0">'+k+'</th>';}).join('')
+          + '</tr></thead><tbody>'
+          + r.items.slice(0,15).map(function(row){
+              return '<tr>'+keys.map(function(k){return '<td style="padding:2px 7px;font-size:0.8em;border-bottom:1px solid #f8fafc">'+(row[k]!=null?row[k]:'')+'</td>';}).join('')+'</tr>';
+            }).join('')
+          + '</tbody></table></div>';
+        r.campos_detectados = keys;
+      }
+      _probRes[key] = r;
+    } catch(e) {
+      _probRes[key] = {code:-1, estado:'error', ms:0, n_items:0, campos_detectados:[], mensaje:'Error: '+e.message, necesito_id_real:false, id_resuelto:false, tabla_html:''};
+    } finally {
+      _probLoad[clase] = false;
+    }
+    // Re-renderizar solo esta tarjeta
+    const cn = document.getElementById(`ae-prob-${clase}-${op}`);
+    if (cn) cn.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active || true);
+  },
 
   async doAutoProbarOp(clase, op) {
     // Prueba automática sin params manuales — auto-resuelve code=6 con BD
