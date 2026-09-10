@@ -879,23 +879,25 @@ async def obtener_ids_reales():
 # backend/drivers/db/firebird_driver.py + backend/core/factory/db_factory.py
 
 MAPA_FIREBIRD = {
-    "proyectos":   ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
-    "partidas":    ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
-    "proordutil":  ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
-    "proordprev":  ("PROYECTOS",  "CODPROYE",    "DENOMINACION", "codProyecto"),
-    "reporden":    ("REPORDEN",   "CODORDEN",    "DESCRIPCION",  "codOrden"),
-    "repordutil":  ("REPORDEN",   "CODORDEN",    "DESCRIPCION",  "codOrden"),
-    "recursos":    ("RECURSOS",   "CODRECURSO",  "NOMBRE",       "codRecurso"),
-    "repobjetos":  ("REPOBJETOS", "CODOBJETO",   "DESCRIPCION",  "codObjeto"),
-    "repinst":     ("REPINST",    "CODINST",     "DESCRIPCION",  "codInst"),
-    "tipostrabajo":("TIPOSTRAB",  "CODTRABAJO",  "DESCRIPCION",  "codTrabajo"),
-    "articulos":   ("ARTICULO",   "CODARTICULO", "DESCRIP",      "codArticulo"),
-    "proveedores": ("PROVEEDORES","CODPROV",      "NOMBRE",       "codProv"),
-    "clientes":    ("CLIENTES",   "CODCLIENTE",  "NOMBRE",       "codCliente"),
-    "docalbcom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
-    "docfaccom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
-    "docpedcom":   ("DOCCAB",     "CODDOC",      "CODDOC",       "codDocumento"),
-    "ordenfab":    ("ORDENFAB",   "CODORDEN",    "CODORDEN",     "codOrden"),
+    # Tabla real Firebird (confirmada por db_metadata_optimized.json)
+    # (tabla, campo_id, campo_desc, param_api_mpyme)
+    "proyectos":   ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
+    "partidas":    ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
+    "proordutil":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
+    "proordprev":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
+    "reporden":    ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
+    "repordutil":  ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
+    "recursos":    ("RECURSO",       "CODIGO",  "DESCRIPCION",  "codRecurso"),
+    "repobjetos":  ("REPOBJETO",     "CODIGO",  "NOMBRE",       "codObjeto"),
+    "repinst":     ("REPINSTALACION","CODIGO",  "NOMBRE",       "codInst"),
+    "tipostrabajo":("REPARA",        "CODIGO",  "DESCRIPCION",  "codTrabajo"),
+    "articulos":   ("ARTICULO",      "CODIGO",  "NOMBRE",       "codArticulo"),
+    "proveedores": ("PROVEED",       "CODIGO",  "RAZONSOCIAL",  "codProv"),
+    "clientes":    ("CLIENTE",       "CODIGO",  "NOMBRE",       "codCliente"),
+    "docalbcom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
+    "docfaccom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
+    "docpedcom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
+    "ordenfab":    ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
 }
 
 
@@ -934,7 +936,11 @@ def _firebird_ids(clase: str, n: int = 5) -> dict:
     try:
         drv = _get_db_driver()
         try:
-            sql = f"SELECT FIRST {n} {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+            # Si campo_id == campo_desc evitar SELECT duplicado
+            if campo_id == campo_desc:
+                sql = f"SELECT FIRST {n} {campo_id} FROM {tabla} ORDER BY {campo_id}"
+            else:
+                sql = f"SELECT FIRST {n} {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
             rows = drv.execute_query(sql)
         finally:
             drv.disconnect()
@@ -942,10 +948,22 @@ def _firebird_ids(clase: str, n: int = 5) -> dict:
             return {"ok": False, "error": f"Tabla {tabla} vacía (sin registros)"}
         valores = []
         for row in rows:
-            vid = str(row.get(campo_id, row.get(campo_id.upper(), ""))).strip()
-            vdesc = str(row.get(campo_desc, row.get(campo_desc.upper(), ""))).strip()
+            # El driver devuelve claves en minúsculas o mayúsculas según charset
+            vid = ""
+            for key in [campo_id, campo_id.lower(), campo_id.upper()]:
+                v = row.get(key, "")
+                if v:
+                    vid = str(v).strip(); break
+            if campo_id == campo_desc:
+                vdesc = vid
+            else:
+                vdesc = ""
+                for key in [campo_desc, campo_desc.lower(), campo_desc.upper()]:
+                    v = row.get(key, "")
+                    if v:
+                        vdesc = str(v).strip(); break
             if vid:
-                valores.append({"id": vid, "desc": vdesc})
+                valores.append({"id": vid, "desc": vdesc if vdesc else vid})
         if not valores:
             return {"ok": False, "error": f"Tabla {tabla}: sin valor en campo {campo_id}"}
         return {"ok": True, "param": param_api,
@@ -992,7 +1010,7 @@ def _firebird_diagnostico() -> dict:
     try:
         drv = _get_db_driver()
         result["conexion_ok"] = True
-        for tabla in ["PROYECTOS", "REPORDEN", "ARTICULO", "RECURSOS", "CLIENTES", "PROVEEDORES"]:
+        for tabla in ["PROYECTOS", "REPCAB", "ARTICULO", "RECURSO", "CLIENTE", "PROVEED"]:
             try:
                 rows = drv.execute_query(f"SELECT COUNT(*) AS N FROM {tabla}")
                 cnt = rows[0].get("N", rows[0].get("COUNT", 0)) if rows else 0
@@ -1235,17 +1253,18 @@ async def valores_param(request: ValoresParamRequest):
     )
     # Mapeo alternativo por nombre de campo API (los mapas de MAPA_FIREBIRD usan clase, no campo)
     MAPA_CAMPO = {
-        "codProyecto": ("PROYECTOS",   "CODPROYE",    "DENOMINACION"),
-        "codOrden":    ("REPORDEN",    "CODORDEN",    "DESCRIPCION"),
-        "codRecurso":  ("RECURSOS",    "CODRECURSO",  "NOMBRE"),
-        "codObjeto":   ("REPOBJETOS",  "CODOBJETO",   "DESCRIPCION"),
-        "codInst":     ("REPINST",     "CODINST",     "DESCRIPCION"),
-        "codTrabajo":  ("TIPOSTRAB",   "CODTRABAJO",  "DESCRIPCION"),
-        "codArticulo": ("ARTICULO",    "CODARTICULO", "DESCRIP"),
-        "codProv":     ("PROVEEDORES", "CODPROV",     "NOMBRE"),
-        "codCliente":  ("CLIENTES",    "CODCLIENTE",  "NOMBRE"),
-        "codDocumento":("DOCCAB",      "CODDOC",      "CODDOC"),
-        "codPartida":  ("PARTIDAS",    "CODPARTIDA",  "DESCRIPCION"),
+        # Nombres reales de tablas y columnas confirmados en db_metadata_optimized.json
+        "codProyecto": ("PROYECTOS",     "CODIGO",  "NOMBRE"),
+        "codOrden":    ("REPCAB",        "CODIGO",  "CODIGO"),
+        "codRecurso":  ("RECURSO",       "CODIGO",  "DESCRIPCION"),
+        "codObjeto":   ("REPOBJETO",     "CODIGO",  "NOMBRE"),
+        "codInst":     ("REPINSTALACION","CODIGO",  "NOMBRE"),
+        "codTrabajo":  ("REPARA",        "CODIGO",  "DESCRIPCION"),
+        "codArticulo": ("ARTICULO",      "CODIGO",  "NOMBRE"),
+        "codProv":     ("PROVEED",       "CODIGO",  "RAZONSOCIAL"),
+        "codCliente":  ("CLIENTE",       "CODIGO",  "NOMBRE"),
+        "codDocumento":("DOCCAB",        "CODIGO",  "CODIGO"),
+        "codPartida":  ("PRESUPROYE",    "CODIGO",  "CODIGO"),
     }
     info = MAPA_CAMPO.get(request.campo)
     if not info:
@@ -1258,16 +1277,30 @@ async def valores_param(request: ValoresParamRequest):
     try:
         drv = _get_db_driver()
         try:
-            sql = f"SELECT FIRST 10 {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+            if campo_id == campo_desc:
+                sql = f"SELECT FIRST 10 {campo_id} FROM {tabla} ORDER BY {campo_id}"
+            else:
+                sql = f"SELECT FIRST 10 {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
             rows = drv.execute_query(sql)
         finally:
             drv.disconnect()
         valores = []
         for row in rows:
-            vid  = str(row.get(campo_id,  row.get(campo_id.upper(),  ""))).strip()
-            vdsc = str(row.get(campo_desc, row.get(campo_desc.upper(), ""))).strip()
+            vid = ""
+            for key in [campo_id, campo_id.lower(), campo_id.upper()]:
+                v = row.get(key, "")
+                if v:
+                    vid = str(v).strip(); break
+            if campo_id == campo_desc:
+                vdsc = vid
+            else:
+                vdsc = ""
+                for key in [campo_desc, campo_desc.lower(), campo_desc.upper()]:
+                    v = row.get(key, "")
+                    if v:
+                        vdsc = str(v).strip(); break
             if vid:
-                valores.append({"id": vid, "desc": vdsc})
+                valores.append({"id": vid, "desc": vdsc if vdsc else vid})
         return {"ok": True, "campo": request.campo, "tabla": tabla, "valores": valores}
     except Exception as exc:
         return {"ok": False, "campo": request.campo, "valores": [],
