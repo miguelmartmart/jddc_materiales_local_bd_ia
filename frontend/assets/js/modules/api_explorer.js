@@ -270,6 +270,7 @@ function renderTab(s) {
   if (_state.currentTab === "conexion") return renderConexion(s, cfg);
   if (_state.currentTab === "inspector") return renderInspector(s);
   if (_state.currentTab === "explorador") return renderExplorador(s, modulos, mod, clases, cls, ops, op, riesgo, RLBL);
+  if (_state.currentTab === "probador") return renderProbador(s);
   if (_state.currentTab === "permisos") return !s.session_active ? noSesion() : renderPermisos(CLASSES, ops_cols, permisoR);
   if (_state.currentTab === "matriz") return renderMatriz(catalogue, mat);
   if (_state.currentTab === "historial") return renderHistorial(hist, resumen);
@@ -338,64 +339,6 @@ const _CAMPOEXP = {
 let _probRes = {};   // {clase+"."+op: resultado backend}
 let _probLoad = {};  // {clase: bool cargando}
 
-
-
-// =============================================================
-// PROBADOR VISUAL - prueba todas las clases con acordeón
-// =============================================================
-const _ECFG = {
-  ok:              {sym:"✅", label:"Funciona",         color:"#166534", bg:"#dcfce7", border:"#86efac"},
-  requiere_params: {sym:"🔵", label:"Necesita ID real",  color:"#1e40af", bg:"#dbeafe", border:"#93c5fd"},
-  sin_licencia:    {sym:"🚫", label:"Sin licencia",       color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
-  sin_permiso:     {sym:"🔒", label:"Sin permiso",        color:"#374151", bg:"#f8fafc", border:"#cbd5e1"},
-  config_incompleta:{sym:"⚠️",label:"Config incompleta", color:"#92400e", bg:"#fef9c3", border:"#fde047"},
-  error:           {sym:"❌", label:"Error",              color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
-  bloqueado:       {sym:"⛔", label:"Escritura bloq.",   color:"#92400e", bg:"#fff7ed", border:"#fed7aa"},
-  pendiente:       {sym:"⬜", label:"Sin probar",         color:"#64748b", bg:"#f8fafc", border:"#e2e8f0"},
-};
-const _OPDESC = {
-  browse:    {riesgo:0,label:"Listar registros",   rl:"Solo lectura",
-              desc:"Devuelve lista de registros. Puede necesitar filtros (codProyecto, codOrden...)."},
-  read:      {riesgo:0,label:"Leer uno",           rl:"Solo lectura",
-              desc:"Lee un registro concreto por su código identificador único."},
-  permiso:   {riesgo:0,label:"Ver permisos",       rl:"Solo lectura",
-              desc:"Audita qué operaciones permite la licencia para esta clase."},
-  info:      {riesgo:0,label:"Ver campos",         rl:"Solo lectura",
-              desc:"Devuelve metadatos: nombres y tipos de todos los campos del objeto."},
-  new:       {riesgo:1,label:"Crear temporal",     rl:"Preparación (sin riesgo)",
-              desc:"Crea un objeto TEMPORAL en sesión. No persiste hasta write. Cancel lo descarta."},
-  edit:      {riesgo:1,label:"Editar temporal",    rl:"Preparación (sin riesgo)",
-              desc:"Igual que new pero sobre un registro existente."},
-  cancel:    {riesgo:0,label:"Cancelar temporal",  rl:"Solo lectura",
-              desc:"Descarta el objeto temporal. Siempre seguro. No modifica nada."},
-  write:     {riesgo:2,label:"Guardar (REAL)",     rl:"ESCRITURA REAL",
-              desc:"PERSISTE en SQL Obras. Irreversible. Requiere activar modo escritura."},
-  imputaPro: {riesgo:2,label:"ImputaPro (REAL)",   rl:"ESCRITURA REAL",
-              desc:"Vincula compra a proyecto como coste real. ESCRITURA en SQL Obras."},
-  delete:    {riesgo:3,label:"Eliminar (DESTR.)",  rl:"DESTRUCTIVO",
-              desc:"Elimina definitivamente. Usar solo en entorno de pruebas."},
-};
-const _CODEEXP = {
-  "0":"Éxito — operación completada correctamente.",
-  "1":"Sin licencia — módulo no contratado. Contactar Distrito K.",
-  "2":"Sin permiso de usuario — pedir al admin SQL Obras.",
-  "3":"Error de validación — un parámetro tiene formato incorrecto.",
-  "5":"Config incompleta — empresa/usuario incorrectos en .env.",
-  "6":"Requiere identificador — necesita codProyecto, codOrden u otro ID.",
-  "10":"No encontrado — registro con ese ID no existe.",
-  "-1":"Error de red — no se pudo conectar al servidor mPYME.",
-  "-99":"Bloqueado — escritura desactivada.",
-};
-const _CAMPOEXP = {
-  CODPROYE:"Código del proyecto (ej: 26/001)",DENOMINACION:"Nombre del proyecto",
-  CODORDEN:"Código de la orden de reparación",CODRECURSO:"Código del recurso",
-  CODARTICULO:"Código del artículo/material",CANTIDAD:"Cantidad usada o prevista",
-  COSTE:"Coste unitario",PRECIO:"Precio de venta unitario",
-  ESTADO:"Estado (A=activo, C=cerrado...)",FECHA:"Fecha del registro",
-  NOMBRE:"Nombre del elemento",DESCRIPCION:"Descripción larga",
-};
-let _probRes = {};   // {"clase.op": resultado backend}
-let _probLoad = {};  // {"clase": bool cargando}
 
 
 
