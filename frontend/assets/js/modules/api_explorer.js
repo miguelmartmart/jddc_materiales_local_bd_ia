@@ -574,13 +574,7 @@ function renderProbador(s) {
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
            📄 Exportar TXT
          </button>
-       </div>`}
-        <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
-          class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
-          ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
-          📄 Exportar resultados TXT
-        </button>
-      </div>
+       </div>
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
       <span style="font-size:0.76em;color:#94a3b8">👀 Ver como:</span>${perfilChips}
@@ -617,34 +611,38 @@ function renderProbador(s) {
   if (!cat || !Object.keys(catalogue).length)
     return h + `<div style="background:#fef9c3;border-radius:8px;padding:14px;font-size:0.85em;color:#92400e">⏳ Cargando catálogo…</div>`;
 
-  // ── Sección: Aplicaciones posibles ─────────────────────────────────────────
-  h += `<details style="margin-bottom:10px;border:1px solid #bfdbfe;border-radius:10px;overflow:hidden">
-    <summary style="cursor:pointer;padding:11px 16px;background:linear-gradient(90deg,#eff6ff,#f0fdf4);display:flex;align-items:center;gap:10px">
-      <span style="font-size:1.2em">🚀</span>
-      <span style="font-weight:700;font-size:0.93em;flex:1;color:#1e293b">Aplicaciones posibles con esta API</span>
-      <span style="font-size:0.74em;color:#64748b">6 apps · expandir para ver</span>
-      <span style="color:#94a3b8">▾</span>
-    </summary>
-    <div style="padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;background:white">
-      ${_APPS.map(app=>\`<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-        <div style="padding:9px 12px;background:#f8fafc;display:flex;align-items:center;gap:7px">
-          <span style="font-size:1.3em">\${app.emoji}</span>
-          <div><b style="font-size:0.87em;color:#1e293b">\${app.t}</b><br><span style="font-size:0.73em;color:#64748b">\${app.s}</span></div>
-        </div>
-        <div style="padding:8px 12px;font-size:0.79em;color:#374151">\${app.d}</div>
-        <details style="border-top:1px solid #f1f5f9">
-          <summary style="cursor:pointer;padding:5px 12px;font-size:0.74em;color:#3b82f6;background:#f8fafc">Ver detalle técnico ▾</summary>
-          <div style="padding:8px 12px;font-size:0.76em;display:grid;gap:4px;background:white">
-            <div style="color:#166534"><b>✅ Beneficio:</b> \${app.b}</div>
-            <div style="color:#0369a1"><b>🔄 Flujo API:</b><br><code style="background:#f0f9ff;padding:2px 6px;border-radius:3px;font-size:0.9em">\${app.flujo}</code></div>
-            <div><b>📦 Clases necesarias:</b> \${app.cls.map(c=>\`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">\${c}</code>\`).join(" ")}</div>
-            <div><b>🔑 Operaciones:</b> \${app.ops.map(o=>\`<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px">\${o}</span>\`).join(" ")}</div>
-            <div><b>⚠️ Riesgo:</b> <span style="font-weight:600;color:\${app.riesgo.includes('Solo')?'#166534':'#92400e'}">\${app.riesgo}</span></div>
-          </div>
-        </details>
-      </div>\`).join("")}
-    </div>
-  </details>`;
+  // ── Sección: Aplicaciones posibles
+  if (typeof _APPS !== 'undefined') {
+    var _appsHtml = _APPS.map(function(app) {
+      var clsH = app.cls.map(function(c){ return '<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">'+c+'</code>'; }).join(' ');
+      var opsH = app.ops.map(function(o){ return '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px">'+o+'</span>'; }).join(' ');
+      var _col = app.riesgo.indexOf('Solo')>=0 ? '#166534' : '#92400e';
+      return '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">'
+        +'<div style="padding:9px 12px;background:#f8fafc;display:flex;align-items:center;gap:7px">'
+        +'<span style="font-size:1.3em">'+app.emoji+'</span>'
+        +'<div><b style="font-size:0.87em;color:#1e293b">'+app.t+'</b><br>'
+        +'<span style="font-size:0.73em;color:#64748b">'+app.s+'</span></div></div>'
+        +'<div style="padding:8px 12px;font-size:0.79em;color:#374151">'+app.d+'</div>'
+        +'<details style="border-top:1px solid #f1f5f9">'
+        +'<summary style="cursor:pointer;padding:5px 12px;font-size:0.74em;color:#3b82f6;background:#f8fafc">Ver detalle técnico ▾</summary>'
+        +'<div style="padding:8px 12px;font-size:0.76em;display:grid;gap:4px;background:white">'
+        +'<div style="color:#166534"><b>Beneficio:</b> '+app.b+'</div>'
+        +'<div style="color:#0369a1"><b>Flujo API:</b><br>'
+        +'<code style="background:#f0f9ff;padding:2px 6px;border-radius:3px">'+app.flujo+'</code></div>'
+        +'<div><b>Clases necesarias:</b> '+clsH+'</div>'
+        +'<div><b>Operaciones:</b> '+opsH+'</div>'
+        +'<div><b>Riesgo:</b> <span style="font-weight:600;color:'+_col+'">'+app.riesgo+'</span></div>'
+        +'</div></details></div>';
+    }).join('');
+    h += '<details style="margin-bottom:10px;border:1px solid #bfdbfe;border-radius:10px;overflow:hidden">'
+      +'<summary style="cursor:pointer;padding:11px 16px;background:linear-gradient(90deg,#eff6ff,#f0fdf4);display:flex;align-items:center;gap:10px">'
+      +'<span style="font-size:1.2em">&#128640;</span>'
+      +'<span style="font-weight:700;font-size:0.93em;flex:1;color:#1e293b">Aplicaciones posibles con esta API</span>'
+      +'<span style="font-size:0.74em;color:#64748b">6 apps &middot; expandir para ver</span>'
+      +'</summary>'
+      +'<div style="padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;background:white">'
+      + _appsHtml + '</div></details>';
+  }
 
   // ── Sección: Aprende sobre SQL Obras y la API ──────────────────────────────
   h += `<details style="margin-bottom:10px;border:1px solid #d1fae5;border-radius:10px;overflow:hidden">
@@ -658,7 +656,7 @@ function renderProbador(s) {
         <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
           <div style="padding:8px 12px;background:#f8fafc;font-weight:700;font-size:0.84em;color:#374151">📖 Glosario SQL Obras ↔ API</div>
           <div style="max-height:260px;overflow-y:auto">
-            ${_GLO.map(g=>\`<div style="padding:5px 12px;border-bottom:1px solid #f8fafc;font-size:0.77em"><span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-weight:600">\${g.sql}</span> → <code style="background:#f1f5f9;color:#374151;padding:1px 5px;border-radius:3px">\${g.api}</code><div style="color:#64748b;margin-top:2px">\${g.desc}</div></div>\`).join("")}
+            ${(typeof _GLO!=='undefined'?_GLO:[]).map(function(g){return '<div style="padding:5px 12px;border-bottom:1px solid #f8fafc;font-size:0.77em"><span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-weight:600">'+g.sql+'</span> &rarr; <code style="background:#f1f5f9;color:#374151;padding:1px 5px;border-radius:3px">'+g.api+'</code><div style="color:#64748b;margin-top:2px">'+g.desc+'</div></div>';}).join("")}
           </div>
         </div>
         <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
@@ -676,7 +674,7 @@ function renderProbador(s) {
         <summary style="cursor:pointer;padding:7px 12px;background:#f8fafc;font-size:0.82em;font-weight:700;color:#374151">📡 Códigos de respuesta — ¿Qué significa cada code?</summary>
         <div style="padding:8px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:5px;background:white">
           ${[["0","✅","#dcfce7","#166534","Operación exitosa."],["1","🚫","#fef2f2","#991b1b","Sin licencia."],["2","🔒","#f8fafc","#64748b","Sin permiso."],["3","⚠️","#fef9c3","#92400e","Error validación."],["5","⚙️","#fff7ed","#92400e","Config incompleta."],["6","🔵","#dbeafe","#1d4ed8","Requiere ID real."],["10","🔍","#f8fafc","#64748b","No encontrado."],["-1","💥","#fef2f2","#991b1b","Error de red."],["-99","⛔","#f8fafc","#374151","Escritura bloqueada."]]
-          .map(([c,ic,bg,cl,d])=>\`<div style="background:\${bg};border-radius:5px;padding:5px 8px;font-size:0.76em"><b style="color:\${cl}">\${ic} code=\${c}</b><div style="color:#475569;margin-top:2px">\${d}</div></div>\`).join("")}
+          .map(function(x){var c=x[0],ic=x[1],bg=x[2],cl=x[3],d=x[4];return '<div style="background:'+bg+';border-radius:5px;padding:5px 8px;font-size:0.76em"><b style="color:'+cl+'">'+ic+' code='+c+'</b><div style="color:#475569;margin-top:2px">'+d+'</div></div>';}).join("")}
         </div>
       </details>
       <details style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
@@ -3242,5 +3240,4 @@ document.addEventListener('click', function(e) {
   // Ejecutar sonda directamente en el Inspector > Resumen
   ApiExplorerModule._ejecutarPlanPruebaInspector(clase, op, params);
 });
-
 

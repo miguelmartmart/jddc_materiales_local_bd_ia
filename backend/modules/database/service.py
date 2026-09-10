@@ -139,7 +139,8 @@ class DatabaseService:
             results = driver.execute_query(query)
             return [r['NAME'] for r in results]
         except Exception as e:
-            logger.error(f"Error listing tables: {e}")
+            # WARNING not ERROR — BD unreachable is expected when outside office network
+            logger.warning(f"Error listing tables: {e}")
             raise
         finally:
             if driver:
