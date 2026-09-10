@@ -689,9 +689,16 @@ function renderProbador(s) {
   Object.entries(catalogue).forEach(([modNombre, claseMap]) => {
     const clasesArr = Object.entries(claseMap);
     const nOk = clasesArr.filter(([c])=>{const r=_probRes[c+".browse"]||_probRes[c+".permiso"];return r&&r.estado==="ok";}).length;
+    const modMeta = cat.catalogue[modNombre] || {};
+    const modEmoji = modMeta.emoji || "📦";
+    const modDesc  = modMeta.desc  || "";
     h += `<details open style="margin-bottom:8px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
       <summary style="padding:10px 16px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none">
-        <span>📦</span><span style="font-weight:700;font-size:0.93em;flex:1">${modNombre}</span>
+        <span style="font-size:1.1em">${modEmoji}</span>
+        <div style="flex:1;min-width:0">
+          <span style="font-weight:700;font-size:0.93em">${modNombre}</span>
+          ${modDesc?`<span style="font-size:0.75em;color:#64748b;margin-left:6px">${modDesc}</span>`:""}
+        </div>
         <span style="font-size:0.75em;color:#94a3b8">${clasesArr.length} clases</span>
         ${nOk>0?`<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.7em;font-weight:700">${nOk} ✅</span>`:""}
         <span style="color:#94a3b8">▾</span>
@@ -821,7 +828,10 @@ function _mkOpCard(clase, op, sesion) {
     const campos = res.campos_detectados||[];
     const camposHtml = campos.length
       ? `<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">
-           ${campos.map(c=>`<code title="${_CAMPOEXP[c.toUpperCase()]||c}" style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:0.82em;cursor:help">${c}</code>`).join("")}
+           ${campos.map(c=>{
+             const tt = _CF[clase]?.campos?.[c] || _CAMPOEXP[c.toUpperCase()] || c;
+             return `<code title="${tt}" style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:0.82em;cursor:help" data-tip="${tt}">${c}</code>`;
+           }).join("")}
          </div>` : "";
     const tablaHtml = res.tabla_html || "";
     resultHtml = `<div style="padding:8px 12px;border-top:1px solid ${ec.border};background:white">
@@ -834,6 +844,10 @@ function _mkOpCard(clase, op, sesion) {
       </div>
       <div style="font-size:0.76em;color:#64748b;margin-bottom:3px">${codeExp}</div>
       <div style="font-size:0.8em;padding:5px 8px;background:${ec.bg};border-left:3px solid ${ec.border};border-radius:0 4px 4px 0">${res.mensaje||""}</div>
+      ${res.necesito_id_real&&!res.id_resuelto?`<div style="margin-top:5px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;padding:5px 10px;font-size:0.77em;color:#1e40af">
+        🔵 <b>Requiere identificador real</b> — El sistema intentó obtener un ID de la BD pero no pudo (Firebird no configurado o tabla vacía).<br>
+        <span style="color:#374151">Solución: rellena el campo <b>codProyecto</b> (u otro) con el botón <b>🔍 BD</b> o escríbelo manualmente y pulsa <b>▶ Ejecutar</b> de nuevo.</span>
+      </div>`:""}
       ${campos.length?`<p style="font-size:0.75em;color:#64748b;font-weight:600;margin:5px 0 2px">Campos detectados:</p>${camposHtml}`:""}
       ${tablaHtml}
     </div>`;
