@@ -2508,246 +2508,269 @@ const ApiExplorerModule = {
     const perfil = _state.probadorPerfil || "tecnico";
     const isMock = s.use_mock;
     const empresa = s.empresa || "JDDC";
-    const usuario = s.usuario || "—";
+    const usuario = s.usuario || "---";
+    const apiUrl = s.api_url || "(no configurada)";
     const ts = new Date().toLocaleString("es-ES");
-    const SEP = "=".repeat(70); const sep = "-".repeat(70);
+    const SEP = "=".repeat(72); const sep = "-".repeat(72);
     const hay = Object.keys(_probRes).length > 0;
-    if (!hay) { alert("Sin resultados. Pulsa '🚀 Probar todas' primero."); return; }
-
+    if (!hay) { alert("Sin resultados. Pulsa Probar todas primero."); return; }
     const porEst = {};
     Object.values(_probRes).forEach(r => { porEst[r.estado]=(porEst[r.estado]||0)+1; });
     const nOk=porEst.ok||0, nReq=porEst.requiere_params||0;
-    const nLic=porEst.sin_licencia||0, nPer=porEst.sin_permiso||0, nErr=porEst.error||0;
+    const nLic=porEst.sin_licencia||0, nPer=porEst.sin_permiso||0;
+    const nErr=porEst.error||0, nCfg=porEst.config_incompleta||0, nBlq=porEst.bloqueado||0;
     const total=Object.keys(_probRes).length;
-    const L = []; const ln = s => L.push(s);
-
+    const conRegistros   = Object.values(_probRes).filter(r=>r.n_items>0);
+    const conAutoResolve = Object.values(_probRes).filter(r=>r.id_resuelto);
+    const conError       = Object.entries(_probRes).filter(([,r])=>r.estado==="error"||r.code===-1);
+    const clasesProbadasSet = new Set(Object.keys(_probRes).map(k=>k.split(".")[0]));
+    const clasesTotalesSet  = new Set(Object.values(catalogue).flatMap(m=>Object.keys(m)));
+    const clasesSinProbar   = [...clasesTotalesSet].filter(c=>!clasesProbadasSet.has(c));
+    const RIESGO_OP = {browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:0,write:2,imputaPro:2,exec:2,delete:3};
+    const opsEscritura = [];
+    Object.entries(catalogue).forEach(([mod,cm])=>Object.entries(cm).forEach(([cls,ops])=>{
+      (ops||[]).forEach(op=>{if((RIESGO_OP[op]||0)>=2) opsEscritura.push({mod,cls,op});});
+    }));
+    const ELBL = {ok:"OK FUNCIONA",requiere_params:"NECESITA ID REAL",sin_licencia:"SIN LICENCIA",
+      sin_permiso:"SIN PERMISO",config_incompleta:"CONFIG INCOMPLETA",error:"ERROR TECNICO",bloqueado:"BLOQUEADO"};
+    const OPLN = {browse:"Listar (.browse)",read:"Leer (.read)",permiso:"Permisos (.permiso)",
+      info:"Campos (.info)",new:"Crear temp (.new)",edit:"Editar temp (.edit)",cancel:"Cancelar (.cancel)",
+      write:"[ESCRITURA] Guardar (.write)",imputaPro:"[ESCRITURA] Imputar obra (.imputaPro)",delete:"[ELIMINAR] (.delete)"};
+    const L = []; const ln = x => L.push(x==null?"":String(x));
     ln(SEP);
-    ln("INFORME DE RESULTADOS — PROBADOR VISUAL API mPYME v1.2");
-    ln("Sistema: SQL Obras / Distrito K — DEVIA API Explorer");
-    ln(`Empresa: ${empresa}  |  Usuario API: ${usuario}`);
-    ln(`Generado: ${ts}  |  Modo: ${isMock?"BD Simulada (datos de ejemplo)":"API Real — SQL Obras producción"}`);
-    ln(`Perfil: ${{"gerente":"Gerente","ingeniero":"Ingeniero","empleado":"Empleado SQL Obras","tecnico":"Técnico API"}[perfil]||perfil}`);
+    ln("INFORME COMPLETO - PROBADOR VISUAL API mPYME v1.2");
+    ln("Sistema: SQL Obras (Distrito K) - DEVIA API Explorer");
+    ln(SEP);
+    ln("Empresa:       "+empresa);
+    ln("Usuario API:   "+usuario);
+    ln("URL API:       "+apiUrl);
+    ln("Modo:          "+(isMock?"BD Simulada (datos de ejemplo, NO la API real)":"API Real - SQL Obras produccion"));
+    ln("Generado:      "+ts);
+    ln("Perfil:        "+({gerente:"Gerente",ingeniero:"Ingeniero",empleado:"Empleado SQL Obras",tecnico:"Tecnico API"}[perfil]||perfil));
+    ln("Operaciones probadas: "+total+"  |  Clases probadas: "+clasesProbadasSet.size+" de "+clasesTotalesSet.size);
     ln(SEP); ln("");
     ln("1. RESUMEN EJECUTIVO"); ln(sep);
-    ln(`Total operaciones probadas: ${total}`);
-    ln(`  OK (funcionan):           ${nOk}`);
-    ln(`  Necesitan ID real:        ${nReq}`);
-    ln(`  Sin licencia:             ${nLic}`);
-    ln(`  Sin permiso usuario:      ${nPer}`);
-    ln(`  Error u otro:             ${nErr}`);
+    ln("  Total operaciones probadas   : "+total);
+    ln("  OK - Funcionan correctamente : "+nOk);
+    ln("  Necesitan ID real (code=6)   : "+nReq);
+    ln("  Sin licencia  (code=1)       : "+nLic);
+    ln("  Sin permiso   (code=2)       : "+nPer);
+    ln("  Config incompleta (code=5)   : "+nCfg);
+    ln("  Error tecnico (code=-1/otro) : "+nErr);
+    ln("  Escritura bloqueada          : "+nBlq);
+    ln("");
+    ln("  Con registros reales obtenidos : "+conRegistros.length+" operaciones");
+    ln("  Con ID auto-resuelto de BD     : "+conAutoResolve.length+" operaciones");
+    ln("  Clases sin probar              : "+clasesSinProbar.length);
+    ln("  Ops de escritura en catalogo   : "+opsEscritura.length+" (no probadas automaticamente)");
     ln("");
     if (nOk+nReq>0) {
-      ln(`CONCLUSION: ${nOk+nReq} clases accesibles con la licencia actual.`);
-      if (nOk>0) ln(`  → ${nOk} operaciones responden sin parametros adicionales.`);
-      if (nReq>0) ln(`  → ${nReq} clases requieren ID real (codProyecto, codOrden...).`);
+      ln("  ACCESIBLE: "+(nOk+nReq)+" operaciones con licencia activa.");
+      if (nOk>0) ln("    -> "+nOk+" responden correctamente sin parametros adicionales.");
+      if (nReq>0) ln("    -> "+nReq+" necesitan un ID real (usar boton BD o introducir manualmente).");
     }
-    if (nLic>0) ln(`  AVISO: ${nLic} clases sin licencia — modulo Documentos no contratado.`);
+    if (nLic>0) ln("  SIN LICENCIA: "+nLic+" operaciones - contactar Distrito K para ampliar modulos.");
+    if (nErr>0) ln("  ERRORES: "+nErr+" operaciones con error tecnico - ver seccion 5 para detalle completo.");
+    if (nCfg>0) ln("  CONFIG: "+nCfg+" operaciones reportan config incompleta - revisar .env (empresa, usuario, URL).");
+    ln(""); ln("");
+    ln("2. TABLA DE ESTADO RAPIDO"); ln(sep);
+    ln("  "+("CLASE".padEnd(16))+" "+("browse".padEnd(12))+" "+("permiso".padEnd(12))+" "+("info".padEnd(12))+" "+("read".padEnd(10))+" ESCRITURA");
+    ln("  "+"-".repeat(16)+" "+"-".repeat(12)+" "+"-".repeat(12)+" "+"-".repeat(12)+" "+"-".repeat(10)+" ---------");
+    clasesProbadasSet.forEach(cls => {
+      const g = op => {
+        const r = _probRes[cls+"."+op];
+        if (!r) return "--";
+        if (r.estado==="ok") return r.n_items>0?"OK("+r.n_items+"r)":"OK";
+        if (r.estado==="requiere_params") return r.id_resuelto?"OK(autoID)":"NecesitaID";
+        if (r.estado==="sin_licencia") return "SinLic";
+        if (r.estado==="sin_permiso") return "SinPerm";
+        if (r.estado==="error") return "ERR("+r.code+")";
+        return (r.estado||"?").slice(0,9);
+      };
+      const escs = Object.keys(_probRes).filter(k=>k.startsWith(cls+".")&&(RIESGO_OP[k.split(".")[1]]||0)>=2)
+        .map(k=>k.split(".")[1]).join(",");
+      ln("  "+(cls.padEnd(16))+" "+(g("browse").padEnd(12))+" "+(g("permiso").padEnd(12))+" "+(g("info").padEnd(12))+" "+(g("read").padEnd(10))+" "+(escs||"ninguna"));
+    });
+    ln(""); ln("");
+    ln("3. DETALLE COMPLETO POR MODULO / CLASE / OPERACION"); ln(sep);
+    ln("  (Todos los errores, codigos, tiempos, campos y mensajes exactos del servidor)");
+    ln("  (Sin valores de datos de BD - solo metadatos y estados. Privacidad garantizada.)");
     ln("");
-    ln("2. DETALLE POR CLASE Y OPERACION"); ln(sep);
-    ln("(Sin valores de datos — solo estados, codigos y tiempos. Privacidad garantizada.)");
-    ln("");
-
-    const ELBL = {ok:"FUNCIONA",requiere_params:"NECESITA ID",sin_licencia:"SIN LICENCIA",
-      sin_permiso:"SIN PERMISO",config_incompleta:"CONFIG INCOMPLETA",error:"ERROR",
-      bloqueado:"BLOQUEADO",pendiente:"SIN PROBAR"};
-    const OPLN = {browse:"Listar",read:"Leer",permiso:"Permisos",info:"Campos",
-      new:"Nuevo temp",edit:"Editar temp",cancel:"Cancelar",
-      write:"GUARDAR (ESCRITURA)",imputaPro:"IMPUTAR OBRA (ESCRITURA)",delete:"ELIMINAR"};
-
     Object.entries(catalogue).forEach(([modNombre, claseMap]) => {
-      ln(`  [MODULO] ${modNombre}`);
+      ln("  ===[ MODULO: "+modNombre+" ]"+"=".repeat(Math.max(0,48-modNombre.length)));
+      ln("");
       Object.entries(claseMap).forEach(([clase, opsArr]) => {
-        const ci = CLASE_INFO[clase]||{emoji:"",desc:clase};
-        ln(`    ${ci.emoji} ${clase.toUpperCase()} — ${ci.desc}`);
-        if (perfil!=="gerente") ln(`       ${_claseDescEmp(clase)}`);
-        opsArr.forEach(op => {
-          const r = _probRes[`${clase}.${op}`];
-          const est = r ? (ELBL[r.estado]||r.estado) : "SIN PROBAR";
-          const extra = r ? ` | code=${r.code??"-"} | ${r.ms||0}ms${r.id_resuelto?" | ID auto-BD":""}${r.n_items>0?` | ${r.n_items} regs`:""}` : "";
-          ln(`       • ${OPLN[op]||op} (.${op}) — ${est}${extra}`);
-          if (r?.campos_detectados?.length && perfil==="tecnico")
-            ln(`         Campos: ${r.campos_detectados.slice(0,10).join(", ")}`);
-          if (r?.mensaje && perfil!=="gerente")
-            ln(`         Msg: ${r.mensaje.replace(/<[^>]*>/g,"").slice(0,120)}`);
-        });
+        const ci = CLASE_INFO[clase]||{emoji:"",desc:clase,detalle:""};
+        ln("  -- "+ci.emoji+" "+clase.toUpperCase()+" - "+ci.desc+" --");
+        ln("     Tecnico   : "+(ci.detalle||ci.desc));
+        ln("     Empleado  : "+_claseDescEmp(clase));
+        if (typeof _CF !== "undefined" && _CF[clase]) {
+          ln("     Flujo     : "+(_CF[clase].flujo||"--"));
+          const campos = Object.entries(_CF[clase].campos||{}).map(([k,v])=>k+": "+v).join(" | ");
+          if (campos) ln("     Campos    : "+campos);
+          const rel = (_CF[clase].rel||[]).join(", ");
+          if (rel) ln("     Relacionadas: "+rel);
+        }
         ln("");
-      });
-    });
-    /* continua en parte 2 */
-    window._ae_export_lines_temp = L;
-    window._ae_export_ctx_temp = {catalogue,perfil,empresa,ts,nOk,nReq,nLic,SEP,sep};
-    this._doExportarProbadorTxtPart2();
-  },
-
-  async doEjecutarProbador(clase, op) {
-    // Ejecutar con params del formulario y mostrar tabla con datos reales
-    const RIESGO_OP = {browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:0,write:2,imputaPro:2,exec:2,delete:3};
-    const riesgo = RIESGO_OP[op] || 0;
-    const modoEsc = (_state.status||{}).modo_escritura;
-
-    // Bloqueo de escritura: si no hay modo escritura, no ejecutar
-    if (riesgo >= 2 && !modoEsc) {
-      const card = document.getElementById(`ae-prob-${clase}-${op}`);
-      if (card) {
-        const msgDiv = card.querySelector(".ae-write-blocked-msg") || (() => {
-          const d = document.createElement("div");
-          d.className = "ae-write-blocked-msg";
-          d.style.cssText = "padding:8px 12px;background:#fef2f2;border-top:1px solid #fca5a5;font-size:0.8em;color:#991b1b;font-weight:600";
-          card.appendChild(d); return d;
-        })();
-        msgDiv.innerHTML = `🔒 Operación de escritura bloqueada. Activa el <b>Modo Escritura</b> en la pestaña <b>🟠 Escritura</b> con confirmación expresa.`;
-      }
-      return;
-    }
-
-    // Confirmación doble para operaciones de escritura real
-    if (riesgo >= 2 && modoEsc) {
-      const conf = confirm(
-        `⚠️ CONFIRMACIÓN REQUERIDA\n\n` +
-        `Vas a ejecutar "${clase}.${op}()" que MODIFICARÁ SQL Obras de forma permanente.\n\n` +
-        `¿Estás seguro? Esta acción no se puede deshacer.`
-      );
-      if (!conf) return;
-    }
-
-    const key = `${clase}.${op}`;
-    const card = document.getElementById(`ae-prob-${clase}-${op}`);
-    const btn = card ? card.querySelector("button[onclick*='doEjecutarProbador']") : null;
-    if (btn) { btn.textContent = "⏳"; btn.disabled = true; }
-    // Recoger params del formulario
-    const paramsDef = PARAMS_DB[`${clase}.${op}`] || [];
-    const params = {};
-    paramsDef.forEach(f => {
-      const el = document.getElementById(`ap-${clase}-${op}-${f.n}`);
-      if (el && el.value !== "") params[f.n] = f.t==="number" ? parseFloat(el.value) : el.value;
-    });
-    try {
-      const r = await _fetch("/auto-probar", {method:"POST", body:JSON.stringify({clase,operacion:op,params})});
-      // Tabla HTML de datos si hay resultados
-      if (r.items && Array.isArray(r.items) && r.items.length > 0) {
-        const keys = Object.keys(r.items[0]);
-        const rows = r.items.slice(0,20).map(row=>
-          `<tr>${keys.map(k=>`<td style="padding:3px 8px;border-bottom:1px solid #f1f5f9;font-size:0.82em">${row[k]??""}</td>`).join("")}</tr>`).join("");
-        r.tabla_html = `<div style="margin-top:8px;overflow-x:auto;border-radius:6px;border:1px solid #e2e8f0">
-          <table style="width:100%;border-collapse:collapse;background:white">
-            <thead style="background:#f8fafc"><tr>${keys.map(k=>`<th style="padding:4px 8px;text-align:left;font-size:0.74em;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}</tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-          <p style="color:#64748b;font-size:0.75em;margin:4px 8px">${r.items.length} registro(s)${r.n_items>r.items.length?` de ${r.n_items}`:""}</p>
-        </div>`;
-        r.campos_detectados = keys;
-      }
-      _probRes[key] = r;
-    } catch(e) {
-      _probRes[key] = {code:-1,estado:"error",ms:0,n_items:0,campos_detectados:[],mensaje:`Error: ${e.message}`,necesito_id_real:false,id_resuelto:false,tabla_html:""};
-    }
-    const cardNew = document.getElementById(`ae-prob-${clase}-${op}`);
-    if (cardNew) cardNew.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active||true);
-  },
-
-  async doAutocompletar(clase, op, campo) {
-    const bdDiv = document.getElementById(`ap-bd-${clase}-${op}-${campo}`);
-    if (!bdDiv) return;
-    bdDiv.style.display = "flex"; bdDiv.style.flexWrap = "wrap"; bdDiv.style.gap = "3px";
-    bdDiv.innerHTML = `<span style="font-size:0.76em;color:#3b82f6">🔍 Buscando en BD…</span>`;
-    try {
-      const r = await _fetch("/valores-param", {method:"POST",body:JSON.stringify({clase,campo})});
-      if (!r.ok || !r.valores?.length) {
-        bdDiv.innerHTML = `<span style="font-size:0.75em;color:#92400e">${r.error||"Sin valores en BD"}</span>`; return;
-      }
-      bdDiv.innerHTML = r.valores.map(v => {
-        const lbl = v.desc && v.desc!==v.id ? `${v.id} — ${v.desc.slice(0,30)}` : v.id;
-        const val = v.id.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
-        return `<button type="button"
-          onclick="(function(){var e=document.getElementById('ap-${clase}-${op}-${campo}');if(e)e.value='${val}';})()"
-          style="font-size:0.74em;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;color:#1e40af;white-space:nowrap"
-          title="${v.id}${v.desc?' — '+v.desc:''}">${lbl}</button>`;
-      }).join("");
-    } catch(e) {
-      bdDiv.innerHTML = `<span style="font-size:0.75em;color:#991b1b">Error: ${e.message}</span>`;
-    }
-  },
-
-  toggleParamHelp(clase, op, campo) {
-    const div = document.getElementById(`ap-help-${clase}-${op}-${campo}`);
-    const pi = _PARAM_INFO[campo];
-    if (!div || !pi) return;
-    if (div.style.display === "none" || !div.style.display) {
-      div.style.display = "block";
-      div.innerHTML = `<b style="color:#1e40af">🔧 Técnico:</b> ${pi.tec}<br><b style="color:#166534">👷 Empleado:</b> ${pi.emp}<br><b style="color:#64748b">Ejemplo:</b> <code style="background:white;padding:1px 4px;border-radius:3px">${pi.ej}</code>`;
-    } else { div.style.display = "none"; }
-  },
-
-  _doExportarProbadorTxtPart2() {
-    const L   = window._ae_export_lines_temp || [];
-    const ctx = window._ae_export_ctx_temp  || {};
-    const {catalogue, perfil, empresa, ts, nOk, nReq, nLic, SEP, sep} = ctx;
-    const ln = s => L.push(s);
-
-    // Clases sin probar
-    const sinProbar = [];
-    Object.values(catalogue||{}).forEach(cm =>
-      Object.keys(cm).forEach(clase => {
-        if (!(cm[clase]||[]).some(op => _probRes[`${clase}.${op}`])) sinProbar.push(clase);
-      })
-    );
-    if (sinProbar.length > 0) {
-      ln("3. CLASES NO PROBADAS (ejecutar 'Probar todas' para completar)"); ln(sep);
-      sinProbar.forEach(c => ln(`  • ${c}`)); ln("");
-    }
-
-    // Aplicaciones posibles (gerente/ingeniero)
-    if (perfil==="gerente" || perfil==="ingeniero") {
-      ln("4. APLICACIONES POSIBLES CON LA LICENCIA ACTUAL"); ln(sep);
-      const clOk = new Set(Object.entries(_probRes)
-        .filter(([,v])=>v.estado==="ok"||v.estado==="requiere_params")
-        .map(([k])=>k.split(".")[0]));
-      // Usar _APPS si está disponible
-      if (typeof _APPS !== "undefined") {
-        _APPS.forEach(app => {
-          const accesible = app.cls.some(c => clOk.has(c));
-          const estado = accesible ? "POSIBLE" : "REQUIERE LICENCIA/PERMISO";
-          ln(`  [${estado}] ${app.emoji} ${app.t}`);
-          ln(`    ${app.s}`);
-          if (perfil==="ingeniero") {
-            ln(`    Flujo: ${app.flujo}`);
-            ln(`    Clases: ${app.cls.join(", ")} | Ops: ${app.ops.join(", ")} | ${app.riesgo}`);
+        (opsArr||[]).forEach(op => {
+          const r = _probRes[clase+"."+op];
+          const risg = (RIESGO_OP[op]||0)>=2?" [ESCRITURA]":(RIESGO_OP[op]===1?" [PREP]":"");
+          const etiq = r?(ELBL[r.estado]||r.estado):"SIN PROBAR";
+          ln("     ["+etiq+"]"+risg+" "+OPLN[op]||op);
+          if (r) {
+            ln("       code    : "+r.code+"   tiempo: "+(r.ms||0)+"ms   registros obtenidos: "+(r.n_items||0));
+            if (r.n_items>0) ln("       DATOS   : Se obtuvieron "+(r.n_items||0)+" registros reales de SQL Obras (valores no mostrados por privacidad)");
+            if (r.id_resuelto) ln("       AUTO-ID : SI - El sistema obtuvo automaticamente un ID real de Firebird y reintento. Resultado exitoso.");
+            if (r.necesito_id_real&&!r.id_resuelto) ln("       AUTO-ID : FALLO - Firebird no disponible o tabla vacia. Introducir ID manualmente con boton BD.");
+            if (r.params_usados && Object.keys(r.params_usados||{}).length)
+              ln("       PARAMS  : "+JSON.stringify(r.params_usados));
+            if (r.campos_detectados?.length)
+              ln("       CAMPOS  : "+r.campos_detectados.join(", "));
+            if (r.muestra_tipos && Object.keys(r.muestra_tipos||{}).length)
+              ln("       TIPOS   : "+Object.entries(r.muestra_tipos).map(([k,v])=>k+":"+v).join(", "));
+            const msg = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
+            if (msg) ln("       MENSAJE : "+msg.slice(0,300)+(msg.length>300?"...":""));
+          } else {
+            ln("       (operacion no probada - ejecutar manualmente con el formulario)");
           }
           ln("");
         });
-      } else {
-        if (clOk.has("proordutil")||clOk.has("proyectos"))
-          ln("  ✓ App Operario — imputacion de materiales y horas en obra");
-        if (clOk.has("reporden")||clOk.has("repordutil"))
-          ln("  ✓ App SAT — gestion de ordenes de reparacion");
-        if (clOk.has("proyectos"))
-          ln("  ✓ Dashboard de obras — estado, partidas y costes en tiempo real");
+        ln("     "+"-".repeat(65));
         ln("");
+      });
+    });
+    ln("");
+    ln("4. OPERACIONES QUE OBTUVIERON REGISTROS REALES DE SQL OBRAS"); ln(sep);
+    if (conRegistros.length===0) {
+      ln("  Ninguna operacion devolvio registros. Ejecuta las operaciones con IDs reales.");
+    } else {
+      ln("  (Numero de registros y campos detectados - los VALORES no se muestran por privacidad)");
+      ln("");
+      conRegistros.forEach(r => {
+        const key = Object.entries(_probRes).find(([,v])=>v===r)?.[0]||"?";
+        ln("  "+key+" -> "+r.n_items+" registros   "+r.ms+"ms"+(r.id_resuelto?" [ID auto-BD]":""));
+        if (r.campos_detectados?.length) ln("    Campos: "+r.campos_detectados.join(", "));
+      });
+    }
+    ln(""); ln("");
+    ln("5. ERRORES Y PROBLEMAS DETECTADOS"); ln(sep);
+    const todosProblemas = Object.entries(_probRes).filter(([,r])=>
+      r.estado!=="ok" || r.code!==0);
+    if (todosProblemas.length===0) {
+      ln("  Sin errores - todas las operaciones probadas funcionan correctamente.");
+    } else {
+      todosProblemas.forEach(([key, r]) => {
+        const etiq = ELBL[r.estado]||r.estado;
+        ln("  ["+etiq+"] "+key+" (code="+r.code+", "+r.ms+"ms)");
+        if (r.necesito_id_real&&!r.id_resuelto) ln("    CAUSA : Requiere ID real. El sistema no pudo obtenerlo automaticamente.");
+        if (r.estado==="sin_licencia") ln("    CAUSA : Modulo no contratado en la licencia actual. Contactar Distrito K.");
+        if (r.estado==="sin_permiso") ln("    CAUSA : El usuario API no tiene permiso para esta operacion. Revisar configuracion en SQL Obras.");
+        if (r.estado==="config_incompleta") ln("    CAUSA : Config incompleta. Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env.");
+        if (r.estado==="error") ln("    CAUSA : Error tecnico. Verificar conexion al servidor mPYME y que el servicio este arrancado.");
+        const msg = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
+        if (msg) ln("    MSG   : "+msg.slice(0,250)+(msg.length>250?"...":""));
+      });
+    }
+    ln(""); ln("");
+    ln("6. OPERACIONES DE ESCRITURA DEL CATALOGO (no probadas automaticamente)"); ln(sep);
+    ln("  SEGURIDAD: Las operaciones de escritura NUNCA se prueban automaticamente.");
+    ln("  Se deben probar manualmente con confirmacion expresa en el Probador.");
+    ln("");
+    if (opsEscritura.length===0) {
+      ln("  No hay operaciones de escritura en el catalogo actual.");
+    } else {
+      opsEscritura.forEach(({mod,cls,op}) => {
+        const risg = op==="delete"?"DESTRUCTIVO":op==="write"||op==="imputaPro"?"ESCRITURA REAL":"PREPARACION";
+        ln("  ["+risg+"] "+cls+"."+op+"()  (modulo: "+mod+")");
+      });
+      ln("");
+      ln("  Para probarlas: Probador > clase > formulario > activar Modo Escritura > Ejecutar + confirmar");
+    }
+    ln(""); ln("");
+    ln("7. CLASES SIN PROBAR"); ln(sep);
+    if (clasesSinProbar.length===0) {
+      ln("  Todas las clases del catalogo han sido probadas.");
+    } else {
+      clasesSinProbar.forEach(c => ln("  - "+c));
+      ln("");
+      ln("  Para probarlas: Probador > Probar todas, o abre la clase y pulsa Ejecutar en cada operacion.");
+    }
+    ln(""); ln("");
+    ln("8. APLICACIONES POSIBLES CON LA LICENCIA ACTUAL"); ln(sep);
+    const clOk = new Set(Object.entries(_probRes)
+      .filter(([,v])=>v.estado==="ok"||v.estado==="requiere_params")
+      .map(([k])=>k.split(".")[0]));
+    if (typeof _APPS !== "undefined") {
+      _APPS.forEach(app => {
+        const accesible = app.cls.some(c => clOk.has(c));
+        const estado = accesible ? "POSIBLE" : "REQUIERE LICENCIA/PERMISO";
+        ln("  ["+estado+"] "+app.emoji+" "+app.t);
+        ln("    "+app.s);
+        ln("    Flujo : "+app.flujo);
+        ln("    Clases: "+app.cls.join(", ")+" | Ops: "+app.ops.join(", ")+" | "+app.riesgo);
+        const missing = app.cls.filter(c=>!clasesProbadasSet.has(c));
+        if (missing.length) ln("    FALTA : Clases sin probar: "+missing.join(", "));
+        ln("");
+      });
+    }
+    ln(""); ln("");
+    ln("9. DIAGNOSTICO Y RECOMENDACIONES"); ln(sep);
+    if (nOk===0 && nReq===0) {
+      ln("  CRITICO: Ninguna operacion funciona. Posibles causas:");
+      ln("    - URL del servidor mPYME incorrecta (revisar SQLOB_API_URL en .env)");
+      ln("    - Servidor mPYME no arrancado o no accesible desde DEVIA");
+      ln("    - Credenciales incorrectas (empresa, usuario, password)");
+      ln("    - Sin licencia para ningun modulo");
+    } else {
+      if (nReq>0 && conAutoResolve.length===0) {
+        ln("  ACCION RECOMENDADA: "+nReq+" ops necesitan ID real.");
+        ln("    Usa el boton BD en el formulario de cada operacion para obtener IDs de Firebird,");
+        ln("    o configura DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD en el .env del servidor.");
+      }
+      if (nLic>0) {
+        ln("  LICENCIA: "+nLic+" operaciones sin licencia. Modulos posiblemente no contratados:");
+        const sinLicCls = new Set(Object.entries(_probRes).filter(([,v])=>v.estado==="sin_licencia").map(([k])=>k.split(".")[0]));
+        ln("    Clases afectadas: "+[...sinLicCls].join(", "));
+        ln("    Accion: Contactar Distrito K para ampliar la licencia.");
+      }
+      if (nCfg>0) {
+        ln("  CONFIG INCOMPLETA: Revisar variables en el .env del servidor DEVIA:");
+        ln("    SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD, SQLOB_API_URL");
+      }
+      if (nErr>0) {
+        ln("  ERRORES TECNICOS: "+nErr+" operaciones con error de conexion o excepcion.");
+        ln("    Verificar que el servicio mPYME esta arrancado y accesible.");
+      }
+      if (clasesSinProbar.length>0) {
+        ln("  SIN PROBAR: "+clasesSinProbar.length+" clases no han sido probadas.");
+        ln("    Usa Probar todas en el Probador para completar el diagnostico.");
+      }
+      if (nOk>0) {
+        ln("  FUNCIONANDO: "+nOk+" operaciones OK. Se puede implementar una app con la licencia actual.");
       }
     }
-
-    // Pie
+    ln(""); ln("");
     ln(SEP);
     ln("NOTAS DE SEGURIDAD Y PRIVACIDAD");
     ln(sep);
-    ln("• Solo lectura. No se modifico ningun dato de SQL Obras.");
-    ln("• Sin valores de datos (codigos de proyectos, nombres...) por privacidad.");
-    ln("• Las operaciones de escritura NO se prueban automaticamente.");
-    ln("  Requieren activacion explicita del modo escritura + confirmacion doble.");
-    ln(`• Generado por DEVIA API Explorer — ${ts}`);
+    ln("* Solo lectura automatica. Las ops de escritura NO se prueban automaticamente.");
+    ln("* Sin valores de datos (codigos de proyectos, nombres, importes...).");
+    ln("* Se muestran: estados, codigos, tiempos, nombres de campos y mensajes de error.");
+    ln("* Los IDs auto-resueltos de BD no se incluyen en el informe.");
+    ln("* Las ops de escritura requieren: activar modo escritura + confirmacion doble.");
+    ln("* Generado por DEVIA API Explorer - "+ts);
     ln(SEP);
-
-    // Descarga
     const txt = L.join("\n");
     const blob = new Blob([txt], {type:"text/plain;charset=utf-8"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `resultados_api_mpyme_${empresa}_${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = "informe_completo_api_mpyme_"+empresa+"_"+new Date().toISOString().slice(0,10)+".txt";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
     delete window._ae_export_lines_temp;
     delete window._ae_export_ctx_temp;
   },
+
 
   async doAutoProbarOp(clase, op) {
     // Prueba automática sin params manuales — auto-resuelve code=6 con BD
