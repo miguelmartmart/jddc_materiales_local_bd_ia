@@ -366,6 +366,164 @@ const _PARAM_INFO = {
 };
 const _PARAMS_CON_BD = new Set(["codProyecto","codOrden","codRecurso","codObjeto","codInst","codTrabajo","codArticulo","codProv","codCliente","codDocumento","codPartida"]);
 
+
+// ─── Base de conocimiento por clase ─────────────────────────────────────────
+const _CF = {
+  proyectos:{
+    flujo:"browse() \u2192 codProyecto \u2192 partidas / proordutil",
+    casos:["Dashboard obras activas","Buscar c\u00f3digo antes de imputar","Estado: activa/cerrada/presupuesto"],
+    gerente:"Todas las obras: cliente, importe previsto vs real, estado.",
+    campos:{codProyecto:"C\u00f3digo \u00fanico (ej: 26/001)",descripcion:"Nombre de la obra",estado:"activo/cerrado/presupuesto",cliente:"Empresa contratante",importePrevisto:"Presupuesto \u20ac",importeRealizado:"Coste real \u20ac"},
+    rel:["partidas","proordutil","proordprev","docalbcom"]},
+  partidas:{
+    flujo:"proyectos.browse \u2192 partidas.browse(codProyecto) \u2192 codPartida",
+    casos:["Ver cap\u00edtulos antes de imputar","Control gasto por cap\u00edtulo","Verificar partida"],
+    gerente:"Divisi\u00f3n presupuestaria por cap\u00edtulos. Comparar previsto vs real.",
+    campos:{codPartida:"C\u00f3digo cap\u00edtulo (ej: 03.02)",descripcion:"Nombre cap\u00edtulo",importePrevisto:"Presupuesto partida",importeRealizado:"Coste real partida"},
+    rel:["proyectos","proordutil","proordprev"]},
+  proordutil:{
+    flujo:"proyectos\u2192partidas\u2192articulos \u2192 new() \u2192 write() \u2192 PERSISTIDO EN ERP",
+    casos:["App operario: imputar horas desde m\u00f3vil","Registro diario materiales","Cierre partes de trabajo"],
+    gerente:"CLAVE: cada registro = material u hora imputada. Sin esto el ERP no sabe el coste real.",
+    campos:{codProyecto:"Obra destino",codPartida:"Cap\u00edtulo destino",codArticulo:"Material o recurso",cantidad:"Unidades o horas",coste:"Coste unitario (\u20ac)",tipo:"M=Material / R=Recurso"},
+    rel:["proyectos","partidas","articulos","recursos"]},
+  proordprev:{
+    flujo:"proyectos.browse \u2192 proordprev.browse(codProyecto) \u2192 comparar con proordutil",
+    casos:["Dashboard previsto vs real","Alerta si desviaci\u00f3n >10%","Informe mensual"],
+    gerente:"Presupuesto interno por cap\u00edtulo. Comparado con utilizados = desviaci\u00f3n.",
+    campos:{codProyecto:"Obra",codPartida:"Cap\u00edtulo",codArticulo:"Material previsto",cantidad:"Cantidad prevista",coste:"Coste previsto"},
+    rel:["proyectos","partidas","proordutil"]},
+  reporden:{
+    flujo:"browse(abierta) \u2192 read(codOrden) \u2192 repordutil.browse \u2192 write(cerrada)",
+    casos:["App SAT: ver \u00f3rdenes del t\u00e9cnico","Dashboard aver\u00edas abiertas","Notificaci\u00f3n +48h"],
+    gerente:"Gesti\u00f3n servicio t\u00e9cnico: aver\u00edas, t\u00e9cnico asignado, tiempo resoluci\u00f3n.",
+    campos:{codOrden:"N\u00famero orden",estado:"abierta/en_proceso/cerrada",codObjeto:"Equipo averiado",tecnico:"T\u00e9cnico asignado",fechaApertura:"Fecha apertura"},
+    rel:["repobjetos","repinst","repordutil","tipostrabajo"]},
+  repobjetos:{
+    flujo:"browse \u2192 filtrar por instalaci\u00f3n \u2192 reporden.browse(codObjeto)",
+    casos:["Inventario digital equipos","Historial aver\u00edas por equipo","Detectar equipos con m\u00e1s incidencias"],
+    gerente:"Inventario activos mantenibles. Cu\u00e1les dan m\u00e1s aver\u00edas y cu\u00e1nto cuestan.",
+    campos:{codObjeto:"C\u00f3digo del equipo",descripcion:"Nombre",codInst:"Instalaci\u00f3n",marca:"Fabricante",modelo:"Modelo",numSerie:"N\u00famero de serie"},
+    rel:["repinst","reporden"]},
+  repinst:{
+    flujo:"browse \u2192 repobjetos.browse(codInst) \u2192 reporden",
+    casos:["Lista instalaciones cliente","Mapa cobertura t\u00e9cnica","Asignaci\u00f3n t\u00e9cnicos por zona"],
+    gerente:"Instalaciones atendidas: cu\u00e1ntas hay, cu\u00e1les tienen m\u00e1s incidencias.",
+    campos:{codInst:"C\u00f3digo instalaci\u00f3n",descripcion:"Nombre",direccion:"Direcci\u00f3n",cliente:"Empresa propietaria"},
+    rel:["repobjetos","reporden"]},
+  tipostrabajo:{
+    flujo:"browse \u2192 elegir tipo \u2192 reporden.new(tipo)",
+    casos:["Desplegable al crear orden","% correctivo vs preventivo","Facturaci\u00f3n por tipo"],
+    gerente:"Clasifica el trabajo: aver\u00eda (reactivo/caro) vs preventivo (m\u00e1s barato).",
+    campos:{codTrabajo:"C\u00f3digo",descripcion:"Nombre del tipo"},
+    rel:["reporden"]},
+  repordutil:{
+    flujo:"reporden.browse \u2192 codOrden \u2192 new() \u2192 write() \u2192 PERSISTIDO",
+    casos:["App SAT: registrar piezas y horas","Facturaci\u00f3n autom\u00e1tica","Coste real de reparaci\u00f3n"],
+    gerente:"Coste real de cada reparaci\u00f3n: piezas, mano de obra. \u00bfReparar o sustituir?",
+    campos:{codOrden:"Orden de reparaci\u00f3n",codRecurso:"Art\u00edculo o recurso",tipo:"M=Material / R=Recurso",cantidad:"Cantidad/horas",coste:"Coste unitario"},
+    rel:["reporden","articulos","recursos"]},
+  articulos:{
+    flujo:"browse(filtro) \u2192 read(codArticulo) \u2192 usar en proordutil/repordutil.write()",
+    casos:["Autocompletado materiales","B\u00fasqueda por nombre","Control stock","Precio coste"],
+    gerente:"Cat\u00e1logo materiales con precios, stock y proveedor.",
+    campos:{codArticulo:"Referencia (ej: 1#100142)",descripcion:"Nombre",familia:"Categor\u00eda",unidad:"Unidad medida",precioCoste:"Coste unitario",precioVenta:"Precio venta",stock:"Existencias"},
+    rel:["proordutil","repordutil","proveedores"]},
+  recursos:{
+    flujo:"browse \u2192 codRecurso \u2192 proordutil.new(tipo=R) \u2192 write(codRecurso, horas)",
+    casos:["Selector t\u00e9cnico en app","Coste mano de obra","Horas por t\u00e9cnico"],
+    gerente:"T\u00e9cnicos, instaladores y maquinaria con tarifas. Control costes mano de obra.",
+    campos:{codRecurso:"C\u00f3digo",descripcion:"Nombre",tipo:"EMPLEADO/MAQUINARIA/OTRO",costeHoraNormal:"\u20ac/h normal",costeHoraExtra:"\u20ac/h extra"},
+    rel:["proordutil","repordutil"]},
+  proveedores:{
+    flujo:"browse(filtro) \u2192 codProv \u2192 docalbcom.browse(proveedor=codProv)",
+    casos:["Filtro albaranes por proveedor","Directorio contacto","Volumen por proveedor"],
+    gerente:"Directorio proveedores. Analiza compras y negocia condiciones.",
+    campos:{codProv:"C\u00f3digo",nombre:"Raz\u00f3n social",cif:"CIF/NIF",telefono:"Tel\u00e9fono",email:"Email"},
+    rel:["docalbcom","docfaccom","articulos"]},
+  clientes:{
+    flujo:"browse \u2192 filtrar proyectos por cliente",
+    casos:["Filtro obras por cliente","Facturaci\u00f3n por cliente","Dashboard cliente"],
+    gerente:"Cartera de clientes y sus obras.",
+    campos:{codCliente:"C\u00f3digo",nombre:"Raz\u00f3n social",cif:"CIF/NIF"},
+    rel:["proyectos"]},
+  docalbcom:{
+    flujo:"browse(proveedor) \u2192 read(codDoc) \u2192 imputaPro(doc, linea, proyecto, partida, F)",
+    casos:["Imputar albar\u00e1n sin entrar al ERP","Control albaranes pendientes","Cuadre compras-costes"],
+    gerente:"Albaranes recibidos. imputaPro vincula l\u00ednea a obra/partida: automatiza control de costes.",
+    campos:{codDocumento:"N\u00famero albar\u00e1n",proveedor:"Empresa proveedora",fecha:"Fecha recepci\u00f3n"},
+    rel:["proveedores","proyectos","partidas"]},
+  docfaccom:{
+    flujo:"browse \u2192 imputaPro \u2192 coste vinculado a obra",
+    casos:["Cierre mensual: imputar facturas","Conciliaci\u00f3n factura-albar\u00e1n-obra"],
+    gerente:"Facturas de compra. imputaPro automatiza contabilidad de costes.",
+    campos:{codDocumento:"N\u00famero factura",proveedor:"Proveedor",fecha:"Fecha"},
+    rel:["proveedores","proyectos","partidas","docalbcom"]},
+  docpedcom:{
+    flujo:"browse \u2192 ver pedidos pendientes de recibir",
+    casos:["Control pedidos pendientes","Seguimiento entregas"],
+    gerente:"Pedidos enviados a proveedores pendientes.",
+    campos:{codDocumento:"N\u00famero pedido",proveedor:"Proveedor",estado:"pendiente/parcial/completo"},
+    rel:["proveedores","docalbcom"]},
+  ordenfab:{
+    flujo:"browse \u2192 si code=1: sin licencia \u2192 contactar Distrito K",
+    casos:["Gesti\u00f3n producci\u00f3n propia"],
+    gerente:"M\u00f3dulo fabricaci\u00f3n. Requiere licencia espec\u00edfica.",
+    campos:{codOrden:"N\u00famero orden fabricaci\u00f3n"},
+    rel:[]}
+};
+
+// ─── Aplicaciones posibles con la API ────────────────────────────────────────
+const _APPS = [
+  {emoji:"\ud83d\udcf1",t:"App M\u00f3vil del Operario",s:"Imputaci\u00f3n de horas y materiales desde obra",
+   d:"El operario selecciona obra y partida desde el m\u00f3vil, imputa material o horas al ERP en tiempo real.",
+   b:"Elimina partes en papel. Costes reales en el ERP al instante, sin esperar al final de semana.",
+   cls:["proyectos","partidas","articulos","recursos","proordutil"],ops:["browse","new","write"],
+   riesgo:"\u270d\ufe0f Escritura real",flujo:"proyectos.browse \u2192 partidas.browse \u2192 articulos.browse \u2192 proordutil.new() \u2192 write()"},
+  {emoji:"\ud83d\udcca",t:"Dashboard de Obras para Gerencia",s:"Desviaci\u00f3n de costes en tiempo real",
+   d:"Pantalla con obras activas, importe previsto vs real y % ejecuci\u00f3n. Alerta cuando una obra supera el presupuesto.",
+   b:"El gerente ve qu\u00e9 obras van bien y cu\u00e1les se desv\u00edan. Toma decisiones antes de que sea tarde.",
+   cls:["proyectos","partidas","proordutil","proordprev"],ops:["browse","read"],
+   riesgo:"\ud83d\udfe2 Solo lectura",flujo:"proyectos.browse \u2192 proordutil.browse + proordprev.browse \u2192 calcular desviaci\u00f3n"},
+  {emoji:"\ud83d\udd27",t:"App SAT para T\u00e9cnicos",s:"Gesti\u00f3n de \u00f3rdenes de reparaci\u00f3n desde m\u00f3vil",
+   d:"El t\u00e9cnico ve sus \u00f3rdenes, registra piezas y horas, y cierra la orden al terminar.",
+   b:"El responsable ve el estado en tiempo real y factura m\u00e1s r\u00e1pido.",
+   cls:["reporden","repobjetos","repinst","repordutil","tipostrabajo"],ops:["browse","read","new","write"],
+   riesgo:"\u270d\ufe0f Escritura real",flujo:"reporden.browse(abierta) \u2192 repordutil.new() \u2192 write() \u2192 reporden.write(cerrada)"},
+  {emoji:"\ud83d\uded2",t:"Control de Compras con Imputaci\u00f3n",s:"Albaranes y facturas imputados a obras",
+   d:"Al recibir un albar\u00e1n, la app permite seleccionar a qu\u00e9 obra y partida imputarlo. Sin entrar al ERP.",
+   b:"Compras imputa albaranes sin entrar al ERP. Control de costes m\u00e1s preciso.",
+   cls:["docalbcom","docfaccom","proveedores","proyectos","partidas"],ops:["browse","read","imputaPro"],
+   riesgo:"\u270d\ufe0f Escritura real (imputaPro)",flujo:"docalbcom.browse \u2192 read \u2192 imputaPro(doc, linea, proyecto, partida, F)"},
+  {emoji:"\ud83d\udce6",t:"App de Almac\u00e9n",s:"Control de materiales y stock",
+   d:"El almacenero busca materiales por nombre, ve stock, precio y proveedor habitual.",
+   b:"Localizaci\u00f3n instant\u00e1nea de materiales. Sin depender del SQL Obras directamente.",
+   cls:["articulos","proveedores","recursos"],ops:["browse","read"],
+   riesgo:"\ud83d\udfe2 Solo lectura",flujo:"articulos.browse(filtro) \u2192 read \u2192 ver stock, precio, proveedor"},
+  {emoji:"\ud83d\udccb",t:"Informe de Mantenimiento Autom\u00e1tico",s:"Estad\u00edsticas SAT: aver\u00edas, tiempos, costes",
+   d:"Informe mensual: \u00f3rdenes abiertas/cerradas, tiempo medio, coste por equipo, t\u00e9cnico m\u00e1s productivo.",
+   b:"El responsable recibe el informe sin trabajo manual. Detecta qu\u00e9 equipos dan m\u00e1s problemas.",
+   cls:["reporden","repobjetos","repordutil","recursos"],ops:["browse","read"],
+   riesgo:"\ud83d\udfe2 Solo lectura",flujo:"reporden.browse(cerrada) \u2192 repordutil.browse \u2192 calcular coste \u2192 agrupar por equipo/t\u00e9cnico"}
+];
+
+// ─── Glosario SQL Obras <-> API ───────────────────────────────────────────────
+const _GLO = [
+  {sql:"Obra / Proyecto",api:"proyectos + codProyecto",desc:"Lo que SQL Obras llama 'obra' = clase 'proyectos'. El c\u00f3digo (ej: 26/001) = codProyecto."},
+  {sql:"Cap\u00edtulo / Partida",api:"partidas + codPartida",desc:"Cap\u00edtulos presupuestarios de la obra. C\u00f3digo (ej: 03.02) = codPartida."},
+  {sql:"Utilizado / Parte de trabajo",api:"proordutil + new()+write()",desc:"Imputar horas o materiales = proordutil.new() \u2192 write(). El ERP lo llama 'utilizado'."},
+  {sql:"Orden de aver\u00eda / Parte SAT",api:"reporden + codOrden",desc:"Partes de aver\u00eda o mantenimiento = clase 'reporden'."},
+  {sql:"Art\u00edculo / Material",api:"articulos + codArticulo",desc:"Materiales del cat\u00e1logo. Referencia = codArticulo (ej: 1#100142)."},
+  {sql:"T\u00e9cnico / Operario",api:"recursos + codRecurso",desc:"T\u00e9cnicos e instaladores = 'recursos'. Puede ser EMPLEADO, MAQUINARIA u OTRO."},
+  {sql:"Albar\u00e1n de compra",api:"docalbcom + imputaPro()",desc:"Albaranes de proveedores. Se imputan a obra con imputaPro(codDoc, linea, obra, partida)."},
+  {sql:"Equipo / Unidad",api:"repobjetos + codObjeto",desc:"Equipos mantenibles = 'repobjetos'. Su ubicaci\u00f3n = 'repinst' (instalaci\u00f3n)."},
+  {sql:"Sesi\u00f3n de usuario",api:"ssid1 + ssid2 (tokens)",desc:"Al hacer login se obtienen dos tokens temporales que van en cada llamada a la API."},
+  {sql:"code=0",api:"\u00c9xito",desc:"Toda respuesta lleva 'code'. code=0 = \u00e9xito. Otro c\u00f3digo = error o condici\u00f3n especial."},
+  {sql:"code=6",api:"Necesita identificador",desc:"La API necesita codProyecto, codOrden u otro ID. No es error \u2014 falta el c\u00f3digo de negocio."},
+  {sql:"Guardar registro",api:"new() \u2192 write()",desc:"Para crear/modificar: new() crea objeto temporal \u2192 write() persiste. cancel() descarta."}
+];
+
+
 if (!_state.probadorPerfil) _state.probadorPerfil = "tecnico";
 
 function renderProbador(s) {
@@ -451,6 +609,83 @@ function renderProbador(s) {
 
   if (!cat || !Object.keys(catalogue).length)
     return h + `<div style="background:#fef9c3;border-radius:8px;padding:14px;font-size:0.85em;color:#92400e">⏳ Cargando catálogo…</div>`;
+
+  // ── Sección: Aplicaciones posibles ─────────────────────────────────────────
+  h += `<details style="margin-bottom:10px;border:1px solid #bfdbfe;border-radius:10px;overflow:hidden">
+    <summary style="cursor:pointer;padding:11px 16px;background:linear-gradient(90deg,#eff6ff,#f0fdf4);display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.2em">🚀</span>
+      <span style="font-weight:700;font-size:0.93em;flex:1;color:#1e293b">Aplicaciones posibles con esta API</span>
+      <span style="font-size:0.74em;color:#64748b">6 apps · expandir para ver</span>
+      <span style="color:#94a3b8">▾</span>
+    </summary>
+    <div style="padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;background:white">
+      ${_APPS.map(app=>\`<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <div style="padding:9px 12px;background:#f8fafc;display:flex;align-items:center;gap:7px">
+          <span style="font-size:1.3em">\${app.emoji}</span>
+          <div><b style="font-size:0.87em;color:#1e293b">\${app.t}</b><br><span style="font-size:0.73em;color:#64748b">\${app.s}</span></div>
+        </div>
+        <div style="padding:8px 12px;font-size:0.79em;color:#374151">\${app.d}</div>
+        <details style="border-top:1px solid #f1f5f9">
+          <summary style="cursor:pointer;padding:5px 12px;font-size:0.74em;color:#3b82f6;background:#f8fafc">Ver detalle técnico ▾</summary>
+          <div style="padding:8px 12px;font-size:0.76em;display:grid;gap:4px;background:white">
+            <div style="color:#166534"><b>✅ Beneficio:</b> \${app.b}</div>
+            <div style="color:#0369a1"><b>🔄 Flujo API:</b><br><code style="background:#f0f9ff;padding:2px 6px;border-radius:3px;font-size:0.9em">\${app.flujo}</code></div>
+            <div><b>📦 Clases necesarias:</b> \${app.cls.map(c=>\`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">\${c}</code>\`).join(" ")}</div>
+            <div><b>🔑 Operaciones:</b> \${app.ops.map(o=>\`<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 6px">\${o}</span>\`).join(" ")}</div>
+            <div><b>⚠️ Riesgo:</b> <span style="font-weight:600;color:\${app.riesgo.includes('Solo')?'#166534':'#92400e'}">\${app.riesgo}</span></div>
+          </div>
+        </details>
+      </div>\`).join("")}
+    </div>
+  </details>`;
+
+  // ── Sección: Aprende sobre SQL Obras y la API ──────────────────────────────
+  h += `<details style="margin-bottom:10px;border:1px solid #d1fae5;border-radius:10px;overflow:hidden">
+    <summary style="cursor:pointer;padding:11px 16px;background:linear-gradient(90deg,#f0fdf4,#fefce8);display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.2em">📚</span>
+      <span style="font-weight:700;font-size:0.93em;flex:1;color:#1e293b">Aprende sobre SQL Obras y la API mPYME</span>
+      <span style="font-size:0.74em;color:#64748b">Glosario · Ciclo new→write · Códigos · Consejos</span>
+    </summary>
+    <div style="padding:10px 12px;background:white">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+          <div style="padding:8px 12px;background:#f8fafc;font-weight:700;font-size:0.84em;color:#374151">📖 Glosario SQL Obras ↔ API</div>
+          <div style="max-height:260px;overflow-y:auto">
+            ${_GLO.map(g=>\`<div style="padding:5px 12px;border-bottom:1px solid #f8fafc;font-size:0.77em"><span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-weight:600">\${g.sql}</span> → <code style="background:#f1f5f9;color:#374151;padding:1px 5px;border-radius:3px">\${g.api}</code><div style="color:#64748b;margin-top:2px">\${g.desc}</div></div>\`).join("")}
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+          <div style="padding:8px 12px;background:#f8fafc;font-weight:700;font-size:0.84em;color:#374151">🔄 Ciclo: new → write → cancel</div>
+          <div style="padding:8px 12px;font-size:0.77em;display:grid;gap:6px">
+            <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:4px;padding:6px 10px"><b style="color:#166534">1️⃣ new()</b> — Crea objeto <em>temporal</em>. No persiste. Seguro.</div>
+            <div style="background:#fef9c3;border-left:3px solid #fbbf24;border-radius:4px;padding:6px 10px"><b style="color:#78350f">2️⃣ Rellena campos</b> — Indica codProyecto, codPartida, codArticulo, cantidad, coste...</div>
+            <div style="background:#fff7ed;border-left:3px solid #f97316;border-radius:4px;padding:6px 10px"><b style="color:#92400e">3️⃣ write()</b> — PERSISTE en SQL Obras. Irreversible. Devuelve codDocumento.</div>
+            <div style="background:#fef2f2;border-left:3px solid #ef4444;border-radius:4px;padding:6px 10px"><b style="color:#991b1b">❌ cancel()</b> — Descarta el temporal. No guarda nada.</div>
+            <div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;padding:6px 10px"><b style="color:#1e40af">🔍 browse() con filtros</b> — Ej: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">filter={"estado":"activo"}</code></div>
+          </div>
+        </div>
+      </div>
+      <details style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:6px">
+        <summary style="cursor:pointer;padding:7px 12px;background:#f8fafc;font-size:0.82em;font-weight:700;color:#374151">📡 Códigos de respuesta — ¿Qué significa cada code?</summary>
+        <div style="padding:8px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:5px;background:white">
+          ${[["0","✅","#dcfce7","#166534","Operación exitosa."],["1","🚫","#fef2f2","#991b1b","Sin licencia."],["2","🔒","#f8fafc","#64748b","Sin permiso."],["3","⚠️","#fef9c3","#92400e","Error validación."],["5","⚙️","#fff7ed","#92400e","Config incompleta."],["6","🔵","#dbeafe","#1d4ed8","Requiere ID real."],["10","🔍","#f8fafc","#64748b","No encontrado."],["-1","💥","#fef2f2","#991b1b","Error de red."],["-99","⛔","#f8fafc","#374151","Escritura bloqueada."]]
+          .map(([c,ic,bg,cl,d])=>\`<div style="background:\${bg};border-radius:5px;padding:5px 8px;font-size:0.76em"><b style="color:\${cl}">\${ic} code=\${c}</b><div style="color:#475569;margin-top:2px">\${d}</div></div>\`).join("")}
+        </div>
+      </details>
+      <details style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <summary style="cursor:pointer;padding:7px 12px;background:#f8fafc;font-size:0.82em;font-weight:700;color:#374151">💡 Buenas prácticas</summary>
+        <div style="padding:8px 12px;display:grid;gap:5px;font-size:0.78em;background:white">
+          <div style="background:#f0fdf4;border-radius:5px;padding:5px 9px;color:#166534"><b>✅ Empieza con permiso()</b> — Antes de usar una clase, ejecuta permiso() para saber qué permite tu licencia.</div>
+          <div style="background:#eff6ff;border-radius:5px;padding:5px 9px;color:#1e40af"><b>🔵 code=6: usa 🔍 BD</b> — Pulsa el botón BD en el campo requerido para autocompletar con valores reales de Firebird.</div>
+          <div style="background:#fefce8;border-radius:5px;padding:5px 9px;color:#78350f"><b>📌 browse() con pagesize</b> — Usa pagesize=25 y page=1 para paginar grandes listas.</div>
+          <div style="background:#f0fdf4;border-radius:5px;padding:5px 9px;color:#166534"><b>🟢 info() descubre la estructura real</b> — info() devuelve todos los campos con tipos. Úsalo para descubrir campos no documentados.</div>
+        </div>
+      </details>
+    </div>
+  </details>`;
+
+
+
   Object.entries(catalogue).forEach(([modNombre, claseMap]) => {
     const clasesArr = Object.entries(claseMap);
     const nOk = clasesArr.filter(([c])=>{const r=_probRes[c+".browse"]||_probRes[c+".permiso"];return r&&r.estado==="ok";}).length;
@@ -480,7 +715,17 @@ function renderProbador(s) {
           <div style="padding:8px 14px;background:#fafcff;border-bottom:1px solid #f1f5f9;display:flex;flex-direction:column;gap:4px">
             <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:5px 10px;font-size:0.78em;color:#1e40af"><b>🔧 Técnico:</b> ${ci.detalle||ci.desc}</div>
             <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:5px 10px;font-size:0.78em;color:#166534"><b>👷 Empleado SQL Obras:</b> ${_claseDescEmp(clase)}</div>
+            ${(_CF[clase]?.gerente)?`<div style="background:#fefce8;border:1px solid #fde68a;border-radius:5px;padding:5px 10px;font-size:0.78em;color:#78350f"><b>📊 Gerente:</b> ${_CF[clase].gerente}</div>`:""}
           </div>
+          ${_CF[clase]?`<details style="margin:0 4px 6px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+            <summary style="cursor:pointer;padding:6px 12px;background:#f8fafc;font-size:0.76em;font-weight:600;color:#374151">📖 Flujo, casos de uso y campos clave ▾</summary>
+            <div style="padding:8px 12px;display:grid;gap:5px;background:white">
+              <div style="background:#f0f9ff;border-radius:5px;padding:5px 9px;font-size:0.75em"><b style="color:#0369a1">🔄 Flujo típico:</b><br><code style="color:#0c4a6e;background:#e0f2fe;padding:1px 5px;border-radius:3px">${_CF[clase].flujo}</code></div>
+              <div style="background:#f0fdf4;border-radius:5px;padding:5px 9px;font-size:0.75em"><b style="color:#166534">💡 Casos de uso:</b><ul style="margin:2px 0 0;padding-left:14px">${(_CF[clase].casos||[]).map(c=>`<li style="color:#15803d;margin:1px 0">${c}</li>`).join("")}</ul></div>
+              ${Object.keys(_CF[clase].campos||{}).length?`<div style="background:#faf5ff;border-radius:5px;padding:5px 9px;font-size:0.75em"><b style="color:#6b21a8">🗂️ Campos clave:</b><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">${Object.entries(_CF[clase].campos).map(([k,v])=>`<span title="${v}" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:1px 7px;cursor:help;font-family:monospace;font-size:0.93em">${k}</span>`).join("")}</div></div>`:""}
+              ${(_CF[clase].rel||[]).length?`<div style="font-size:0.73em;color:#64748b">🔗 Relacionadas: ${_CF[clase].rel.map(r=>`<code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${r}</code>`).join(" ")}</div>`:""}
+            </div>
+          </details>`:""}
           <div style="padding:8px 14px">
             <p style="font-size:0.74em;font-weight:700;color:#374151;margin:0 0 5px">OPERACIONES DE LECTURA</p>
             <div style="display:flex;flex-direction:column;gap:5px">${opsLec.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>
@@ -497,23 +742,25 @@ function renderProbador(s) {
   return h;
 }
 function _claseDescEmp(c) {
-  return ({proyectos:"Lista todas las obras activas. Busca el código de obra que necesitas.",
-    partidas:"Capítulos del presupuesto de una obra. Necesita código de obra.",
-    proordutil:"Materiales y mano de obra realmente consumidos en una obra. Costes reales.",
-    proordprev:"Costes planificados o presupuestados (no son costes reales aún).",
-    reporden:"Órdenes de avería o mantenimiento del módulo SAT.",
-    repobjetos:"Catálogo de equipos con órdenes de reparación.",
-    repinst:"Instalaciones donde están los equipos.",
-    tipostrabajo:"Tipos de trabajo: avería, revisión, preventivo...",
-    repordutil:"Materiales y horas consumidos en una reparación (SAT).",
-    articulos:"Catálogo de materiales. Busca la referencia que necesitas.",
-    recursos:"Operarios, técnicos y maquinaria disponibles.",
-    proveedores:"Empresas proveedoras. Filtra por proveedor.",
-    clientes:"Clientes o propietarios de las obras.",
-    docalbcom:"Albaranes de compra recibidos. Imputar a obra con imputaPro.",
-    docfaccom:"Facturas de compra recibidas. Imputar a obra con imputaPro.",
-    docpedcom:"Pedidos de compra enviados a proveedores.",
-    ordenfab:"Órdenes de fabricación (módulo de producción)."}[c]||"Clase de la API mPYME de SQL Obras.");
+  return ({
+    proyectos:"Aquí están todas las obras de la empresa. Cada obra tiene un código, cliente, estado e importes. Es el punto de entrada: primero busca la obra.",
+    partidas:"El presupuesto de una obra dividido en capítulos: cimentación, instalaciones, etc. Necesitas el código de obra primero.",
+    proordutil:"\u26a1 CLASE CLAVE. Aquí se registra todo lo que se consume en una obra: materiales puestos, horas de trabajo. Sin esto el ERP no sabe cuánto cuesta la obra realmente.",
+    proordprev:"Lo que se presupuestó para la obra (no lo que se ha gastado). Compararlo con los utilizados muestra si la obra va bien de presupuesto.",
+    reporden:"El parte de avería o mantenimiento. Cuando falla algo, se crea una orden, se asigna al técnico y se registra qué se hizo.",
+    repobjetos:"El inventario de equipos: calderas, climatizadoras, bombas... Cada equipo tiene marca, modelo y número de serie.",
+    repinst:"Los edificios o zonas donde están los equipos. Sirve para saber físicamente dónde ir a reparar.",
+    tipostrabajo:"Categorías de trabajo: ¿es una avería (correctivo)? ¿es una revisión anual (preventivo)? ¿instalación nueva?",
+    repordutil:"Lo que se ha gastado en una reparación: piezas de repuesto, horas del técnico. Como proordutil pero para el módulo SAT.",
+    articulos:"Lista de todos los materiales con precio, stock y proveedor. Se usa para buscar la referencia antes de imputarla a una obra.",
+    recursos:"Los técnicos, instaladores y maquinaria con sus tarifas de hora. Se usa para imputar mano de obra a una obra o reparación.",
+    proveedores:"Las empresas proveedoras: Daikin, Atlantic, Roca... Sirve para filtrar albaranes y facturas por proveedor.",
+    clientes:"Las empresas o personas para las que trabaja la empresa. Cada obra pertenece a un cliente.",
+    docalbcom:"Los albaranes de materiales que llegan. Con imputaPro se imputa directamente el gasto al proyecto y partida sin introducir nada manualmente en el ERP.",
+    docfaccom:"Las facturas de los proveedores. Con imputaPro se carga automáticamente a la obra como coste real.",
+    docpedcom:"Los pedidos que se han hecho a proveedores y aún no han llegado. ⚠️ La imputación a obra en pedidos no está confirmada 100% por Distrito K.",
+    ordenfab:"Órdenes de fabricación propia. Solo disponible si se tiene el módulo de fabricación contratado."
+  }[c]||"Clase de la API mPYME v1.2 de Distrito K / SQL Obras.");
 }
 
 
@@ -2441,19 +2688,28 @@ const ApiExplorerModule = {
       const clOk = new Set(Object.entries(_probRes)
         .filter(([,v])=>v.estado==="ok"||v.estado==="requiere_params")
         .map(([k])=>k.split(".")[0]));
-      const apps = [];
-      if (clOk.has("proordutil")||clOk.has("proyectos"))
-        apps.push("✓ App Operario — imputacion de materiales y horas en obra (movil/web)");
-      if (clOk.has("reporden")||clOk.has("repordutil"))
-        apps.push("✓ App SAT — gestion de ordenes de reparacion y partes de trabajo");
-      if (clOk.has("articulos")||clOk.has("recursos"))
-        apps.push("✓ Consulta de catalogos — articulos, recursos y operarios");
-      if (clOk.has("proyectos"))
-        apps.push("✓ Dashboard de obras — estado, partidas y costes en tiempo real");
-      if (clOk.has("docalbcom")||clOk.has("docfaccom"))
-        apps.push("✓ Modulo de compras — imputacion directa de albaranes/facturas a obra");
-      if (apps.length===0) apps.push("Sin resultados suficientes — ejecutar Probar todas.");
-      apps.forEach(a => ln(`  ${a}`)); ln("");
+      // Usar _APPS si está disponible
+      if (typeof _APPS !== "undefined") {
+        _APPS.forEach(app => {
+          const accesible = app.cls.some(c => clOk.has(c));
+          const estado = accesible ? "POSIBLE" : "REQUIERE LICENCIA/PERMISO";
+          ln(`  [${estado}] ${app.emoji} ${app.t}`);
+          ln(`    ${app.s}`);
+          if (perfil==="ingeniero") {
+            ln(`    Flujo: ${app.flujo}`);
+            ln(`    Clases: ${app.cls.join(", ")} | Ops: ${app.ops.join(", ")} | ${app.riesgo}`);
+          }
+          ln("");
+        });
+      } else {
+        if (clOk.has("proordutil")||clOk.has("proyectos"))
+          ln("  ✓ App Operario — imputacion de materiales y horas en obra");
+        if (clOk.has("reporden")||clOk.has("repordutil"))
+          ln("  ✓ App SAT — gestion de ordenes de reparacion");
+        if (clOk.has("proyectos"))
+          ln("  ✓ Dashboard de obras — estado, partidas y costes en tiempo real");
+        ln("");
+      }
     }
 
     // Pie
