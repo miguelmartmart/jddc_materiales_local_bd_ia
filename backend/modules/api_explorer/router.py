@@ -979,6 +979,8 @@ async def auto_probar(request: AutoProbarRequest):
             "n_items":n,"campos_detectados":campos,
             "necesito_id_real":nid,"id_resuelto":ires,
             "params_usados":params,"ms":round(ms),"use_mock":svc.use_mock,
+            # items: lista real de registros para mostrar tabla en el Probador
+            "items": items[:20] if isinstance(items, list) else [],
             "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {})}
 
 
@@ -1070,4 +1072,68 @@ async def get_informe_completo():
         return svc.generar_informe_completo()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ValoresParamRequest(BaseModel):
+    clase: str
+    campo: str   # nombre del parámetro API: "codProyecto", "codOrden", etc.
+
+
+@router.post("/valores-param")
+async def valores_param(request: ValoresParamRequest):
+    """
+    Obtiene valores reales de Firebird para autocompletar un campo de parámetro.
+    Solo lectura. Devuelve máx. 10 valores: id + descripción.
+    Los valores SÍ se devuelven aquí (son para rellenar el formulario del Probador).
+    El usuario los ve para elegir cuál probar — no aparecen en informes.
+    """
+    from backend.core.config.settings import settings
+    import time as _t
+    # Mapeo param_api -> (tabla, campo_id, campo_desc, filtro_sql)
+    MAPA_VALORES = {
+        "codProyecto": ("PROYECTOS",   "CODPROYE",    "DENOMINACION",  None),
+        "codOrden":    ("REPORDEN",    "CODORDEN",    "DESCRIPCION",   None),
+        "codRecurso":  ("RECURSOS",    "CODRECURSO",  "NOMBRE",        None),
+        "codObjeto":   ("REPOBJETOS",  "CODOBJETO",   "DESCRIPCION",   None),
+        "codInst":     ("REPINST",     "CODINST",     "DESCRIPCION",   None),
+        "codTrabajo":  ("TIPOSTRAB",   "CODTRABAJO",  "DESCRIPCION",   None),
+        "codArticulo": ("ARTICULO",    "CODARTICULO", "DESCRIP",       None),
+        "codProv":     ("PROVEEDORES", "CODPROV",     "NOMBRE",        None),
+        "codCliente":  ("CLIENTES",    "CODCLIENTE",  "NOMBRE",        None),
+        "codDocumento":("DOCCAB",      "CODDOC",      "CODDOC",        None),
+        "codPartida":  ("PARTIDAS",    "CODPARTIDA",  "DESCRIPCION",   None),
+    }
+    info = MAPA_VALORES.get(request.campo)
+    if not info:
+        return {"ok": False, "campo": request.campo,
+                "valores": [], "error": f"Campo '{request.campo}' no tiene tabla mapeada"}
+    tabla, campo_id, campo_desc, filtro = info
+    if not settings.DB_NAME:
+        return {"ok": False, "campo": request.campo, "valores": [],
+                "error": "DB_NAME no configurado"}
+    try:
+        import firebirdsql
+        con = firebirdsql.connect(
+            host=settings.DB_HOST, port=settings.DB_PORT,
+            database=settings.DB_NAME, user=settings.DB_USER,
+            password=settings.DB_PASSWORD, charset="UTF8",
+        )
+        cur = con.cursor()
+        sql = f"SELECT FIRST 10 {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+        cur.execute(sql)
+        rows = cur.fetchall()
+        cur.close(); con.close()
+        valores = []
+        for row in rows:
+            vid  = str(row[0]).strip() if row[0] is not None else ""
+            vdsc = str(row[1]).strip() if row[1] is not None else ""
+            if vid:
+                valores.append({"id": vid, "desc": vdsc})
+        return {"ok": True, "campo": request.campo, "tabla": tabla, "valores": valores}
+    except ImportError:
+        return {"ok": False, "campo": request.campo, "valores": [],
+                "error": "firebirdsql no instalado"}
+    except Exception as exc:
+        return {"ok": False, "campo": request.campo, "valores": [],
+                "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
 

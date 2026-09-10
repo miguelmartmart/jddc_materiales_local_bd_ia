@@ -16,22 +16,116 @@ body {
     height: 100vh;
 }
 
-/* Sidebar */
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
     width: 250px;
+    min-width: 250px;
     background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
     color: white;
-    padding: 20px;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Botón toggle del sidebar — siempre visible */
+.sidebar-toggle-btn {
+    position: absolute;
+    top: 16px;
+    right: 12px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    font-size: 1rem;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.25s;
+    flex-shrink: 0;
+    z-index: 10;
+}
+.sidebar-toggle-btn:hover {
+    background: rgba(255,255,255,0.28);
+}
+
+/* Sidebar colapsado */
+.sidebar.collapsed {
+    width: 56px;
+    min-width: 56px;
+    padding: 20px 8px;
+}
+.sidebar.collapsed .logo h1 {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    margin: 0;
+}
+.sidebar.collapsed nav li span.nav-label {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    display: inline-block;
+    transition: opacity 0.2s, width 0.25s;
+}
+.sidebar.collapsed .sidebar-toggle-btn {
+    right: 50%;
+    transform: translateX(50%) rotate(180deg);
+}
+/* Tooltip en modo colapsado */
+.sidebar.collapsed nav li {
+    position: relative;
+    justify-content: center;
+    padding: 12px 0;
+}
+.sidebar.collapsed nav li::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.sidebar.collapsed nav li:hover::after {
+    opacity: 1;
 }
 
 .logo h1 {
     font-size: 1.5rem;
     margin-bottom: 30px;
+    margin-right: 36px; /* espacio para el botón toggle */
+    white-space: nowrap;
+    overflow: hidden;
+    transition: opacity 0.2s, width 0.25s;
 }
 
 nav ul {
     list-style: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(100vh - 130px);
+    padding-bottom: 12px;
 }
+/* scrollbar fino en sidebar */
+nav ul::-webkit-scrollbar { width: 4px; }
+nav ul::-webkit-scrollbar-track { background: transparent; }
+nav ul::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
+
 
 nav li {
     padding: 12px 15px;
@@ -39,6 +133,15 @@ nav li {
     border-radius: 8px;
     cursor: pointer;
     transition: background 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+nav li span.nav-label {
+    transition: opacity 0.2s, width 0.25s;
+    overflow: hidden;
 }
 
 nav li:hover {
@@ -470,4 +573,41 @@ details>summary::-webkit-details-marker {
     opacity: 0.6;
     cursor: not-allowed;
     background-color: #f1f5f9;
+}
+
+/* ── Chat: scroll horizontal y word-break ────────────────────────────────── */
+/* Los mensajes del chat pueden contener tablas anchas generadas por la IA.
+   overflow-x: auto en el contenedor del mensaje evita que rompan el layout.
+   word-break: break-word evita que URLs largas o strings sin espacios
+   desborden el contenedor. */
+#chat-messages .message {
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+#chat-messages .message table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+    white-space: nowrap;
+}
+#chat-messages .message pre {
+    overflow-x: auto;
+    max-width: 100%;
+}
+/* Scrollbar fino para tablas/pre dentro del chat */
+#chat-messages .message table::-webkit-scrollbar,
+#chat-messages .message pre::-webkit-scrollbar {
+    height: 5px;
+}
+#chat-messages .message table::-webkit-scrollbar-thumb,
+#chat-messages .message pre::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* ── Sidebar: nav items — el click en span hijo debe propagar al li ──────── */
+/* pointer-events: none en los spans hijos hace que el click siempre
+   llegue al <li> con data-view, evitando que e.target sea el span */
+nav li > span {
+    pointer-events: none;
 }

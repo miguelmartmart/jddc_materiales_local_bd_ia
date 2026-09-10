@@ -342,6 +342,30 @@ let _probLoad = {};  // {clase: bool cargando}
 
 
 
+// ── Metadatos de parámetros con descripción doble nivel ──────────────────────
+const _PARAM_INFO = {
+  codProyecto:{tec:"ID único proyecto. Formato año/número.",emp:"Código de la obra en SQL Obras. Lo ves junto al nombre de la obra.",ej:"26/001"},
+  codOrden:{tec:"ID orden de reparación.",emp:"Número de la orden de avería o mantenimiento en el módulo SAT.",ej:"REP-2026-001"},
+  codPartida:{tec:"Capítulo presupuestario del proyecto.",emp:"Partida del presupuesto (ej: 03.02 = Climatización subcap 2).",ej:"03.02"},
+  codArticulo:{tec:"Referencia artículo en catálogo.",emp:"Referencia del material. La encuentras en el catálogo de artículos.",ej:"1#100142"},
+  codRecurso:{tec:"ID del recurso (empleado/maquinaria).",emp:"Código del instalador o técnico. En la ficha del empleado.",ej:"R-INST01"},
+  codDocumento:{tec:"ID del documento de compra.",emp:"Número del albarán o factura tal como aparece en SQL Obras.",ej:"ALB-2026-0101"},
+  objectId:{tec:"ID temporal de la op 'new'. Usar en write/cancel.",emp:"Número temporal al preparar una entrada. Úsalo para guardar o cancelar.",ej:"TMP_A1B2"},
+  codLinea:{tec:"Nº de línea dentro del documento. Base 1.",emp:"Línea del albarán o factura que quieres imputar a la obra.",ej:"1"},
+  codMaestro:{tec:"Proyecto destino en imputaPro.",emp:"Obra a la que se cargará el gasto del albarán/factura.",ej:"26/001"},
+  codDetalle:{tec:"Partida destino en imputaPro.",emp:"Partida de la obra donde se registrará el gasto.",ej:"03.02"},
+  filtro:{tec:"Texto libre para filtrar por nombre.",emp:"Escribe parte del nombre que buscas, ej: 'Hospital'.",ej:"Hospital"},
+  pagina:{tec:"Número de página para paginación. Base 1.",emp:"Si hay muchos resultados, usa página 2, 3...",ej:"1"},
+  estado:{tec:"Filtro de estado según mPYME.",emp:"abierta = en curso, cerrada = terminada, todas = sin filtro.",ej:"abierta"},
+  tipo:{tec:"Tipo de línea: M=Material, R=Recurso.",emp:"M = material o producto · R = mano de obra de un operario.",ej:"M"},
+  cantidad:{tec:"Cantidad numérica (unidades o horas).",emp:"Cuántas unidades del material o cuántas horas trabajó el operario.",ej:"2.5"},
+  coste:{tec:"Coste unitario en euros.",emp:"Precio de coste de cada unidad o de cada hora de trabajo.",ej:"35.10"},
+  precio:{tec:"Precio de venta unitario en euros.",emp:"Precio al que se factura al cliente (0 si no corresponde).",ej:"42.00"},
+  fecha:{tec:"Fecha formato AAAAMMDD sin separadores.",emp:"Fecha: año+mes+día sin guiones. Ej: 20260915 = 15 sept 2026.",ej:"20260915"},
+  subcontrata:{tec:"T=subcontrata / F=no subcontrata.",emp:"¿Es una compra a empresa subcontratada? T=Sí, F=No.",ej:"F"},
+};
+const _PARAMS_CON_BD = new Set(["codProyecto","codOrden","codRecurso","codObjeto","codInst","codTrabajo","codArticulo","codProv","codCliente","codDocumento","codPartida"]);
+
 function renderProbador(s) {
   const cat = _state.catalogue;
   const catalogue = cat ? cat.catalogue : {};
@@ -350,75 +374,62 @@ function renderProbador(s) {
   let h = `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:14px">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
-        <h3 style="margin:0 0 3px;font-size:1.02em">🧪 Probador Visual de la API</h3>
-        <p style="margin:0;font-size:0.79em;color:#64748b">
-          Prueba cualquier clase y operación con un clic.
-          Si la API devuelve code=6, obtiene el ID necesario automáticamente de la BD.
-          Sin valores privados en resultados — solo estados y estructura de campos.
-        </p>
+        <h3 style="margin:0 0 3px;font-size:1.02em">🧪 Probador Visual API mPYME</h3>
+        <p style="margin:0;font-size:0.79em;color:#64748b">Formulario con autocompletado desde BD.
+        Rellena los campos, pulsa Ejecutar y ve el resultado real.
+        🔍 busca valores de BD · ❓ explica cada parámetro (técnico + empleado).</p>
       </div>
       ${sesion
-        ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)"
-             class="btn primary" style="white-space:nowrap;font-size:0.85em">
-             🚀 Probar todas las clases
-           </button>`
-        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:6px 12px;font-size:0.82em;color:#92400e">
-             ⚠️ Requiere login en <strong>Conexión</strong>
-           </div>`}
+        ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.84em">🚀 Probar todas (auto)</button>`
+        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Login requerido</div>`}
     </div>
     <div id="ae-probador-todo-result" style="margin-top:8px"></div>
-    ${isMock
-      ? `<div style="margin-top:8px;background:#dbeafe;border-left:3px solid #3b82f6;border-radius:4px;padding:5px 10px;font-size:0.78em;color:#1d4ed8">🔵 BD Simulada — datos de ejemplo. Cambia a API Real en Conexión.</div>`
-      : `<div style="margin-top:8px;background:#dcfce7;border-left:3px solid #16a34a;border-radius:4px;padding:5px 10px;font-size:0.78em;color:#166534">🟢 API Real — datos reales de SQL Obras.</div>`}
+    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${isMock?`<span style="background:#dbeafe;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#1d4ed8">🔵 BD Simulada</span>`:`<span style="background:#dcfce7;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#166534">🟢 API Real — SQL Obras</span>`}
+      <span style="font-size:0.74em;color:#94a3b8">Solo lectura · 🔍 autocompleta desde BD</span>
+    </div>
   </div>`;
 
-  if (!cat || !Object.keys(catalogue).length) {
+  if (!cat || !Object.keys(catalogue).length)
     return h + `<div style="background:#fef9c3;border-radius:8px;padding:14px;font-size:0.85em;color:#92400e">⏳ Cargando catálogo…</div>`;
-  }
-
   Object.entries(catalogue).forEach(([modNombre, claseMap]) => {
     const clasesArr = Object.entries(claseMap);
-    const nOk = clasesArr.filter(([c]) => {
-      const r = _probRes[c+".browse"]||_probRes[c+".permiso"];
-      return r && r.estado==="ok";
-    }).length;
+    const nOk = clasesArr.filter(([c])=>{const r=_probRes[c+".browse"]||_probRes[c+".permiso"];return r&&r.estado==="ok";}).length;
     h += `<details open style="margin-bottom:8px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
       <summary style="padding:10px 16px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none">
-        <span>📦</span>
-        <span style="font-weight:700;font-size:0.94em;flex:1">${modNombre}</span>
-        <span style="font-size:0.77em;color:#94a3b8">${clasesArr.length} clases</span>
-        ${nOk>0?`<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.72em;font-weight:700">${nOk} ✅</span>`:""}
+        <span>📦</span><span style="font-weight:700;font-size:0.93em;flex:1">${modNombre}</span>
+        <span style="font-size:0.75em;color:#94a3b8">${clasesArr.length} clases</span>
+        ${nOk>0?`<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.7em;font-weight:700">${nOk} ✅</span>`:""}
         <span style="color:#94a3b8">▾</span>
       </summary>
-      <div style="padding:8px 10px">`;
+      <div style="padding:6px 10px">`;
     clasesArr.forEach(([clase, opsArr]) => {
       const ci = CLASE_INFO[clase]||{emoji:"🔷",desc:clase,detalle:""};
-      const opsLec = opsArr.filter(o => (_OPDESC[o]||{riesgo:0}).riesgo<2);
-      const opsEsc = opsArr.filter(o => (_OPDESC[o]||{riesgo:0}).riesgo>=2);
+      const opsLec = opsArr.filter(o=>(_OPDESC[o]||{riesgo:0}).riesgo<2);
+      const opsEsc = opsArr.filter(o=>(_OPDESC[o]||{riesgo:0}).riesgo>=2);
       let mejor="pendiente";
       opsArr.forEach(op=>{const r=_probRes[`${clase}.${op}`];if(r){if(r.estado==="ok")mejor="ok";else if(mejor==="pendiente")mejor=r.estado;}});
       const ec=_ECFG[mejor]||_ECFG.pendiente;
-      const carg=_probLoad[clase];
       h += `<details style="margin-bottom:5px;border:1px solid ${ec.border};border-radius:8px;overflow:hidden">
-        <summary style="padding:8px 12px;background:${ec.bg};cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none">
+        <summary style="padding:9px 12px;background:${ec.bg};cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none">
           <span>${ci.emoji}</span>
-          <code style="font-size:0.87em;font-weight:700;color:#1e293b">${clase}</code>
-          <span style="font-size:0.79em;color:#475569;flex:1">${ci.desc}</span>
-          ${carg?`<span style="font-size:0.73em;color:#3b82f6">⏳ probando…</span>`
-            :`<span style="background:${ec.bg};border:1px solid ${ec.border};color:${ec.color};border-radius:10px;padding:1px 8px;font-size:0.71em;font-weight:600">${ec.sym} ${ec.label}</span>`}
-          <button onclick="event.stopPropagation();ApiExplorerModule.doAutoProbarClase('${clase}',${JSON.stringify(opsLec)})"
-            ${!sesion?"disabled":""}
-            style="font-size:0.72em;padding:2px 9px;background:#3b82f6;color:white;border:none;border-radius:5px;cursor:pointer;white-space:nowrap">
-            ▶ Probar todo
-          </button>
+          <div style="flex:1;min-width:0"><b style="font-size:0.87em;color:#1e293b">${clase}</b><span style="font-size:0.77em;color:#475569;margin-left:7px">${ci.desc}</span></div>
+          <span style="border:1px solid ${ec.border};color:${ec.color};border-radius:10px;padding:1px 8px;font-size:0.7em;font-weight:600">${ec.sym} ${ec.label}</span>
           <span style="color:#94a3b8">▾</span>
         </summary>
-        <div style="padding:10px 14px;border-top:1px solid ${ec.border}">
-          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:7px 12px;margin-bottom:10px;font-size:0.79em;color:#0369a1">${ci.detalle||ci.desc}</div>
-          <p style="font-size:0.77em;font-weight:600;color:#374151;margin:0 0 6px">📋 Operaciones de lectura:</p>
-          <div style="display:flex;flex-direction:column;gap:5px">${opsLec.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>
-          ${opsEsc.length?`<p style="font-size:0.77em;font-weight:600;color:#92400e;margin:12px 0 6px">⚠️ Escritura (requiere modo escritura activo):</p>
-          <div style="display:flex;flex-direction:column;gap:5px">${opsEsc.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>`:""}
+        <div style="border-top:1px solid ${ec.border}">
+          <div style="padding:8px 14px;background:#fafcff;border-bottom:1px solid #f1f5f9;display:flex;flex-direction:column;gap:4px">
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:5px 10px;font-size:0.78em;color:#1e40af"><b>🔧 Técnico:</b> ${ci.detalle||ci.desc}</div>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:5px 10px;font-size:0.78em;color:#166534"><b>👷 Empleado SQL Obras:</b> ${_claseDescEmp(clase)}</div>
+          </div>
+          <div style="padding:8px 14px">
+            <p style="font-size:0.74em;font-weight:700;color:#374151;margin:0 0 5px">OPERACIONES DE LECTURA</p>
+            <div style="display:flex;flex-direction:column;gap:5px">${opsLec.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>
+          </div>
+          ${opsEsc.length?`<div style="padding:8px 14px;border-top:1px solid #fed7aa;background:#fffbf5">
+            <p style="font-size:0.74em;font-weight:700;color:#92400e;margin:0 0 5px">⚠️ ESCRITURA (activar modo escritura primero)</p>
+            <div style="display:flex;flex-direction:column;gap:5px">${opsEsc.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>
+          </div>`:""}
         </div>
       </details>`;
     });
@@ -426,76 +437,140 @@ function renderProbador(s) {
   });
   return h;
 }
+function _claseDescEmp(c) {
+  return ({proyectos:"Lista todas las obras activas. Busca el código de obra que necesitas.",
+    partidas:"Capítulos del presupuesto de una obra. Necesita código de obra.",
+    proordutil:"Materiales y mano de obra realmente consumidos en una obra. Costes reales.",
+    proordprev:"Costes planificados o presupuestados (no son costes reales aún).",
+    reporden:"Órdenes de avería o mantenimiento del módulo SAT.",
+    repobjetos:"Catálogo de equipos con órdenes de reparación.",
+    repinst:"Instalaciones donde están los equipos.",
+    tipostrabajo:"Tipos de trabajo: avería, revisión, preventivo...",
+    repordutil:"Materiales y horas consumidos en una reparación (SAT).",
+    articulos:"Catálogo de materiales. Busca la referencia que necesitas.",
+    recursos:"Operarios, técnicos y maquinaria disponibles.",
+    proveedores:"Empresas proveedoras. Filtra por proveedor.",
+    clientes:"Clientes o propietarios de las obras.",
+    docalbcom:"Albaranes de compra recibidos. Imputar a obra con imputaPro.",
+    docfaccom:"Facturas de compra recibidas. Imputar a obra con imputaPro.",
+    docpedcom:"Pedidos de compra enviados a proveedores.",
+    ordenfab:"Órdenes de fabricación (módulo de producción)."}[c]||"Clase de la API mPYME de SQL Obras.");
+}
 
 
 
 function _mkOpCard(clase, op, sesion) {
-  const oi = _OPDESC[op]||{riesgo:0,label:op,rl:"",desc:op};
+  const oi  = _OPDESC[op]||{riesgo:0,label:op,rl:"",desc:op};
   const key = `${clase}.${op}`;
   const res = _probRes[key];
   const ec  = res ? (_ECFG[res.estado]||_ECFG.error) : _ECFG.pendiente;
-  const esW = oi.riesgo>=2;
+  const esW = oi.riesgo >= 2;
   const rBG = ["#f0fdf4","#fefce8","#fff7ed","#fef2f2"][oi.riesgo]||"#f8fafc";
   const rCL = ["#166534","#92400e","#c2410c","#991b1b"][oi.riesgo]||"#64748b";
   const btnBg = esW ? "#92400e" : "#3b82f6";
-  let detalle = "";
+  const urlApi = `mPYME → ${clase}.${op}()`;
+
+  // ── Formulario de parámetros ──────────────────────────────────────────────
+  const params = PARAMS_DB[`${clase}.${op}`] || [];
+  let formHtml = "";
+  if (params.length > 0) {
+    const fields = params.map(f => {
+      const pi  = _PARAM_INFO[f.n];
+      const hasBD = _PARAMS_CON_BD.has(f.n);
+      const req = f.req ? `<span style="color:#dc2626" title="Obligatorio">*</span>` : "";
+      const bdBtn = hasBD
+        ? `<button type="button" onclick="ApiExplorerModule.doAutocompletar('${clase}','${op}','${f.n}')"
+             title="Buscar valores reales en la BD de SQL Obras"
+             style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 7px;font-size:0.77em;cursor:pointer">🔍 BD</button>` : "";
+      const helpBtn = pi
+        ? `<button type="button" onclick="ApiExplorerModule.toggleParamHelp('${clase}','${op}','${f.n}')"
+             title="Ver explicación del parámetro"
+             style="border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;border-radius:4px;padding:1px 7px;font-size:0.77em;cursor:pointer">❓</button>` : "";
+      const input = f.t==="select"
+        ? `<select id="ap-${clase}-${op}-${f.n}" style="flex:1;border:1px solid #e2e8f0;border-radius:5px;padding:4px 7px;font-size:0.82em">
+             ${(f.opts||[]).map(o=>`<option value="${o}">${o||"(todos)"}</option>`).join("")}
+           </select>`
+        : `<input id="ap-${clase}-${op}-${f.n}" type="${f.t||"text"}" placeholder="${f.ph||pi?.ej||""}"
+             style="flex:1;border:1px solid #e2e8f0;border-radius:5px;padding:4px 7px;font-size:0.82em;min-width:90px">`;
+      return `<div style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span style="font-size:0.77em;color:#374151;font-weight:600">${f.n}${req}</span>${bdBtn}${helpBtn}
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          ${input}<span style="font-size:0.71em;color:#94a3b8;white-space:nowrap">${f.desc||""}</span>
+        </div>
+        <div id="ap-help-${clase}-${op}-${f.n}" style="display:none;background:#fef9c3;border:1px solid #fde047;border-radius:4px;padding:5px 8px;font-size:0.76em"></div>
+        <div id="ap-bd-${clase}-${op}-${f.n}" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;display:none"></div>
+      </div>`;
+    }).join("");
+    formHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:8px;padding:8px 12px;background:#f8fafc;border-top:1px solid #f1f5f9">${fields}</div>`;
+  }
+
+  // ── Resultado ─────────────────────────────────────────────────────────────
+  let resultHtml = "";
   if (res) {
     const codeExp = _CODEEXP[String(res.code)]||"";
-    const camposHtml = (res.campos_detectados||[]).length
-      ? `<details style="margin-top:4px"><summary style="cursor:pointer;color:#3b82f6;font-size:0.92em">Ver ${res.campos_detectados.length} campos detectados</summary>
-         <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">
-           ${(res.campos_detectados||[]).map(c=>{
-             const exp=_CAMPOEXP[c.toUpperCase()]||("Campo: "+c);
-             return `<code title="${exp}" style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:0.88em;cursor:help">${c}</code>`;
-           }).join("")}
-         </div></details>` : "";
-    detalle = `<details style="margin-top:6px">
-      <summary style="cursor:pointer;font-size:0.77em;color:#64748b">🔎 Ver resultado detallado (${res.ms||0}ms)</summary>
-      <div style="margin-top:6px;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78em">
-        <table style="border-collapse:collapse;width:100%">
-          <tr><td style="color:#64748b;padding:2px 8px 2px 0;white-space:nowrap;font-weight:600;width:90px">Código</td>
-              <td><code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${res.code??"-"}</code>
-                  <span style="color:#64748b;margin-left:6px;font-size:0.9em">${codeExp}</span></td></tr>
-          <tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Estado</td>
-              <td style="color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</td></tr>
-          <tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Tiempo</td>
-              <td>${res.ms||0}ms</td></tr>
-          ${(res.n_items||0)>0?`<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Registros</td>
-              <td>${res.n_items} obtenidos (solo estructura expuesta, sin valores)</td></tr>`:""}
-          ${res.necesito_id_real?`<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">ID real</td>
-              <td>${res.id_resuelto
-                ? `<span style="color:#166534">✅ Obtenido de BD automáticamente (valor no mostrado — privacidad)</span>`
-                : `<span style="color:#92400e">⚠️ Necesario pero BD sin datos o sin acceso</span>`}</td></tr>`:""}
-          ${(res.muestra_tipos&&Object.keys(res.muestra_tipos||{}).length)
-            ? `<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600;vertical-align:top">Tipos</td>
-               <td style="font-size:0.9em"><code style="background:#f1f5f9;padding:2px 6px;border-radius:3px">${JSON.stringify(res.muestra_tipos)}</code></td></tr>`:""
-          }
-        </table>
-        ${camposHtml}
-        <div style="margin-top:7px;padding:6px 9px;background:${ec.bg};border:1px solid ${ec.border};border-radius:5px;color:${ec.color}">${res.mensaje||""}</div>
+    const campos = res.campos_detectados||[];
+    const camposHtml = campos.length
+      ? `<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">
+           ${campos.map(c=>`<code title="${_CAMPOEXP[c.toUpperCase()]||c}" style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:0.82em;cursor:help">${c}</code>`).join("")}
+         </div>` : "";
+    const tablaHtml = res.tabla_html || "";
+    resultHtml = `<div style="padding:8px 12px;border-top:1px solid ${ec.border};background:white">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+        <span style="font-size:0.81em;font-weight:700;color:${ec.color}">${ec.sym} ${ec.label}</span>
+        <code style="font-size:0.75em;background:#f1f5f9;padding:1px 5px;border-radius:3px">code=${res.code??"-"}</code>
+        <span style="font-size:0.74em;color:#94a3b8">${res.ms||0}ms</span>
+        ${(res.n_items||0)>0?`<span style="font-size:0.74em;color:#166534;font-weight:600">${res.n_items} registros</span>`:""}
+        ${res.id_resuelto?`<span style="font-size:0.72em;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:5px">🔍 ID auto-resuelto de BD</span>`:""}
       </div>
-    </details>`;
+      <div style="font-size:0.76em;color:#64748b;margin-bottom:3px">${codeExp}</div>
+      <div style="font-size:0.8em;padding:5px 8px;background:${ec.bg};border-left:3px solid ${ec.border};border-radius:0 4px 4px 0">${res.mensaje||""}</div>
+      ${campos.length?`<p style="font-size:0.75em;color:#64748b;font-weight:600;margin:5px 0 2px">Campos detectados:</p>${camposHtml}`:""}
+      ${tablaHtml}
+    </div>`;
   }
-  return `<div id="ae-prob-${clase}-${op}" style="background:${ec.bg};border:1px solid ${ec.border};border-radius:7px;padding:8px 12px">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px">
-        <span style="font-weight:600;font-size:0.84em;color:#1e293b">${oi.label}</span>
-        <code style="font-size:0.74em;color:#64748b;margin-left:5px">.${op}()</code>
-        <span style="font-size:0.71em;padding:1px 6px;border-radius:8px;background:${rBG};color:${rCL};margin-left:4px">${oi.rl}</span>
+  return `<div id="ae-prob-${clase}-${op}" style="background:${ec.bg};border:1px solid ${ec.border};border-radius:7px;overflow:hidden">
+    <div style="padding:7px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <b style="font-size:0.85em;color:#1e293b">${oi.label}</b>
+        <code style="font-size:0.74em;color:#64748b">.${op}()</code>
+        <span style="font-size:0.7em;padding:1px 6px;border-radius:8px;background:${rBG};color:${rCL}">${oi.rl}</span>
       </div>
-      ${res?`<span style="font-size:0.74em;color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</span>`:`<span style="font-size:0.72em;color:#94a3b8">Sin probar</span>`}
-      <button onclick="ApiExplorerModule.doAutoProbarOp('${clase}','${op}')"
+      ${res?`<span style="font-size:0.73em;color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</span>`:`<span style="font-size:0.71em;color:#94a3b8">⬜ Sin probar</span>`}
+      <button onclick="ApiExplorerModule.doEjecutarProbador('${clase}','${op}')"
         ${!sesion?"disabled":""}
-        style="font-size:0.72em;padding:2px 9px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;white-space:nowrap">
-        ▶ Probar
+        style="font-size:0.8em;padding:4px 14px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">
+        ▶ Ejecutar
       </button>
     </div>
-    <details style="margin-top:3px">
-      <summary style="cursor:pointer;font-size:0.74em;color:#94a3b8">¿Qué hace esta operación?</summary>
-      <p style="margin:3px 0 0;font-size:0.77em;color:#475569;padding:3px 0">${oi.desc}</p>
+    <div style="padding:2px 12px 4px;background:#0f172a;font-family:monospace;font-size:0.71em;color:#64748b">
+      <span style="color:#475569">API: </span><span style="color:#7dd3fc">${urlApi}</span>
+    </div>
+    <details style="border-top:1px solid ${ec.border}">
+      <summary style="cursor:pointer;padding:4px 12px;font-size:0.73em;color:#64748b;background:${ec.bg}">❓ ¿Qué hace esta operación? (técnico + empleado SQL Obras)</summary>
+      <div style="padding:6px 12px;display:grid;grid-template-columns:1fr 1fr;gap:5px;background:white;border-top:1px solid ${ec.border}">
+        <div style="background:#eff6ff;border-radius:4px;padding:5px 8px;font-size:0.77em;color:#1e40af"><b>🔧 Técnico:</b> ${oi.desc}</div>
+        <div style="background:#f0fdf4;border-radius:4px;padding:5px 8px;font-size:0.77em;color:#166534"><b>👷 Empleado:</b> ${_opDescEmp(clase,op)}</div>
+      </div>
     </details>
-    ${detalle}
+    ${formHtml}${resultHtml}
   </div>`;
+}
+
+function _opDescEmp(clase, op) {
+  return ({
+    browse:"Hace una búsqueda en SQL Obras y muestra los resultados en lista. Como buscar registros en pantalla.",
+    read:"Abre la ficha completa de un registro concreto. Como pinchar en un registro para ver todos sus datos.",
+    permiso:"Comprueba qué acciones puede hacer el usuario de la API. Auditoría de accesos.",
+    info:"Muestra qué campos tiene este tipo de registro. Como ver las columnas de una tabla.",
+    new:"Prepara una entrada nueva sin guardarla aún. Como rellenar un formulario antes de pulsar Guardar.",
+    edit:"Abre un registro existente para modificarlo.",
+    cancel:"Cancela la entrada que estabas preparando. No guarda nada. Siempre seguro.",
+    write:"⚠️ Guarda definitivamente en SQL Obras. Como pulsar Guardar. Irreversible.",
+    imputaPro:"⚠️ Vincula un albarán o factura a una obra como coste real. Se registra el gasto en la obra.",
+    delete:"⚠️ Elimina un registro definitivamente de SQL Obras. No se puede deshacer.",
+  }[op]||op);
 }
 
 function _chipRes(sym, n, label, bg, color) {
@@ -2093,34 +2168,95 @@ const ApiExplorerModule = {
 
   // ── Probador Visual ─────────────────────────────────────────────────────────
 
-  async doAutoProbarOp(clase, op) {
-    // Prueba una operación concreta. Auto-resuelve code=6 con ID de BD.
+  async doEjecutarProbador(clase, op) {
+    // Ejecutar con params del formulario y mostrar tabla con datos reales
     const key = `${clase}.${op}`;
-    // Actualizar UI: "probando..."
-    _probLoad[clase] = true;
     const card = document.getElementById(`ae-prob-${clase}-${op}`);
-    if (card) {
-      const btn = card.querySelector("button");
-      if (btn) { btn.textContent = "⏳"; btn.disabled = true; }
-    }
+    const btn = card ? card.querySelector("button[onclick*='doEjecutarProbador']") : null;
+    if (btn) { btn.textContent = "⏳"; btn.disabled = true; }
+    // Recoger params del formulario
+    const paramsDef = PARAMS_DB[`${clase}.${op}`] || [];
+    const params = {};
+    paramsDef.forEach(f => {
+      const el = document.getElementById(`ap-${clase}-${op}-${f.n}`);
+      if (el && el.value !== "") params[f.n] = f.t==="number" ? parseFloat(el.value) : el.value;
+    });
     try {
-      const r = await _fetch("/auto-probar", {
-        method: "POST",
-        body: JSON.stringify({clase, operacion: op, params: {}}),
-      });
+      const r = await _fetch("/auto-probar", {method:"POST", body:JSON.stringify({clase,operacion:op,params})});
+      // Tabla HTML de datos si hay resultados
+      if (r.items && Array.isArray(r.items) && r.items.length > 0) {
+        const keys = Object.keys(r.items[0]);
+        const rows = r.items.slice(0,20).map(row=>
+          `<tr>${keys.map(k=>`<td style="padding:3px 8px;border-bottom:1px solid #f1f5f9;font-size:0.82em">${row[k]??""}</td>`).join("")}</tr>`).join("");
+        r.tabla_html = `<div style="margin-top:8px;overflow-x:auto;border-radius:6px;border:1px solid #e2e8f0">
+          <table style="width:100%;border-collapse:collapse;background:white">
+            <thead style="background:#f8fafc"><tr>${keys.map(k=>`<th style="padding:4px 8px;text-align:left;font-size:0.74em;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <p style="color:#64748b;font-size:0.75em;margin:4px 8px">${r.items.length} registro(s)${r.n_items>r.items.length?` de ${r.n_items}`:""}</p>
+        </div>`;
+        r.campos_detectados = keys;
+      }
       _probRes[key] = r;
     } catch(e) {
-      _probRes[key] = {code:-1, estado:"error", ms:0, n_items:0,
-        campos_detectados:[], mensaje:`Error: ${e.message}`,
-        necesito_id_real:false, id_resuelto:false, muestra_tipos:{}};
-    } finally {
-      _probLoad[clase] = false;
+      _probRes[key] = {code:-1,estado:"error",ms:0,n_items:0,campos_detectados:[],mensaje:`Error: ${e.message}`,necesito_id_real:false,id_resuelto:false,tabla_html:""};
     }
-    // Re-render solo la tarjeta de operación (in-place)
     const cardNew = document.getElementById(`ae-prob-${clase}-${op}`);
-    if (cardNew) {
-      cardNew.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active||true);
+    if (cardNew) cardNew.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active||true);
+  },
+
+  async doAutocompletar(clase, op, campo) {
+    const bdDiv = document.getElementById(`ap-bd-${clase}-${op}-${campo}`);
+    if (!bdDiv) return;
+    bdDiv.style.display = "flex"; bdDiv.style.flexWrap = "wrap"; bdDiv.style.gap = "3px";
+    bdDiv.innerHTML = `<span style="font-size:0.76em;color:#3b82f6">🔍 Buscando en BD…</span>`;
+    try {
+      const r = await _fetch("/valores-param", {method:"POST",body:JSON.stringify({clase,campo})});
+      if (!r.ok || !r.valores?.length) {
+        bdDiv.innerHTML = `<span style="font-size:0.75em;color:#92400e">${r.error||"Sin valores en BD"}</span>`; return;
+      }
+      bdDiv.innerHTML = r.valores.map(v => {
+        const lbl = v.desc && v.desc!==v.id ? `${v.id} — ${v.desc.slice(0,30)}` : v.id;
+        const val = v.id.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+        return `<button type="button"
+          onclick="(function(){var e=document.getElementById('ap-${clase}-${op}-${campo}');if(e)e.value='${val}';})()"
+          style="font-size:0.74em;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;color:#1e40af;white-space:nowrap"
+          title="${v.id}${v.desc?' — '+v.desc:''}">${lbl}</button>`;
+      }).join("");
+    } catch(e) {
+      bdDiv.innerHTML = `<span style="font-size:0.75em;color:#991b1b">Error: ${e.message}</span>`;
     }
+  },
+
+  toggleParamHelp(clase, op, campo) {
+    const div = document.getElementById(`ap-help-${clase}-${op}-${campo}`);
+    const pi = _PARAM_INFO[campo];
+    if (!div || !pi) return;
+    if (div.style.display === "none" || !div.style.display) {
+      div.style.display = "block";
+      div.innerHTML = `<b style="color:#1e40af">🔧 Técnico:</b> ${pi.tec}<br><b style="color:#166534">👷 Empleado:</b> ${pi.emp}<br><b style="color:#64748b">Ejemplo:</b> <code style="background:white;padding:1px 4px;border-radius:3px">${pi.ej}</code>`;
+    } else { div.style.display = "none"; }
+  },
+
+  async doAutoProbarOp(clase, op) {
+    // Prueba automática sin params manuales — auto-resuelve code=6 con BD
+    const key = `${clase}.${op}`;
+    _probLoad[clase] = true;
+    const card = document.getElementById(`ae-prob-${clase}-${op}`);
+    if (card) { const b=card.querySelector("button"); if(b){b.textContent="⏳";b.disabled=true;} }
+    try {
+      const r = await _fetch("/auto-probar",{method:"POST",body:JSON.stringify({clase,operacion:op,params:{}})});
+      if (r.items && Array.isArray(r.items) && r.items.length>0) {
+        const keys=Object.keys(r.items[0]);
+        r.tabla_html=`<div style="margin-top:6px;overflow-x:auto;border-radius:5px;border:1px solid #e2e8f0"><table style="width:100%;border-collapse:collapse;background:white"><thead style="background:#f8fafc"><tr>${keys.map(k=>`<th style="padding:3px 7px;text-align:left;font-size:0.73em;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}</tr></thead><tbody>${r.items.slice(0,10).map(row=>`<tr>${keys.map(k=>`<td style="padding:2px 7px;font-size:0.8em;border-bottom:1px solid #f8fafc">${row[k]??""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+        r.campos_detectados=keys;
+      }
+      _probRes[key]=r;
+    } catch(e) {
+      _probRes[key]={code:-1,estado:"error",ms:0,n_items:0,campos_detectados:[],mensaje:`Error: ${e.message}`,necesito_id_real:false,id_resuelto:false,tabla_html:""};
+    } finally { _probLoad[clase]=false; }
+    const cn=document.getElementById(`ae-prob-${clase}-${op}`);
+    if(cn) cn.outerHTML=_mkOpCard(clase,op,(_state.status||{}).session_active||true);
   },
 
   async doAutoProbarClase(clase, ops) {
