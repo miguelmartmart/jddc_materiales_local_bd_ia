@@ -565,9 +565,16 @@ function renderProbador(s) {
         <p style="margin:0;font-size:0.79em;color:#64748b">Formulario interactivo por operación · 🔍 autocompleta de BD · ❓ explicación técnica + para el empleado</p>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${sesion
-          ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.83em">🚀 Probar todas (solo lectura)</button>`
-          : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Conectarse en <b>Conexión</b></div>`}
+         ${sesion
+           ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.83em">🚀 Probar todas (solo lectura)</button>`
+           : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Conectarse en <b>Conexión</b></div>`}
+         ${sesion?`<button onclick="ApiExplorerModule.doDiagnosticoFirebird()" class="btn secondary" style="white-space:nowrap;font-size:0.83em" title="Comprobar conexion Firebird y ver IDs reales disponibles">🔌 Diagnóstico BD</button>`:""}
+         <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
+           class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
+           ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
+           📄 Exportar TXT
+         </button>
+       </div>`}
         <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
           class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
           ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -2420,6 +2427,73 @@ const ApiExplorerModule = {
     }
   },
 
+  async doDiagnosticoFirebird() {
+    const ex = document.getElementById('ae-diag-fb-panel');
+    if (ex) ex.remove();
+    const panel = document.createElement('div');
+    panel.id = 'ae-diag-fb-panel';
+    panel.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    panel.innerHTML = `<div style="background:white;border-radius:12px;padding:20px;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;font-size:1.05em">🔌 Diagnóstico Firebird — Base de datos SQL Obras</h3>
+        <button onclick="document.getElementById('ae-diag-fb-panel').remove()" style="border:none;background:#f1f5f9;border-radius:8px;padding:6px 10px;cursor:pointer">✕</button>
+      </div>
+      <p style="color:#64748b;font-size:0.82em;margin:0 0 12px">Comprueba si el servidor DEVIA puede conectarse a Firebird para obtener IDs reales y probar la API automáticamente.</p>
+      <div id="ae-diag-fb-content"><p style="color:#64748b;text-align:center;padding:20px">⏳ Comprobando…</p></div>
+    </div>`;
+    document.body.appendChild(panel);
+    try {
+      const r = await _fetch('/diagnostico-firebird');
+      const div = document.getElementById('ae-diag-fb-content');
+      if (!div) return;
+      const ok=r.conexion_ok, inst=r.firebirdsql_instalado, cfgOk=r.db_name_configurado;
+      let html = `<div style="background:${ok?'#dcfce7':'#fef2f2'};border:1px solid ${ok?'#86efac':'#fca5a5'};border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <b style="color:${ok?'#166534':'#991b1b'}">${ok?'✅ Conexión OK — IDs reales disponibles para probar la API':'❌ No se pudo conectar a Firebird'}</b>
+        ${r.error?`<p style="margin:4px 0 0;font-size:0.82em;color:#991b1b;font-family:monospace">${r.error}</p>`:''}
+      </div>`;
+      html += `<table style="width:100%;font-size:0.81em;border-collapse:collapse;margin-bottom:12px">
+        <tr style="background:#f8fafc"><th style="padding:4px 9px;text-align:left">Variable .env</th><th style="padding:4px 9px;text-align:left">Valor</th><th style="padding:4px 9px;text-align:center">OK</th></tr>
+        <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 9px;color:#64748b">DB_HOST</td><td style="padding:4px 9px;font-family:monospace">${r.db_host||'—'}</td><td style="text-align:center">${r.db_host?'✅':'❌'}</td></tr>
+        <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 9px;color:#64748b">DB_PORT</td><td style="padding:4px 9px;font-family:monospace">${r.db_port||3050}</td><td style="text-align:center">✅</td></tr>
+        <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 9px;color:#64748b">DB_NAME</td><td style="padding:4px 9px;font-family:monospace;font-size:0.85em;word-break:break-all">${r.db_name||'(vacío)'}</td><td style="text-align:center">${cfgOk?'✅':'❌'}</td></tr>
+        <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 9px;color:#64748b">DB_USER</td><td style="padding:4px 9px;font-family:monospace">${r.db_user||'—'}</td><td style="text-align:center">${r.db_user?'✅':'❌'}</td></tr>
+        <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 9px;color:#64748b">firebirdsql</td><td style="padding:4px 9px">${inst?'Instalado':'No instalado'}</td><td style="text-align:center">${inst?'✅':'❌'}</td></tr>
+        <tr><td style="padding:4px 9px;color:#64748b">Conexión</td><td style="padding:4px 9px">${ok?'Correcta':'Fallida'}</td><td style="text-align:center">${ok?'✅':'❌'}</td></tr>
+      </table>`;
+      if (ok && r.tablas_probadas) {
+        html += `<p style="font-size:0.84em;font-weight:700;color:#374151;margin:0 0 5px">Tablas SQL Obras:</p>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">`;
+        Object.entries(r.tablas_probadas).forEach(([tbl,info]) => {
+          html += `<div style="background:${info.ok?'#f0fdf4':'#fef2f2'};border:1px solid ${info.ok?'#bbf7d0':'#fca5a5'};border-radius:5px;padding:4px 10px;font-size:0.8em">
+            <code>${tbl}</code> — ${info.ok?(info.n_registros+' registros'):'❌ '+info.error}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+      if (!inst) html += `<div style="background:#fef9c3;border-left:4px solid #fbbf24;border-radius:4px;padding:9px 14px;font-size:0.82em;color:#92400e">
+        <b>Solución:</b> Ejecutar en el servidor DEVIA (donde corre uvicorn):<br>
+        <code style="background:white;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:4px">pip install firebirdsql</code>
+        y reiniciar DEVIA.</div>`;
+      else if (!cfgOk) html += `<div style="background:#fef9c3;border-left:4px solid #fbbf24;border-radius:4px;padding:9px 14px;font-size:0.82em;color:#92400e">
+        <b>Solución:</b> DB_NAME vacío. Añadir en .env:<br>
+        <code style="background:white;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:4px">DB_NAME=C:\\Distrito\\OBRAS\\Database\\JUANDEDI\\2021.fdb</code>
+        y reiniciar DEVIA.</div>`;
+      else if (!ok) html += `<div style="background:#fef2f2;border-left:4px solid #ef4444;border-radius:4px;padding:9px 14px;font-size:0.82em;color:#991b1b">
+        <b>Posibles causas del fallo:</b><br>
+        • DB_HOST incorrecto — el servidor Firebird no está en <code>${r.db_host}</code><br>
+        • DB_PASSWORD incorrecto — revisar en el .env<br>
+        • Servicio Firebird no arrancado en el servidor SQL Obras<br>
+        • Ruta del .fdb no accesible desde el servidor DEVIA<br>
+        • Firewall bloqueando el puerto ${r.db_port||3050}</div>`;
+      else html += `<div style="background:#dcfce7;border-left:4px solid #16a34a;border-radius:4px;padding:9px 14px;font-size:0.82em;color:#166534">
+        <b>✅ Todo correcto.</b> El botón 🔍 BD en cada campo ya obtiene IDs reales.<br>
+        Ahora pulsa <b>🚀 Probar todas</b> — el sistema usará IDs reales de tu BD automáticamente.</div>`;
+      div.innerHTML = html;
+    } catch(e) {
+      const div = document.getElementById('ae-diag-fb-content');
+      if (div) div.innerHTML = `<div style="color:#991b1b;padding:12px">Error al contactar el servidor: ${e.message}</div>`;
+    }
+  },
   async doObtenerIdsReales() {
     // Consulta SOLO LECTURA a Firebird: SELECT FIRST 5 de tablas clave
     // para obtener IDs reales con los que probar las clases FASE 0 (code=6)

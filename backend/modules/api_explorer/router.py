@@ -873,45 +873,105 @@ async def obtener_ids_reales():
 
 
 
-# ─── Helper solo lectura: primer ID real de Firebird ─────────────────────────
-def _firebird_primer_id(clase: str) -> dict:
+
+# ─── Helpers Firebird: IDs reales para probar la API ─────────────────────────
+def _firebird_ids(clase: str, n: int = 5) -> dict:
+    """Obtiene hasta N IDs reales de Firebird. Devuelve lista para probar uno a uno."""
     from backend.core.config.settings import settings
     MAPA = {
-        "proyectos":("PROYECTOS","CODPROYE","codProyecto"),
-        "partidas":("PROYECTOS","CODPROYE","codProyecto"),
-        "proordutil":("PROYECTOS","CODPROYE","codProyecto"),
-        "proordprev":("PROYECTOS","CODPROYE","codProyecto"),
-        "reporden":("REPORDEN","CODORDEN","codOrden"),
-        "repordutil":("REPORDEN","CODORDEN","codOrden"),
-        "recursos":("RECURSOS","CODRECURSO","codRecurso"),
-        "repobjetos":("REPOBJETOS","CODOBJETO","codObjeto"),
-        "repinst":("REPINST","CODINST","codInst"),
-        "tipostrabajo":("TIPOSTRAB","CODTRABAJO","codTrabajo"),
-        "articulos":("ARTICULO","CODARTICULO","codArticulo"),
-        "proveedores":("PROVEEDORES","CODPROV","codProv"),
-        "clientes":("CLIENTES","CODCLIENTE","codCliente"),
-        "docalbcom":("DOCCAB","CODDOC","codDocumento"),
-        "docfaccom":("DOCCAB","CODDOC","codDocumento"),
-        "docpedcom":("DOCCAB","CODDOC","codDocumento"),
-        "ordenfab":("ORDENFAB","CODORDEN","codOrden"),
+        "proyectos":  ("PROYECTOS",  "CODPROYE",   "codProyecto"),
+        "partidas":   ("PROYECTOS",  "CODPROYE",   "codProyecto"),
+        "proordutil": ("PROYECTOS",  "CODPROYE",   "codProyecto"),
+        "proordprev": ("PROYECTOS",  "CODPROYE",   "codProyecto"),
+        "reporden":   ("REPORDEN",   "CODORDEN",   "codOrden"),
+        "repordutil": ("REPORDEN",   "CODORDEN",   "codOrden"),
+        "recursos":   ("RECURSOS",   "CODRECURSO", "codRecurso"),
+        "repobjetos": ("REPOBJETOS", "CODOBJETO",  "codObjeto"),
+        "repinst":    ("REPINST",    "CODINST",    "codInst"),
+        "tipostrabajo":("TIPOSTRAB", "CODTRABAJO", "codTrabajo"),
+        "articulos":  ("ARTICULO",   "CODARTICULO","codArticulo"),
+        "proveedores":("PROVEEDORES","CODPROV",    "codProv"),
+        "clientes":   ("CLIENTES",   "CODCLIENTE", "codCliente"),
+        "docalbcom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
+        "docfaccom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
+        "docpedcom":  ("DOCCAB",     "CODDOC",     "codDocumento"),
+        "ordenfab":   ("ORDENFAB",   "CODORDEN",   "codOrden"),
     }
     info = MAPA.get(clase)
-    if not info: return {"ok":False,"error":f"clase no mapeada"}
-    tabla,campo,param_api = info
-    if not settings.DB_NAME: return {"ok":False,"error":"DB_NAME no configurado"}
+    if not info:
+        return {"ok": False, "error": f"clase no mapeada en Firebird"}
+    tabla, campo, param_api = info
+    if not settings.DB_NAME:
+        return {"ok": False, "error": "DB_NAME no configurado en .env"}
     try:
         import firebirdsql
-        con = firebirdsql.connect(host=settings.DB_HOST,port=settings.DB_PORT,
-            database=settings.DB_NAME,user=settings.DB_USER,
-            password=settings.DB_PASSWORD,charset="UTF8")
+        con = firebirdsql.connect(
+            host=settings.DB_HOST, port=settings.DB_PORT,
+            database=settings.DB_NAME, user=settings.DB_USER,
+            password=settings.DB_PASSWORD, charset="UTF8"
+        )
         cur = con.cursor()
-        cur.execute(f"SELECT FIRST 1 {campo} FROM {tabla} ORDER BY {campo}")
-        row = cur.fetchone(); cur.close(); con.close()
-        if row and row[0] is not None:
-            return {"ok":True,"param":param_api,"valor":str(row[0]).strip()}
-        return {"ok":False,"error":f"Tabla {tabla} vacía"}
-    except ImportError: return {"ok":False,"error":"firebirdsql no instalado"}
-    except Exception as exc: return {"ok":False,"error":f"{type(exc).__name__}: {str(exc)[:100]}"}
+        cur.execute(f"SELECT FIRST {n} {campo} FROM {tabla} ORDER BY {campo}")
+        rows = cur.fetchall(); cur.close(); con.close()
+        valores = [str(r[0]).strip() for r in rows if r[0] is not None]
+        if not valores:
+            return {"ok": False, "error": f"Tabla {tabla} vacia (sin registros)"}
+        return {"ok": True, "param": param_api, "valores": valores, "tabla": tabla}
+    except ImportError:
+        return {"ok": False, "error": "firebirdsql no instalado. Ejecutar: pip install firebirdsql"}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:200]}",
+                "db_host": settings.DB_HOST, "db_name": settings.DB_NAME}
+
+
+def _firebird_primer_id(clase: str) -> dict:
+    """Compatibilidad: devuelve el primer ID."""
+    r = _firebird_ids(clase, n=3)
+    if r.get("ok") and r.get("valores"):
+        return {"ok": True, "param": r["param"], "valor": r["valores"][0]}
+    return {"ok": False, "error": r.get("error", "sin datos")}
+
+
+def _firebird_diagnostico() -> dict:
+    """Diagnostico completo de la conexion Firebird."""
+    from backend.core.config.settings import settings
+    result = {
+        "db_host": settings.DB_HOST, "db_port": settings.DB_PORT,
+        "db_name": settings.DB_NAME, "db_user": settings.DB_USER,
+        "db_name_configurado": bool(settings.DB_NAME),
+        "firebirdsql_instalado": False, "conexion_ok": False,
+        "error": None, "tablas_probadas": {},
+    }
+    if not settings.DB_NAME:
+        result["error"] = "DB_NAME vacio en .env. Añadir ruta del fichero .fdb"
+        return result
+    try:
+        import firebirdsql
+        result["firebirdsql_instalado"] = True
+    except ImportError:
+        result["error"] = "firebirdsql no instalado. Ejecutar: pip install firebirdsql"
+        return result
+    try:
+        con = firebirdsql.connect(
+            host=settings.DB_HOST, port=settings.DB_PORT,
+            database=settings.DB_NAME, user=settings.DB_USER,
+            password=settings.DB_PASSWORD, charset="UTF8"
+        )
+        result["conexion_ok"] = True
+        cur = con.cursor()
+        for tabla, campo in [("PROYECTOS","CODPROYE"),("REPORDEN","CODORDEN"),
+                              ("ARTICULO","CODARTICULO"),("RECURSOS","CODRECURSO")]:
+            try:
+                cur.execute(f"SELECT COUNT(*) FROM {tabla}")
+                cnt = cur.fetchone()[0]
+                result["tablas_probadas"][tabla] = {"ok": True, "n_registros": cnt}
+            except Exception as e:
+                result["tablas_probadas"][tabla] = {"ok": False, "error": str(e)[:100]}
+        cur.close(); con.close()
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+    return result
+
 
 class AutoProbarRequest(BaseModel):
     clase: str
@@ -948,15 +1008,20 @@ async def auto_probar(request: AutoProbarRequest):
         except Exception as exc:
             ms=round((_t.monotonic()-t0)*1000); raw={"code":-1,"data":str(exc)[:200]}
         return raw,ms
-    nid=False; ires=False
+    nid=False; ires=False; fb_error=""
     raw,ms=_call(params)
     code=raw.get("code") if isinstance(raw,dict) else -1
     if code==6 and operacion in("browse","read"):
-        fb=_firebird_primer_id(clase)
-        if fb.get("ok"):
-            nid=True; raw2,ms2=_call({**params,fb["param"]:fb["valor"]})
-            if isinstance(raw2,dict) and raw2.get("code")==0:
-                raw,ms,code=raw2,ms2,0; ires=True
+        # Intentar con multiples IDs reales de Firebird hasta que uno funcione
+        fb=_firebird_ids(clase, n=5)
+        if fb.get("ok") and fb.get("valores"):
+            nid=True
+            for val in fb["valores"]:
+                raw2,ms2=_call({**params,fb["param"]:val})
+                if isinstance(raw2,dict) and raw2.get("code")==0:
+                    raw,ms,code=raw2,ms2,0; ires=True; break
+        else:
+            fb_error = fb.get("error","")
     items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
     if not isinstance(items,list): items=[]
     n=len(items); campos=list(items[0].keys())[:20] if n>0 and isinstance(items[0],dict) else []
@@ -1048,14 +1113,15 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             nid=False; ires=False; msg_servidor=""
             if code==6 and op=="browse":
                 msg_servidor = str(raw.get("data",""))[:120]
-                fb=_firebird_primer_id(clase)
-                if fb.get("ok"):
+                fb=_firebird_ids(clase, n=5)
+                if fb.get("ok") and fb.get("valores"):
                     nid=True
-                    try:
-                        raw2,ms2=svc._client().browse(svc.ssid1,svc.ssid2,clase,{fb["param"]:fb["valor"]})
-                        if isinstance(raw2,dict) and raw2.get("code")==0:
-                            raw,ms,code=raw2,ms2,0; ires=True
-                    except: pass
+                    for val in fb["valores"]:
+                        try:
+                            raw2,ms2=svc._client().browse(svc.ssid1,svc.ssid2,clase,{fb["param"]:val})
+                            if isinstance(raw2,dict) and raw2.get("code")==0:
+                                raw,ms,code=raw2,ms2,0; ires=True; break
+                        except: pass
                 else:
                     msg_servidor += " | Firebird: "+fb.get("error","no disponible")
             if code==0: estado="ok"; msg=""
@@ -1089,6 +1155,13 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                 "error":sum(1 for v in resultados.values() if v["estado_global"]=="error")},
             "clases":resultados,
             "aviso":"Sin datos privados. Solo estados, códigos y nombres de campos."}
+
+@router.get("/diagnostico-firebird")
+async def diagnostico_firebird():
+    """Diagnostico completo de la conexion Firebird. Solo lectura. Sin valores de negocio."""
+    d = _firebird_diagnostico()
+    return d
+
 
 @router.get("/informe-completo")
 async def get_informe_completo():
