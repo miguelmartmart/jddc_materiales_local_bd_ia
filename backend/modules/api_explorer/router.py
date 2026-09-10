@@ -872,6 +872,187 @@ async def obtener_ids_reales():
     }
 
 
+
+# ─── Helper solo lectura: primer ID real de Firebird ─────────────────────────
+def _firebird_primer_id(clase: str) -> dict:
+    from backend.core.config.settings import settings
+    MAPA = {
+        "proyectos":("PROYECTOS","CODPROYE","codProyecto"),
+        "partidas":("PROYECTOS","CODPROYE","codProyecto"),
+        "proordutil":("PROYECTOS","CODPROYE","codProyecto"),
+        "proordprev":("PROYECTOS","CODPROYE","codProyecto"),
+        "reporden":("REPORDEN","CODORDEN","codOrden"),
+        "repordutil":("REPORDEN","CODORDEN","codOrden"),
+        "recursos":("RECURSOS","CODRECURSO","codRecurso"),
+        "repobjetos":("REPOBJETOS","CODOBJETO","codObjeto"),
+        "repinst":("REPINST","CODINST","codInst"),
+        "tipostrabajo":("TIPOSTRAB","CODTRABAJO","codTrabajo"),
+        "articulos":("ARTICULO","CODARTICULO","codArticulo"),
+        "proveedores":("PROVEEDORES","CODPROV","codProv"),
+        "clientes":("CLIENTES","CODCLIENTE","codCliente"),
+        "docalbcom":("DOCCAB","CODDOC","codDocumento"),
+        "docfaccom":("DOCCAB","CODDOC","codDocumento"),
+        "docpedcom":("DOCCAB","CODDOC","codDocumento"),
+        "ordenfab":("ORDENFAB","CODORDEN","codOrden"),
+    }
+    info = MAPA.get(clase)
+    if not info: return {"ok":False,"error":f"clase no mapeada"}
+    tabla,campo,param_api = info
+    if not settings.DB_NAME: return {"ok":False,"error":"DB_NAME no configurado"}
+    try:
+        import firebirdsql
+        con = firebirdsql.connect(host=settings.DB_HOST,port=settings.DB_PORT,
+            database=settings.DB_NAME,user=settings.DB_USER,
+            password=settings.DB_PASSWORD,charset="UTF8")
+        cur = con.cursor()
+        cur.execute(f"SELECT FIRST 1 {campo} FROM {tabla} ORDER BY {campo}")
+        row = cur.fetchone(); cur.close(); con.close()
+        if row and row[0] is not None:
+            return {"ok":True,"param":param_api,"valor":str(row[0]).strip()}
+        return {"ok":False,"error":f"Tabla {tabla} vacía"}
+    except ImportError: return {"ok":False,"error":"firebirdsql no instalado"}
+    except Exception as exc: return {"ok":False,"error":f"{type(exc).__name__}: {str(exc)[:100]}"}
+
+class AutoProbarRequest(BaseModel):
+    clase: str
+    operacion: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/auto-probar")
+async def auto_probar(request: AutoProbarRequest):
+    """Prueba una op con auto-resolución de IDs reales si code=6. Sin datos privados en respuesta."""
+    import time as _t
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesión activa.")
+    clase=request.clase; operacion=request.operacion; params=dict(request.params)
+    RIESGO_OP={"browse":0,"read":0,"permiso":0,"info":0,"new":1,"edit":1,
+               "cancel":0,"write":2,"imputaPro":2,"exec":2,"delete":3}
+    if RIESGO_OP.get(operacion,0)>=2 and not svc.modo_escritura:
+        return {"success":False,"clase":clase,"operacion":operacion,"code":-99,
+                "estado":"bloqueado","ms":0,"n_items":0,"campos_detectados":[],
+                "necesito_id_real":False,"id_resuelto":False,"params_usados":params,
+                "use_mock":svc.use_mock,"muestra_tipos":{},
+                "mensaje":f"'{operacion}' requiere modo escritura activo."}
+    def _call(p):
+        t0=_t.monotonic()
+        try:
+            if operacion=="browse": raw,ms=svc._client().browse(svc.ssid1,svc.ssid2,clase,dict(p))
+            elif operacion=="read": raw,ms=svc._client().read(svc.ssid1,svc.ssid2,clase,dict(p))
+            elif operacion=="permiso": raw,ms=svc._client().permiso(svc.ssid1,svc.ssid2,clase)
+            elif operacion=="info": raw,ms=svc._client().info(svc.ssid1,svc.ssid2,clase)
+            elif operacion in("new","edit"): raw,ms=svc._client().new(svc.ssid1,svc.ssid2,clase,dict(p))
+            elif operacion=="cancel": raw,ms=svc._client().cancel(svc.ssid1,svc.ssid2,clase,dict(p))
+            else: ms=round((_t.monotonic()-t0)*1000); raw={"code":-99,"data":"op no soportada"}
+        except Exception as exc:
+            ms=round((_t.monotonic()-t0)*1000); raw={"code":-1,"data":str(exc)[:200]}
+        return raw,ms
+    nid=False; ires=False
+    raw,ms=_call(params)
+    code=raw.get("code") if isinstance(raw,dict) else -1
+    if code==6 and operacion in("browse","read"):
+        fb=_firebird_primer_id(clase)
+        if fb.get("ok"):
+            nid=True; raw2,ms2=_call({**params,fb["param"]:fb["valor"]})
+            if isinstance(raw2,dict) and raw2.get("code")==0:
+                raw,ms,code=raw2,ms2,0; ires=True
+    items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
+    if not isinstance(items,list): items=[]
+    n=len(items); campos=list(items[0].keys())[:20] if n>0 and isinstance(items[0],dict) else []
+    SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",
+        6:"requiere_params",-1:"error",-99:"bloqueado"}
+    estado=SM.get(code,"error")
+    MSGS={"ok":f"✅ {n} registro(s)"+(". ID auto-resuelto de BD (valor no mostrado)" if ires else ""),
+          "sin_licencia":"🚫 Sin licencia (code=1). Contactar Distrito K.",
+          "sin_permiso":"🔒 Sin permiso usuario (code=2).",
+          "config_incompleta":f"⚠️ Config incompleta (code=5): {str(raw.get('data',''))[:80]}",
+          "requiere_params":"🔵 Necesita ID real (code=6). "+("Firebird sin datos." if nid else "Usa 'Obtener IDs reales'."),
+          "error":f"❌ code={code}: {str(raw.get('data',''))[:100]}",
+          "bloqueado":"⛔ Escritura bloqueada."}
+    svc._history.insert(0,{"timestamp":__import__("datetime").datetime.now().isoformat(),
+        "clase":clase,"operacion":operacion,"params":params,"code":code,
+        "estado":estado,"duracion_ms":round(ms),"n_items":n,"use_mock":svc.use_mock})
+    svc._history=svc._history[:500]
+    return {"success":code==0,"clase":clase,"operacion":operacion,"code":code,
+            "estado":estado,"mensaje":MSGS.get(estado,f"code={code}"),
+            "n_items":n,"campos_detectados":campos,
+            "necesito_id_real":nid,"id_resuelto":ires,
+            "params_usados":params,"ms":round(ms),"use_mock":svc.use_mock,
+            "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {})}
+
+
+class ProbarTodoRequest(BaseModel):
+    solo_lectura: bool = True
+
+
+@router.post("/probar-todo-catalogo")
+async def probar_todo_catalogo(request: ProbarTodoRequest):
+    """Prueba TODAS las clases. Auto-resuelve code=6. Sin datos privados."""
+    import time as _t
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesión activa.")
+    from backend.modules.api_explorer.api_catalogue_full import get_catalogue
+    catalogue = get_catalogue()
+    CLASES_OPS: dict = {}
+    for mod_data in catalogue.values():
+        for c in mod_data.get("clases",[]):
+            nombre=c if isinstance(c,str) else c.get("nombre","")
+            ops_doc=(c.get("ops",[]) if isinstance(c,dict) else []) or []
+            ops_lec=[o for o in ops_doc if o in("browse","permiso","info","read")] or ["browse","permiso","info"]
+            if nombre: CLASES_OPS[nombre]=ops_lec
+    resultados: dict = {}
+    for clase,ops in CLASES_OPS.items():
+        entrada={"clase":clase,"resultados_op":{}}
+        for op in ops:
+            t0=_t.monotonic()
+            try:
+                if op=="browse": raw,ms=svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
+                elif op=="permiso": raw,ms=svc._client().permiso(svc.ssid1,svc.ssid2,clase)
+                elif op=="info": raw,ms=svc._client().info(svc.ssid1,svc.ssid2,clase)
+                elif op=="read": raw,ms=svc._client().read(svc.ssid1,svc.ssid2,clase,{})
+                else: continue
+            except Exception:
+                entrada["resultados_op"][op]={"code":-1,"estado":"error","ok":False,
+                    "ms":round((_t.monotonic()-t0)*1000),"n_items":0,"campos":[],
+                    "necesito_id":False,"id_resuelto":False}; continue
+            code=raw.get("code") if isinstance(raw,dict) else -1
+            nid=False; ires=False
+            if code==6 and op=="browse":
+                fb=_firebird_primer_id(clase)
+                if fb.get("ok"):
+                    nid=True
+                    try:
+                        raw2,ms2=svc._client().browse(svc.ssid1,svc.ssid2,clase,{fb["param"]:fb["valor"]})
+                        if isinstance(raw2,dict) and raw2.get("code")==0:
+                            raw,ms,code=raw2,ms2,0; ires=True
+                    except: pass
+            items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
+            if not isinstance(items,list): items=[]
+            n=len(items); campos=list(items[0].keys())[:15] if n>0 and isinstance(items[0],dict) else []
+            SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",6:"requiere_params",-1:"error"}
+            estado=SM.get(code,"error")
+            entrada["resultados_op"][op]={"code":code,"estado":estado,"ok":code==0,
+                "ms":round(ms),"n_items":n,"campos":campos,"necesito_id":nid,"id_resuelto":ires}
+            _t.sleep(0.05)
+        ops_r=entrada["resultados_op"]
+        if any(v.get("ok") for v in ops_r.values()): entrada["estado_global"]="ok"
+        elif any(v.get("estado")=="requiere_params" for v in ops_r.values()): entrada["estado_global"]="requiere_params"
+        elif any(v.get("estado")=="sin_licencia" for v in ops_r.values()): entrada["estado_global"]="sin_licencia"
+        elif any(v.get("estado")=="sin_permiso" for v in ops_r.values()): entrada["estado_global"]="sin_permiso"
+        else: entrada["estado_global"]="error"
+        resultados[clase]=entrada
+    ts=__import__("datetime").datetime.now().isoformat()
+    return {"success":True,"timestamp":ts,"use_mock":svc.use_mock,"total_clases":len(resultados),
+            "resumen":{"ok":sum(1 for v in resultados.values() if v["estado_global"]=="ok"),
+                "requiere_params":sum(1 for v in resultados.values() if v["estado_global"]=="requiere_params"),
+                "sin_licencia":sum(1 for v in resultados.values() if v["estado_global"]=="sin_licencia"),
+                "sin_permiso":sum(1 for v in resultados.values() if v["estado_global"]=="sin_permiso"),
+                "error":sum(1 for v in resultados.values() if v["estado_global"]=="error")},
+            "clases":resultados,
+            "aviso":"Sin datos privados. Solo estados, códigos y nombres de campos."}
+
 @router.get("/informe-completo")
 async def get_informe_completo():
     """

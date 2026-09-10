@@ -237,7 +237,7 @@ function renderMain() {
       ? `<div style="background:#dcfce7;border-left:4px solid #16a34a;padding:8px 14px;border-radius:4px;margin-bottom:10px;font-size:0.85em;color:#166534">🟢 <strong>API Real conectada</strong> — Los datos que ves son REALES de SQL Obras.</div>`
       : "");
 
-  const TABS = [["conexion","🔌 Conexion"],["inspector","🔍 Inspector API"],["explorador","⚙️ Explorador"],["permisos","📋 Permisos"],["matriz","📊 Matriz"],["historial","📜 Historial"],["escritura","🟠 Escritura"]];
+  const TABS = [["conexion","🔌 Conexion"],["inspector","🔍 Inspector API"],["explorador","⚙️ Explorador"],["probador","🧪 Probador"],["permisos","📋 Permisos"],["matriz","📊 Matriz"],["historial","📜 Historial"],["escritura","🟠 Escritura"]];
   const tabBar = `<div style="display:flex;gap:2px;margin-bottom:18px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
     ${TABS.map(([id,lbl])=>`<button onclick="ApiExplorerModule.setTab('${id}')" style="padding:8px 14px;border:none;background:${_state.currentTab===id?'#3b82f6':'transparent'};color:${_state.currentTab===id?'white':'#64748b'};border-radius:6px 6px 0 0;cursor:pointer;font-size:0.88em;font-weight:${_state.currentTab===id?'600':'400'};transition:all 0.15s">${lbl}</button>`).join('')}
   </div>`;
@@ -278,6 +278,295 @@ function renderTab(s) {
 }
 
 const noSesion = () => `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:20px;text-align:center;color:#92400e">⚠️ Conectate primero en la pestana <strong>Conexion</strong>.</div>`;
+
+
+// =============================================================
+// PROBADOR VISUAL -- prueba todas las clases con acordeón
+// =============================================================
+const _ECFG = {
+  ok:              {sym:"✅", label:"Funciona",         color:"#166534", bg:"#dcfce7", border:"#86efac"},
+  requiere_params: {sym:"🔵", label:"Necesita ID real",  color:"#1e40af", bg:"#dbeafe", border:"#93c5fd"},
+  sin_licencia:    {sym:"🚫", label:"Sin licencia",       color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
+  sin_permiso:     {sym:"🔒", label:"Sin permiso",        color:"#374151", bg:"#f8fafc", border:"#cbd5e1"},
+  config_incompleta:{sym:"⚠️",label:"Config incompleta", color:"#92400e", bg:"#fef9c3", border:"#fde047"},
+  error:           {sym:"❌", label:"Error",              color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
+  bloqueado:       {sym:"⛔", label:"Escritura bloq.",   color:"#92400e", bg:"#fff7ed", border:"#fed7aa"},
+  pendiente:       {sym:"⬜", label:"Sin probar",         color:"#64748b", bg:"#f8fafc", border:"#e2e8f0"},
+};
+const _OPDESC = {
+  browse:    {riesgo:0,label:"Listar registros",   rl:"Solo lectura",
+              desc:"Devuelve lista de registros. Puede necesitar filtros (codProyecto, codOrden...)."},
+  read:      {riesgo:0,label:"Leer uno",           rl:"Solo lectura",
+              desc:"Lee un registro concreto por su código identificador único."},
+  permiso:   {riesgo:0,label:"Ver permisos",       rl:"Solo lectura",
+              desc:"Audita qué operaciones permite la licencia para esta clase."},
+  info:      {riesgo:0,label:"Ver campos",         rl:"Solo lectura",
+              desc:"Devuelve metadatos: nombres y tipos de todos los campos del objeto."},
+  new:       {riesgo:1,label:"Crear temporal",     rl:"Preparación (sin riesgo)",
+              desc:"Crea un objeto TEMPORAL en sesión. No persiste hasta write. Cancel lo descarta."},
+  edit:      {riesgo:1,label:"Editar temporal",    rl:"Preparación (sin riesgo)",
+              desc:"Igual que new pero sobre un registro existente."},
+  cancel:    {riesgo:0,label:"Cancelar temporal",  rl:"Solo lectura",
+              desc:"Descarta el objeto temporal. Siempre seguro. No modifica nada."},
+  write:     {riesgo:2,label:"Guardar (REAL)",     rl:"ESCRITURA REAL",
+              desc:"PERSISTE en SQL Obras. Irreversible. Requiere activar modo escritura."},
+  imputaPro: {riesgo:2,label:"ImputaPro (REAL)",   rl:"ESCRITURA REAL",
+              desc:"Vincula compra a proyecto como coste real. ESCRITURA en SQL Obras."},
+  delete:    {riesgo:3,label:"Eliminar (DESTR.)",  rl:"DESTRUCTIVO",
+              desc:"Elimina definitivamente. Solo en entorno de pruebas."},
+};
+const _CODEEXP = {
+  "0":"Éxito — operación completada correctamente.",
+  "1":"Sin licencia — módulo no contratado. Contactar Distrito K.",
+  "2":"Sin permiso de usuario — pedir al admin SQL Obras.",
+  "3":"Error de validación — un parámetro tiene formato incorrecto.",
+  "5":"Config incompleta — empresa/usuario incorrectos en .env.",
+  "6":"Requiere identificador — necesita codProyecto, codOrden u otro ID.",
+  "10":"No encontrado — el registro con ese ID no existe.",
+  "20":"objectId inválido — objeto temporal expirado o ya guardado.",
+  "-1":"Error de red — no se pudo conectar al servidor mPYME.",
+  "-99":"Bloqueado — escritura desactivada.",
+};
+const _CAMPOEXP = {
+  CODPROYE:"Código del proyecto (ej: 26/001)",DENOMINACION:"Nombre del proyecto",
+  CODORDEN:"Código de la orden de reparación",CODRECURSO:"Código del recurso",
+  CODPARTIDA:"Código de la partida",CODARTICULO:"Código del artículo/material",
+  CANTIDAD:"Cantidad usada o prevista",COSTE:"Coste unitario",
+  PRECIO:"Precio de venta unitario",ESTADO:"Estado (A=activo, C=cerrado...)",
+  FECHA:"Fecha del registro",NOMBRE:"Nombre del elemento",DESCRIPCION:"Descripción larga",
+};
+let _probRes = {};   // {clase+"."+op: resultado backend}
+let _probLoad = {};  // {clase: bool cargando}
+
+
+
+// =============================================================
+// PROBADOR VISUAL - prueba todas las clases con acordeón
+// =============================================================
+const _ECFG = {
+  ok:              {sym:"✅", label:"Funciona",         color:"#166534", bg:"#dcfce7", border:"#86efac"},
+  requiere_params: {sym:"🔵", label:"Necesita ID real",  color:"#1e40af", bg:"#dbeafe", border:"#93c5fd"},
+  sin_licencia:    {sym:"🚫", label:"Sin licencia",       color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
+  sin_permiso:     {sym:"🔒", label:"Sin permiso",        color:"#374151", bg:"#f8fafc", border:"#cbd5e1"},
+  config_incompleta:{sym:"⚠️",label:"Config incompleta", color:"#92400e", bg:"#fef9c3", border:"#fde047"},
+  error:           {sym:"❌", label:"Error",              color:"#991b1b", bg:"#fef2f2", border:"#fca5a5"},
+  bloqueado:       {sym:"⛔", label:"Escritura bloq.",   color:"#92400e", bg:"#fff7ed", border:"#fed7aa"},
+  pendiente:       {sym:"⬜", label:"Sin probar",         color:"#64748b", bg:"#f8fafc", border:"#e2e8f0"},
+};
+const _OPDESC = {
+  browse:    {riesgo:0,label:"Listar registros",   rl:"Solo lectura",
+              desc:"Devuelve lista de registros. Puede necesitar filtros (codProyecto, codOrden...)."},
+  read:      {riesgo:0,label:"Leer uno",           rl:"Solo lectura",
+              desc:"Lee un registro concreto por su código identificador único."},
+  permiso:   {riesgo:0,label:"Ver permisos",       rl:"Solo lectura",
+              desc:"Audita qué operaciones permite la licencia para esta clase."},
+  info:      {riesgo:0,label:"Ver campos",         rl:"Solo lectura",
+              desc:"Devuelve metadatos: nombres y tipos de todos los campos del objeto."},
+  new:       {riesgo:1,label:"Crear temporal",     rl:"Preparación (sin riesgo)",
+              desc:"Crea un objeto TEMPORAL en sesión. No persiste hasta write. Cancel lo descarta."},
+  edit:      {riesgo:1,label:"Editar temporal",    rl:"Preparación (sin riesgo)",
+              desc:"Igual que new pero sobre un registro existente."},
+  cancel:    {riesgo:0,label:"Cancelar temporal",  rl:"Solo lectura",
+              desc:"Descarta el objeto temporal. Siempre seguro. No modifica nada."},
+  write:     {riesgo:2,label:"Guardar (REAL)",     rl:"ESCRITURA REAL",
+              desc:"PERSISTE en SQL Obras. Irreversible. Requiere activar modo escritura."},
+  imputaPro: {riesgo:2,label:"ImputaPro (REAL)",   rl:"ESCRITURA REAL",
+              desc:"Vincula compra a proyecto como coste real. ESCRITURA en SQL Obras."},
+  delete:    {riesgo:3,label:"Eliminar (DESTR.)",  rl:"DESTRUCTIVO",
+              desc:"Elimina definitivamente. Usar solo en entorno de pruebas."},
+};
+const _CODEEXP = {
+  "0":"Éxito — operación completada correctamente.",
+  "1":"Sin licencia — módulo no contratado. Contactar Distrito K.",
+  "2":"Sin permiso de usuario — pedir al admin SQL Obras.",
+  "3":"Error de validación — un parámetro tiene formato incorrecto.",
+  "5":"Config incompleta — empresa/usuario incorrectos en .env.",
+  "6":"Requiere identificador — necesita codProyecto, codOrden u otro ID.",
+  "10":"No encontrado — registro con ese ID no existe.",
+  "-1":"Error de red — no se pudo conectar al servidor mPYME.",
+  "-99":"Bloqueado — escritura desactivada.",
+};
+const _CAMPOEXP = {
+  CODPROYE:"Código del proyecto (ej: 26/001)",DENOMINACION:"Nombre del proyecto",
+  CODORDEN:"Código de la orden de reparación",CODRECURSO:"Código del recurso",
+  CODARTICULO:"Código del artículo/material",CANTIDAD:"Cantidad usada o prevista",
+  COSTE:"Coste unitario",PRECIO:"Precio de venta unitario",
+  ESTADO:"Estado (A=activo, C=cerrado...)",FECHA:"Fecha del registro",
+  NOMBRE:"Nombre del elemento",DESCRIPCION:"Descripción larga",
+};
+let _probRes = {};   // {"clase.op": resultado backend}
+let _probLoad = {};  // {"clase": bool cargando}
+
+
+
+function renderProbador(s) {
+  const cat = _state.catalogue;
+  const catalogue = cat ? cat.catalogue : {};
+  const sesion = s.session_active;
+  const isMock = s.use_mock;
+  let h = `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <h3 style="margin:0 0 3px;font-size:1.02em">🧪 Probador Visual de la API</h3>
+        <p style="margin:0;font-size:0.79em;color:#64748b">
+          Prueba cualquier clase y operación con un clic.
+          Si la API devuelve code=6, obtiene el ID necesario automáticamente de la BD.
+          Sin valores privados en resultados — solo estados y estructura de campos.
+        </p>
+      </div>
+      ${sesion
+        ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)"
+             class="btn primary" style="white-space:nowrap;font-size:0.85em">
+             🚀 Probar todas las clases
+           </button>`
+        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:6px 12px;font-size:0.82em;color:#92400e">
+             ⚠️ Requiere login en <strong>Conexión</strong>
+           </div>`}
+    </div>
+    <div id="ae-probador-todo-result" style="margin-top:8px"></div>
+    ${isMock
+      ? `<div style="margin-top:8px;background:#dbeafe;border-left:3px solid #3b82f6;border-radius:4px;padding:5px 10px;font-size:0.78em;color:#1d4ed8">🔵 BD Simulada — datos de ejemplo. Cambia a API Real en Conexión.</div>`
+      : `<div style="margin-top:8px;background:#dcfce7;border-left:3px solid #16a34a;border-radius:4px;padding:5px 10px;font-size:0.78em;color:#166534">🟢 API Real — datos reales de SQL Obras.</div>`}
+  </div>`;
+
+  if (!cat || !Object.keys(catalogue).length) {
+    return h + `<div style="background:#fef9c3;border-radius:8px;padding:14px;font-size:0.85em;color:#92400e">⏳ Cargando catálogo…</div>`;
+  }
+
+  Object.entries(catalogue).forEach(([modNombre, claseMap]) => {
+    const clasesArr = Object.entries(claseMap);
+    const nOk = clasesArr.filter(([c]) => {
+      const r = _probRes[c+".browse"]||_probRes[c+".permiso"];
+      return r && r.estado==="ok";
+    }).length;
+    h += `<details open style="margin-bottom:8px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+      <summary style="padding:10px 16px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none">
+        <span>📦</span>
+        <span style="font-weight:700;font-size:0.94em;flex:1">${modNombre}</span>
+        <span style="font-size:0.77em;color:#94a3b8">${clasesArr.length} clases</span>
+        ${nOk>0?`<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:1px 8px;font-size:0.72em;font-weight:700">${nOk} ✅</span>`:""}
+        <span style="color:#94a3b8">▾</span>
+      </summary>
+      <div style="padding:8px 10px">`;
+    clasesArr.forEach(([clase, opsArr]) => {
+      const ci = CLASE_INFO[clase]||{emoji:"🔷",desc:clase,detalle:""};
+      const opsLec = opsArr.filter(o => (_OPDESC[o]||{riesgo:0}).riesgo<2);
+      const opsEsc = opsArr.filter(o => (_OPDESC[o]||{riesgo:0}).riesgo>=2);
+      let mejor="pendiente";
+      opsArr.forEach(op=>{const r=_probRes[`${clase}.${op}`];if(r){if(r.estado==="ok")mejor="ok";else if(mejor==="pendiente")mejor=r.estado;}});
+      const ec=_ECFG[mejor]||_ECFG.pendiente;
+      const carg=_probLoad[clase];
+      h += `<details style="margin-bottom:5px;border:1px solid ${ec.border};border-radius:8px;overflow:hidden">
+        <summary style="padding:8px 12px;background:${ec.bg};cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none">
+          <span>${ci.emoji}</span>
+          <code style="font-size:0.87em;font-weight:700;color:#1e293b">${clase}</code>
+          <span style="font-size:0.79em;color:#475569;flex:1">${ci.desc}</span>
+          ${carg?`<span style="font-size:0.73em;color:#3b82f6">⏳ probando…</span>`
+            :`<span style="background:${ec.bg};border:1px solid ${ec.border};color:${ec.color};border-radius:10px;padding:1px 8px;font-size:0.71em;font-weight:600">${ec.sym} ${ec.label}</span>`}
+          <button onclick="event.stopPropagation();ApiExplorerModule.doAutoProbarClase('${clase}',${JSON.stringify(opsLec)})"
+            ${!sesion?"disabled":""}
+            style="font-size:0.72em;padding:2px 9px;background:#3b82f6;color:white;border:none;border-radius:5px;cursor:pointer;white-space:nowrap">
+            ▶ Probar todo
+          </button>
+          <span style="color:#94a3b8">▾</span>
+        </summary>
+        <div style="padding:10px 14px;border-top:1px solid ${ec.border}">
+          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:7px 12px;margin-bottom:10px;font-size:0.79em;color:#0369a1">${ci.detalle||ci.desc}</div>
+          <p style="font-size:0.77em;font-weight:600;color:#374151;margin:0 0 6px">📋 Operaciones de lectura:</p>
+          <div style="display:flex;flex-direction:column;gap:5px">${opsLec.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>
+          ${opsEsc.length?`<p style="font-size:0.77em;font-weight:600;color:#92400e;margin:12px 0 6px">⚠️ Escritura (requiere modo escritura activo):</p>
+          <div style="display:flex;flex-direction:column;gap:5px">${opsEsc.map(op=>_mkOpCard(clase,op,sesion)).join("")}</div>`:""}
+        </div>
+      </details>`;
+    });
+    h += `</div></details>`;
+  });
+  return h;
+}
+
+
+
+function _mkOpCard(clase, op, sesion) {
+  const oi = _OPDESC[op]||{riesgo:0,label:op,rl:"",desc:op};
+  const key = `${clase}.${op}`;
+  const res = _probRes[key];
+  const ec  = res ? (_ECFG[res.estado]||_ECFG.error) : _ECFG.pendiente;
+  const esW = oi.riesgo>=2;
+  const rBG = ["#f0fdf4","#fefce8","#fff7ed","#fef2f2"][oi.riesgo]||"#f8fafc";
+  const rCL = ["#166534","#92400e","#c2410c","#991b1b"][oi.riesgo]||"#64748b";
+  const btnBg = esW ? "#92400e" : "#3b82f6";
+  let detalle = "";
+  if (res) {
+    const codeExp = _CODEEXP[String(res.code)]||"";
+    const camposHtml = (res.campos_detectados||[]).length
+      ? `<details style="margin-top:4px"><summary style="cursor:pointer;color:#3b82f6;font-size:0.92em">Ver ${res.campos_detectados.length} campos detectados</summary>
+         <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">
+           ${(res.campos_detectados||[]).map(c=>{
+             const exp=_CAMPOEXP[c.toUpperCase()]||("Campo: "+c);
+             return `<code title="${exp}" style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:0.88em;cursor:help">${c}</code>`;
+           }).join("")}
+         </div></details>` : "";
+    detalle = `<details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:0.77em;color:#64748b">🔎 Ver resultado detallado (${res.ms||0}ms)</summary>
+      <div style="margin-top:6px;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78em">
+        <table style="border-collapse:collapse;width:100%">
+          <tr><td style="color:#64748b;padding:2px 8px 2px 0;white-space:nowrap;font-weight:600;width:90px">Código</td>
+              <td><code style="background:#f1f5f9;padding:1px 5px;border-radius:3px">${res.code??"-"}</code>
+                  <span style="color:#64748b;margin-left:6px;font-size:0.9em">${codeExp}</span></td></tr>
+          <tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Estado</td>
+              <td style="color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</td></tr>
+          <tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Tiempo</td>
+              <td>${res.ms||0}ms</td></tr>
+          ${(res.n_items||0)>0?`<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">Registros</td>
+              <td>${res.n_items} obtenidos (solo estructura expuesta, sin valores)</td></tr>`:""}
+          ${res.necesito_id_real?`<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600">ID real</td>
+              <td>${res.id_resuelto
+                ? `<span style="color:#166534">✅ Obtenido de BD automáticamente (valor no mostrado — privacidad)</span>`
+                : `<span style="color:#92400e">⚠️ Necesario pero BD sin datos o sin acceso</span>`}</td></tr>`:""}
+          ${(res.muestra_tipos&&Object.keys(res.muestra_tipos||{}).length)
+            ? `<tr><td style="color:#64748b;padding:2px 8px 2px 0;font-weight:600;vertical-align:top">Tipos</td>
+               <td style="font-size:0.9em"><code style="background:#f1f5f9;padding:2px 6px;border-radius:3px">${JSON.stringify(res.muestra_tipos)}</code></td></tr>`:""
+          }
+        </table>
+        ${camposHtml}
+        <div style="margin-top:7px;padding:6px 9px;background:${ec.bg};border:1px solid ${ec.border};border-radius:5px;color:${ec.color}">${res.mensaje||""}</div>
+      </div>
+    </details>`;
+  }
+  return `<div id="ae-prob-${clase}-${op}" style="background:${ec.bg};border:1px solid ${ec.border};border-radius:7px;padding:8px 12px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <span style="font-weight:600;font-size:0.84em;color:#1e293b">${oi.label}</span>
+        <code style="font-size:0.74em;color:#64748b;margin-left:5px">.${op}()</code>
+        <span style="font-size:0.71em;padding:1px 6px;border-radius:8px;background:${rBG};color:${rCL};margin-left:4px">${oi.rl}</span>
+      </div>
+      ${res?`<span style="font-size:0.74em;color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</span>`:`<span style="font-size:0.72em;color:#94a3b8">Sin probar</span>`}
+      <button onclick="ApiExplorerModule.doAutoProbarOp('${clase}','${op}')"
+        ${!sesion?"disabled":""}
+        style="font-size:0.72em;padding:2px 9px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;white-space:nowrap">
+        ▶ Probar
+      </button>
+    </div>
+    <details style="margin-top:3px">
+      <summary style="cursor:pointer;font-size:0.74em;color:#94a3b8">¿Qué hace esta operación?</summary>
+      <p style="margin:3px 0 0;font-size:0.77em;color:#475569;padding:3px 0">${oi.desc}</p>
+    </details>
+    ${detalle}
+  </div>`;
+}
+
+function _chipRes(sym, n, label, bg, color) {
+  return `<span style="background:${bg};border-radius:8px;padding:3px 10px;font-size:0.8em;font-weight:600;color:${color}">${sym} ${n} ${label}</span>`;
+}
+function _e2msg(estado, code, ires) {
+  return ({ok:`Operación exitosa${ires?" (ID auto-resuelto)":""}`,
+    requiere_params:"Necesita identificador real (codProyecto/codOrden)",
+    sin_licencia:"Sin licencia — módulo no contratado",
+    sin_permiso:"Sin permiso de usuario",
+    config_incompleta:"Config incompleta — revisar .env",
+    error:`Error code=${code}`, bloqueado:"Escritura bloqueada"})[estado]||`code=${code}`;
+}
+
 
 
 function renderConexion(s, cfg) {
@@ -1857,6 +2146,99 @@ const ApiExplorerModule = {
       if (btn) { btn.disabled = false; btn.textContent = '🔍 Obtener IDs reales de la BD'; }
     }
   },
+
+
+  // ── Probador Visual ─────────────────────────────────────────────────────────
+
+  async doAutoProbarOp(clase, op) {
+    // Prueba una operación concreta. Auto-resuelve code=6 con ID de BD.
+    const key = `${clase}.${op}`;
+    // Actualizar UI: "probando..."
+    _probLoad[clase] = true;
+    const card = document.getElementById(`ae-prob-${clase}-${op}`);
+    if (card) {
+      const btn = card.querySelector("button");
+      if (btn) { btn.textContent = "⏳"; btn.disabled = true; }
+    }
+    try {
+      const r = await _fetch("/auto-probar", {
+        method: "POST",
+        body: JSON.stringify({clase, operacion: op, params: {}}),
+      });
+      _probRes[key] = r;
+    } catch(e) {
+      _probRes[key] = {code:-1, estado:"error", ms:0, n_items:0,
+        campos_detectados:[], mensaje:`Error: ${e.message}`,
+        necesito_id_real:false, id_resuelto:false, muestra_tipos:{}};
+    } finally {
+      _probLoad[clase] = false;
+    }
+    // Re-render solo la tarjeta de operación (in-place)
+    const cardNew = document.getElementById(`ae-prob-${clase}-${op}`);
+    if (cardNew) {
+      cardNew.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active||true);
+    }
+  },
+
+  async doAutoProbarClase(clase, ops) {
+    // Prueba todas las ops de lectura de una clase en secuencia
+    _probLoad[clase] = true;
+    for (const op of ops) {
+      await this.doAutoProbarOp(clase, op);
+      await new Promise(r => setTimeout(r, 100));
+    }
+    _probLoad[clase] = false;
+  },
+
+  async doProbarTodoCatalogo(event) {
+    const btn = event?.target;
+    const resDiv = document.getElementById("ae-probador-todo-result");
+    if (btn) { btn.textContent = "⏳ Probando todas…"; btn.disabled = true; }
+    if (resDiv) resDiv.innerHTML = `<div style="color:#64748b;font-size:0.82em;padding:6px 0">
+      ⏳ Probando todas las clases… (puede tardar 1-2 min)</div>`;
+    try {
+      const r = await _fetch("/probar-todo-catalogo", {
+        method: "POST",
+        body: JSON.stringify({solo_lectura: true}),
+      });
+      // Importar resultados al estado local del Probador
+      if (r.clases) {
+        Object.entries(r.clases).forEach(([clase, entrada]) => {
+          Object.entries(entrada.resultados_op||{}).forEach(([op, res]) => {
+            _probRes[`${clase}.${op}`] = {
+              code: res.code, estado: res.estado, ms: res.ms,
+              n_items: res.n_items||0,
+              campos_detectados: res.campos||[],
+              necesito_id_real: res.necesito_id||false,
+              id_resuelto: res.id_resuelto||false,
+              muestra_tipos: {},
+              mensaje: _e2msg(res.estado, res.code, res.id_resuelto),
+            };
+          });
+        });
+      }
+      // Resumen visual
+      const res = r.resumen||{};
+      if (resDiv) resDiv.innerHTML = `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+          <span style="font-weight:600;font-size:0.88em">Resultado de ${r.total_clases} clases:</span>
+          ${_chipRes("✅", res.ok||0,              "Funcionan",      "#dcfce7","#166534")}
+          ${_chipRes("🔵", res.requiere_params||0, "Necesitan ID",   "#dbeafe","#1e40af")}
+          ${_chipRes("🚫", res.sin_licencia||0,    "Sin licencia",   "#fef2f2","#991b1b")}
+          ${_chipRes("🔒", res.sin_permiso||0,     "Sin permiso",    "#f8fafc","#374151")}
+          ${_chipRes("❌", res.error||0,           "Error",          "#fef2f2","#991b1b")}
+          <span style="font-size:0.75em;color:#94a3b8;margin-left:auto">${(r.timestamp||"").slice(0,19)} · ${r.use_mock?"BD Simulada":"API Real"}</span>
+        </div>`;
+      // Re-render del tab Probador con los resultados
+      _state.currentTab = "probador";
+      renderMain();
+    } catch(e) {
+      if (resDiv) resDiv.innerHTML = `<div style="color:#991b1b;font-size:0.82em;padding:4px 0">❌ ${e.message}</div>`;
+    } finally {
+      if (btn) { btn.textContent = "🚀 Probar todas las clases"; btn.disabled = false; }
+    }
+  },
+
 
   // ── Ejecutar prueba del Plan inline (delegación de eventos) ────────────────
   // Lanza sonda-rapida y muestra resultado en la tarjeta sin modal
