@@ -792,40 +792,80 @@ function _mkOpCard(clase, op, sesion) {
   const btnBg = esW ? "#92400e" : "#3b82f6";
   const urlApi = `mPYME → ${clase}.${op}()`;
 
-  // ── Formulario de parámetros ──────────────────────────────────────────────
+  // ── Formulario de parámetros ultra-amigable ─────────────────────────────────
   const params = PARAMS_DB[`${clase}.${op}`] || [];
   let formHtml = "";
   if (params.length > 0) {
+    const hasBDParams = params.some(f=>_PARAMS_CON_BD.has(f.n));
+    const autoFillAll = hasBDParams
+      ? `<button type="button" onclick="ApiExplorerModule.doAutocompletarTodos('${clase}','${op}')"
+           style="border:1px solid #3b82f6;background:#3b82f6;color:white;border-radius:5px;padding:3px 10px;font-size:0.77em;cursor:pointer;font-weight:600">
+           🔍 Autocompletar todo desde BD</button>`
+      : "";
     const fields = params.map(f => {
       const pi  = _PARAM_INFO[f.n];
       const hasBD = _PARAMS_CON_BD.has(f.n);
-      const req = f.req ? `<span style="color:#dc2626" title="Obligatorio">*</span>` : "";
+      const isReq = f.req;
+      const reqBadge = isReq
+        ? `<span style="background:#fef2f2;color:#dc2626;border-radius:3px;padding:0 4px;font-size:0.72em;font-weight:700" title="Obligatorio — sin él la llamada fallará">REQ</span>`
+        : `<span style="background:#f1f5f9;color:#94a3b8;border-radius:3px;padding:0 4px;font-size:0.72em" title="Opcional">OPT</span>`;
       const bdBtn = hasBD
         ? `<button type="button" onclick="ApiExplorerModule.doAutocompletar('${clase}','${op}','${f.n}')"
              title="Buscar valores reales en la BD de SQL Obras"
-             style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 7px;font-size:0.77em;cursor:pointer">🔍 BD</button>` : "";
+             style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 8px;font-size:0.74em;cursor:pointer">🔍 BD</button>` : "";
+      const ejVal = (pi?.ej||f.ph||"").replace(/'/g,"\\'");
+      const ejBtn = ejVal
+        ? `<button type="button"
+             onclick="(function(){var el=document.getElementById('ap-${clase}-${op}-${f.n}');if(el){el.value='${ejVal}';el.style.borderColor='#86efac';}})()"
+             title="Rellenar con ejemplo: ${ejVal}"
+             style="border:1px solid #d1fae5;background:#f0fdf4;color:#166534;border-radius:4px;padding:2px 8px;font-size:0.74em;cursor:pointer">🎲 Ej</button>`
+        : "";
+      const clearBtn = `<button type="button"
+          onclick="(function(){var el=document.getElementById('ap-${clase}-${op}-${f.n}');if(el){el.value='';el.style.borderColor='${isReq?'#fca5a5':'#e2e8f0'}';}})()"
+          title="Limpiar campo"
+          style="border:1px solid #e2e8f0;background:#f8fafc;color:#94a3b8;border-radius:4px;padding:2px 6px;font-size:0.74em;cursor:pointer">✕</button>`;
       const helpBtn = pi
         ? `<button type="button" onclick="ApiExplorerModule.toggleParamHelp('${clase}','${op}','${f.n}')"
-             title="Ver explicación del parámetro"
-             style="border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;border-radius:4px;padding:1px 7px;font-size:0.77em;cursor:pointer">❓</button>` : "";
+             title="Explicación técnica y para empleado"
+             style="border:1px solid #fde68a;background:#fefce8;color:#92400e;border-radius:4px;padding:2px 7px;font-size:0.74em;cursor:pointer">❓ Ayuda</button>`
+        : "";
       const input = f.t==="select"
-        ? `<select id="ap-${clase}-${op}-${f.n}" style="flex:1;border:1px solid #e2e8f0;border-radius:5px;padding:4px 7px;font-size:0.82em">
-             ${(f.opts||[]).map(o=>`<option value="${o}">${o||"(todos)"}</option>`).join("")}
+        ? `<select id="ap-${clase}-${op}-${f.n}" style="width:100%;border:2px solid ${isReq?'#fca5a5':'#e2e8f0'};border-radius:5px;padding:5px 8px;font-size:0.83em;background:white">
+             ${(f.opts||[]).map(o=>`<option value="${o}">${o||"(todos — sin filtro)"}</option>`).join("")}
            </select>`
         : `<input id="ap-${clase}-${op}-${f.n}" type="${f.t||"text"}" placeholder="${f.ph||pi?.ej||""}"
-             style="flex:1;border:1px solid #e2e8f0;border-radius:5px;padding:4px 7px;font-size:0.82em;min-width:90px">`;
-      return `<div style="display:flex;flex-direction:column;gap:2px">
-        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-          <span style="font-size:0.77em;color:#374151;font-weight:600">${f.n}${req}</span>${bdBtn}${helpBtn}
+             style="width:100%;border:2px solid ${isReq?'#fca5a5':'#e2e8f0'};border-radius:5px;padding:5px 8px;font-size:0.83em;transition:border-color .15s"
+             oninput="this.style.borderColor=this.value?'#86efac':'${isReq?'#fca5a5':'#e2e8f0'}'">`;
+      const helpPanel = pi ? `<div id="ap-help-${clase}-${op}-${f.n}" style="display:none;border:1px solid #fde68a;border-radius:5px;overflow:hidden;margin-top:3px">
+          <div style="background:#fefce8;padding:5px 9px;font-size:0.77em">
+            <div style="color:#92400e;margin-bottom:3px"><b>🔧 Técnico:</b> ${pi.tec}</div>
+            <div style="color:#166534;margin-bottom:3px"><b>👷 Empleado SQL Obras:</b> ${pi.emp}</div>
+            <div style="color:#1e40af"><b>📝 Ejemplo:</b> <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">${pi.ej}</code></div>
+          </div>
+        </div>` : `<div id="ap-help-${clase}-${op}-${f.n}" style="display:none"></div>`;
+      const bdChips = `<div id="ap-bd-${clase}-${op}-${f.n}"
+          style="display:none;flex-wrap:wrap;gap:3px;margin-top:3px;padding:4px 6px;background:#eff6ff;border-radius:4px;border:1px solid #bfdbfe"></div>`;
+      return `<div style="background:white;border:1px solid ${isReq?'#fecaca':'#f1f5f9'};border-radius:7px;padding:8px 10px">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:4px">
+          ${reqBadge}
+          <span style="font-size:0.82em;color:#1e293b;font-weight:700">${f.n}</span>
+          <span style="font-size:0.73em;color:#64748b;font-style:italic">${f.desc||""}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          ${input}<span style="font-size:0.71em;color:#94a3b8;white-space:nowrap">${f.desc||""}</span>
-        </div>
-        <div id="ap-help-${clase}-${op}-${f.n}" style="display:none;background:#fef9c3;border:1px solid #fde047;border-radius:4px;padding:5px 8px;font-size:0.76em"></div>
-        <div id="ap-bd-${clase}-${op}-${f.n}" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;display:none"></div>
+        ${input}
+        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:5px">${bdBtn}${ejBtn}${helpBtn}${clearBtn}</div>
+        ${helpPanel}${bdChips}
       </div>`;
     }).join("");
-    formHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:8px;padding:8px 12px;background:#f8fafc;border-top:1px solid #f1f5f9">${fields}</div>`;
+    formHtml = `<div style="padding:8px 12px;background:#f8fafc;border-top:1px solid #f1f5f9">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;flex-wrap:wrap;gap:5px">
+        <span style="font-size:0.78em;font-weight:700;color:#374151">📋 Parámetros de la llamada</span>
+        ${autoFillAll}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px">${fields}</div>
+      <div style="margin-top:6px;padding:5px 8px;background:#f0f9ff;border-radius:4px;font-size:0.74em;color:#0369a1">
+        💡 <b>REQ</b>=obligatorio · <b>OPT</b>=opcional · <b>🔍 BD</b>=autocompletar de BD real · <b>🎲 Ej</b>=poner ejemplo · <b>❓ Ayuda</b>=explicación del campo
+      </div>
+    </div>`;
   }
 
   // ── Resultado ─────────────────────────────────────────────────────────────
@@ -2444,6 +2484,7 @@ const ApiExplorerModule = {
     document.body.appendChild(panel);
     try {
       const r = await _fetch('/diagnostico-firebird');
+      window._ae_diag_fb_cache = r; // guardar para el TXT export
       const div = document.getElementById('ae-diag-fb-content');
       if (!div) return;
       const ok=r.conexion_ok, inst=r.firebirdsql_instalado, cfgOk=r.db_name_configurado;
@@ -2571,6 +2612,75 @@ const ApiExplorerModule = {
 
   // ── Probador Visual ─────────────────────────────────────────────────────────
 
+  async doAutocompletar(clase, op, campo) {
+    // Busca valores reales en Firebird y muestra chips clicables bajo el campo
+    const bdDiv = document.getElementById(`ap-bd-${clase}-${op}-${campo}`);
+    const inputEl = document.getElementById(`ap-${clase}-${op}-${campo}`);
+    if (!bdDiv) return;
+    bdDiv.style.display = "flex";
+    bdDiv.innerHTML = `<span style="font-size:0.76em;color:#3b82f6;padding:2px 0">⏳ Consultando base de datos…</span>`;
+    try {
+      const r = await _fetch("/valores-param", {method:"POST", body:JSON.stringify({clase, campo})});
+      if (!r.ok || !r.valores?.length) {
+        bdDiv.innerHTML = `<div style="font-size:0.76em;color:#991b1b;padding:2px 0">
+          ❌ ${r.error||"Sin valores en BD"}
+          ${r.error?.includes("DB_NAME")||r.error?.includes("no instalado")
+            ? `<br><span style="color:#64748b">Pulsa <b>🔌 Diagnóstico BD</b> en el header del Probador para ver el problema.</span>` : ""}
+        </div>`;
+        return;
+      }
+      bdDiv.innerHTML = `<div style="width:100%;font-size:0.73em;color:#1e40af;font-weight:600;margin-bottom:3px">
+        ✅ ${r.valores.length} valores reales de la BD — pulsa para rellenar el campo:
+      </div>` + r.valores.map(v => {
+        const lbl = v.desc && v.desc !== v.id && v.desc !== "None" ? `${v.id} — ${v.desc.slice(0,35)}` : v.id;
+        const val = v.id.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+        return `<button type="button"
+          onclick="(function(){
+            var el=document.getElementById('ap-${clase}-${op}-${campo}');
+            if(el){el.value='${val}';el.style.borderColor='#86efac';el.dispatchEvent(new Event('input'));}
+          })()"
+          style="font-size:0.76em;padding:3px 9px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;cursor:pointer;color:#1e40af;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis"
+          title="${v.id}${v.desc?' — '+v.desc:''}">${lbl}</button>`;
+      }).join("");
+    } catch(e) {
+      bdDiv.innerHTML = `<span style="font-size:0.76em;color:#991b1b">Error: ${e.message}</span>`;
+    }
+  },
+
+  async doAutocompletarTodos(clase, op) {
+    // Autocompletea todos los campos BD de la operación de una vez
+    const params = (typeof PARAMS_DB !== "undefined" ? PARAMS_DB : {})[`${clase}.${op}`] || [];
+    const camposBD = params.filter(f => _PARAMS_CON_BD.has(f.n));
+    if (!camposBD.length) return;
+    for (const f of camposBD) {
+      await this.doAutocompletar(clase, op, f.n);
+      await new Promise(r => setTimeout(r, 80)); // pequeña pausa entre consultas
+    }
+  },
+
+  toggleParamHelp(clase, op, campo) {
+    const div = document.getElementById(`ap-help-${clase}-${op}-${campo}`);
+    if (!div) return;
+    const visible = div.style.display !== "none";
+    div.style.display = visible ? "none" : "block";
+    // Si se muestra y está vacío, rellenarlo con la info de _PARAM_INFO
+    if (!visible && div.innerHTML.trim() === "") {
+      const pi = _PARAM_INFO[campo];
+      if (pi) {
+        div.innerHTML = `<div style="background:#fefce8;padding:6px 10px;font-size:0.77em;border-radius:5px">
+          <div style="color:#92400e;margin-bottom:3px"><b>🔧 Técnico:</b> ${pi.tec}</div>
+          <div style="color:#166534;margin-bottom:3px"><b>👷 Empleado SQL Obras:</b> ${pi.emp}</div>
+          <div style="color:#1e40af"><b>📝 Ejemplo:</b> <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">${pi.ej}</code>
+            <button type="button"
+              onclick="(function(){var el=document.getElementById('ap-${clase}-${op}-${campo}');if(el){el.value='${(pi.ej||'').replace(/'/g,"\\'")}';el.style.borderColor='#86efac';}})()"
+              style="margin-left:6px;border:1px solid #93c5fd;background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 7px;font-size:0.9em;cursor:pointer">
+              ← Usar este ejemplo</button>
+          </div>
+        </div>`;
+      }
+    }
+  },
+
   setProbadorPerfil(perfil) {
     _state.probadorPerfil = perfil;
     renderMain();
@@ -2624,6 +2734,34 @@ const ApiExplorerModule = {
     ln("Perfil:        "+({gerente:"Gerente",ingeniero:"Ingeniero",empleado:"Empleado SQL Obras",tecnico:"Tecnico API"}[perfil]||perfil));
     ln("Operaciones probadas: "+total+"  |  Clases probadas: "+clasesProbadasSet.size+" de "+clasesTotalesSet.size);
     ln(SEP); ln("");
+
+    // ── 0. ESTADO DE LA CONEXIÓN A FIREBIRD (obtenida en el momento del export) ──
+    ln("0. ESTADO CONEXION BASE DE DATOS FIREBIRD"); ln(sep);
+    ln("  (Firebird es la BD de SQL Obras — se usa para obtener IDs reales al probar la API)");
+    try {
+      // Llamada sincrona-fake: usamos datos en caché si existen, o indicamos que hay que comprobarlo
+      const fbCache = window._ae_diag_fb_cache;
+      if (fbCache) {
+        ln("  DB_HOST   : " + (fbCache.db_host||"no configurado"));
+        ln("  DB_PORT   : " + (fbCache.db_port||3050));
+        ln("  DB_NAME   : " + (fbCache.db_name||"(vacío — configurar en .env)"));
+        ln("  DB_USER   : " + (fbCache.db_user||"no configurado"));
+        ln("  firebirdsql instalado: " + (fbCache.firebirdsql_instalado?"SI":"NO"));
+        ln("  Conexion OK          : " + (fbCache.conexion_ok?"SI":"NO - ver error abajo"));
+        if (fbCache.error) ln("  ERROR BD  : " + fbCache.error);
+        if (fbCache.conexion_ok && fbCache.tablas_probadas) {
+          ln("  Tablas verificadas:");
+          Object.entries(fbCache.tablas_probadas).forEach(([tbl,info]) => {
+            ln("    " + tbl.padEnd(16) + " -> " + (info.ok ? info.n_registros+" registros" : "ERROR: "+info.error));
+          });
+        }
+      } else {
+        ln("  No se ha ejecutado el diagnostico Firebird en esta sesion.");
+        ln("  ACCION: Pulsar '🔌 Diagnostico BD' en el Probador para comprobar la conexion.");
+      }
+    } catch(e) { ln("  Error obteniendo estado Firebird: " + e.message); }
+    ln(""); ln("");
+
     ln("1. RESUMEN EJECUTIVO"); ln(sep);
     ln("  Total operaciones probadas   : "+total);
     ln("  OK - Funcionan correctamente : "+nOk);
@@ -2744,13 +2882,42 @@ const ApiExplorerModule = {
       todosProblemas.forEach(([key, r]) => {
         const etiq = ELBL[r.estado]||r.estado;
         ln("  ["+etiq+"] "+key+" (code="+r.code+", "+r.ms+"ms)");
-        if (r.necesito_id_real&&!r.id_resuelto) ln("    CAUSA : Requiere ID real. El sistema no pudo obtenerlo automaticamente.");
-        if (r.estado==="sin_licencia") ln("    CAUSA : Modulo no contratado en la licencia actual. Contactar Distrito K.");
-        if (r.estado==="sin_permiso") ln("    CAUSA : El usuario API no tiene permiso para esta operacion. Revisar configuracion en SQL Obras.");
-        if (r.estado==="config_incompleta") ln("    CAUSA : Config incompleta. Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env.");
-        if (r.estado==="error") ln("    CAUSA : Error tecnico. Verificar conexion al servidor mPYME y que el servicio este arrancado.");
+        // Causa según estado
+        if (r.estado==="sin_licencia") {
+          ln("    CAUSA  : Modulo no contratado en la licencia actual.");
+          ln("    ACCION : Contactar Distrito K para ampliar la licencia.");
+        }
+        if (r.estado==="sin_permiso") {
+          ln("    CAUSA  : El usuario API no tiene permiso para esta operacion.");
+          ln("    ACCION : El administrador de SQL Obras debe dar acceso al usuario "+usuario+".");
+        }
+        if (r.estado==="config_incompleta") {
+          ln("    CAUSA  : Config incompleta. El servidor mPYME devolvio code=5.");
+          ln("    ACCION : Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env del servidor.");
+          ln("    NOTA   : code=5 puede significar tambien 'modulo sin licencia' si el servidor lo indica.");
+        }
+        if (r.estado==="requiere_params") {
+          ln("    CAUSA  : La API necesita un identificador real (codProyecto, codOrden, etc.).");
+          if (r.necesito_id_real&&!r.id_resuelto) {
+            ln("    AUTO-ID: El sistema intento obtener un ID de Firebird automaticamente pero fallo.");
+            const fbErr = window._ae_diag_fb_cache?.error;
+            if (fbErr) ln("    BD ERR : "+fbErr);
+            else if (!window._ae_diag_fb_cache) ln("    BD ERR : Diagnostico Firebird no ejecutado — usar boton 'Diagnostico BD'.");
+            ln("    ACCION : Pulsar boton '🔍 BD' en el campo del Probador o configurar DB_NAME en .env.");
+          } else if (r.id_resuelto) {
+            ln("    AUTO-ID: ID obtenido de Firebird y reintento exitoso.");
+          }
+        }
+        if (r.estado==="error") {
+          ln("    CAUSA  : Error tecnico de conexion o excepcion del servidor mPYME.");
+          ln("    ACCION : Verificar que el servidor mPYME esta arrancado. URL: "+apiUrl);
+        }
+        const rawSrv = (r.raw_servidor||"").trim();
+        if (rawSrv) ln("    SERVIDOR: "+rawSrv.slice(0,250)+(rawSrv.length>250?"...":""));
         const msg = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
         if (msg) ln("    MSG   : "+msg.slice(0,250)+(msg.length>250?"...":""));
+        if (r.params_usados && Object.keys(r.params_usados||{}).length)
+          ln("    PARAMS: "+JSON.stringify(r.params_usados));
       });
     }
     ln(""); ln("");
@@ -2893,6 +3060,8 @@ const ApiExplorerModule = {
       ⏳ <b>Probando browse + permiso + info</b> en todas las clases… (solo lectura, 1-2 min)<br>
       <span style="font-size:0.9em;color:#64748b">Las operaciones de escritura NO se prueban automáticamente. Usa el formulario de cada una para probarlas manualmente.</span>
     </div>`;
+    // Cachear diagnóstico Firebird para incluirlo en el TXT
+    _fetch("/diagnostico-firebird").then(r => { window._ae_diag_fb_cache = r; }).catch(()=>{});
     try {
       const r = await _fetch("/probar-todo-catalogo", {
         method: "POST",
