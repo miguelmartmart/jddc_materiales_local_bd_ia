@@ -734,6 +734,144 @@ async def sonda_masiva_fase0():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/obtener-ids-reales")
+async def obtener_ids_reales():
+    """
+    Consulta SOLO LECTURA a Firebird para obtener IDs reales de las tablas clave
+    de SQL Obras (PROYECTOS, PROYORDENES, RECURSOS, etc.).
+    Necesarios para probar clases que exigen un identificador de negocio real (code=6).
+    NUNCA modifica la BD. Solo hace SELECT FIRST 5.
+    """
+    from backend.core.config.settings import settings
+    import time
+
+    # Mapeo clase-API → tabla Firebird + campo ID + campo descripción
+    TABLA_MAP = [
+        {
+            "clase": "proyectos",
+            "param_api": "codProyecto",
+            "tabla": "PROYECTOS",
+            "campo_id": "CODPROYE",
+            "campo_desc": "DENOMINACION",
+        },
+        {
+            "clase": "reporden",
+            "param_api": "codOrden",
+            "tabla": "REPORDEN",
+            "campo_id": "CODORDEN",
+            "campo_desc": "DESCRIPCION",
+        },
+        {
+            "clase": "recursos",
+            "param_api": "codRecurso",
+            "tabla": "RECURSOS",
+            "campo_id": "CODRECURSO",
+            "campo_desc": "NOMBRE",
+        },
+        {
+            "clase": "proordutil",
+            "param_api": "codProyecto",
+            "tabla": "PROYECTOS",
+            "campo_id": "CODPROYE",
+            "campo_desc": "DENOMINACION",
+        },
+        {
+            "clase": "proordprev",
+            "param_api": "codProyecto",
+            "tabla": "PROYECTOS",
+            "campo_id": "CODPROYE",
+            "campo_desc": "DENOMINACION",
+        },
+        {
+            "clase": "repordutil",
+            "param_api": "codOrden",
+            "tabla": "REPORDEN",
+            "campo_id": "CODORDEN",
+            "campo_desc": "DESCRIPCION",
+        },
+    ]
+
+    resultados = []
+    db_host = settings.DB_HOST
+    db_port = settings.DB_PORT
+    db_name = settings.DB_NAME
+    db_user = settings.DB_USER
+    db_pass = settings.DB_PASSWORD
+
+    if not db_name:
+        return {
+            "ok": False,
+            "error": "DB_NAME no configurado en .env — sin acceso directo a Firebird.",
+            "resultados": [],
+        }
+
+    for entrada in TABLA_MAP:
+        clase = entrada["clase"]
+        tabla = entrada["tabla"]
+        campo_id = entrada["campo_id"]
+        campo_desc = entrada["campo_desc"]
+        param_api = entrada["param_api"]
+
+        ids_encontrados = []
+        error_msg = None
+        try:
+            import firebirdsql
+            t0 = time.monotonic()
+            con = firebirdsql.connect(
+                host=db_host,
+                port=db_port,
+                database=db_name,
+                user=db_user,
+                password=db_pass,
+                charset="UTF8",
+            )
+            cur = con.cursor()
+            sql = (
+                f"SELECT FIRST 5 {campo_id}, {campo_desc} "
+                f"FROM {tabla} "
+                f"ORDER BY {campo_id}"
+            )
+            cur.execute(sql)
+            rows = cur.fetchall()
+            ms = round((time.monotonic() - t0) * 1000)
+            cur.close(); con.close()
+            for row in rows:
+                vid = str(row[0]).strip() if row[0] is not None else ""
+                vdesc = str(row[1]).strip() if row[1] is not None else ""
+                if vid:
+                    ids_encontrados.append({
+                        "id": vid,
+                        "desc": vdesc,
+                        "param_api": param_api,
+                    })
+        except ImportError:
+            error_msg = "firebirdsql no instalado en este entorno."
+        except Exception as exc:
+            error_msg = f"{type(exc).__name__}: {str(exc)[:200]}"
+
+        resultados.append({
+            "clase": clase,
+            "tabla": tabla,
+            "campo_id": campo_id,
+            "param_api": param_api,
+            "ids": ids_encontrados,
+            "ok": len(ids_encontrados) > 0,
+            "error": error_msg,
+        })
+
+    # Marcar duplicados (proyectos aparece en proordutil y proordprev — mismos IDs)
+    return {
+        "ok": any(r["ok"] for r in resultados),
+        "db_host": db_host,
+        "db_name": db_name,
+        "resultados": resultados,
+        "aviso": (
+            "SOLO LECTURA — SELECT FIRST 5 — Ningún dato modificado. "
+            "Usa estos IDs reales en el Explorador para desbloquear las clases FASE 0."
+        ),
+    }
+
+
 @router.get("/informe-completo")
 async def get_informe_completo():
     """

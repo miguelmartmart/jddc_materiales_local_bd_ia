@@ -1068,13 +1068,18 @@ function _renderPlan(r) {
         class="btn primary" style="font-size:0.87em;padding:8px 16px;background:#991b1b;border-color:#991b1b">
         🚀 Sonda masiva automática (>50 variantes)
       </button>
+      <button id="btn-ids-reales" onclick="ApiExplorerModule.doObtenerIdsReales()"
+        class="btn primary" style="font-size:0.87em;padding:8px 16px;background:#1d4ed8;border-color:#1d4ed8">
+        🔍 Obtener IDs reales de la BD
+      </button>
       <button onclick="ApiExplorerModule.descargarInformeCompleto()"
         class="btn secondary" style="font-size:0.84em">
         📄 Descargar informe completo TXT
       </button>
       <span style="font-size:0.78em;color:#64748b">Solo lectura · Sin modificar BD · ~30-60 seg</span>
     </div>
-    <div id="ae-plan-result-fase0"></div>`;
+    <div id="ae-plan-result-fase0"></div>
+    <div id="ae-ids-reales-result"></div>`;
     investigar.forEach(inv => {
       const cands = inv.candidatos || [];
       const sondaCands = inv.candidatos_sonda || [];
@@ -1097,6 +1102,7 @@ function _renderPlan(r) {
             </button>`;
           }).join('')}
         </div>
+        <div id="ae-ids-clase-${inv.clase}" style="margin-top:8px"></div>
       </div>`;
     });
     h += `</div></details>`;
@@ -1692,7 +1698,7 @@ const ApiExplorerModule = {
       ⏳ Probando <b>>50 variantes de parámetros</b> en las 6 clases…
       <br>Esto puede tardar 30-60 segundos. Por favor espera.</div>`;
     try {
-      const r = await _api('POST', 'sonda-masiva-fase0');
+      const r = await _fetch('/sonda-masiva-fase0', {method:'POST'});
       if (!div) return;
       const des = r.desbloqueados || [];
       const sig = r.siguen_bloqueados || [];
@@ -1765,7 +1771,7 @@ const ApiExplorerModule = {
 
   async descargarInformeCompleto() {
     try {
-      const r = await _api('GET', 'informe-completo');
+      const r = await _fetch('/informe-completo');
       if (!r.txt) { alert('Error al generar el informe.'); return; }
       const blob = new Blob([r.txt], {type: 'text/plain;charset=utf-8'});
       const a = document.createElement('a');
@@ -1775,6 +1781,80 @@ const ApiExplorerModule = {
       URL.revokeObjectURL(a.href);
     } catch(e) {
       alert('Error descargando informe: ' + e.message);
+    }
+  },
+
+  async doObtenerIdsReales() {
+    // Consulta SOLO LECTURA a Firebird: SELECT FIRST 5 de tablas clave
+    // para obtener IDs reales con los que probar las clases FASE 0 (code=6)
+    const btn = document.getElementById('btn-ids-reales');
+    const resultDiv = document.getElementById('ae-ids-reales-result');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Consultando BD…'; }
+    if (resultDiv) resultDiv.innerHTML = `<div style="padding:8px;color:#64748b;font-size:0.82em">
+      🔍 Consultando Firebird (SELECT FIRST 5, solo lectura)…</div>`;
+    try {
+      const r = await _fetch('/obtener-ids-reales', {method: 'POST'});
+
+      // Mostrar aviso global
+      if (resultDiv) {
+        if (!r.ok && r.error) {
+          resultDiv.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;
+            padding:8px 12px;font-size:0.82em;color:#991b1b;margin-top:4px">
+            ❌ No se pudo conectar a Firebird: <b>${r.error}</b><br>
+            <span style="font-size:0.9em">Verifica DB_HOST, DB_PORT y DB_NAME en el .env del servidor.</span>
+          </div>`;
+        } else {
+          resultDiv.innerHTML = `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;
+            padding:6px 12px;font-size:0.8em;color:#1e40af;margin-top:4px">
+            ✅ ${r.aviso || 'Solo lectura — datos obtenidos de Firebird.'}
+          </div>`;
+        }
+      }
+
+      // Inyectar IDs en cada tarjeta FASE 0
+      if (r.resultados && Array.isArray(r.resultados)) {
+        r.resultados.forEach(res => {
+          const claseDiv = document.getElementById(`ae-ids-clase-${res.clase}`);
+          if (!claseDiv) return;
+          if (res.error) {
+            claseDiv.innerHTML = `<div style="font-size:0.78em;color:#6b7280;padding:4px 0">
+              ⚠️ Error BD para <b>${res.tabla}</b>: ${res.error}</div>`;
+            return;
+          }
+          if (!res.ids || res.ids.length === 0) {
+            claseDiv.innerHTML = `<div style="font-size:0.78em;color:#6b7280;padding:4px 0">
+              Sin registros en <b>${res.tabla}</b> (tabla vacía).</div>`;
+            return;
+          }
+          // Generar botones con IDs reales
+          const btns = res.ids.map(item => {
+            const paramObj = {[item.param_api]: item.id};
+            const paramStr = JSON.stringify(paramObj);
+            const paramEsc = paramStr.replace(/"/g, '&quot;');
+            const label = item.desc ? `${item.id} — ${item.desc.substring(0,40)}` : item.id;
+            return `<button class="ae-plan-run btn primary"
+              data-clase="${res.clase}" data-op="browse" data-params="${paramEsc}"
+              title="browse ${res.clase} con ${item.param_api}=${item.id}"
+              style="font-size:0.75em;padding:3px 9px;background:#1d4ed8;border-color:#1d4ed8;
+                     white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis">
+              ▶ ${label}
+            </button>`;
+          }).join('');
+          claseDiv.innerHTML = `
+            <div style="margin-top:6px">
+              <p style="font-size:0.78em;font-weight:600;color:#1d4ed8;margin:0 0 4px">
+                🔵 IDs reales de la BD (${res.tabla}) — pulsa para probar:
+              </p>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div>
+            </div>`;
+        });
+      }
+    } catch(e) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;
+        border-radius:6px;padding:8px 12px;font-size:0.82em;color:#991b1b;margin-top:4px">
+        ❌ Error: ${e.message}</div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Obtener IDs reales de la BD'; }
     }
   },
 
