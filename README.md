@@ -3,9 +3,75 @@
 Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatización).  
 Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
-> **Última actualización:** 08/07/2026  
-> **Versión:** 2.9.0  
+> **Última actualización:** 10/09/2026  
+> **Versión:** 3.0.0  
+> **Commit:** `677bde5`  
 > **Estado tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
+
+## 🆕 Novedades v3.0.0 (10/09/2026) — API Explorer: Probador Visual
+
+Nueva pestaña **🧪 Probador** en el API Explorer para probar, explorar y aprender
+toda la API mPYME de SQL Obras (Distrito K) con interfaz ultra-amigable.
+
+### Funcionalidades del Probador
+
+- **Probar cualquier llamada API manualmente** con formulario visual
+  - Campos con badge REQ/OPT, borde rojo→verde al rellenar
+  - Botón 🔍 BD: autocompleta desde Firebird real con chips clicables
+  - Botón 🎲 Ej: rellena con ejemplo predefinido
+  - Botón ❓ Ayuda: explicación técnica + empleado + ejemplo
+  - Botón X: limpia el campo
+
+- **Probar todas las clases automáticamente** (solo lectura, nunca escritura)
+  - Auto-resolución de `code=6`: obtiene ID real de Firebird y reintenta
+  - Barra de progreso en tiempo real
+
+- **Exportar informe TXT exhaustivo** (9 secciones):
+  - Estado Firebird, resumen ejecutivo, tabla de estado rápido
+  - Detalle completo por clase/operación: code, tiempo, campos, mensaje servidor
+  - Errores con causa + acción + respuesta exacta del servidor
+  - Operaciones de escritura pendientes, aplicaciones posibles, diagnóstico
+
+- **Base de conocimiento integrada** por cada clase y operación:
+  - Nivel técnico API, nivel empleado SQL Obras, nivel gerente
+  - Flujo típico de uso, casos de uso reales, campos clave con tooltips
+  - Glosario SQL Obras ↔ API, ciclo new→write→cancel, códigos de respuesta
+
+- **6 aplicaciones posibles** detectadas automáticamente:
+  - 📱 App Móvil del Operario (imputación horas/materiales)
+  - 📊 Dashboard de Obras (desviación de costes en tiempo real)
+  - 🔧 App SAT para Técnicos (gestión de reparaciones)
+  - 🛒 Control de Compras con imputación directa a obra
+  - 📦 App de Almacén (stock y precios)
+  - 📋 Informe de Mantenimiento automático
+
+- **Seguridad de escritura watertight**:
+  - Probar todo nunca toca write/imputaPro/delete
+  - Operaciones de escritura requieren activar modo escritura + confirm() nativo
+  - Valores de BD nunca en informes (privacidad garantizada)
+
+### Diagnóstico BD Firebird
+
+Botón **🔌 Diagnóstico BD** muestra panel con:
+- Variables de entorno configuradas
+- `firebirdsql` instalado (sí/no)
+- Conexión correcta (sí/no)
+- N° registros de las 6 tablas principales
+
+### Tablas reales Firebird (SQL Obras)
+
+| Concepto | Tabla real | Campo ID |
+|---|---|---|
+| Proyectos/Obras | `PROYECTOS` | `CODIGO` |
+| Órdenes de reparación | `REPCAB` | `CODIGO` |
+| Empleados/recursos | `RECURSO` | `CODIGO` |
+| Equipos reparables | `REPOBJETO` | `CODIGO` |
+| Instalaciones | `REPINSTALACION` | `CODIGO` |
+| Artículos/materiales | `ARTICULO` | `CODIGO` |
+| Proveedores | `PROVEED` | `CODIGO` (desc: `RAZONSOCIAL`) |
+| Clientes | `CLIENTE` | `CODIGO` |
+
+> 📄 Documentación detallada: `docs/SESION_2026_09_10_API_EXPLORER_PROBADOR.md`
 
 ## ⚠️ Nota Operativa (24/07/2026) — CHAT_TIMEOUT_600S
 
@@ -157,6 +223,11 @@ bots/interjddcia/
 │       ├── chat/          # Pipeline chat: safety → SQL → corrección → formato
 │       │   ├── pipeline/  # Fases 0-4 del pipeline
 │       │   └── deep_analysis/  # Análisis profundo multi-fase
+│       ├── api_explorer/  # Probador Visual API mPYME (v3.0)
+│       │   ├── router.py        # auto-probar, probar-todo, valores-param, diagnostico-firebird
+│       │   ├── service.py       # Sesion mPYME, cliente HTTP, historial
+│       │   ├── api_catalogue_full.py  # Catalogo 17 clases, RIESGO, CODIGOS_RESPUESTA
+│       │   └── data/            # catalogue.json, campos_clase.json, operaciones_globales.json
 │       ├── db_analyst/    # Analista BD: 70+ consultas por categoría
 │       ├── db_explorer/   # SIUO: indexación + ContextRetriever
 │       ├── db_simulator/  # Simulador SQLite para tests
