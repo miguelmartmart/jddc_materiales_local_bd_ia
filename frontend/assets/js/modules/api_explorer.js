@@ -366,29 +366,81 @@ const _PARAM_INFO = {
 };
 const _PARAMS_CON_BD = new Set(["codProyecto","codOrden","codRecurso","codObjeto","codInst","codTrabajo","codArticulo","codProv","codCliente","codDocumento","codPartida"]);
 
+if (!_state.probadorPerfil) _state.probadorPerfil = "tecnico";
+
 function renderProbador(s) {
   const cat = _state.catalogue;
   const catalogue = cat ? cat.catalogue : {};
   const sesion = s.session_active;
   const isMock = s.use_mock;
-  let h = `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:14px">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <h3 style="margin:0 0 3px;font-size:1.02em">🧪 Probador Visual API mPYME</h3>
-        <p style="margin:0;font-size:0.79em;color:#64748b">Formulario con autocompletado desde BD.
-        Rellena los campos, pulsa Ejecutar y ve el resultado real.
-        🔍 busca valores de BD · ❓ explica cada parámetro (técnico + empleado).</p>
+  const modoEsc = s.modo_escritura;
+  const perfil = _state.probadorPerfil || "tecnico";
+  const perfiles = [
+    {id:"gerente",  lbl:"👔 Gerente"},
+    {id:"ingeniero",lbl:"🔧 Ingeniero"},
+    {id:"empleado", lbl:"👷 Empleado"},
+    {id:"tecnico",  lbl:"💻 Técnico API"},
+  ];
+  const perfilChips = perfiles.map(p=>`<button onclick="ApiExplorerModule.setProbadorPerfil('${p.id}')"
+    style="border:2px solid ${perfil===p.id?'#3b82f6':'#e2e8f0'};background:${perfil===p.id?'#3b82f6':'white'};
+    color:${perfil===p.id?'white':'#64748b'};border-radius:20px;padding:4px 12px;cursor:pointer;
+    font-size:0.79em;font-weight:${perfil===p.id?'700':'400'};white-space:nowrap">${p.lbl}</button>`).join("");
+
+  // Resumen ejecutivo para gerente
+  const totalClases = Object.values(catalogue).reduce((a,m)=>a+Object.keys(m).length,0);
+  const nOk  = Object.entries(_probRes).filter(([,v])=>v.estado==="ok").length;
+  const nReq = Object.entries(_probRes).filter(([,v])=>v.estado==="requiere_params").length;
+  const nLic = Object.entries(_probRes).filter(([,v])=>v.estado==="sin_licencia").length;
+  const hayRes = Object.keys(_probRes).length > 0;
+  const escAviso = modoEsc
+    ? `<div style="background:#fff3e0;border-left:4px solid #f59e0b;border-radius:4px;padding:6px 12px;font-size:0.8em;color:#92400e;font-weight:600;margin-top:8px">
+        ⚠️ MODO ESCRITURA ACTIVO — Cada operación de escritura pedirá confirmación expresa antes de ejecutarse.
+       </div>`
+    : `<div style="background:#dcfce7;border-left:4px solid #16a34a;border-radius:4px;padding:6px 12px;font-size:0.8em;color:#166534;font-weight:600;margin-top:8px">
+        🟢 MODO SOLO LECTURA — Las operaciones de escritura están bloqueadas. Totalmente seguro para demostración.
+       </div>`;
+
+  let h = `<div style="background:white;border-radius:10px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:12px">
+    <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1;min-width:220px">
+        <h3 style="margin:0 0 3px;font-size:1.02em">🧪 Probador Visual — API mPYME (SQL Obras)</h3>
+        <p style="margin:0;font-size:0.79em;color:#64748b">Formulario interactivo por operación · 🔍 autocompleta de BD · ❓ explicación técnica + para el empleado</p>
       </div>
       ${sesion
-        ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.84em">🚀 Probar todas (auto)</button>`
-        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Login requerido</div>`}
+        ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.83em">🚀 Probar todas (solo lectura)</button>`
+        : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Conectarse en <b>Conexión</b></div>`}
     </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:0.76em;color:#94a3b8">👀 Ver como:</span>${perfilChips}
+    </div>
+    ${escAviso}
     <div id="ae-probador-todo-result" style="margin-top:8px"></div>
     <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       ${isMock?`<span style="background:#dbeafe;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#1d4ed8">🔵 BD Simulada</span>`:`<span style="background:#dcfce7;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#166534">🟢 API Real — SQL Obras</span>`}
-      <span style="font-size:0.74em;color:#94a3b8">Solo lectura · 🔍 autocompleta desde BD</span>
     </div>
-  </div>`;
+  </div>
+  ${perfil==="gerente"&&hayRes?`<div style="background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1px solid #86efac;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+    <p style="font-size:0.88em;font-weight:700;color:#166534;margin:0 0 8px">📊 Resumen ejecutivo — ¿Qué puede hacer la API con vuestra licencia actual?</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div style="background:white;border-radius:8px;padding:8px 14px;border:1px solid #bbf7d0;text-align:center;min-width:90px">
+        <p style="font-size:1.5em;margin:0;font-weight:700;color:#166534">${nOk+nReq}</p>
+        <p style="font-size:0.74em;color:#166534;margin:0">clases accesibles</p>
+      </div>
+      <div style="background:white;border-radius:8px;padding:8px 14px;border:1px solid #bfdbfe;text-align:center;min-width:90px">
+        <p style="font-size:1.5em;margin:0;font-weight:700;color:#1e40af">${nOk}</p>
+        <p style="font-size:0.74em;color:#1e40af;margin:0">funcionando ahora</p>
+      </div>
+      ${nLic?`<div style="background:white;border-radius:8px;padding:8px 14px;border:1px solid #fca5a5;text-align:center;min-width:90px">
+        <p style="font-size:1.5em;margin:0;font-weight:700;color:#991b1b">${nLic}</p>
+        <p style="font-size:0.74em;color:#991b1b;margin:0">sin licencia</p>
+      </div>`:""}
+    </div>
+    <p style="font-size:0.79em;color:#374151;margin:0">
+      ${nOk+nReq>0?`✅ <b>Podemos implementar:</b> consulta de obras, partes de trabajo, materiales imputados, órdenes de reparación y mantenimiento.`:""}
+      ${nLic?`<br>⚠️ <b style="color:#991b1b">Sin licencia Documentos:</b> albaranes, facturas y pedidos bloqueados. Contactar Distrito K para ampliar.`:""}
+    </p>
+  </div>`:""}
+  `;
 
   if (!cat || !Object.keys(catalogue).length)
     return h + `<div style="background:#fef9c3;border-radius:8px;padding:14px;font-size:0.85em;color:#92400e">⏳ Cargando catálogo…</div>`;
@@ -467,6 +519,8 @@ function _mkOpCard(clase, op, sesion) {
   const esW = oi.riesgo >= 2;
   const rBG = ["#f0fdf4","#fefce8","#fff7ed","#fef2f2"][oi.riesgo]||"#f8fafc";
   const rCL = ["#166534","#92400e","#c2410c","#991b1b"][oi.riesgo]||"#64748b";
+  const modoEscActivo = (_state.status||{}).modo_escritura;
+  const bloqueadoPorEsc = esW && !modoEscActivo;
   const btnBg = esW ? "#92400e" : "#3b82f6";
   const urlApi = `mPYME → ${clase}.${op}()`;
 
@@ -538,15 +592,21 @@ function _mkOpCard(clase, op, sesion) {
         <span style="font-size:0.7em;padding:1px 6px;border-radius:8px;background:${rBG};color:${rCL}">${oi.rl}</span>
       </div>
       ${res?`<span style="font-size:0.73em;color:${ec.color};font-weight:600">${ec.sym} ${ec.label}</span>`:`<span style="font-size:0.71em;color:#94a3b8">⬜ Sin probar</span>`}
-      <button onclick="ApiExplorerModule.doEjecutarProbador('${clase}','${op}')"
-        ${!sesion?"disabled":""}
-        style="font-size:0.8em;padding:4px 14px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">
-        ▶ Ejecutar
-      </button>
+      ${bloqueadoPorEsc
+        ? `<span style="font-size:0.79em;padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:5px;color:#991b1b;font-weight:600">🔒 Bloqueada — activar escritura</span>`
+        : `<button onclick="ApiExplorerModule.doEjecutarProbador('${clase}','${op}')"
+             ${!sesion?"disabled":""}
+             style="font-size:0.8em;padding:4px 14px;background:${btnBg};color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">
+             ${esW?"⚠️ Ejecutar (escritura)":"▶ Ejecutar"}
+           </button>`}
     </div>
     <div style="padding:2px 12px 4px;background:#0f172a;font-family:monospace;font-size:0.71em;color:#64748b">
       <span style="color:#475569">API: </span><span style="color:#7dd3fc">${urlApi}</span>
     </div>
+    ${bloqueadoPorEsc?`<div style="padding:5px 12px;background:#fef2f2;border-top:1px solid #fecaca;font-size:0.77em;color:#991b1b">
+      🔒 <b>Operación de escritura bloqueada.</b> Para usarla: pestaña <b>🟠 Escritura</b> → activar con confirmación expresa.<br>
+      <span style="color:#64748b">Mientras tanto: modo solo lectura — seguro para demostración.</span>
+    </div>`:""}
     <details style="border-top:1px solid ${ec.border}">
       <summary style="cursor:pointer;padding:4px 12px;font-size:0.73em;color:#64748b;background:${ec.bg}">❓ ¿Qué hace esta operación? (técnico + empleado SQL Obras)</summary>
       <div style="padding:6px 12px;display:grid;grid-template-columns:1fr 1fr;gap:5px;background:white;border-top:1px solid ${ec.border}">
@@ -2168,8 +2228,42 @@ const ApiExplorerModule = {
 
   // ── Probador Visual ─────────────────────────────────────────────────────────
 
+  setProbadorPerfil(perfil) {
+    _state.probadorPerfil = perfil;
+    renderMain();
+  },
+
   async doEjecutarProbador(clase, op) {
     // Ejecutar con params del formulario y mostrar tabla con datos reales
+    const RIESGO_OP = {browse:0,read:0,permiso:0,info:0,new:1,edit:1,cancel:0,write:2,imputaPro:2,exec:2,delete:3};
+    const riesgo = RIESGO_OP[op] || 0;
+    const modoEsc = (_state.status||{}).modo_escritura;
+
+    // Bloqueo de escritura: si no hay modo escritura, no ejecutar
+    if (riesgo >= 2 && !modoEsc) {
+      const card = document.getElementById(`ae-prob-${clase}-${op}`);
+      if (card) {
+        const msgDiv = card.querySelector(".ae-write-blocked-msg") || (() => {
+          const d = document.createElement("div");
+          d.className = "ae-write-blocked-msg";
+          d.style.cssText = "padding:8px 12px;background:#fef2f2;border-top:1px solid #fca5a5;font-size:0.8em;color:#991b1b;font-weight:600";
+          card.appendChild(d); return d;
+        })();
+        msgDiv.innerHTML = `🔒 Operación de escritura bloqueada. Activa el <b>Modo Escritura</b> en la pestaña <b>🟠 Escritura</b> con confirmación expresa.`;
+      }
+      return;
+    }
+
+    // Confirmación doble para operaciones de escritura real
+    if (riesgo >= 2 && modoEsc) {
+      const conf = confirm(
+        `⚠️ CONFIRMACIÓN REQUERIDA\n\n` +
+        `Vas a ejecutar "${clase}.${op}()" que MODIFICARÁ SQL Obras de forma permanente.\n\n` +
+        `¿Estás seguro? Esta acción no se puede deshacer.`
+      );
+      if (!conf) return;
+    }
+
     const key = `${clase}.${op}`;
     const card = document.getElementById(`ae-prob-${clase}-${op}`);
     const btn = card ? card.querySelector("button[onclick*='doEjecutarProbador']") : null;
@@ -2272,9 +2366,11 @@ const ApiExplorerModule = {
   async doProbarTodoCatalogo(event) {
     const btn = event?.target;
     const resDiv = document.getElementById("ae-probador-todo-result");
-    if (btn) { btn.textContent = "⏳ Probando todas…"; btn.disabled = true; }
-    if (resDiv) resDiv.innerHTML = `<div style="color:#64748b;font-size:0.82em;padding:6px 0">
-      ⏳ Probando todas las clases… (puede tardar 1-2 min)</div>`;
+    if (btn) { btn.textContent = "⏳ Probando (solo lectura)…"; btn.disabled = true; }
+    if (resDiv) resDiv.innerHTML = `<div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#1e40af;margin-top:6px">
+      ⏳ <b>Probando browse + permiso + info</b> en todas las clases… (solo lectura, 1-2 min)<br>
+      <span style="font-size:0.9em;color:#64748b">Las operaciones de escritura NO se prueban automáticamente. Usa el formulario de cada una para probarlas manualmente.</span>
+    </div>`;
     try {
       const r = await _fetch("/probar-todo-catalogo", {
         method: "POST",
@@ -2299,22 +2395,28 @@ const ApiExplorerModule = {
       // Resumen visual
       const res = r.resumen||{};
       if (resDiv) resDiv.innerHTML = `
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-          <span style="font-weight:600;font-size:0.88em">Resultado de ${r.total_clases} clases:</span>
-          ${_chipRes("✅", res.ok||0,              "Funcionan",      "#dcfce7","#166534")}
-          ${_chipRes("🔵", res.requiere_params||0, "Necesitan ID",   "#dbeafe","#1e40af")}
-          ${_chipRes("🚫", res.sin_licencia||0,    "Sin licencia",   "#fef2f2","#991b1b")}
-          ${_chipRes("🔒", res.sin_permiso||0,     "Sin permiso",    "#f8fafc","#374151")}
-          ${_chipRes("❌", res.error||0,           "Error",          "#fef2f2","#991b1b")}
-          <span style="font-size:0.75em;color:#94a3b8;margin-left:auto">${(r.timestamp||"").slice(0,19)} · ${r.use_mock?"BD Simulada":"API Real"}</span>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:8px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:7px">
+            <span style="font-weight:700;font-size:0.88em;color:#1e293b">✅ Prueba completada — ${r.total_clases} clases (browse + permiso + info):</span>
+            <span style="font-size:0.74em;color:#94a3b8;margin-left:auto">${(r.timestamp||"").slice(0,19)} · ${r.use_mock?"BD Simulada":"API Real"}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            ${_chipRes("✅", res.ok||0,              "Funcionan",           "#dcfce7","#166534")}
+            ${_chipRes("🔵", res.requiere_params||0, "Necesitan ID real",   "#dbeafe","#1e40af")}
+            ${_chipRes("🚫", res.sin_licencia||0,    "Sin licencia",        "#fef2f2","#991b1b")}
+            ${_chipRes("🔒", res.sin_permiso||0,     "Sin permiso usuario", "#f8fafc","#374151")}
+            ${_chipRes("❌", res.error||0,           "Error",               "#fef2f2","#991b1b")}
+          </div>
+          <div style="font-size:0.77em;color:#64748b;background:#f1f5f9;border-radius:4px;padding:5px 8px">
+            🔒 <b>No probado automáticamente:</b> write, imputaPro, delete, new — usa el formulario de cada operación para probarlas manualmente con confirmación expresa.
+          </div>
         </div>`;
-      // Re-render del tab Probador con los resultados
       _state.currentTab = "probador";
       renderMain();
     } catch(e) {
       if (resDiv) resDiv.innerHTML = `<div style="color:#991b1b;font-size:0.82em;padding:4px 0">❌ ${e.message}</div>`;
     } finally {
-      if (btn) { btn.textContent = "🚀 Probar todas las clases"; btn.disabled = false; }
+      if (btn) { btn.textContent = "🚀 Probar todas las clases (solo lectura)"; btn.disabled = false; }
     }
   },
 
