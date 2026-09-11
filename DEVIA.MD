@@ -2,9 +2,9 @@
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
 > **Última actualización:** 11/09/2026  
-> **Versión:** 3.2.0  
+> **Versión:** 3.3.0  
 > **Ruta raíz:** `bots/interjddcia/`  
-> **Commit actual:** `df0da67`  
+> **Commit actual:** `9b08fc7`  
 > **Tests:** ✅ 10.343+ passed · 69 skipped · 71 xfailed (suite completa)
 
 ---

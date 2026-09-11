@@ -4,11 +4,11 @@ Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatiza
 Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
 > **Última actualización:** 11/09/2026  
-> **Versión:** 3.1.0  
-> **Commit:** `df0da67`  
+> **Versión:** 3.3.0  
+> **Commit:** `9b08fc7`  
 > **Estado tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
-## 🆕 Novedades v3.1.0 (11/09/2026) — API Explorer: Probador exhaustivo con datos reales
+## 🆕 Novedades v3.3.0 (11/09/2026) — API Explorer: Ultra-robusto + diagnóstico completo
 
 Nueva pestaña **🧪 Probador** en el API Explorer para probar, explorar y aprender
 toda la API mPYME de SQL Obras (Distrito K) con interfaz ultra-amigable.
