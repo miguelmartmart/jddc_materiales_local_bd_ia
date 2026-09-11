@@ -971,6 +971,9 @@ def _firebird_ids(clase: str, n: int = 5) -> dict:
                 "valores_desc": valores, "tabla": tabla}
     except Exception as exc:
         from backend.core.config.settings import settings as _s
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            f"[api_explorer] _firebird_ids({clase}): {type(exc).__name__}: {str(exc)[:300]}")
         return {"ok": False,
                 "error": f"{type(exc).__name__}: {str(exc)[:250]}",
                 "db_host": _s.DB_HOST, "db_name": _s.DB_NAME}
@@ -1113,8 +1116,12 @@ async def auto_probar(request: AutoProbarRequest):
                             if isinstance(rv,dict) and rv.get("code")==0:
                                 raw,ms,code=rv,mv,0; ires=True; id_usado=val; break
             else:
-                intentos.append({"desc":"Firebird no disponible","params":{},"code":-1,"ms":0,
-                                  "n_items":0,"ok":False,"servidor":fb.get("error","No disponible")})
+                _fb_err = fb.get("error","Firebird no disponible")
+                import logging as _lg
+                _lg.getLogger(__name__).warning(f"[auto_probar] _firebird_ids({clase}) fallo: {_fb_err}")
+                intentos.append({"desc":"Firebird error","params":{},"code":-1,"ms":0,
+                                  "n_items":0,"ok":False,"servidor":_fb_err})
+                ids_fb_probados.append(f"ERROR: {_fb_err[:80]}")
     # PASO 4: filtros de dominio conocidos
     if code!=0 and operacion=="browse":
         for _fp in [{},{"pagesize":"1"},{"pagesize":"1","page":"1"},
@@ -1262,6 +1269,28 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                         "mensaje":f"Excepcion: {str(exc)[:100]}"}; continue
             code=raw.get("code") if isinstance(raw,dict) else -1
             nid=False; ires=False; msg_servidor=""; ids_fb=[]; nvar=0; id_ok=""
+            # permiso e info con code=6: mPYME requiere objectid incluso para ellas
+            # Probar con IDs reales de Firebird
+            if code==6 and op in("permiso","info","read"):
+                fb2=_firebird_ids(clase, n=5)
+                if fb2.get("ok") and fb2.get("valores"):
+                    import json as _fj2; papi2=fb2["param"]; ids_fb=list(fb2["valores"])
+                    for val2 in ids_fb:
+                        try:
+                            if op=="permiso":
+                                r2p={**svc._client()._base(),"method":"permiso","objectclass":clase,"objectid":val2}
+                                import requests as _rq
+                                resp2=_rq.post(svc._client().url,data=r2p,timeout=svc._client().tout,verify=svc._client().ssl)
+                                raw2=resp2.json(); ms2=0
+                            elif op=="info":
+                                r2i={**svc._client()._base(),"method":"info","objectclass":clase,"objectid":val2}
+                                resp2=_rq.post(svc._client().url,data=r2i,timeout=svc._client().tout,verify=svc._client().ssl)
+                                raw2=resp2.json(); ms2=0
+                            elif op=="read":
+                                raw2,ms2=svc._client().read(svc.ssid1,svc.ssid2,clase,{"objectid":val2})
+                            if isinstance(raw2,dict) and raw2.get("code")==0:
+                                raw,ms,code=raw2,ms2,0; ires=True; id_ok=str(val2); break
+                        except: pass
             # browse vacio/pagesize primero
             if code==6 and op=="browse":
                 try:
@@ -1334,6 +1363,22 @@ async def diagnostico_firebird():
     """Diagnostico completo de la conexion Firebird. Solo lectura. Sin valores de negocio."""
     d = _firebird_diagnostico()
     return d
+
+
+@router.post("/debug-firebird-ids")
+async def debug_firebird_ids(request: dict = None):
+    """Debug: prueba _firebird_ids para cada clase y devuelve el resultado exacto."""
+    clases = list(MAPA_FIREBIRD.keys())
+    resultados = {}
+    for clase in clases:
+        r = _firebird_ids(clase, n=3)
+        resultados[clase] = {
+            "ok": r.get("ok"), "error": r.get("error",""),
+            "param": r.get("param",""), "n_valores": len(r.get("valores",[])),
+            "primeros": r.get("valores",[])[:3],
+            "tabla": MAPA_FIREBIRD[clase][0], "campo_id": MAPA_FIREBIRD[clase][1],
+        }
+    return {"success": True, "resultados": resultados}
 
 
 @router.get("/informe-completo")

@@ -2521,6 +2521,16 @@ const ApiExplorerModule = {
         <b>Solución:</b> Ejecutar en el servidor DEVIA (donde corre uvicorn):<br>
         <code style="background:white;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:4px">pip install firebirdsql</code>
         y reiniciar DEVIA.</div>`;
+      // Boton Debug IDs (siempre visible si conexion OK)
+      if (ok) {
+        html += '<div style="margin-top:10px">'
+          + '<button onclick="ApiExplorerModule.doDebugFirebirdIds()" type="button"'
+          + ' style="background:#1d4ed8;color:white;border:none;border-radius:5px;padding:6px 14px;font-size:0.8em;cursor:pointer">'
+          + '🔬 Debug: Ver IDs reales por clase'
+          + '</button>'
+          + '<div id="ae-debug-fb-ids" style="margin-top:8px"></div>'
+          + '</div>';
+      }
       else if (!cfgOk) html += `<div style="background:#fef9c3;border-left:4px solid #fbbf24;border-radius:4px;padding:9px 14px;font-size:0.82em;color:#92400e">
         <b>Solución:</b> DB_NAME vacío. Añadir en .env:<br>
         <code style="background:white;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:4px">DB_NAME=C:\\Distrito\\OBRAS\\Database\\JUANDEDI\\2021.fdb</code>
@@ -2700,7 +2710,7 @@ const ApiExplorerModule = {
     const isMock = s.use_mock;
     const empresa = s.empresa || "JDDC";
     const usuario = s.usuario || "---";
-    const apiUrl = s.api_url || "(no configurada)";
+    const apiUrl = (s.config && s.config.api_url) || s.api_url || "(no configurada — ver SQLOB_API_URL en .env)";
     const ts = new Date().toLocaleString("es-ES");
     const SEP = "=".repeat(72); const sep = "-".repeat(72);
     const hay = Object.keys(_probRes).length > 0;
@@ -2863,7 +2873,13 @@ const ApiExplorerModule = {
               ln("       IDs BD PROBD : "+r.ids_firebird_probados.join(", ")+" ("+r.ids_firebird_probados.length+" IDs reales Firebird)");
             if (r.n_variantes_intentadas)
               ln("       VARIANTES    : "+r.n_variantes_intentadas+" variantes de llamada probadas");
-            if (r.necesito_id_real&&!r.id_resuelto) ln("       AUTO-ID      : FALLO - Firebird no disponible o tabla vacia. Introducir ID manualmente con boton BD.");
+            if (r.necesito_id_real&&!r.id_resuelto) {
+              ln("       AUTO-ID      : FALLO - Se intento obtener IDs de Firebird pero mPYME rechazo todos con code=6.");
+              if (r.ids_firebird_probados && r.ids_firebird_probados.length)
+                ln("       IDs PROBADOS : "+r.ids_firebird_probados.join(", ")+" (obtenidos de Firebird OK, pero mPYME devolvio code=6 con todos)");
+              else
+                ln("       ERROR FB     : Firebird conecta (diagnóstico OK) pero _firebird_ids fallo. Ver logs del servidor DEVIA.");
+            }
             if (r.params_usados && Object.keys(r.params_usados||{}).length)
               ln("       PARAMS USADOS: "+JSON.stringify(r.params_usados));
             const rawSrv = (r.raw_servidor||"").trim();
@@ -3189,6 +3205,38 @@ const ApiExplorerModule = {
     // Re-renderizar solo esta tarjeta
     const cn = document.getElementById(`ae-prob-${clase}-${op}`);
     if (cn) cn.outerHTML = _mkOpCard(clase, op, (_state.status||{}).session_active || true);
+  },
+
+  async doDebugFirebirdIds() {
+    const div = document.getElementById("ae-debug-fb-ids");
+    if (!div) return;
+    div.innerHTML = "<span style='font-size:0.8em;color:#64748b'>⏳ Consultando Firebird...</span>";
+    try {
+      const r = await _fetch("/debug-firebird-ids", {method:"POST", body:"{}"});
+      if (!r.success) { div.innerHTML = "<span style='color:#dc2626'>Error</span>"; return; }
+      var html = "<table style='width:100%;border-collapse:collapse;font-size:0.76em;margin-top:4px'>";
+      html += "<tr style='background:#f1f5f9'><th style='padding:3px 8px;text-align:left'>Clase</th><th>Tabla</th><th>Campo ID</th><th>OK</th><th>N vals</th><th>Primeros valores</th></tr>";
+      Object.entries(r.resultados||{}).forEach(function(e){
+        var cls=e[0], d=e[1];
+        var bg = d.ok ? "#f0fdf4" : "#fef2f2";
+        var ico = d.ok ? "✅" : "❌";
+        html += "<tr style='background:"+bg+";border-bottom:1px solid #e2e8f0'>";
+        html += "<td style='padding:3px 8px;font-weight:600'>"+cls+"</td>";
+        html += "<td style='padding:3px 8px;font-family:monospace'>"+d.tabla+"</td>";
+        html += "<td style='padding:3px 8px;font-family:monospace'>"+d.campo_id+"</td>";
+        html += "<td style='padding:3px 8px;text-align:center'>"+ico+"</td>";
+        html += "<td style='padding:3px 8px;text-align:center'>"+(d.ok?d.n_valores:"—")+"</td>";
+        if (d.ok && d.primeros && d.primeros.length)
+          html += "<td style='padding:3px 8px;font-family:monospace;font-size:0.9em'>"+d.primeros.slice(0,3).join(" | ")+"</td>";
+        else
+          html += "<td style='padding:3px 8px;color:#dc2626;font-size:0.85em'>"+(d.error||"sin datos")+"</td>";
+        html += "</tr>";
+      });
+      html += "</table>";
+      div.innerHTML = html;
+    } catch(e) {
+      div.innerHTML = "<span style='color:#dc2626'>Error: "+e.message+"</span>";
+    }
   },
 
   async doAutoProbarOp(clase, op) {
