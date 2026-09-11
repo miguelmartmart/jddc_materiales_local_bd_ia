@@ -42,18 +42,45 @@ ecb86fb  fix(code6): REPCAB PK=CODMAESTRO, info() automatico code=6
 - Boton Debug IDs: tabla con IDs por clase y errores exactos
 - Exportar TXT: 9 secciones con muestras de datos reales
 
-## Problema pendiente: code=6 persistente para proyectos/partidas/proordutil
+## Problema pendiente: _firebird_ids falla silenciosamente
 
-`PROYECTOS.CODIGO` en Firebird es INTEGER (48511) pero mPYME puede esperar otro formato.
+**Síntoma en el informe:** `AUTO-ID: FALLO` + `ERROR FB: Firebird conecta (diagnostico OK) pero _firebird_ids fallo`
 
-**Pasos para resolverlo en la VM:**
+**Diagnostico:** El diagnostico BD confirma que Firebird conecta (1212 proyectos). Pero cuando
+`auto_probar` llama `_firebird_ids`, falla. El error exacto NO aparece en el informe.
+
+**Causa probable:** El servidor Firebird limita conexiones simultáneas. El módulo de chat
+ya usa conexiones. Cuando auto_probar intenta abrir otra, el servidor la rechaza.
+
+**Lo que hay que hacer EN LA VM (con DEVIA arrancado):**
+
 ```
-1. Probador → Diagnostico BD → Debug IDs → anotar valores exactos PROYECTOS.CODIGO
-2. Probador → proyectos → info → Ejecutar sin params → ver estructura real mPYME
-3. Probador → proyectos → browse → campos vacios → Ejecutar → si code=0: ver formato
-4. Si sigue code=6: ejecutar en BD Firebird: SELECT FIRST 5 * FROM PROYECTOS
-   Ver TODAS las columnas → encontrar cual tiene el formato "25/184" o similar
-5. Actualizar MAPA_FIREBIRD en router.py L884 con el campo correcto
+PASO 1: Ver el error exacto
+  → Probador → Diagnostico BD → Boton "Debug: Ver IDs reales por clase"
+  → El panel muestra conn_test (conexion directa) + error exacto por clase
+  → Anotar el error exacto que aparece en la columna "Valores / Error exacto"
+
+PASO 2: Ver los logs de DEVIA
+  → En el terminal donde corre uvicorn, buscar lineas con:
+    [api_explorer] _firebird_ids(proyectos) tabla=PROYECTOS: <ERROR EXACTO>
+  → El error exacto dice si es: "demasiadas conexiones", "tabla no existe", "columna no existe"
+
+PASO 3: Si el error es "too many connections" o similar
+  → El servidor Firebird tiene limite de conexiones simultaneas
+  → Solucion: cerrar el modulo de chat temporalmente y probar de nuevo
+  → O configurar el servidor Firebird para mas conexiones (MaxConnections en firebird.conf)
+
+PASO 4: Si el error es "Dynamic SQL Error -204 Table unknown PROYECTOS"
+  → La tabla real no se llama PROYECTOS
+  → Ejecutar en BD (via SQL manager): SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE RDB$SYSTEM_FLAG=0
+  → Ver el nombre exacto de la tabla de proyectos
+  → Actualizar MAPA_FIREBIRD en router.py L884
+
+PASO 5: Si conn_test da OK pero _firebird_ids falla
+  → El problema es la query SQL: SELECT FIRST 10 CODIGO, NOMBRE FROM PROYECTOS
+  → Puede que CODIGO o NOMBRE no sean el nombre real de las columnas
+  → Ejecutar: SELECT FIRST 1 * FROM PROYECTOS → ver nombres reales de columnas
+  → Actualizar MAPA_FIREBIRD con los nombres correctos
 ```
 
 ## Estado por clase (ultimo informe 11/09/2026)
