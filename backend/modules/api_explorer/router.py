@@ -901,6 +901,25 @@ MAPA_FIREBIRD = {
 }
 
 
+# Cache de IDs Firebird: evita conexiones repetidas en sesiones intensivas
+import time as _time_module
+_FB_CACHE: dict = {}   # clase -> {"ts": float, "result": dict}
+_FB_CACHE_TTL = 300    # 5 minutos
+
+def _firebird_ids_cached(clase: str, n: int = 10) -> dict:
+    """_firebird_ids con caché en memoria (TTL 5 min). 1 conexión por sesión de pruebas."""
+    now = _time_module.monotonic()
+    cached = _FB_CACHE.get(clase)
+    if cached and (now - cached["ts"]) < _FB_CACHE_TTL:
+        return cached["result"]
+    result = _firebird_ids(clase, n)
+    _FB_CACHE[clase] = {"ts": now, "result": result}
+    return result
+
+def _invalidar_cache_fb():
+    """Invalida el caché de IDs (usar si se detecta error de conexión)."""
+    _FB_CACHE.clear()
+
 def _get_db_driver():
     """Obtiene y conecta el FirebirdDriver del proyecto. Igual que el resto de módulos."""
     from backend.core.config.settings import settings
@@ -1085,7 +1104,7 @@ async def auto_probar(request: AutoProbarRequest):
     if code!=0 and operacion in("browse","read"):
         if code==6:
             nid=True
-            fb=_firebird_ids(clase,n=10)
+            fb=_firebird_ids_cached(clase,10)
             if fb.get("ok") and fb.get("valores"):
                 papi=fb["param"]; ids_fb_probados=list(fb["valores"])
                 for val in fb["valores"]:
@@ -1231,6 +1250,44 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             ops_doc=(c.get("ops",[]) if isinstance(c,dict) else []) or []
             ops_lec=[o for o in ops_doc if o in("browse","permiso","info","read")] or ["browse","permiso","info"]
             if nombre: CLASES_OPS[nombre]=ops_lec
+    # PRE-CARGAR todos los IDs de Firebird con 1 sola conexión al inicio
+    # Evita agotamiento de conexiones (N_clases * N_ops * nueva_conexion = demasiadas)
+    _ids_pool: dict = {}  # clase -> {"ok": bool, "param": str, "valores": list, "error": str}
+    try:
+        from backend.core.config.settings import settings as _sett
+        if _sett.DB_NAME:
+            drv_pool = _get_db_driver()
+            try:
+                for _cl, _mi in MAPA_FIREBIRD.items():
+                    _tabla, _campo_id, _campo_desc, _param = _mi
+                    try:
+                        if _campo_id == _campo_desc:
+                            _sql = f"SELECT FIRST 10 {_campo_id} FROM {_tabla} ORDER BY {_campo_id}"
+                        else:
+                            _sql = f"SELECT FIRST 10 {_campo_id}, {_campo_desc} FROM {_tabla} ORDER BY {_campo_id}"
+                        _rows = drv_pool.execute_query(_sql)
+                        _vals = []
+                        for _r in (_rows or []):
+                            _v = ""
+                            for _k in [_campo_id, _campo_id.lower(), _campo_id.upper()]:
+                                if _r.get(_k): _v = str(_r[_k]).strip(); break
+                            if _v: _vals.append(_v)
+                        if _vals:
+                            _ids_pool[_cl] = {"ok": True, "param": _param, "valores": _vals}
+                        else:
+                            _ids_pool[_cl] = {"ok": False, "error": f"{_tabla} vacia"}
+                    except Exception as _e2:
+                        _ids_pool[_cl] = {"ok": False, "error": str(_e2)[:150]}
+            finally:
+                drv_pool.disconnect()
+    except Exception as _epool:
+        import logging as _lpool
+        _lpool.getLogger(__name__).warning(f"[probar-todo] pool IDs fallo: {_epool}")
+
+    def _ids_from_pool(clase):
+        """Devuelve IDs del pool pre-cargado. Nunca abre nueva conexion."""
+        return _ids_pool.get(clase, {"ok": False, "error": "No en pool"})
+
     resultados: dict = {}
     for clase,ops in CLASES_OPS.items():
         entrada={"clase":clase,"resultados_op":{}}
@@ -1272,7 +1329,7 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             # permiso e info con code=6: mPYME requiere objectid incluso para ellas
             # Probar con IDs reales de Firebird
             if code==6 and op in("permiso","info","read"):
-                fb2=_firebird_ids(clase, n=5)
+                fb2=_ids_from_pool(clase)
                 if fb2.get("ok") and fb2.get("valores"):
                     import json as _fj2; papi2=fb2["param"]; ids_fb=list(fb2["valores"])
                     for val2 in ids_fb:
@@ -1304,7 +1361,7 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                 except: pass
             if code==6 and op in("browse","read"):
                 msg_servidor = str(raw.get("data",""))[:120]
-                fb=_firebird_ids(clase, n=8)
+                fb=_ids_from_pool(clase)
                 if fb.get("ok") and fb.get("valores"):
                     nid=True; ids_fb=list(fb["valores"])
                     import json as _fj; papi=fb["param"]
