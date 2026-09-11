@@ -901,6 +901,7 @@ function _mkOpCard(clase, op, sesion) {
       </div>`:""}
       ${campos.length?`<p style="font-size:0.75em;color:#64748b;font-weight:600;margin:5px 0 2px">Campos detectados:</p>${camposHtml}`:""}
       ${tablaHtml}
+      ${res.diagnostico_html||''}
     </div>`;
   }
   return `<div id="ae-prob-${clase}-${op}" style="background:${ec.bg};border:1px solid ${ec.border};border-radius:7px;overflow:hidden">
@@ -3063,19 +3064,45 @@ const ApiExplorerModule = {
     _probLoad[clase] = true;
     try {
       const r = await _fetch('/auto-probar', {method:'POST', body: JSON.stringify({clase, operacion:op, params})});
-      // Generar tabla HTML si hay items
+      // Generar tabla HTML si hay items reales
       if (r.items && Array.isArray(r.items) && r.items.length > 0) {
         const keys = Object.keys(r.items[0]);
-        r.tabla_html = '<div style="margin-top:6px;overflow-x:auto;border-radius:5px;border:1px solid #e2e8f0">'
-          + '<table style="width:100%;border-collapse:collapse;background:white">'
-          + '<thead style="background:#f8fafc"><tr>'
-          + keys.map(function(k){return '<th style="padding:3px 7px;text-align:left;font-size:0.73em;color:#64748b;border-bottom:1px solid #e2e8f0">'+k+'</th>';}).join('')
+        const nRows = r.items.length;
+        const idTag = r.id_usado ? ' [ID: ' + r.id_usado + ']' : '';
+        r.tabla_html = '<div style="margin-top:8px;overflow-x:auto;border-radius:6px;border:2px solid #86efac;box-shadow:0 2px 8px rgba(22,101,52,0.08)">'
+          + '<div style="background:#16a34a;padding:5px 12px;font-size:0.8em;font-weight:700;color:white">✅ ' + nRows + ' REGISTRO(S) REALES DE SQL OBRAS' + idTag + '</div>'
+          + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:white;min-width:300px">'
+          + '<thead style="background:#f0fdf4"><tr>'
+          + keys.map(function(k){return '<th style="padding:5px 9px;text-align:left;font-size:0.73em;font-weight:700;color:#166534;border-bottom:2px solid #86efac;white-space:nowrap">'+k+'</th>';}).join('')
           + '</tr></thead><tbody>'
-          + r.items.slice(0,15).map(function(row){
-              return '<tr>'+keys.map(function(k){return '<td style="padding:2px 7px;font-size:0.8em;border-bottom:1px solid #f8fafc">'+(row[k]!=null?row[k]:'')+'</td>';}).join('')+'</tr>';
+          + r.items.slice(0,20).map(function(row,i){
+              const bg = i%2===0 ? 'white' : '#f0fdf4';
+              return '<tr style="background:'+bg+'">'+keys.map(function(k){
+                const v = row[k]; const disp = (v!=null&&v!=='') ? String(v) : '<span style="color:#cbd5e1">—</span>';
+                return '<td style="padding:4px 9px;font-size:0.81em;border-bottom:1px solid #e2e8f0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+String(v||'')+'">'+disp+'</td>';
+              }).join('')+'</tr>';
             }).join('')
-          + '</tbody></table></div>';
+          + '</tbody></table></div>'
+          + (nRows > 20 ? '<div style="padding:3px 10px;font-size:0.73em;color:#64748b;background:#f8fafc;border-top:1px solid #e2e8f0">… y '+(nRows-20)+' registros más</div>' : '')
+          + '</div>';
         r.campos_detectados = keys;
+      }
+      // Panel diagnóstico de intentos
+      if (r.intentos_diagnostico && r.intentos_diagnostico.length > 1) {
+        var dh = '<details style="margin-top:6px"><summary style="cursor:pointer;font-size:0.74em;color:#64748b;padding:3px 0">🔬 Diagnóstico: '
+          + r.intentos_diagnostico.length + ' intentos realizados (' + (r.diag_resumen||'') + ')</summary>'
+          + '<div style="margin-top:3px;font-size:0.71em;border:1px solid #e2e8f0;border-radius:4px;overflow:hidden">';
+        r.intentos_diagnostico.forEach(function(it) {
+          var col = it.ok ? '#dcfce7' : (it.code===6?'#dbeafe':'#fef2f2');
+          var ico = it.ok ? '✅' : (it.code===6?'🔵':'❌');
+          dh += '<div style="padding:2px 8px;border-bottom:1px solid #f1f5f9;background:'+col+'">'
+            + ico + ' <b>'+it.desc+'</b> → code='+it.code+' | '+it.ms+'ms'
+            + (it.n_items>0 ? ' | <b>'+it.n_items+' items</b>' : '')
+            + (it.servidor ? ' | <span style="color:#64748b">'+it.servidor.slice(0,80)+'</span>' : '')
+            + '</div>';
+        });
+        dh += '</div></details>';
+        r.diagnostico_html = dh;
       }
       _probRes[key] = r;
     } catch(e) {
@@ -3098,8 +3125,24 @@ const ApiExplorerModule = {
       const r = await _fetch("/auto-probar",{method:"POST",body:JSON.stringify({clase,operacion:op,params:{}})});
       if (r.items && Array.isArray(r.items) && r.items.length>0) {
         const keys=Object.keys(r.items[0]);
-        r.tabla_html=`<div style="margin-top:6px;overflow-x:auto;border-radius:5px;border:1px solid #e2e8f0"><table style="width:100%;border-collapse:collapse;background:white"><thead style="background:#f8fafc"><tr>${keys.map(k=>`<th style="padding:3px 7px;text-align:left;font-size:0.73em;color:#64748b;border-bottom:1px solid #e2e8f0">${k}</th>`).join("")}</tr></thead><tbody>${r.items.slice(0,10).map(row=>`<tr>${keys.map(k=>`<td style="padding:2px 7px;font-size:0.8em;border-bottom:1px solid #f8fafc">${row[k]??""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+        const nr=r.items.length;
+        const idT=r.id_usado?' [ID:'+r.id_usado+']':'';
+        r.tabla_html='<div style="margin-top:8px;overflow-x:auto;border-radius:6px;border:2px solid #86efac">'
+          +'<div style="background:#16a34a;padding:4px 10px;font-size:0.77em;font-weight:700;color:white">✅ '+nr+' REGISTRO(S) REALES DE SQL OBRAS'+idT+'</div>'
+          +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:white"><thead style="background:#f0fdf4"><tr>'
+          +keys.map(function(k){return '<th style="padding:4px 8px;font-size:0.71em;color:#166534;border-bottom:2px solid #86efac">'+k+'</th>';}).join('')
+          +'</tr></thead><tbody>'
+          +r.items.slice(0,15).map(function(row,i){return '<tr style="background:'+(i%2?'#f0fdf4':'white')+'">'
+            +keys.map(function(k){return '<td style="padding:3px 8px;font-size:0.79em;border-bottom:1px solid #e2e8f0">'+(row[k]!=null?String(row[k]):'')+'</td>';}).join('')+'</tr>';}).join('')
+          +'</tbody></table></div>'+(nr>15?'<div style="padding:2px 8px;font-size:0.72em;color:#64748b">… y '+(nr-15)+' más</div>':'')+'</div>';
         r.campos_detectados=keys;
+        // Panel diagnóstico si hay varios intentos
+        if (r.intentos_diagnostico && r.intentos_diagnostico.length>1) {
+          var dh='<details style="margin-top:5px"><summary style="cursor:pointer;font-size:0.73em;color:#64748b">🔬 '+r.intentos_diagnostico.length+' intentos ('+r.diag_resumen+')</summary><div style="font-size:0.71em;border:1px solid #e2e8f0;border-radius:4px;overflow:hidden;margin-top:3px">';
+          r.intentos_diagnostico.forEach(function(it){dh+='<div style="padding:2px 7px;background:'+(it.ok?'#dcfce7':it.code===6?'#dbeafe':'#fef2f2')+';border-bottom:1px solid #f1f5f9">'+(it.ok?'✅':it.code===6?'🔵':'❌')+' '+it.desc+' → code='+it.code+'</div>';});
+          dh+='</div></details>';
+          r.diagnostico_html=dh;
+        }
       }
       _probRes[key]=r;
     } catch(e) {

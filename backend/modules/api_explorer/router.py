@@ -1032,11 +1032,11 @@ class AutoProbarRequest(BaseModel):
 
 @router.post("/auto-probar")
 async def auto_probar(request: AutoProbarRequest):
-    """Prueba una op con auto-resolución de IDs reales si code=6. Sin datos privados en respuesta."""
-    import time as _t
+    """Prueba exhaustiva: params usuario + IDs BD real. Devuelve items REALES."""
+    import time as _t, json as _json
     svc = get_service()
     if not svc.session_active:
-        raise HTTPException(status_code=401, detail="Sin sesión activa.")
+        raise HTTPException(status_code=401, detail="Sin sesion activa.")
     clase=request.clase; operacion=request.operacion; params=dict(request.params)
     RIESGO_OP={"browse":0,"read":0,"permiso":0,"info":0,"new":1,"edit":1,
                "cancel":0,"write":2,"imputaPro":2,"exec":2,"delete":3}
@@ -1044,9 +1044,11 @@ async def auto_probar(request: AutoProbarRequest):
         return {"success":False,"clase":clase,"operacion":operacion,"code":-99,
                 "estado":"bloqueado","ms":0,"n_items":0,"campos_detectados":[],
                 "necesito_id_real":False,"id_resuelto":False,"params_usados":params,
-                "use_mock":svc.use_mock,"muestra_tipos":{},
+                "use_mock":svc.use_mock,"muestra_tipos":{},"items":[],"id_usado":"",
+                "raw_servidor":"","intentos_diagnostico":[],"diag_resumen":"",
                 "mensaje":f"'{operacion}' requiere modo escritura activo."}
-    def _call(p):
+    intentos=[]
+    def _llama(p, desc=""):
         t0=_t.monotonic()
         try:
             if operacion=="browse": raw,ms=svc._client().browse(svc.ssid1,svc.ssid2,clase,dict(p))
@@ -1057,50 +1059,74 @@ async def auto_probar(request: AutoProbarRequest):
             elif operacion=="cancel": raw,ms=svc._client().cancel(svc.ssid1,svc.ssid2,clase,dict(p))
             else: ms=round((_t.monotonic()-t0)*1000); raw={"code":-99,"data":"op no soportada"}
         except Exception as exc:
-            ms=round((_t.monotonic()-t0)*1000); raw={"code":-1,"data":str(exc)[:200]}
+            ms=round((_t.monotonic()-t0)*1000); raw={"code":-1,"data":str(exc)[:300]}
+        c=raw.get("code") if isinstance(raw,dict) else -1
+        d=str(raw.get("data",raw.get("error","")))[:200]
+        ri=raw.get("items") or (raw.get("data") if isinstance(raw.get("data"),list) else [])
+        intentos.append({"desc":desc,"params":dict(p),"code":c,
+                          "ms":round(ms),"n_items":len(ri) if isinstance(ri,list) else 0,
+                          "servidor":d,"ok":c==0})
         return raw,ms
-    nid=False; ires=False; fb_error=""
-    raw,ms=_call(params)
+    raw,ms=_llama(params,"Params usuario")
     code=raw.get("code") if isinstance(raw,dict) else -1
-    if code==6:
-        # Intentar con IDs reales de Firebird hasta que uno devuelva code=0
-        fb=_firebird_ids(clase, n=5)
-        if fb.get("ok") and fb.get("valores"):
+    nid=False; ires=False; id_usado=""
+    if code!=0 and operacion in("browse","read"):
+        if code==6:
             nid=True
-            for val in fb["valores"]:
-                if operacion=="read":
-                    # read() usa objectid como identificador — el nombre de campo no importa
-                    p2={**params,"objectid":val}
-                    p2.pop(fb["param"],None)  # evitar duplicado si ya viene el campo
-                else:
-                    # browse() pasa el param directamente como campo form
-                    p2={**params, fb["param"]:val}
-                raw2,ms2=_call(p2)
-                if isinstance(raw2,dict) and raw2.get("code")==0:
-                    raw,ms,code=raw2,ms2,0; ires=True; break
-        else:
-            fb_error = fb.get("error","")
-    items=(raw.get("items") or raw.get("data") or []) if isinstance(raw,dict) else []
+            fb=_firebird_ids(clase,n=10)
+            if fb.get("ok") and fb.get("valores"):
+                papi=fb["param"]
+                for val in fb["valores"]:
+                    if ires: break
+                    if operacion=="browse":
+                        r2,m2=_llama({**params,papi:val},f"browse {papi}={val}")
+                        if isinstance(r2,dict) and r2.get("code")==0:
+                            raw,ms,code=r2,m2,0; ires=True; id_usado=val; break
+                        r3,m3=_llama({**params,"filter":_json.dumps({papi:val})},
+                                     f"browse filter-json {papi}={val}")
+                        if isinstance(r3,dict) and r3.get("code")==0:
+                            raw,ms,code=r3,m3,0; ires=True; id_usado=val; break
+                        r4,m4=_llama({**params,"objectid":val},f"browse objectid={val}")
+                        if isinstance(r4,dict) and r4.get("code")==0:
+                            raw,ms,code=r4,m4,0; ires=True; id_usado=val; break
+                    elif operacion=="read":
+                        r2,m2=_llama({"objectid":val},f"read objectid={val}")
+                        if isinstance(r2,dict) and r2.get("code")==0:
+                            raw,ms,code=r2,m2,0; ires=True; id_usado=val; break
+                        r3,m3=_llama({papi:val},f"read {papi}={val}")
+                        if isinstance(r3,dict) and r3.get("code")==0:
+                            raw,ms,code=r3,m3,0; ires=True; id_usado=val; break
+            else:
+                intentos.append({"desc":"Firebird no disponible","params":{},"code":-1,"ms":0,
+                                  "n_items":0,"ok":False,"servidor":fb.get("error","No disponible")})
+        if code!=0 and operacion=="browse":
+            r5,m5=_llama({},"browse sin params (fallback)")
+            if isinstance(r5,dict) and r5.get("code")==0: raw,ms,code=r5,m5,0
+    raw_data=raw.get("data") if isinstance(raw,dict) else None
+    items=[]
+    if isinstance(raw_data,list): items=raw_data
+    elif isinstance(raw_data,dict) and "items" in raw_data: items=raw_data["items"]
+    elif isinstance(raw.get("items"),list): items=raw["items"]
+    elif isinstance(raw_data,dict) and raw_data and code==0: items=[raw_data]
     if not isinstance(items,list): items=[]
-    n=len(items); campos=list(items[0].keys())[:20] if n>0 and isinstance(items[0],dict) else []
-    # Clasificar code=5 correctamente (licencia vs config)
-    _raw_data_txt = str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
-    _NO_LIC_KW = ("licencia","no dispone","sin licencia","module not licensed")
-    if code==5 and any(kw in _raw_data_txt for kw in _NO_LIC_KW):
-        code_estado = "sin_licencia"
-    else:
-        code_estado = None
+    n=len(items); campos=list(items[0].keys())[:25] if n>0 and isinstance(items[0],dict) else []
+    _rdt=str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
+    _KW=("licencia","no dispone","sin licencia","module not licensed")
     SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",
         6:"requiere_params",-1:"error",-99:"bloqueado"}
-    estado = code_estado or SM.get(code,"error")
-    _raw_msg = str(raw.get("data",raw.get("error","")))[:150] if isinstance(raw,dict) else ""
-    MSGS={"ok":f"✅ {n} registro(s)"+(". ID auto-resuelto de BD (valor no mostrado)" if ires else ""),
-          "sin_licencia":f"🚫 Sin licencia (code={code}). Servidor: {_raw_msg[:80]}. Contactar Distrito K.",
-          "sin_permiso":f"🔒 Sin permiso usuario (code=2). Servidor: {_raw_msg[:80]}",
-          "config_incompleta":f"⚠️ Posible config incompleta (code=5). Servidor: {_raw_msg[:100]}",
-          "requiere_params":f"🔵 Necesita ID real (code=6). Servidor: {_raw_msg[:80]}. "+("Auto-BD: fallo." if nid and not ires else ("Auto-BD: OK." if ires else "Usar botón 🔍 BD.")),
-          "error":f"❌ code={code}. Servidor: {_raw_msg[:100]}",
-          "bloqueado":"⛔ Escritura bloqueada — activar modo escritura."}
+    if code==5 and any(kw in _rdt for kw in _KW): estado="sin_licencia"
+    else: estado=SM.get(code,"error")
+    _rm=str(raw.get("data",raw.get("error","")))[:200] if isinstance(raw,dict) else ""
+    ni=len(intentos); dr=f"{ni} intentos"+(f" | ID auto-resuelto: {id_usado}" if ires else "")
+    ok_txt=f"OK {n} registro(s) de SQL Obras."+(f" [ID:{id_usado}]" if ires else "")
+    req_txt=("Firebird disponible pero mPYME rechaza los IDs." if nid else "Usa boton BD.")
+    MSGS={"ok":ok_txt,
+          "sin_licencia":f"Sin licencia (code={code}). {_rm[:100]}. Contactar Distrito K.",
+          "sin_permiso":f"Sin permiso (code=2). {_rm[:80]}",
+          "config_incompleta":f"Config incompleta (code=5). {_rm[:100]}",
+          "requiere_params":f"code=6 tras {ni} intentos. {_rm[:80]}. "+req_txt,
+          "error":f"code={code}. {_rm[:100]}",
+          "bloqueado":"Escritura bloqueada."}
     svc._history.insert(0,{"timestamp":__import__("datetime").datetime.now().isoformat(),
         "clase":clase,"operacion":operacion,"params":params,"code":code,
         "estado":estado,"duracion_ms":round(ms),"n_items":n,"use_mock":svc.use_mock})
@@ -1108,12 +1134,13 @@ async def auto_probar(request: AutoProbarRequest):
     return {"success":code==0,"clase":clase,"operacion":operacion,"code":code,
             "estado":estado,"mensaje":MSGS.get(estado,f"code={code}"),
             "n_items":n,"campos_detectados":campos,
-            "necesito_id_real":nid,"id_resuelto":ires,
+            "necesito_id_real":nid,"id_resuelto":ires,"id_usado":id_usado,
             "params_usados":params,"ms":round(ms),"use_mock":svc.use_mock,
-            "raw_servidor": _raw_msg,   # mensaje exacto del servidor para el informe/diagnóstico
-            # items: lista real de registros para mostrar tabla en el Probador
-            "items": items[:20] if isinstance(items, list) else [],
-            "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {})}
+            "raw_servidor":_rm,
+            "items":items[:25],
+            "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {}),
+            "intentos_diagnostico":intentos,
+            "diag_resumen":dr}
 
 
 class ProbarTodoRequest(BaseModel):
