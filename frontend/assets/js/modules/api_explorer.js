@@ -321,7 +321,7 @@ const _CODEEXP = {
   "1":"Sin licencia — módulo no contratado. Contactar Distrito K.",
   "2":"Sin permiso de usuario — pedir al admin SQL Obras.",
   "3":"Error de validación — un parámetro tiene formato incorrecto.",
-  "5":"Config incompleta — empresa/usuario incorrectos en .env.",
+  "5":"code=5 — puede necesitar parámetros obligatorios (codProyecto, etc.) o .env incorrecto",
   "6":"Requiere identificador — necesita codProyecto, codOrden u otro ID.",
   "10":"No encontrado — el registro con ese ID no existe.",
   "20":"objectId inválido — objeto temporal expirado o ya guardado.",
@@ -963,7 +963,8 @@ function _e2msg(estado, code, ires) {
     requiere_params:"Necesita identificador real (codProyecto/codOrden)",
     sin_licencia:"Sin licencia — módulo no contratado",
     sin_permiso:"Sin permiso de usuario",
-    config_incompleta:"Config incompleta — revisar .env",
+    config_incompleta:"Config incompleta — empresa/usuario incorrectos en .env",
+    crash_servidor:"CRASH interno PymeMobileServer.exe — reiniciar servicio mPYME",
     error:`Error code=${code}`, bloqueado:"Escritura bloqueada"})[estado]||`code=${code}`;
 }
 
@@ -2953,9 +2954,13 @@ const ApiExplorerModule = {
           ln("    ACCION : El administrador de SQL Obras debe dar acceso al usuario "+usuario+".");
         }
         if (r.estado==="config_incompleta") {
-          ln("    CAUSA  : Config incompleta. El servidor mPYME devolvio code=5.");
-          ln("    ACCION : Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env del servidor.");
-          ln("    NOTA   : code=5 puede significar tambien 'modulo sin licencia' si el servidor lo indica.");
+          ln("    CAUSA  : El servidor mPYME devolvio code=5 (config/params incompletos).");
+          ln("    NOTA1  : Puede significar PARAMS OBLIGATORIOS que faltan (codProyecto, codOrden...).");
+          ln("    NOTA2  : Puede significar empresa/usuario incorrectos en el .env.");
+          ln("    NOTA3  : Puede significar modulo sin licencia (si el mensaje lo indica).");
+          ln("    ACCION : 1) Probar con boton BD para rellenar parametros reales.");
+          ln("             2) Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env.");
+          ln("    MSG    : "+(r.raw_servidor||r.mensaje||"").slice(0,200));
         }
         if (r.estado==="requiere_params") {
           ln("    CAUSA  : La API necesita un identificador real (codProyecto, codOrden, etc.).");

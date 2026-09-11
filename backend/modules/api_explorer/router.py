@@ -1101,8 +1101,13 @@ async def auto_probar(request: AutoProbarRequest):
         r0b,m0b=_llama({"pagesize":"1"},"browse pagesize=1")
         if isinstance(r0b,dict) and r0b.get("code")==0: raw,ms,code=r0b,m0b,0
     # PASO 3: auto-resolucion via Firebird (IDs reales) — hasta 10 IDs x 6 variantes c/u
+    # code=6: necesita params. code=5 generico (sin keywords licencia/crash) = tambien necesita params
+    _rdt_paso3 = str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
+    _KW_NO_PARAM=("licencia","no dispone","sin licencia","module not licensed",
+                   "violaci","pymemobileserver","exception","segfault","access violation")
+    _code5_es_params = (code==5 and not any(kw in _rdt_paso3 for kw in _KW_NO_PARAM))
     if code!=0 and operacion in("browse","read"):
-        if code==6:
+        if code==6 or _code5_es_params:
             nid=True
             fb=_firebird_ids_cached(clase,10)
             if fb.get("ok") and fb.get("valores"):
@@ -1184,6 +1189,9 @@ async def auto_probar(request: AutoProbarRequest):
         6:"requiere_params",-1:"error",-99:"bloqueado"}
     if code==5 and any(kw in _rdt for kw in _KW_LIC): estado="sin_licencia"
     elif code==5 and any(kw in _rdt for kw in _KW_CRASH): estado="crash_servidor"
+    elif code==5 and not any(kw in _rdt for kw in list(_KW_LIC)+list(_KW_CRASH)):
+        # code=5 generico sin keywords conocidas = necesita parametros (igual que code=6)
+        estado="requiere_params"
     else: estado=SM.get(code,"error")
     _rm=str(raw.get("data",raw.get("error","")))[:200] if isinstance(raw,dict) else ""
     ni=len(intentos)
@@ -1348,18 +1356,22 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                             if isinstance(raw2,dict) and raw2.get("code")==0:
                                 raw,ms,code=raw2,ms2,0; ires=True; id_ok=str(val2); break
                         except: pass
-            # browse vacio/pagesize primero
-            if code==6 and op=="browse":
+            # browse vacio/pagesize primero (code=6 o code=5 sin keywords licencia/crash)
+            _rdt_pt=str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
+            _KW_PT=("licencia","no dispone","sin licencia","module not licensed",
+                    "violaci","pymemobileserver","exception","segfault")
+            _c5p=(code==5 and not any(kw in _rdt_pt for kw in _KW_PT))
+            if (code==6 or _c5p) and op=="browse":
                 try:
                     r00,m00=svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
                     if isinstance(r00,dict) and r00.get("code")==0: raw,ms,code=r00,m00,0
                 except: pass
-            if code==6 and op=="browse":
+            if (code==6 or _c5p) and op=="browse":
                 try:
                     r01,m01=svc._client().browse(svc.ssid1,svc.ssid2,clase,{"pagesize":"1"})
                     if isinstance(r01,dict) and r01.get("code")==0: raw,ms,code=r01,m01,0
                 except: pass
-            if code==6 and op in("browse","read"):
+            if (code==6 or _c5p) and op in("browse","read"):
                 msg_servidor = str(raw.get("data",""))[:120]
                 fb=_ids_from_pool(clase)
                 if fb.get("ok") and fb.get("valores"):
@@ -1384,7 +1396,12 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             if code==0: estado="ok"; msg=""
             elif code==1: estado="sin_licencia"; msg=str(raw.get("data",""))[:120]
             elif code==2: estado="sin_permiso"; msg=str(raw.get("data",""))[:120]
-            elif code==5: estado,msg=_estado_code5(raw)
+            elif code==5:
+                estado,msg=_estado_code5(raw)
+                # si era code=5 generico y resolvimos con IDs -> ok
+                if estado=="config_incompleta" and ires: estado="ok"; msg=""
+                # si era code=5 generico y necesita ID -> requiere_params (mas claro que config_incompleta)
+                elif estado=="config_incompleta" and nid: estado="requiere_params"; msg="Necesita ID real (code=5 generico). "+msg
             elif code==6: estado="requiere_params"; msg=msg_servidor or str(raw.get("data",""))[:120]
             elif code==-1: estado="error"; msg=str(raw.get("error",raw.get("data","")))[:120]
             else: estado="error"; msg=f"code={code}: {str(raw.get('data',''))[:100]}"
