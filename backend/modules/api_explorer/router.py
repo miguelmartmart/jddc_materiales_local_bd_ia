@@ -888,10 +888,13 @@ MAPA_FIREBIRD = {
     "partidas":     ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
     "proordutil":   ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
     "proordprev":   ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
-    # REPARA = tabla de ordenes de reparacion (no REPCAB)
-    # pk=['CODIGO'], cols: CODIGO, SERIE, NUMERO, DESCRIPCION, FECHA, CODCLIENTE
+    # REPARA = tabla de ordenes de reparacion/partes SAT
+    # pk=['CODIGO'], n=7320 registros reales, cols: CODIGO, DESCRIPCION, FECHA, CODCLIENTE
     "reporden":     ("REPARA",        "CODIGO",  "DESCRIPCION",   "codOrden"),
     "repordutil":   ("REPARA",        "CODIGO",  "DESCRIPCION",   "codOrden"),
+    # tipostrabajo → tabla TIPO (tipos genericos del ERP), n=239
+    # TIPO.TIPO es el discriminador de familia, TIPO.CODIGO es el ID
+    "tipostrabajo": ("TIPO",          "CODIGO",  "DESCRIPCION",   "codTrabajo"),
     # REPOBJETO pk=['CODIGO'], cols: CODIGO, NOMBRE, CODPROPIETARIO
     "repobjetos":   ("REPOBJETO",     "CODIGO",  "NOMBRE",        "codObjeto"),
     # REPINSTALACION pk=['CODIGO'], cols: CODIGO, NOMBRE, CODCLIENTE
