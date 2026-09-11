@@ -1,9 +1,10 @@
 # DEVIA — Sistema DEVIA: Resumen Ejecutivo y Jerarquía
 ## Backend IA para Gafas Meta Ray-Ban + Chat Web + Constructor BD
 
-> **Última actualización:** 10/07/2026  
-> **Versión:** 3.1.0  
+> **Última actualización:** 11/09/2026  
+> **Versión:** 3.2.0  
 > **Ruta raíz:** `bots/interjddcia/`  
+> **Commit actual:** `df0da67`  
 > **Tests:** ✅ 10.343+ passed · 69 skipped · 71 xfailed (suite completa)
 
 ---
@@ -92,6 +93,7 @@ Backend DEVIA (FastAPI + Python)
 | Chat Robustez | `backend/modules/chat/DEVIA_ROBUSTNESS.md` | Model Fallback, Self-Healing, timeouts |
 | DB Simulator | `backend/modules/db_simulator/DEVIA.md` | Esquema SQLite, seed data, query library |
 | Configuración | `backend/core/config/DEVIA.MD` | Settings, modelos IA, API keys |
+| **API Explorer** | `docs/SESION_2026_09_11_ESTADO_ACTUAL.md` | Probador Visual API mPYME. Estado actual, pendientes y arquitectura. LEER PRIMERO. |
 
 ### Nivel 3 — Submódulos (detalle técnico)
 | DEVIA | Ruta | Contenido |
@@ -167,6 +169,10 @@ Backend DEVIA (FastAPI + Python)
 | **DB Simulator** | `db_simulator/driver.py` | SQLite en memoria/disco que replica el esquema Firebird para tests. |
 | **QueryLibrary** | `db_simulator/query_library.py` | Biblioteca de consultas SQL validadas (Firebird + SQLite). |
 | **ContextRetriever** | `db_explorer/context_retriever.py` | Recupera contexto mínimo y preciso del SIUO para cada pregunta. |
+| **RealApiClient** | `api_explorer/service.py` | Cliente HTTP para la API mPYME de SQL Obras (browse/read/permiso/info/write...). |
+| **ApiExplorer router** | `api_explorer/router.py` | Endpoints del Probador Visual: auto-probar exhaustivo, valores-param, diagnostico-firebird. |
+
+> **Estado API Explorer:** ver `docs/SESION_2026_09_11_ESTADO_ACTUAL.md`
 
 ---
 

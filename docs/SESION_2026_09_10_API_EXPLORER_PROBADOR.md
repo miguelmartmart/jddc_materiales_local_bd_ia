@@ -90,6 +90,13 @@ b78ed2f  feat(api-explorer): Probador Visual tab completo
 
 ---
 
+## ESTADO ACTUALIZADO
+
+> Ver `docs/SESION_2026_09_11_ESTADO_ACTUAL.md` para el estado completo y actualizado.
+> Este fichero es el historico de lo construido en la sesion del 10/09/2026.
+
+---
+
 ## Para la proxima sesion — pendiente verificar en VM
 
 Tras `git pull` + reiniciar DEVIA + Ctrl+F5:

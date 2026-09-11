@@ -3,12 +3,12 @@
 Sistema de chat IA sobre la base de datos Firebird de la empresa JDDC (climatización).  
 Permite consultar la BD en lenguaje natural, analizar artículos, gestionar prompts y modelos IA.
 
-> **Última actualización:** 10/09/2026  
-> **Versión:** 3.0.0  
-> **Commit:** `677bde5`  
+> **Última actualización:** 11/09/2026  
+> **Versión:** 3.1.0  
+> **Commit:** `df0da67`  
 > **Estado tests:** ✅ 39 passed · 2 skipped · 0 failures (suite principal)
 
-## 🆕 Novedades v3.0.0 (10/09/2026) — API Explorer: Probador Visual
+## 🆕 Novedades v3.1.0 (11/09/2026) — API Explorer: Probador exhaustivo con datos reales
 
 Nueva pestaña **🧪 Probador** en el API Explorer para probar, explorar y aprender
 toda la API mPYME de SQL Obras (Distrito K) con interfaz ultra-amigable.
@@ -20,22 +20,35 @@ toda la API mPYME de SQL Obras (Distrito K) con interfaz ultra-amigable.
   - Botón 🔍 BD: autocompleta desde Firebird real con chips clicables
   - Botón 🎲 Ej: rellena con ejemplo predefinido
   - Botón ❓ Ayuda: explicación técnica + empleado + ejemplo
-  - Botón X: limpia el campo
+
+- **Auto-probar exhaustivo** — hasta 30+ variantes por operación:
+  - Prueba con params del usuario, con IDs reales de Firebird, y variantes de formato
+  - Panel de diagnóstico de intentos: qué params se usaron, qué devolvió mPYME
+  - Si encuentra code=0: muestra tabla verde con datos reales en pantalla
+
+- **Tabla de datos reales visible** cuando la operación tiene éxito:
+  - Banner verde "N registros reales de SQL Obras"
+  - Tabla con cabeceras y valores reales de la BD
 
 - **Probar todas las clases automáticamente** (solo lectura, nunca escritura)
-  - Auto-resolución de `code=6`: obtiene ID real de Firebird y reintenta
   - Barra de progreso en tiempo real
+  - Resultado exhaustivo: OK / SinLicencia / NecesitaID / Error
 
 - **Exportar informe TXT exhaustivo** (9 secciones):
-  - Estado Firebird, resumen ejecutivo, tabla de estado rápido
-  - Detalle completo por clase/operación: code, tiempo, campos, mensaje servidor
-  - Errores con causa + acción + respuesta exacta del servidor
-  - Operaciones de escritura pendientes, aplicaciones posibles, diagnóstico
+  - Sección 0: Estado Firebird (variables env, conexión, n_registros por tabla)
+  - Sección 1: Resumen ejecutivo con todos los contadores
+  - Sección 2: Tabla de estado rápido (todas las clases × ops)
+  - Sección 3: Detalle completo — code, tiempo, campos, PARAMS usados, msg servidor
+  - Sección 4: Operaciones con registros reales obtenidos
+  - Sección 5: Errores con CAUSA + ACCION + SERVIDOR + PARAMS para cada uno
+  - Sección 6: Operaciones de escritura pendientes de probar
+  - Sección 7: Clases sin probar aún
+  - Sección 8: Aplicaciones posibles ([POSIBLE] / [REQUIERE LICENCIA])
+  - Sección 9: Diagnóstico y recomendaciones automáticas
 
 - **Base de conocimiento integrada** por cada clase y operación:
   - Nivel técnico API, nivel empleado SQL Obras, nivel gerente
   - Flujo típico de uso, casos de uso reales, campos clave con tooltips
-  - Glosario SQL Obras ↔ API, ciclo new→write→cancel, códigos de respuesta
 
 - **6 aplicaciones posibles** detectadas automáticamente:
   - 📱 App Móvil del Operario (imputación horas/materiales)
@@ -46,8 +59,8 @@ toda la API mPYME de SQL Obras (Distrito K) con interfaz ultra-amigable.
   - 📋 Informe de Mantenimiento automático
 
 - **Seguridad de escritura watertight**:
-  - Probar todo nunca toca write/imputaPro/delete
-  - Operaciones de escritura requieren activar modo escritura + confirm() nativo
+  - Probar todo NUNCA toca write/imputaPro/delete
+  - Escritura requiere activar modo escritura + confirm() nativo del navegador
   - Valores de BD nunca en informes (privacidad garantizada)
 
 ### Diagnóstico BD Firebird
@@ -71,7 +84,8 @@ Botón **🔌 Diagnóstico BD** muestra panel con:
 | Proveedores | `PROVEED` | `CODIGO` (desc: `RAZONSOCIAL`) |
 | Clientes | `CLIENTE` | `CODIGO` |
 
-> 📄 Documentación detallada: `docs/SESION_2026_09_10_API_EXPLORER_PROBADOR.md`
+> 📄 Documentación de sesión: `docs/SESION_2026_09_10_API_EXPLORER_PROBADOR.md`  
+> 📄 **Estado actual para retomar:** `docs/SESION_2026_09_11_ESTADO_ACTUAL.md` ← LEER AQUÍ
 
 ## ⚠️ Nota Operativa (24/07/2026) — CHAT_TIMEOUT_600S
 
