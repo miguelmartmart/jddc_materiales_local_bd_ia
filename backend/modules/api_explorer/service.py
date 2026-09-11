@@ -223,9 +223,19 @@ class RealApiClient:
 
     def read(self, s1, s2, cls, params):
         import json
-        oid = params.pop("objectid", params.pop("id", ""))
+        p = dict(params)
+        oid = p.pop("objectid", p.pop("id", ""))
+        if not oid:
+            # Usar el primer valor como objectid (ej: codProyecto="25/184" -> objectid="25/184")
+            # La API mPYME usa siempre 'objectid' como identificador en read
+            for k in list(p.keys()):
+                v = p[k]
+                if v:
+                    oid = str(v)
+                    del p[k]
+                    break
         fields = {**self._base(), "method": "read", "objectclass": cls, "objectid": oid}
-        for k, v in params.items():
+        for k, v in p.items():
             fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
         return self._post(fields)
 

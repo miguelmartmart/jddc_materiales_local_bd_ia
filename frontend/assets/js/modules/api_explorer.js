@@ -162,7 +162,7 @@ function infoOp(op) {
 }
 
 const PARAMS_DB = {
-  "proyectos.browse":  [{n:"filtro",t:"text",ph:"Hospital",desc:"Texto libre"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "proyectos.browse":  [{n:"filter",t:"text",ph:"Hospital",desc:"Texto libre para filtrar"},{n:"page",t:"number",ph:"1",desc:"Pagina"},{n:"pagesize",t:"number",ph:"25",desc:"Registros por pagina"}],
   "proyectos.read":    [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Codigo del proyecto"}],
   "partidas.browse":   [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Proyecto"}],
   "partidas.read":     [{n:"codProyecto",t:"text",req:true,desc:"Proyecto"},{n:"codPartida",t:"text",ph:"03.02",req:true,desc:"Partida"}],
@@ -171,19 +171,19 @@ const PARAMS_DB = {
   "proordutil.new":    [{n:"codProyecto",t:"text",ph:"25/184",req:true,desc:"Proyecto destino"},{n:"codPartida",t:"text",ph:"03.02",req:true,desc:"Partida destino"},{n:"tipo",t:"select",opts:["M","R"],req:true,desc:"M=Material  R=Recurso/mano de obra"}],
   "proordutil.write":  [{n:"objectId",t:"text",req:true,desc:"ID temporal de new"},{n:"codArticulo",t:"text",ph:"1#100142",req:true,desc:"Codigo articulo/recurso"},{n:"cantidad",t:"number",ph:"2",req:true,desc:"Cantidad"},{n:"coste",t:"number",ph:"35.10",req:true,desc:"Coste unitario euros"},{n:"precio",t:"number",ph:"42.00",desc:"Precio venta"},{n:"fecha",t:"text",ph:"20260901",desc:"Fecha AAAAMMDD"}],
   "proordutil.cancel": [{n:"objectId",t:"text",req:true,desc:"ID temporal a descartar"}],
-  "reporden.browse":   [{n:"estado",t:"select",opts:["","abierta","cerrada","todas"],desc:"Estado"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "reporden.browse":   [{n:"estado",t:"select",opts:["","abierta","cerrada","todas"],desc:"Estado"},{n:"filter",t:"text",desc:"Filtro adicional"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
   "reporden.read":     [{n:"codOrden",t:"text",req:true,desc:"Codigo orden"}],
   "repordutil.browse": [{n:"codOrden",t:"text",req:true,desc:"Orden de reparacion"}],
   "repordutil.write":  [{n:"objectId",t:"text",req:true,desc:"ID temporal"},{n:"codRecurso",t:"text",req:true,desc:"Articulo/recurso"},{n:"cantidad",t:"number",req:true,desc:"Cantidad/horas"},{n:"coste",t:"number",req:true,desc:"Coste"},{n:"precio",t:"number",desc:"Precio"},{n:"fecha",t:"text",ph:"20260901",desc:"Fecha AAAAMMDD"}],
-  "articulos.browse":  [{n:"filtro",t:"text",ph:"Tubo cobre",desc:"Buscar en catalogo"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "articulos.browse":  [{n:"filter",t:"text",ph:"Tubo cobre",desc:"Buscar en catalogo"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
   "articulos.read":    [{n:"codArticulo",t:"text",req:true,desc:"Codigo articulo"}],
-  "recursos.browse":   [{n:"filtro",t:"text",desc:"Buscar recursos"}],
-  "proveedores.browse":[{n:"filtro",t:"text",ph:"Daikin",desc:"Filtrar"}],
-  "clientes.browse":   [{n:"filtro",t:"text",desc:"Filtrar clientes"}],
-  "docalbcom.browse":  [{n:"proveedor",t:"text",ph:"Daikin",desc:"Filtrar por proveedor"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "recursos.browse":   [{n:"filter",t:"text",desc:"Buscar recursos"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
+  "proveedores.browse":[{n:"filter",t:"text",ph:"Daikin",desc:"Filtrar por nombre"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
+  "clientes.browse":   [{n:"filter",t:"text",desc:"Filtrar por nombre"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
+  "docalbcom.browse":  [{n:"filter",t:"text",ph:"Daikin",desc:"Filtrar"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
   "docalbcom.read":    [{n:"codDocumento",t:"text",req:true,desc:"Codigo albaran"}],
   "docalbcom.imputaPro":[{n:"codDocumento",t:"text",req:true,desc:"Codigo albaran"},{n:"codLinea",t:"text",req:true,desc:"Numero de linea"},{n:"codMaestro",t:"text",ph:"25/184",req:true,desc:"Proyecto destino"},{n:"codDetalle",t:"text",ph:"03.02",req:true,desc:"Partida destino"},{n:"subcontrata",t:"select",opts:["T","F"],req:true,desc:"T=subcontrata F=no"}],
-  "docfaccom.browse":  [{n:"proveedor",t:"text",desc:"Filtrar"},{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
+  "docfaccom.browse":  [{n:"filter",t:"text",desc:"Filtrar"},{n:"page",t:"number",ph:"1",desc:"Pagina"}],
   "docfaccom.read":    [{n:"codDocumento",t:"text",req:true,desc:"Codigo factura"}],
   "docfaccom.imputaPro":[{n:"codDocumento",t:"text",req:true,desc:"Factura"},{n:"codLinea",t:"text",req:true,desc:"Linea"},{n:"codMaestro",t:"text",req:true,desc:"Proyecto"},{n:"codDetalle",t:"text",req:true,desc:"Partida"},{n:"subcontrata",t:"select",opts:["T","F"],req:true,desc:"T/F"}],
   "docpedcom.browse":  [{n:"pagina",t:"number",ph:"1",desc:"Pagina"}],
@@ -355,7 +355,10 @@ const _PARAM_INFO = {
   codMaestro:{tec:"Proyecto destino en imputaPro.",emp:"Obra a la que se cargará el gasto del albarán/factura.",ej:"26/001"},
   codDetalle:{tec:"Partida destino en imputaPro.",emp:"Partida de la obra donde se registrará el gasto.",ej:"03.02"},
   filtro:{tec:"Texto libre para filtrar por nombre.",emp:"Escribe parte del nombre que buscas, ej: 'Hospital'.",ej:"Hospital"},
+  filter:{tec:"Filtro de la API mPYME (nombre real del parámetro es 'filter').",emp:"Escribe parte del nombre que buscas. Ej: 'Hospital' buscará obras con Hospital en el nombre.",ej:"Hospital"},
   pagina:{tec:"Número de página para paginación. Base 1.",emp:"Si hay muchos resultados, usa página 2, 3...",ej:"1"},
+  page:{tec:"Página de la API mPYME (nombre real del parámetro es 'page'). Base 1.",emp:"Si hay muchos resultados, usa página 2, 3...",ej:"1"},
+  pagesize:{tec:"Registros por página (nombre real: 'pagesize').",emp:"Cuántos resultados ver a la vez. Por defecto 25.",ej:"25"},
   estado:{tec:"Filtro de estado según mPYME.",emp:"abierta = en curso, cerrada = terminada, todas = sin filtro.",ej:"abierta"},
   tipo:{tec:"Tipo de línea: M=Material, R=Recurso.",emp:"M = material o producto · R = mano de obra de un operario.",ej:"M"},
   cantidad:{tec:"Cantidad numérica (unidades o horas).",emp:"Cuántas unidades del material o cuántas horas trabajó el operario.",ej:"2.5"},
@@ -890,9 +893,11 @@ function _mkOpCard(clase, op, sesion) {
       <div style="font-size:0.76em;color:#64748b;margin-bottom:3px">${codeExp}</div>
       <div style="font-size:0.8em;padding:5px 8px;background:${ec.bg};border-left:3px solid ${ec.border};border-radius:0 4px 4px 0">${res.mensaje||""}</div>
       ${res.raw_servidor?`<div style="margin-top:4px;background:#f1f5f9;border-left:3px solid #94a3b8;border-radius:3px;padding:4px 9px;font-size:0.74em;color:#475569;font-family:monospace">Servidor: ${String(res.raw_servidor).slice(0,200)}</div>`:""}
-      ${res.necesito_id_real&&!res.id_resuelto?`<div style="margin-top:5px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;padding:5px 10px;font-size:0.77em;color:#1e40af">
-        🔵 <b>Requiere identificador real</b> — El sistema intentó obtener un ID de la BD pero no pudo (Firebird no configurado o tabla vacía).<br>
-        <span style="color:#374151">Solución: rellena el campo <b>codProyecto</b> (u otro) con el botón <b>🔍 BD</b> o escríbelo manualmente y pulsa <b>▶ Ejecutar</b> de nuevo.</span>
+      ${res.code===6&&!res.id_resuelto?`<div style="margin-top:5px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;padding:5px 10px;font-size:0.77em;color:#1e40af">
+        🔵 <b>code=6</b> — Puede ser que:<br>
+        <span style="color:#374151">① La clase necesite un identificador real (usa <b>🔍 BD</b> para obtener valores reales de SQL Obras)</span><br>
+        <span style="color:#374151">② El servidor mPYME no puede acceder temporalmente a la BD interna</span><br>
+        <span style="color:#374151">Acción: rellena el campo con <b>🔍 BD</b> o escríbelo manualmente y pulsa <b>▶ Ejecutar</b> de nuevo.</span>
       </div>`:""}
       ${campos.length?`<p style="font-size:0.75em;color:#64748b;font-weight:600;margin:5px 0 2px">Campos detectados:</p>${camposHtml}`:""}
       ${tablaHtml}
@@ -3030,7 +3035,10 @@ const ApiExplorerModule = {
       card.querySelectorAll('input[data-param], select[data-param]').forEach(function(inp) {
         const pname = inp.getAttribute('data-param');
         const val = inp.value.trim();
-        if (pname && val) params[pname] = val;
+        if (pname && val) {
+          params[pname] = val;
+          _state.paramValues[pname] = val; // preservar para el re-render
+        }
       });
       // Deshabilitar boton mientras se ejecuta
       const btn = card.querySelector('button[data-exec]');

@@ -1062,13 +1062,20 @@ async def auto_probar(request: AutoProbarRequest):
     nid=False; ires=False; fb_error=""
     raw,ms=_call(params)
     code=raw.get("code") if isinstance(raw,dict) else -1
-    if code==6 and operacion in("browse","read"):
-        # Intentar con multiples IDs reales de Firebird hasta que uno funcione
+    if code==6:
+        # Intentar con IDs reales de Firebird hasta que uno devuelva code=0
         fb=_firebird_ids(clase, n=5)
         if fb.get("ok") and fb.get("valores"):
             nid=True
             for val in fb["valores"]:
-                raw2,ms2=_call({**params,fb["param"]:val})
+                if operacion=="read":
+                    # read() usa objectid como identificador — el nombre de campo no importa
+                    p2={**params,"objectid":val}
+                    p2.pop(fb["param"],None)  # evitar duplicado si ya viene el campo
+                else:
+                    # browse() pasa el param directamente como campo form
+                    p2={**params, fb["param"]:val}
+                raw2,ms2=_call(p2)
                 if isinstance(raw2,dict) and raw2.get("code")==0:
                     raw,ms,code=raw2,ms2,0; ires=True; break
         else:
