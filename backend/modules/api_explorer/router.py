@@ -1069,39 +1069,56 @@ async def auto_probar(request: AutoProbarRequest):
         return raw,ms
     raw,ms=_llama(params,"Params usuario")
     code=raw.get("code") if isinstance(raw,dict) else -1
-    nid=False; ires=False; id_usado=""
+    nid=False; ires=False; id_usado=""; ids_fb_probados=[]; n_variantes=0
+    # PASO 1: browse vacio si los params del usuario no funcionan
+    if code!=0 and operacion=="browse" and params:
+        r0,m0=_llama({},"browse sin params")
+        if isinstance(r0,dict) and r0.get("code")==0: raw,ms,code=r0,m0,0
+    # PASO 2: browse con pagesize=1
+    if code!=0 and operacion=="browse":
+        r0b,m0b=_llama({"pagesize":"1"},"browse pagesize=1")
+        if isinstance(r0b,dict) and r0b.get("code")==0: raw,ms,code=r0b,m0b,0
+    # PASO 3: auto-resolucion via Firebird (IDs reales) — hasta 10 IDs x 6 variantes c/u
     if code!=0 and operacion in("browse","read"):
         if code==6:
             nid=True
             fb=_firebird_ids(clase,n=10)
             if fb.get("ok") and fb.get("valores"):
-                papi=fb["param"]
+                papi=fb["param"]; ids_fb_probados=list(fb["valores"])
                 for val in fb["valores"]:
                     if ires: break
                     if operacion=="browse":
-                        r2,m2=_llama({**params,papi:val},f"browse {papi}={val}")
-                        if isinstance(r2,dict) and r2.get("code")==0:
-                            raw,ms,code=r2,m2,0; ires=True; id_usado=val; break
-                        r3,m3=_llama({**params,"filter":_json.dumps({papi:val})},
-                                     f"browse filter-json {papi}={val}")
-                        if isinstance(r3,dict) and r3.get("code")==0:
-                            raw,ms,code=r3,m3,0; ires=True; id_usado=val; break
-                        r4,m4=_llama({**params,"objectid":val},f"browse objectid={val}")
-                        if isinstance(r4,dict) and r4.get("code")==0:
-                            raw,ms,code=r4,m4,0; ires=True; id_usado=val; break
+                        variantes=[
+                            ({**params,papi:val},f"browse {papi}={val}"),
+                            ({**params,"filter":_json.dumps({papi:val})},f"browse filter-json {papi}={val}"),
+                            ({**params,"objectid":val},f"browse objectid={val}"),
+                            ({papi:val,"pagesize":"25"},f"browse {papi}={val} pagesize=25"),
+                            ({papi:val,"pagesize":"1"},f"browse {papi}={val} pagesize=1"),
+                            ({"filter":_json.dumps({papi:val}),"pagesize":"1"},f"filter-json+pagesize=1"),
+                        ]
+                        for vp,vd in variantes:
+                            n_variantes+=1
+                            rv,mv=_llama(vp,vd)
+                            if isinstance(rv,dict) and rv.get("code")==0:
+                                raw,ms,code=rv,mv,0; ires=True; id_usado=val; break
                     elif operacion=="read":
-                        r2,m2=_llama({"objectid":val},f"read objectid={val}")
-                        if isinstance(r2,dict) and r2.get("code")==0:
-                            raw,ms,code=r2,m2,0; ires=True; id_usado=val; break
-                        r3,m3=_llama({papi:val},f"read {papi}={val}")
-                        if isinstance(r3,dict) and r3.get("code")==0:
-                            raw,ms,code=r3,m3,0; ires=True; id_usado=val; break
+                        variantes=[
+                            ({"objectid":val},f"read objectid={val}"),
+                            ({papi:val},f"read {papi}={val}"),
+                            ({"objectid":str(val),"pagesize":"1"},f"read objectid={val} p1"),
+                        ]
+                        for vp,vd in variantes:
+                            n_variantes+=1
+                            rv,mv=_llama(vp,vd)
+                            if isinstance(rv,dict) and rv.get("code")==0:
+                                raw,ms,code=rv,mv,0; ires=True; id_usado=val; break
             else:
                 intentos.append({"desc":"Firebird no disponible","params":{},"code":-1,"ms":0,
                                   "n_items":0,"ok":False,"servidor":fb.get("error","No disponible")})
-        if code!=0 and operacion=="browse":
-            r5,m5=_llama({},"browse sin params (fallback)")
-            if isinstance(r5,dict) and r5.get("code")==0: raw,ms,code=r5,m5,0
+    # PASO 4: ultimo recurso browse sin params
+    if code!=0 and operacion=="browse":
+        rf,mf=_llama({},"browse sin params (ultimo recurso)")
+        if isinstance(rf,dict) and rf.get("code")==0: raw,ms,code=rf,mf,0
     raw_data=raw.get("data") if isinstance(raw,dict) else None
     items=[]
     if isinstance(raw_data,list): items=raw_data
@@ -1117,14 +1134,25 @@ async def auto_probar(request: AutoProbarRequest):
     if code==5 and any(kw in _rdt for kw in _KW): estado="sin_licencia"
     else: estado=SM.get(code,"error")
     _rm=str(raw.get("data",raw.get("error","")))[:200] if isinstance(raw,dict) else ""
-    ni=len(intentos); dr=f"{ni} intentos"+(f" | ID auto-resuelto: {id_usado}" if ires else "")
+    ni=len(intentos)
+    _ids_str=", ".join(str(x) for x in ids_fb_probados[:5])
+    dr=(f"{ni} intentos | {n_variantes} variantes"
+        +(f" | IDs BD probados: {_ids_str}" if ids_fb_probados else "")
+        +(f" | ID exitoso: {id_usado}" if ires else ""))
     ok_txt=f"OK {n} registro(s) de SQL Obras."+(f" [ID:{id_usado}]" if ires else "")
-    req_txt=("Firebird disponible pero mPYME rechaza los IDs." if nid else "Usa boton BD.")
+    _ids_count=len(ids_fb_probados)
+    if nid and ids_fb_probados:
+        req_txt=(f"Firebird OK: se probaron {_ids_count} IDs reales ({_ids_str}) "+
+                 f"con {n_variantes} variantes cada uno - mPYME devolvio code=6 en todos. "+
+                 "Ver 'intentos_diagnostico' para detalle.")
+    else:
+        req_txt="Usa boton BD para obtener IDs reales de la base de datos."
     MSGS={"ok":ok_txt,
           "sin_licencia":f"Sin licencia (code={code}). {_rm[:100]}. Contactar Distrito K.",
           "sin_permiso":f"Sin permiso (code=2). {_rm[:80]}",
           "config_incompleta":f"Config incompleta (code=5). {_rm[:100]}",
-          "requiere_params":f"code=6 tras {ni} intentos. {_rm[:80]}. "+req_txt,
+          "requiere_params":(f"code=6 tras {ni} intentos ({n_variantes} variantes, {_ids_count} IDs BD). "+
+                              f"{_rm[:80]}. "+req_txt),
           "error":f"code={code}. {_rm[:100]}",
           "bloqueado":"Escritura bloqueada."}
     svc._history.insert(0,{"timestamp":__import__("datetime").datetime.now().isoformat(),
@@ -1135,9 +1163,12 @@ async def auto_probar(request: AutoProbarRequest):
             "estado":estado,"mensaje":MSGS.get(estado,f"code={code}"),
             "n_items":n,"campos_detectados":campos,
             "necesito_id_real":nid,"id_resuelto":ires,"id_usado":id_usado,
+            "ids_firebird_probados":ids_fb_probados,
+            "n_variantes_intentadas":n_variantes,
             "params_usados":params,"ms":round(ms),"use_mock":svc.use_mock,
             "raw_servidor":_rm,
             "items":items[:25],
+            "items_muestra":items[:5],
             "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {}),
             "intentos_diagnostico":intentos,
             "diag_resumen":dr}
@@ -1195,18 +1226,38 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                         "necesito_id":False,"id_resuelto":False,
                         "mensaje":f"Excepcion: {str(exc)[:100]}"}; continue
             code=raw.get("code") if isinstance(raw,dict) else -1
-            nid=False; ires=False; msg_servidor=""
+            nid=False; ires=False; msg_servidor=""; ids_fb=[]; nvar=0; id_ok=""
+            # browse vacio/pagesize primero
             if code==6 and op=="browse":
+                try:
+                    r00,m00=svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
+                    if isinstance(r00,dict) and r00.get("code")==0: raw,ms,code=r00,m00,0
+                except: pass
+            if code==6 and op=="browse":
+                try:
+                    r01,m01=svc._client().browse(svc.ssid1,svc.ssid2,clase,{"pagesize":"1"})
+                    if isinstance(r01,dict) and r01.get("code")==0: raw,ms,code=r01,m01,0
+                except: pass
+            if code==6 and op in("browse","read"):
                 msg_servidor = str(raw.get("data",""))[:120]
-                fb=_firebird_ids(clase, n=5)
+                fb=_firebird_ids(clase, n=8)
                 if fb.get("ok") and fb.get("valores"):
-                    nid=True
-                    for val in fb["valores"]:
-                        try:
-                            raw2,ms2=svc._client().browse(svc.ssid1,svc.ssid2,clase,{fb["param"]:val})
-                            if isinstance(raw2,dict) and raw2.get("code")==0:
-                                raw,ms,code=raw2,ms2,0; ires=True; break
-                        except: pass
+                    nid=True; ids_fb=list(fb["valores"])
+                    import json as _fj; papi=fb["param"]
+                    for val in ids_fb:
+                        if ires: break
+                        variantes=([{papi:val},{"filter":_fj.dumps({papi:val})},
+                                    {"objectid":val},{papi:val,"pagesize":"25"},
+                                    {papi:val,"pagesize":"1"},{"filter":_fj.dumps({papi:val}),"pagesize":"1"}]
+                                   if op=="browse" else [{"objectid":val},{papi:val}])
+                        for vp in variantes:
+                            nvar+=1
+                            try:
+                                if op=="browse": rv,mv=svc._client().browse(svc.ssid1,svc.ssid2,clase,vp)
+                                else: rv,mv=svc._client().read(svc.ssid1,svc.ssid2,clase,vp)
+                                if isinstance(rv,dict) and rv.get("code")==0:
+                                    raw,ms,code=rv,mv,0; ires=True; id_ok=str(val); break
+                            except: pass
                 else:
                     msg_servidor += " | Firebird: "+fb.get("error","no disponible")
             if code==0: estado="ok"; msg=""
@@ -1221,7 +1272,9 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             n=len(items); campos=list(items[0].keys())[:15] if n>0 and isinstance(items[0],dict) else []
             entrada["resultados_op"][op]={"code":code,"estado":estado,"ok":code==0,
                 "ms":round(ms),"n_items":n,"campos":campos,"necesito_id":nid,"id_resuelto":ires,
-                "mensaje":msg}
+                "ids_fb_probados":ids_fb,"n_variantes":nvar,"id_ok":id_ok,
+                "items_muestra":items[:3],
+                "mensaje":(f"code=6 tras {nvar} variantes, {len(ids_fb)} IDs BD. "+msg if code==6 and ids_fb else msg)}
             _t.sleep(0.05)
         ops_r=entrada["resultados_op"]
         if any(v.get("ok") for v in ops_r.values()): entrada["estado_global"]="ok"

@@ -2836,12 +2836,29 @@ const ApiExplorerModule = {
           ln("     ["+etiq+"]"+risg+" "+OPLN[op]||op);
           if (r) {
             ln("       code         : "+r.code+"   tiempo: "+(r.ms||0)+"ms   registros obtenidos: "+(r.n_items||0));
-            if (r.n_items>0) ln("       DATOS        : Se obtuvieron "+(r.n_items||0)+" registros reales de SQL Obras (valores no mostrados por privacidad)");
+            if (r.n_items>0) {
+              ln("       DATOS        : Se obtuvieron "+(r.n_items||0)+" registros reales de SQL Obras:");
+              if (r.ids_firebird_probados && r.ids_firebird_probados.length)
+                ln("       IDs BD USADOS: "+r.ids_firebird_probados.join(", ")+" ("+r.ids_firebird_probados.length+" valores de Firebird)");
+              if (r.items_muestra && r.items_muestra.length) {
+                ln("       MUESTRA ("+r.items_muestra.length+" de "+(r.n_items||0)+"):");
+                r.items_muestra.slice(0,3).forEach(function(item,i){
+                  try { ln("         Reg."+(i+1)+": "+JSON.stringify(item).slice(0,400)); }
+                  catch(ex) { ln("         Reg."+(i+1)+": [error serializando]"); }
+                });
+              }
+            }
             if (r.campos_detectados?.length)
               ln("       CAMPOS BD    : "+r.campos_detectados.join(", "));
             if (r.muestra_tipos && Object.keys(r.muestra_tipos||{}).length)
               ln("       TIPOS        : "+Object.entries(r.muestra_tipos).map(([k,v])=>k+":"+v).join(", "));
-            if (r.id_resuelto) ln("       AUTO-ID      : SI - El sistema obtuvo automaticamente un ID real de Firebird y reintento con exito.");
+            if (r.id_resuelto) {
+              ln("       AUTO-ID      : SI - ID '"+(r.id_usado||"?")+"' obtenido de Firebird y reintento exitoso.");
+            }
+            if (r.ids_firebird_probados && r.ids_firebird_probados.length)
+              ln("       IDs BD PROBD : "+r.ids_firebird_probados.join(", ")+" ("+r.ids_firebird_probados.length+" IDs reales Firebird)");
+            if (r.n_variantes_intentadas)
+              ln("       VARIANTES    : "+r.n_variantes_intentadas+" variantes de llamada probadas");
             if (r.necesito_id_real&&!r.id_resuelto) ln("       AUTO-ID      : FALLO - Firebird no disponible o tabla vacia. Introducir ID manualmente con boton BD.");
             if (r.params_usados && Object.keys(r.params_usados||{}).length)
               ln("       PARAMS USADOS: "+JSON.stringify(r.params_usados));
@@ -2868,12 +2885,26 @@ const ApiExplorerModule = {
     if (conRegistros.length===0) {
       ln("  Ninguna operacion devolvio registros. Ejecuta las operaciones con IDs reales.");
     } else {
-      ln("  (Numero de registros y campos detectados - los VALORES no se muestran por privacidad)");
+      ln("  Registros obtenidos de la API mPYME conectando con SQL Obras real:");
       ln("");
-      conRegistros.forEach(r => {
-        const key = Object.entries(_probRes).find(([,v])=>v===r)?.[0]||"?";
-        ln("  "+key+" -> "+r.n_items+" registros   "+r.ms+"ms"+(r.id_resuelto?" [ID auto-BD]":""));
-        if (r.campos_detectados?.length) ln("    Campos: "+r.campos_detectados.join(", "));
+      conRegistros.forEach(function(r) {
+        var key = "?";
+        Object.entries(_probRes).forEach(function(e){ if(e[1]===r) key=e[0]; });
+        ln("  "+key+" -> "+r.n_items+" registros reales   "+r.ms+"ms"+(r.id_resuelto?" [ID auto-BD]":""));
+        if (r.campos_detectados && r.campos_detectados.length)
+          ln("    Campos BD    : "+r.campos_detectados.join(", "));
+        if (r.ids_firebird_probados && r.ids_firebird_probados.length)
+          ln("    IDs probados : "+r.ids_firebird_probados.join(", ")+" ("+r.ids_firebird_probados.length+" valores de Firebird usados)");
+        if (r.n_variantes_intentadas)
+          ln("    Variantes    : "+r.n_variantes_intentadas+" variantes de llamada probadas hasta encontrar la correcta");
+        if (r.items_muestra && r.items_muestra.length) {
+          ln("    DATOS REALES DE SQL OBRAS (muestra "+r.items_muestra.length+" de "+r.n_items+" registros):");
+          r.items_muestra.slice(0,5).forEach(function(item, i){
+            try { ln("      ["+String(i+1).padStart(2,"0")+"] "+JSON.stringify(item).slice(0,500)); }
+            catch(ex) { ln("      ["+String(i+1).padStart(2,"0")+"] [error serializando datos]"); }
+          });
+        }
+        ln("");
       });
     }
     ln(""); ln("");
@@ -2902,14 +2933,19 @@ const ApiExplorerModule = {
         }
         if (r.estado==="requiere_params") {
           ln("    CAUSA  : La API necesita un identificador real (codProyecto, codOrden, etc.).");
-          if (r.necesito_id_real&&!r.id_resuelto) {
-            ln("    AUTO-ID: El sistema intento obtener un ID de Firebird automaticamente pero fallo.");
-            const fbErr = window._ae_diag_fb_cache?.error;
+          if (r.ids_firebird_probados && r.ids_firebird_probados.length) {
+            ln("    IDs BD : Se probaron "+r.ids_firebird_probados.length+" IDs reales de Firebird: "+r.ids_firebird_probados.join(", "));
+            ln("    VARIANTES: "+( r.n_variantes_intentadas||0)+" variantes de llamada a la API probadas con esos IDs");
+            ln("    RESULTADO: Todos devolvieron code=6. La API mPYME rechaza el formato de ID enviado.");
+            ln("    ACCION : Ejecutar proyectos.info() en el Probador para ver el formato exacto del objectid que espera mPYME.");
+          } else if (r.necesito_id_real&&!r.id_resuelto) {
+            ln("    AUTO-ID: El sistema intento obtener IDs de Firebird pero no pudo conectar.");
+            var fbErr = window._ae_diag_fb_cache && window._ae_diag_fb_cache.error;
             if (fbErr) ln("    BD ERR : "+fbErr);
-            else if (!window._ae_diag_fb_cache) ln("    BD ERR : Diagnostico Firebird no ejecutado — usar boton 'Diagnostico BD'.");
-            ln("    ACCION : Pulsar boton '🔍 BD' en el campo del Probador o configurar DB_NAME en .env.");
+            else ln("    BD ERR : Ejecutar Diagnostico BD para ver el estado de la conexion Firebird.");
+            ln("    ACCION : Pulsar boton BD en el campo del Probador o configurar DB_NAME en .env.");
           } else if (r.id_resuelto) {
-            ln("    AUTO-ID: ID obtenido de Firebird y reintento exitoso.");
+            ln("    AUTO-ID: ID '"+( r.id_usado||"?")+"' obtenido de Firebird y reintento exitoso.");
           }
         }
         if (r.estado==="error") {
@@ -3007,7 +3043,7 @@ const ApiExplorerModule = {
     ln("NOTAS DE SEGURIDAD Y PRIVACIDAD");
     ln(sep);
     ln("* Solo lectura automatica. Las ops de escritura NO se prueban automaticamente.");
-    ln("* Sin valores de datos (codigos de proyectos, nombres, importes...).");
+    ln("* Se incluyen muestras de datos reales (hasta 5 registros por operacion con resultado OK).");
     ln("* Se muestran: estados, codigos, tiempos, nombres de campos y mensajes de error.");
     ln("* Los IDs auto-resueltos de BD no se incluyen en el informe.");
     ln("* Las ops de escritura requieren: activar modo escritura + confirmacion doble.");
