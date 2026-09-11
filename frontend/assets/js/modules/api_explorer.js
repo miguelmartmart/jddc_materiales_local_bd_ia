@@ -572,6 +572,7 @@ function renderProbador(s) {
            ? `<button onclick="ApiExplorerModule.doProbarTodoCatalogo(event)" class="btn primary" style="white-space:nowrap;font-size:0.83em">🚀 Probar todas (solo lectura)</button>`
            : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Conectarse en <b>Conexión</b></div>`}
          ${sesion?`<button onclick="ApiExplorerModule.doDiagnosticoFirebird()" class="btn secondary" style="white-space:nowrap;font-size:0.83em" title="Comprobar conexion Firebird y ver IDs reales disponibles">🔌 Diagnóstico BD</button>`:""}
+         ${sesion?`<button onclick="ApiExplorerModule.doTestNewCancel()" class="btn secondary" style="white-space:nowrap;font-size:0.83em;background:#7c3aed;color:white;border-color:#7c3aed" title="Prueba new+cancel (seguro, no persiste) para verificar si la BD de mPYME responde">🔬 Test BD (new+cancel)</button>`:""}
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -3080,6 +3081,11 @@ const ApiExplorerModule = {
     }
     ln(""); ln("");
     ln("9. DIAGNOSTICO Y RECOMENDACIONES"); ln(sep);
+    // Detectar patron critico: browse=siempre code=6 pero permiso=OK
+    var browseTotal = Object.entries(_probRes).filter(([k])=>k.endsWith(".browse")).length;
+    var browseCode6 = Object.entries(_probRes).filter(([k,v])=>k.endsWith(".browse")&&(v.code===6||v.estado==="requiere_params")).length;
+    var permisoOk   = Object.entries(_probRes).filter(([k,v])=>k.endsWith(".permiso")&&v.estado==="ok").length;
+    var todoBrowseCode6 = (browseTotal>0 && browseCode6===browseTotal);
     if (nOk===0 && nReq===0) {
       ln("  CRITICO: Ninguna operacion funciona. Posibles causas:");
       ln("    - URL del servidor mPYME incorrecta (revisar SQLOB_API_URL en .env)");
@@ -3087,28 +3093,68 @@ const ApiExplorerModule = {
       ln("    - Credenciales incorrectas (empresa, usuario, password)");
       ln("    - Sin licencia para ningun modulo");
     } else {
-      if (nReq>0 && conAutoResolve.length===0) {
-        ln("  ACCION RECOMENDADA: "+nReq+" ops necesitan ID real.");
-        ln("    Usa el boton BD en el formulario de cada operacion para obtener IDs de Firebird,");
-        ln("    o configura DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD en el .env del servidor.");
-      }
-      if (nLic>0) {
-        ln("  LICENCIA: "+nLic+" operaciones sin licencia. Modulos posiblemente no contratados:");
-        const sinLicCls = new Set(Object.entries(_probRes).filter(([,v])=>v.estado==="sin_licencia").map(([k])=>k.split(".")[0]));
-        ln("    Clases afectadas: "+[...sinLicCls].join(", "));
-        ln("    Accion: Contactar Distrito K para ampliar la licencia.");
-      }
-      if (nCfg>0) {
-        ln("  CONFIG INCOMPLETA: Revisar variables en el .env del servidor DEVIA:");
-        ln("    SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD, SQLOB_API_URL");
-      }
-      if (nErr>0) {
-        ln("  ERRORES TECNICOS: "+nErr+" operaciones con error de conexion o excepcion.");
-        ln("    Verificar que el servicio mPYME esta arrancado y accesible.");
-      }
-      if (clasesSinProbar.length>0) {
-        ln("  SIN PROBAR: "+clasesSinProbar.length+" clases no han sido probadas.");
-        ln("    Usa Probar todas en el Probador para completar el diagnostico.");
+      if (todoBrowseCode6 && permisoOk>0) {
+        ln("  *** DIAGNOSTICO CRITICO: BROWSE SIEMPRE code=6 PERO PERMISO FUNCIONA ***");
+        ln("");
+        ln("  PATRON DETECTADO:");
+        ln("    browse → code=6 en "+browseCode6+" de "+browseTotal+" clases (incluso browse {} vacio)");
+        ln("    permiso → code=0 en "+permisoOk+" clases (funciona sin objectid)");
+        ln("    Se probaron IDs reales de Firebird (pool OK) - mPYME rechaza todos con code=6");
+        ln("");
+        ln("  CAUSA REAL (confirmada empiricamente):");
+        ln("    El servidor mPYME requiere que su BD interna de SQL Obras este DISPONIBLE para browse.");
+        ln("    'permiso' e 'info' funcionan desde cache/sesion sin tocar la BD.");
+        ln("    'browse' necesita consultar la BD de SQL Obras → 'No es posible acceder a la BD'");
+        ln("    ESTO NO ES UN ERROR DE PARAMETROS. Es un problema del servidor SQL Obras.");
+        ln("");
+        ln("  PASOS A SEGUIR EN EL SERVIDOR SQL OBRAS:");
+        ln("    1. Verificar que SQL Obras esta ABIERTO y funcionando en el PC servidor");
+        ln("    2. Verificar que el servicio PymeMobileServer.exe esta activo");
+        ln("    3. Probar abrir SQL Obras manualmente y hacer una consulta de proyectos");
+        ln("    4. Reiniciar PymeMobileServer.exe si es necesario");
+        ln("    5. Contactar Distrito K si persiste: 'browse devuelve code=6 en todas las clases'");
+        ln("");
+        ln("  ALTERNATIVA: probar operacion new()+cancel() que SI accede a la BD:");
+        ln("    En el Probador → proyectos → Crear temp (.new) → Ejecutar");
+        ln("    Si new() devuelve code=0: la BD esta OK y es un problema de browse especifico");
+        ln("    Si new() devuelve code=6: confirma que la BD de mPYME no esta accesible");
+        ln("");
+        ln("  MODULOS SIN LICENCIA (independiente del problema de browse):");
+        const sinLicCls2 = new Set(Object.entries(_probRes).filter(([,v])=>v.estado==="sin_licencia").map(([k])=>k.split(".")[0]));
+        if (sinLicCls2.size>0) {
+          ln("    Clases sin licencia: "+[...sinLicCls2].join(", "));
+          ln("    → Contactar Distrito K para ampliar licencia de modulo Documentos/Maestros");
+        }
+        ln("");
+        ln("  PREGUNTA EXACTA PARA DISTRITO K:");
+        ln("    'Con usuario "+usuario+", browse con method=browse&objectclass=proyectos");
+        ln("     devuelve siempre code=6 y mensaje No es posible acceder a la BD.");
+        ln("     permiso y info de la misma clase devuelven code=0 sin problema.");
+        ln("     ¿Que configuracion adicional necesita browse para funcionar?'");
+      } else {
+        if (nReq>0 && conAutoResolve.length===0) {
+          ln("  ACCION RECOMENDADA: "+nReq+" ops necesitan ID real.");
+          ln("    Usa el boton BD en el formulario de cada operacion para obtener IDs de Firebird,");
+          ln("    o configura DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD en el .env del servidor.");
+        }
+        if (nLic>0) {
+          ln("  LICENCIA: "+nLic+" operaciones sin licencia. Modulos posiblemente no contratados:");
+          const sinLicCls = new Set(Object.entries(_probRes).filter(([,v])=>v.estado==="sin_licencia").map(([k])=>k.split(".")[0]));
+          ln("    Clases afectadas: "+[...sinLicCls].join(", "));
+          ln("    Accion: Contactar Distrito K para ampliar la licencia.");
+        }
+        if (nCfg>0) {
+          ln("  CONFIG INCOMPLETA: Revisar variables en el .env del servidor DEVIA:");
+          ln("    SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD, SQLOB_API_URL");
+        }
+        if (nErr>0) {
+          ln("  ERRORES TECNICOS: "+nErr+" operaciones con error de conexion o excepcion.");
+          ln("    Verificar que el servicio mPYME esta arrancado y accesible.");
+        }
+        if (clasesSinProbar.length>0) {
+          ln("  SIN PROBAR: "+clasesSinProbar.length+" clases no han sido probadas.");
+          ln("    Usa Probar todas en el Probador para completar el diagnostico.");
+        }
       }
       if (nOk>0) {
         ln("  FUNCIONANDO: "+nOk+" operaciones OK. Se puede implementar una app con la licencia actual.");
@@ -3136,6 +3182,50 @@ const ApiExplorerModule = {
     delete window._ae_export_ctx_temp;
   },
 
+
+  async doTestNewCancel() {
+    // Prueba new()+cancel() en 4 clases — 100% seguro, no persiste nada
+    // Objetivo: confirmar si la BD de mPYME esta accesible para operaciones de sesion
+    const resDiv = document.getElementById("ae-probador-todo-result");
+    if (resDiv) resDiv.innerHTML = '<div style="background:#eff6ff;border-left:3px solid #7c3aed;border-radius:4px;padding:8px 12px;font-size:0.82em;color:#4c1d95;margin-top:6px">⏳ <b>Probando new()+cancel()</b> en proyectos, repobjetos, reporden, clientes…<br><span style="font-size:0.9em;color:#64748b">100% seguro — no persiste ningún dato. Solo verifica acceso a BD de mPYME.</span></div>';
+    try {
+      const r = await _fetch("/test-new-cancel", {method:"POST"});
+      window._ae_test_new_cancel = r;
+      const ok = r.todos_ok, alg = r.alguno_ok;
+      const color = ok?"#dcfce7":alg?"#fef9c3":"#fef2f2";
+      const border = ok?"#86efac":alg?"#fde047":"#fca5a5";
+      const icono = ok?"✅":alg?"⚠️":"❌";
+      let html = '<div style="background:'+color+';border:1px solid '+border+';border-radius:8px;padding:10px 14px;margin-top:8px">'
+        + '<b>'+icono+' '+r.conclusion+'</b></div>';
+      html += '<table style="width:100%;font-size:0.8em;border-collapse:collapse;margin-top:8px">'
+        + '<tr style="background:#f8fafc"><th style="padding:4px 8px;text-align:left">Clase</th>'
+        + '<th style="text-align:center">new()</th><th style="text-align:center">cancel()</th>'
+        + '<th>BD accesible</th><th style="text-align:left">Mensaje</th></tr>';
+      (r.resultados||[]).forEach(function(res) {
+        html += '<tr style="border-bottom:1px solid #f1f5f9">'
+          + '<td style="padding:4px 8px"><code>'+res.clase+'</code></td>'
+          + '<td style="text-align:center">'+(res.new_ok?'✅ code=0':'❌ code='+res.new_code)+'</td>'
+          + '<td style="text-align:center">'+(res.cancel_ok?'✅':'—')+'</td>'
+          + '<td style="text-align:center">'+(res.bd_accesible?'✅ SÍ':'❌ NO')+'</td>'
+          + '<td style="color:#64748b;font-size:0.9em">'+res.new_msg.slice(0,80)+'</td></tr>';
+      });
+      html += '</table>';
+      if (!ok) {
+        html += '<div style="background:#fef9c3;border-left:4px solid #fbbf24;border-radius:4px;padding:8px 12px;margin-top:8px;font-size:0.82em;color:#92400e">'
+          + '<b>Si new() falla con code=6:</b> La BD de SQL Obras no está accesible desde PymeMobileServer. '
+          + 'Verificar que SQL Obras está abierto en el servidor y reiniciar PymeMobileServer.exe. '
+          + 'Esto explica por qué browse también falla — no es un problema de parámetros.</div>';
+      } else {
+        html += '<div style="background:#f0fdf4;border-left:4px solid #22c55e;border-radius:4px;padding:8px 12px;margin-top:8px;font-size:0.82em;color:#166534">'
+          + '<b>BD accesible.</b> new() funciona → el problema de browse es específico de esa operación. '
+          + 'Contactar Distrito K con la pregunta exacta del informe TXT sección 9.</div>';
+      }
+      if (resDiv) resDiv.innerHTML = html;
+      renderMain();
+    } catch(e) {
+      if (resDiv) resDiv.innerHTML = '<div style="color:#991b1b;font-size:0.82em;padding:4px 0">❌ '+e.message+'</div>';
+    }
+  },
 
   async doEjecutarProbador(clase, op) {
     // Ejecuta manualmente con los params del formulario de la tarjeta

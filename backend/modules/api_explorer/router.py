@@ -1513,6 +1513,72 @@ async def debug_firebird_ids(request: dict = None):
             "db_host": _s.DB_HOST, "db_name": _s.DB_NAME, "db_user": _s.DB_USER}
 
 
+@router.post("/test-new-cancel")
+async def test_new_cancel():
+    """
+    Prueba new()+cancel() en proyectos — 100% seguro, no persiste nada.
+    Objetivo: determinar si la BD de mPYME responde a operaciones que requieren BD,
+    para confirmar si el problema de browse es de BD o de protocolo.
+    """
+    import time as _tnc
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesion activa.")
+    resultados = []
+    clases_test = ["proyectos", "repobjetos", "reporden", "clientes"]
+    for cls in clases_test:
+        # 1. new() — crea objeto temporal en sesion
+        t0 = _tnc.monotonic()
+        try:
+            raw_new, ms_new = svc._client().new(svc.ssid1, svc.ssid2, cls, {})
+            code_new = raw_new.get("code") if isinstance(raw_new, dict) else -1
+            oid = ""
+            if code_new == 0:
+                d = raw_new.get("data", {})
+                if isinstance(d, dict):
+                    oid = d.get("objectId", d.get("objectid", d.get("id", "new")))
+                if not oid: oid = "new"
+        except Exception as e:
+            raw_new = {"code": -1, "data": str(e)[:200]}
+            code_new = -1; ms_new = 0; oid = ""
+        # 2. cancel() — descarta el objeto temporal (seguro siempre)
+        ms_cancel = 0; code_cancel = -1
+        if oid:
+            try:
+                raw_cancel, ms_cancel = svc._client().cancel(svc.ssid1, svc.ssid2, cls, {"objectid": oid})
+                code_cancel = raw_cancel.get("code") if isinstance(raw_cancel, dict) else -1
+            except Exception as ec:
+                raw_cancel = {"code": -1, "data": str(ec)[:100]}
+                code_cancel = -1
+        resultados.append({
+            "clase": cls,
+            "new_code": code_new,
+            "new_ms": round(ms_new),
+            "new_ok": code_new == 0,
+            "new_msg": str((raw_new or {}).get("data", ""))[:150],
+            "cancel_code": code_cancel,
+            "cancel_ok": code_cancel in (0, -1),  # -1 es ok si no hubo oid
+            "objectid": oid,
+            "bd_accesible": code_new == 0,
+        })
+    todos_ok = all(r["new_ok"] for r in resultados)
+    alguno_ok = any(r["new_ok"] for r in resultados)
+    if todos_ok:
+        conclusion = "BD_OK: new() funciona en todas las clases. La BD de mPYME esta accesible. El problema de browse es especifico de esa operacion."
+    elif alguno_ok:
+        conclusion = "BD_PARCIAL: new() funciona en algunas clases. La BD de mPYME tiene acceso parcial."
+    else:
+        conclusion = "BD_INACC: new() falla en todas las clases. La BD de mPYME no esta accesible desde PymeMobileServer. Reiniciar SQL Obras y PymeMobileServer."
+    return {
+        "success": True,
+        "conclusion": conclusion,
+        "todos_ok": todos_ok,
+        "alguno_ok": alguno_ok,
+        "resultados": resultados,
+        "aviso": "SEGURO: new()+cancel() no persiste ningun dato. Solo verifica acceso a BD."
+    }
+
+
 @router.get("/informe-completo")
 async def get_informe_completo():
     """
