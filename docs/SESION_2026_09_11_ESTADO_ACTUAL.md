@@ -1,4 +1,4 @@
-# Estado para retomar — 11/09/2026
+# Estado para retomar — 11/09/2026 (actualizado)
 
 > **LEER ESTO PRIMERO.** Punto de entrada para la próxima sesión de IA.
 
@@ -6,16 +6,17 @@
 
 ## Repo y commits
 
-- **Repo:** `bots/interjddcia` rama `main` — commit `df0da67`
+- **Repo:** `bots/interjddcia` rama `main` — commit `b04232a`
 - **En VM:** `cd bots/interjddcia && git pull` + reiniciar DEVIA + `Ctrl+F5`
 
 ```
-df0da67  feat(probador): auto-probar exhaustivo + items REALES + panel diagnostico
-5266142  fix(probador): 4 bugs - read objectid, browse filter/page, auto-resolve
-8f959c5  fix(probador): doEjecutarProbador - funcion, data-param, data-exec
-677bde5  fix(probador): nombres reales tablas/columnas Firebird en MAPA_FIREBIRD
-c54ddb3  fix(critical): SyntaxError JS, favicon.ico
-8a3d2b0  feat(ux+export): formulario ultra-amigable + TXT 9 secciones
+b04232a  fix(probar-todo): pool IDs Firebird 1 conexion, cache 5min en auto-probar
+206f540  fix(informe): URL configurada, auto-ID error exacto, debug-firebird-ids endpoint
+ecb86fb  fix(code6): REPCAB PK=CODMAESTRO, info() automatico code=6, panel azul aclarado
+372b076  fix(probador): crash mPYME detectado como crash_servidor, no config_incompleta
+981e96a  feat(probador): ultra-robusto - browse vacio, 6 variantes/ID, items_muestra en TXT
+9321708  docs: README v3.1 + DEVIA v3.2 + estado sesion 2026-09-11
+df0da67  feat(probador): auto-probar exhaustivo + items REALES + panel diagnostico intentos
 ```
 
 ---
@@ -44,18 +45,28 @@ c54ddb3  fix(critical): SyntaxError JS, favicon.ico
 - Boton Ejecutar: llama `/auto-probar`, muestra tabla verde con datos reales
 - Exportar TXT: 9 secciones con todo (OKs, fallos, licencias, errores, BD)
 
-### PROBLEMA PRINCIPAL (sin resolver)
+### PROBLEMA PRINCIPAL (en investigacion)
 
-**code=6 persistente en browse/read para proyectos y otras clases.**
+**code=6 persistente aunque Firebird tiene datos (1212 proyectos).**
 
-```
-proyectos.browse → code=6 con {filter:"Hospital", page:"1"}
-proyectos.browse → code=6 con IDs de Firebird: 48511, 50123...
-proyectos.read   → code=6 con objectid="48511"
-```
+Lo que sabemos con certeza:
+- Firebird conecta OK, tablas OK, IDs se obtienen bien (PROYECTOS.CODIGO = 48511, 50123...)
+- Mensaje mPYME: "No es posible acceder a la BD en este momento" = texto GENERICO para code=6
+- NO significa Firebird caido. Significa: "el identificador enviado no es el formato correcto"
+- `PROYECTOS.CODIGO` en Firebird es un INTEGER (48511) pero mPYME puede esperar formato "25/184"
 
-**Causa probable:** `PROYECTOS.CODIGO` en Firebird = ID interno numerico (48511).
-mPYME puede esperar formato "25/184" (anio/secuencial). Son identificadores distintos.
+Fix aplicado:
+- Pool de IDs: probar-todo carga TODOS los IDs con 1 sola conexion al inicio
+- Cache 5 min en auto-probar
+- 6 variantes de llamada por ID
+- info() automatico cuando todo falla (muestra estructura real de mPYME)
+- Botón "🔬 Debug: Ver IDs reales por clase" en diagnostico BD
+
+Que hacer en la VM para resolver definitivamente:
+1. Abrir Probador → 🔌 Diagnostico BD → 🔬 Debug IDs → ver que valores tiene PROYECTOS.CODIGO
+2. Si son numeros (48511): probar manualmente proyectos.browse con esos numeros
+3. Si code=6 persiste: ejecutar proyectos.info() — ver el campo objectid real que espera mPYME
+4. Puede que mPYME use CODPROYE (campo diferente al CODIGO de Firebird)
 
 ### Estado por clase (del informe txt real)
 ```
