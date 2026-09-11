@@ -879,32 +879,37 @@ async def obtener_ids_reales():
 # backend/drivers/db/firebird_driver.py + backend/core/factory/db_factory.py
 
 MAPA_FIREBIRD = {
-    # ── Tablas CONFIRMADAS en db_metadata_optimized.json del proyecto ──────────
-    # OBRACAB.CODPROYECTO = codigo de obra visible (ej: "26/001") — NO usar CODIGO (ID interno)
-    "proyectos":   ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
-    "partidas":    ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
-    "proordutil":  ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
-    "proordprev":  ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
-    # ARTICULO.CODIGO + NOMBRE confirmados
-    "articulos":   ("ARTICULO", "CODIGO",      "NOMBRE",       "codArticulo"),
-    # CLIENTE.CODIGO + RAZONSOCIAL confirmados
-    "clientes":    ("CLIENTE",  "CODIGO",      "RAZONSOCIAL",  "codCliente"),
-    # PROVEED.CODIGO + RAZONSOCIAL confirmados
-    "proveedores": ("PROVEED",  "CODIGO",      "RAZONSOCIAL",  "codProv"),
-    # DOCCAB.CODIGO confirmado (albaranes, facturas, pedidos)
-    "docalbcom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
-    "docfaccom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
-    "docpedcom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
-    # ── Tablas de reparacion: no en json pero usadas por el modulo SAT ────────
-    # Nombres confirmados por estructura logica SQL Obras (Distrito K)
-    # Si fallan, el error exacto aparece en 'Debug: Ver IDs reales por clase'
-    "reporden":    ("REPCAB",   "CODIGO",      "CODIGO",       "codOrden"),
-    "repordutil":  ("REPCAB",   "CODIGO",      "CODIGO",       "codOrden"),
-    "repobjetos":  ("REPOBJETO","CODIGO",      "CODIGO",       "codObjeto"),
-    "repinst":     ("REPINST",  "CODIGO",      "CODIGO",       "codInst"),
-    "tipostrabajo":("REPARA",   "CODIGO",      "CODIGO",       "codTrabajo"),
-    "recursos":    ("RECURSO",  "CODIGO",      "CODIGO",       "codRecurso"),
-    "ordenfab":    ("OBRAFAB",  "CODIGO",      "CODIGO",       "codOrden"),
+    # ── Tablas 100% confirmadas en table_index.json (443 tablas reales de la BD JDDC) ──
+    # Fuente: backend/core/config/table_index.json generado desde la BD real
+    #
+    # PROYECTOS.CODIGO = ID interno numerico. NOMBRE = nombre obra.
+    # La API mPYME usa objectclass=proyectos y browse/read con objectid=CODIGO
+    "proyectos":    ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
+    "partidas":     ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
+    "proordutil":   ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
+    "proordprev":   ("PROYECTOS",     "CODIGO",  "NOMBRE",        "codProyecto"),
+    # REPARA = tabla de ordenes de reparacion (no REPCAB)
+    # pk=['CODIGO'], cols: CODIGO, SERIE, NUMERO, DESCRIPCION, FECHA, CODCLIENTE
+    "reporden":     ("REPARA",        "CODIGO",  "DESCRIPCION",   "codOrden"),
+    "repordutil":   ("REPARA",        "CODIGO",  "DESCRIPCION",   "codOrden"),
+    # REPOBJETO pk=['CODIGO'], cols: CODIGO, NOMBRE, CODPROPIETARIO
+    "repobjetos":   ("REPOBJETO",     "CODIGO",  "NOMBRE",        "codObjeto"),
+    # REPINSTALACION pk=['CODIGO'], cols: CODIGO, NOMBRE, CODCLIENTE
+    "repinst":      ("REPINSTALACION","CODIGO",  "NOMBRE",        "codInst"),
+    # RECURSO pk=['CODIGO'], cols: CODIGO, DESCRIPCION
+    "recursos":     ("RECURSO",       "CODIGO",  "DESCRIPCION",   "codRecurso"),
+    # ARTICULO pk=['CODIGO'], cols: CODIGO, NOMBRE
+    "articulos":    ("ARTICULO",      "CODIGO",  "NOMBRE",        "codArticulo"),
+    # PROVEED pk=['CODIGO'], cols: CODIGO, RAZONSOCIAL
+    "proveedores":  ("PROVEED",       "CODIGO",  "RAZONSOCIAL",   "codProv"),
+    # CLIENTE pk=['CODIGO'], cols: CODIGO, RAZONSOCIAL
+    "clientes":     ("CLIENTE",       "CODIGO",  "RAZONSOCIAL",   "codCliente"),
+    # DOCCAB = albaranes/facturas/pedidos de compra
+    "docalbcom":    ("DOCCAB",        "CODIGO",  "CODIGO",        "codDocumento"),
+    "docfaccom":    ("DOCCAB",        "CODIGO",  "CODIGO",        "codDocumento"),
+    "docpedcom":    ("DOCCAB",        "CODIGO",  "CODIGO",        "codDocumento"),
+    # FABCAB = ordenes de fabricacion, pk=['CODMAESTRO','ESPREVISION','CODIGO']
+    "ordenfab":     ("FABCAB",        "CODIGO",  "CODIGO",        "codOrden"),
 }
 
 
@@ -1042,7 +1047,9 @@ def _firebird_diagnostico() -> dict:
     try:
         drv = _get_db_driver()
         result["conexion_ok"] = True
-        for tabla in ["PROYECTOS", "REPCAB", "ARTICULO", "RECURSO", "CLIENTE", "PROVEED"]:
+        # Tablas confirmadas en table_index.json (443 tablas reales JDDC)
+        for tabla in ["PROYECTOS", "REPARA", "REPOBJETO", "REPINSTALACION",
+                      "ARTICULO", "RECURSO", "CLIENTE", "PROVEED", "FABCAB"]:
             try:
                 rows = drv.execute_query(f"SELECT COUNT(*) AS N FROM {tabla}")
                 cnt = rows[0].get("N", rows[0].get("COUNT", 0)) if rows else 0
