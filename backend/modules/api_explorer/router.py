@@ -879,25 +879,32 @@ async def obtener_ids_reales():
 # backend/drivers/db/firebird_driver.py + backend/core/factory/db_factory.py
 
 MAPA_FIREBIRD = {
-    # Tabla real Firebird (confirmada por db_metadata_optimized.json)
-    # (tabla, campo_id, campo_desc, param_api_mpyme)
-    "proyectos":   ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
-    "partidas":    ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
-    "proordutil":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
-    "proordprev":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
-    "reporden":    ("REPCAB",        "CODMAESTRO",  "CODMAESTRO",  "codOrden"),
-    "repordutil":  ("REPCAB",        "CODMAESTRO",  "CODMAESTRO",  "codOrden"),
-    "recursos":    ("RECURSO",       "CODIGO",  "DESCRIPCION",  "codRecurso"),
-    "repobjetos":  ("REPOBJETO",     "CODIGO",  "NOMBRE",       "codObjeto"),
-    "repinst":     ("REPINSTALACION","CODIGO",  "NOMBRE",       "codInst"),
-    "tipostrabajo":("REPARA",        "CODIGO",  "DESCRIPCION",  "codTrabajo"),
-    "articulos":   ("ARTICULO",      "CODIGO",  "NOMBRE",       "codArticulo"),
-    "proveedores": ("PROVEED",       "CODIGO",  "RAZONSOCIAL",  "codProv"),
-    "clientes":    ("CLIENTE",       "CODIGO",  "NOMBRE",       "codCliente"),
-    "docalbcom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
-    "docfaccom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
-    "docpedcom":   ("DOCCAB",        "CODIGO",  "CODIGO",       "codDocumento"),
-    "ordenfab":    ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
+    # ── Tablas CONFIRMADAS en db_metadata_optimized.json del proyecto ──────────
+    # OBRACAB.CODPROYECTO = codigo de obra visible (ej: "26/001") — NO usar CODIGO (ID interno)
+    "proyectos":   ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
+    "partidas":    ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
+    "proordutil":  ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
+    "proordprev":  ("OBRACAB",  "CODPROYECTO", "CODPROYECTO",  "codProyecto"),
+    # ARTICULO.CODIGO + NOMBRE confirmados
+    "articulos":   ("ARTICULO", "CODIGO",      "NOMBRE",       "codArticulo"),
+    # CLIENTE.CODIGO + RAZONSOCIAL confirmados
+    "clientes":    ("CLIENTE",  "CODIGO",      "RAZONSOCIAL",  "codCliente"),
+    # PROVEED.CODIGO + RAZONSOCIAL confirmados
+    "proveedores": ("PROVEED",  "CODIGO",      "RAZONSOCIAL",  "codProv"),
+    # DOCCAB.CODIGO confirmado (albaranes, facturas, pedidos)
+    "docalbcom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
+    "docfaccom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
+    "docpedcom":   ("DOCCAB",   "CODIGO",      "CODIGO",       "codDocumento"),
+    # ── Tablas de reparacion: no en json pero usadas por el modulo SAT ────────
+    # Nombres confirmados por estructura logica SQL Obras (Distrito K)
+    # Si fallan, el error exacto aparece en 'Debug: Ver IDs reales por clase'
+    "reporden":    ("REPCAB",   "CODIGO",      "CODIGO",       "codOrden"),
+    "repordutil":  ("REPCAB",   "CODIGO",      "CODIGO",       "codOrden"),
+    "repobjetos":  ("REPOBJETO","CODIGO",      "CODIGO",       "codObjeto"),
+    "repinst":     ("REPINST",  "CODIGO",      "CODIGO",       "codInst"),
+    "tipostrabajo":("REPARA",   "CODIGO",      "CODIGO",       "codTrabajo"),
+    "recursos":    ("RECURSO",  "CODIGO",      "CODIGO",       "codRecurso"),
+    "ordenfab":    ("OBRAFAB",  "CODIGO",      "CODIGO",       "codOrden"),
 }
 
 
@@ -1291,11 +1298,20 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                                 if _r.get(_k): _v = str(_r[_k]).strip(); break
                             if _v: _vals.append(_v)
                         if _vals:
-                            _ids_pool[_cl] = {"ok": True, "param": _param, "valores": _vals}
+                            _ids_pool[_cl] = {"ok": True, "param": _param, "valores": _vals,
+                                              "tabla": _tabla, "campo": _campo_id}
+                            import logging as _lp2
+                            _lp2.getLogger(__name__).info(
+                                f"[pool] {_cl} <- {_tabla}.{_campo_id}: {_vals[:3]}")
                         else:
-                            _ids_pool[_cl] = {"ok": False, "error": f"{_tabla} vacia"}
+                            _ids_pool[_cl] = {"ok": False, "error": f"{_tabla} vacia (0 registros)",
+                                              "tabla": _tabla}
                     except Exception as _e2:
-                        _ids_pool[_cl] = {"ok": False, "error": str(_e2)[:150]}
+                        _err2 = str(_e2)[:200]
+                        _ids_pool[_cl] = {"ok": False, "error": _err2, "tabla": _tabla}
+                        import logging as _lp3
+                        _lp3.getLogger(__name__).warning(
+                            f"[pool] FALLO {_cl} ({_tabla}.{_campo_id}): {_err2}")
             finally:
                 drv_pool.disconnect()
     except Exception as _epool:
@@ -1433,6 +1449,15 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
         else: entrada["estado_global"]="error"
         resultados[clase]=entrada
     ts=__import__("datetime").datetime.now().isoformat()
+    # Resumir estado del pool de IDs para incluir en la respuesta
+    _pool_resumen = {}
+    for _c, _pi in _ids_pool.items():
+        _pool_resumen[_c] = {
+            "ok": _pi.get("ok"), "tabla": _pi.get("tabla","?"),
+            "n_ids": len(_pi.get("valores",[])),
+            "primeros_ids": _pi.get("valores",[])[:3],
+            "error": _pi.get("error","") if not _pi.get("ok") else ""
+        }
     return {"success":True,"timestamp":ts,"use_mock":svc.use_mock,"total_clases":len(resultados),
             "resumen":{"ok":sum(1 for v in resultados.values() if v["estado_global"]=="ok"),
                 "requiere_params":sum(1 for v in resultados.values() if v["estado_global"]=="requiere_params"),
@@ -1440,6 +1465,7 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
                 "sin_permiso":sum(1 for v in resultados.values() if v["estado_global"]=="sin_permiso"),
                 "error":sum(1 for v in resultados.values() if v["estado_global"]=="error")},
             "clases":resultados,
+            "pool_ids_firebird": _pool_resumen,
             "aviso":"Sin datos privados. Solo estados, códigos y nombres de campos."}
 
 @router.get("/diagnostico-firebird")

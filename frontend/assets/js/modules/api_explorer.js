@@ -2773,9 +2773,34 @@ const ApiExplorerModule = {
             ln("    " + tbl.padEnd(16) + " -> " + (info.ok ? info.n_registros+" registros" : "ERROR: "+info.error));
           });
         }
+        // Mostrar estado del pool de IDs (qué tabla se usó para cada clase y cuántos IDs se obtuvieron)
+        const poolCache = window._ae_pool_ids_cache;
+        if (poolCache) {
+          ln("");
+          ln("  POOL DE IDs FIREBIRD (usado para auto-probar con IDs reales de la BD):");
+          ln("  " + "Clase".padEnd(14) + " " + "Tabla".padEnd(16) + " " + "IDs OK".padEnd(8) + " Primeros valores / Error");
+          ln("  " + "-".repeat(14) + " " + "-".repeat(16) + " " + "-".repeat(8) + " " + "-".repeat(30));
+          Object.entries(poolCache).forEach(([cls, pi]) => {
+            var ids = (pi.primeros_ids||[]).slice(0,3).join(" | ") || "";
+            var err = pi.error || "";
+            var badge = pi.ok ? "OK("+pi.n_ids+")" : "FALLO";
+            var val = pi.ok ? ids : ("ERR: "+err.slice(0,60));
+            ln("  " + cls.padEnd(14) + " " + (pi.tabla||"?").padEnd(16) + " " + badge.padEnd(8) + " " + val);
+          });
+          var poolFallos = Object.entries(poolCache).filter(([,pi])=>!pi.ok);
+          if (poolFallos.length > 0) {
+            ln("");
+            ln("  TABLAS CON FALLO (detalles):");
+            poolFallos.forEach(([cls, pi]) => {
+              ln("    " + cls + " (" + (pi.tabla||"?") + "): " + (pi.error||"sin error detallado"));
+            });
+            ln("  -> Verificar nombres de tablas con 'Debug: Ver IDs reales por clase' en Diagnostico BD");
+            ln("  -> En Firebird: SELECT TRIM(RDB$RELATION_NAME) FROM RDB$RELATIONS WHERE RDB$SYSTEM_FLAG=0");
+          }
+        }
       } else {
         ln("  No se ha ejecutado el diagnostico Firebird en esta sesion.");
-        ln("  ACCION: Pulsar '🔌 Diagnostico BD' en el Probador para comprobar la conexion.");
+        ln("  ACCION: Pulsar '🔌 Diagnostico BD' + 'Probar todas' para diagnostico completo.");
       }
     } catch(e) { ln("  Error obteniendo estado Firebird: " + e.message); }
     ln(""); ln("");
@@ -2960,7 +2985,8 @@ const ApiExplorerModule = {
           ln("    NOTA3  : Puede significar modulo sin licencia (si el mensaje lo indica).");
           ln("    ACCION : 1) Probar con boton BD para rellenar parametros reales.");
           ln("             2) Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en .env.");
-          ln("    MSG    : "+(r.raw_servidor||r.mensaje||"").slice(0,200));
+          var cfgMsg = (r.raw_servidor||"").trim() || (r.mensaje||"").trim();
+          if (cfgMsg) ln("    SERVIDOR: "+cfgMsg.slice(0,250));
         }
         if (r.estado==="requiere_params") {
           ln("    CAUSA  : La API necesita un identificador real (codProyecto, codOrden, etc.).");
@@ -2991,10 +3017,21 @@ const ApiExplorerModule = {
           ln("             3) Contactar Distrito K / soporte con el mensaje exacto: "+( r.raw_servidor||r.mensaje||""));
           ln("    MSG    : "+(r.raw_servidor||"").slice(0,300));
         }
+        if (r.intentos_diagnostico && r.intentos_diagnostico.length > 1) {
+          ln("    INTENTOS (" + r.intentos_diagnostico.length + " llamadas realizadas a la API):");
+          r.intentos_diagnostico.forEach(function(it, i) {
+            var badge = it.ok ? "OK" : "NO";
+            var pstr = Object.keys(it.params||{}).length ? JSON.stringify(it.params).slice(0,80) : "{}";
+            ln("      ["+badge+"]["+String(i+1).padStart(2,"0")+"] "+it.desc+" | code="+it.code+" | "+it.ms+"ms | params="+pstr);
+            if (it.servidor && !it.ok) ln("           servidor: "+String(it.servidor).slice(0,120));
+          });
+        }
         const rawSrv = (r.raw_servidor||"").trim();
         if (rawSrv) ln("    SERVIDOR: "+rawSrv.slice(0,250)+(rawSrv.length>250?"...":""));
-        const msg = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
-        if (msg) ln("    MSG   : "+msg.slice(0,250)+(msg.length>250?"...":""));
+        const msgFull = (r.mensaje||"").replace(/<[^>]*>/g,"").trim();
+        var msgShort = msgFull.replace(/code=\d+ tras \d+ intentos[^.]*\./,"").replace(/Firebird OK:[^.]*\./,"").trim();
+        if (msgShort && msgShort !== rawSrv.slice(0,200))
+          ln("    MSG   : "+msgShort.slice(0,250)+(msgShort.length>250?"...":""));
         if (r.params_usados && Object.keys(r.params_usados||{}).length)
           ln("    PARAMS: "+JSON.stringify(r.params_usados));
       });
@@ -3315,7 +3352,7 @@ const ApiExplorerModule = {
         method: "POST",
         body: JSON.stringify({solo_lectura: true}),
       });
-      // Importar resultados al estado local del Probador
+      // Importar resultados al estado local del Probador (con todos los campos para TXT)
       if (r.clases) {
         Object.entries(r.clases).forEach(([clase, entrada]) => {
           Object.entries(entrada.resultados_op||{}).forEach(([op, res]) => {
@@ -3325,12 +3362,20 @@ const ApiExplorerModule = {
               campos_detectados: res.campos||[],
               necesito_id_real: res.necesito_id||false,
               id_resuelto: res.id_resuelto||false,
+              id_usado: res.id_ok||"",
+              ids_firebird_probados: res.ids_fb||[],
+              n_variantes_intentadas: res.nvar||0,
+              raw_servidor: res.msg_servidor||"",
+              items_muestra: res.items_muestra||[],
+              params_usados: {},
               muestra_tipos: {},
-              mensaje: _e2msg(res.estado, res.code, res.id_resuelto),
+              mensaje: res.mensaje || _e2msg(res.estado, res.code, res.id_resuelto),
             };
           });
         });
       }
+      // Guardar pool_ids_firebird para sección 0 del TXT
+      if (r.pool_ids_firebird) window._ae_pool_ids_cache = r.pool_ids_firebird;
       // Resumen visual
       const res = r.resumen||{};
       if (resDiv) resDiv.innerHTML = `
