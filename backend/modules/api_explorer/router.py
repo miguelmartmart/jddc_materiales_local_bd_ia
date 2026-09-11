@@ -1128,10 +1128,14 @@ async def auto_probar(request: AutoProbarRequest):
     if not isinstance(items,list): items=[]
     n=len(items); campos=list(items[0].keys())[:25] if n>0 and isinstance(items[0],dict) else []
     _rdt=str(raw.get("data","")).lower() if isinstance(raw,dict) else ""
-    _KW=("licencia","no dispone","sin licencia","module not licensed")
+    _KW_LIC=("licencia","no dispone","sin licencia","module not licensed")
+    _KW_CRASH=("violaci","acceso a la direcci","pymemobileserver",
+               "pymeserver","exception","segfault","access violation",
+               "leer de direcci","escribir en direcci","m\u00f3dulo '")
     SM={0:"ok",1:"sin_licencia",2:"sin_permiso",5:"config_incompleta",
         6:"requiere_params",-1:"error",-99:"bloqueado"}
-    if code==5 and any(kw in _rdt for kw in _KW): estado="sin_licencia"
+    if code==5 and any(kw in _rdt for kw in _KW_LIC): estado="sin_licencia"
+    elif code==5 and any(kw in _rdt for kw in _KW_CRASH): estado="crash_servidor"
     else: estado=SM.get(code,"error")
     _rm=str(raw.get("data",raw.get("error","")))[:200] if isinstance(raw,dict) else ""
     ni=len(intentos)
@@ -1150,6 +1154,9 @@ async def auto_probar(request: AutoProbarRequest):
     MSGS={"ok":ok_txt,
           "sin_licencia":f"Sin licencia (code={code}). {_rm[:100]}. Contactar Distrito K.",
           "sin_permiso":f"Sin permiso (code=2). {_rm[:80]}",
+          "crash_servidor":(f"CRASH interno del servidor mPYME (code=5). "+
+                             f"Violacion de acceso/excepcion en PymeMobileServer.exe. "+
+                             f"Avisar al administrador del servidor SQL Obras. Raw: {_rm[:100]}"),
           "config_incompleta":f"Config incompleta (code=5). {_rm[:100]}",
           "requiere_params":(f"code=6 tras {ni} intentos ({n_variantes} variantes, {_ids_count} IDs BD). "+
                               f"{_rm[:80]}. "+req_txt),
@@ -1208,6 +1215,11 @@ async def probar_todo_catalogo(request: ProbarTodoRequest):
             data_txt = str((raw_resp or {}).get("data","")).lower()
             if any(kw in data_txt for kw in ("licencia","no dispone","sin licencia","module not licensed")):
                 return "sin_licencia", "Sin licencia — "+str((raw_resp or {}).get("data",""))[:100]
+            _CRASH=("violaci","acceso a la direcci","pymemobileserver","pymeserver",
+                    "exception","segfault","access violation","leer de direcci",
+                    "escribir en direcci","m\u00f3dulo '")
+            if any(kw in data_txt for kw in _CRASH):
+                return "crash_servidor", "CRASH mPYME — "+str((raw_resp or {}).get("data",""))[:120]
             return "config_incompleta", "code=5: "+str((raw_resp or {}).get("data",""))[:100]
         for op in ops:
             if op == "permiso":

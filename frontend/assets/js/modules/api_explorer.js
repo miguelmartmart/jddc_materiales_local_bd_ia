@@ -2708,6 +2708,7 @@ const ApiExplorerModule = {
     const nOk=porEst.ok||0, nReq=porEst.requiere_params||0;
     const nLic=porEst.sin_licencia||0, nPer=porEst.sin_permiso||0;
     const nErr=porEst.error||0, nCfg=porEst.config_incompleta||0, nBlq=porEst.bloqueado||0;
+    const nCrash=porEst.crash_servidor||0;
     const total=Object.keys(_probRes).length;
     const conRegistros   = Object.values(_probRes).filter(r=>r.n_items>0);
     const conAutoResolve = Object.values(_probRes).filter(r=>r.id_resuelto);
@@ -2721,7 +2722,7 @@ const ApiExplorerModule = {
       (ops||[]).forEach(op=>{if((RIESGO_OP[op]||0)>=2) opsEscritura.push({mod,cls,op});});
     }));
     const ELBL = {ok:"OK FUNCIONA",requiere_params:"NECESITA ID REAL",sin_licencia:"SIN LICENCIA",
-      sin_permiso:"SIN PERMISO",config_incompleta:"CONFIG INCOMPLETA",error:"ERROR TECNICO",bloqueado:"BLOQUEADO"};
+      sin_permiso:"SIN PERMISO",config_incompleta:"CONFIG INCOMPLETA",crash_servidor:"CRASH SERVIDOR mPYME",error:"ERROR TECNICO",bloqueado:"BLOQUEADO"};
     const OPLN = {browse:"Listar (.browse)",read:"Leer (.read)",permiso:"Permisos (.permiso)",
       info:"Campos (.info)",new:"Crear temp (.new)",edit:"Editar temp (.edit)",cancel:"Cancelar (.cancel)",
       write:"[ESCRITURA] Guardar (.write)",imputaPro:"[ESCRITURA] Imputar obra (.imputaPro)",delete:"[ELIMINAR] (.delete)"};
@@ -2773,6 +2774,7 @@ const ApiExplorerModule = {
     ln("  Sin licencia  (code=1)       : "+nLic);
     ln("  Sin permiso   (code=2)       : "+nPer);
     ln("  Config incompleta (code=5)   : "+nCfg);
+    ln("  CRASH servidor mPYME (code=5) : "+nCrash+" (violacion acceso Windows en PymeMobileServer.exe)");
     ln("  Error tecnico (code=-1/otro) : "+nErr);
     ln("  Escritura bloqueada          : "+nBlq);
     ln("");
@@ -2871,6 +2873,12 @@ const ApiExplorerModule = {
             if (r.estado==="config_incompleta") ln("       ACCION       : Verificar SQLOB_EMPRESA, SQLOB_USUARIO, SQLOB_PASSWORD en el .env del servidor.");
             if (r.estado==="requiere_params"&&!r.id_resuelto) ln("       ACCION       : Pulsar boton BD en el formulario del Probador o configurar Firebird en el .env.");
             if (r.estado==="error") ln("       ACCION       : Verificar que el servidor mPYME esta arrancado y accesible desde DEVIA.");
+            if (r.estado==="crash_servidor") {
+              ln("       CRASH MPYME  : El servidor PymeMobileServer.exe sufrio una violacion de acceso interna.");
+              ln("       ACCION       : 1) Reiniciar el servicio mPYME en el servidor Windows SQL Obras.");
+              ln("                      2) Si persiste, contactar con Distrito K / soporte del ERP.");
+              ln("                      3) Puede ocurrir con ciertos objectid no validos o modulos no inicializados.");
+            }
           } else {
             ln("       (operacion no probada - ejecutar manualmente con el formulario)");
           }
@@ -2951,6 +2959,14 @@ const ApiExplorerModule = {
         if (r.estado==="error") {
           ln("    CAUSA  : Error tecnico de conexion o excepcion del servidor mPYME.");
           ln("    ACCION : Verificar que el servidor mPYME esta arrancado. URL: "+apiUrl);
+        }
+        if (r.estado==="crash_servidor") {
+          ln("    CAUSA  : CRASH INTERNO DEL SERVIDOR mPYME (code=5 con violacion de acceso Windows).");
+          ln("    DETALLE: El proceso PymeMobileServer.exe sufrio una excepcion de acceso a memoria.");
+          ln("    ACCION : 1) Reiniciar el servicio mPYME en el servidor Windows SQL Obras.");
+          ln("             2) Si persiste al llamar a esta clase concreta, puede ser un bug del ERP.");
+          ln("             3) Contactar Distrito K / soporte con el mensaje exacto: "+( r.raw_servidor||r.mensaje||""));
+          ln("    MSG    : "+(r.raw_servidor||"").slice(0,300));
         }
         const rawSrv = (r.raw_servidor||"").trim();
         if (rawSrv) ln("    SERVIDOR: "+rawSrv.slice(0,250)+(rawSrv.length>250?"...":""));
