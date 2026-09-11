@@ -894,13 +894,15 @@ function _mkOpCard(clase, op, sesion) {
       <div style="font-size:0.8em;padding:5px 8px;background:${ec.bg};border-left:3px solid ${ec.border};border-radius:0 4px 4px 0">${res.mensaje||""}</div>
       ${res.raw_servidor?`<div style="margin-top:4px;background:#f1f5f9;border-left:3px solid #94a3b8;border-radius:3px;padding:4px 9px;font-size:0.74em;color:#475569;font-family:monospace">Servidor: ${String(res.raw_servidor).slice(0,200)}</div>`:""}
       ${res.code===6&&!res.id_resuelto?`<div style="margin-top:5px;background:#dbeafe;border:1px solid #93c5fd;border-radius:5px;padding:5px 10px;font-size:0.77em;color:#1e40af">
-        🔵 <b>code=6</b> — Puede ser que:<br>
-        <span style="color:#374151">① La clase necesite un identificador real (usa <b>🔍 BD</b> para obtener valores reales de SQL Obras)</span><br>
-        <span style="color:#374151">② El servidor mPYME no puede acceder temporalmente a la BD interna</span><br>
-        <span style="color:#374151">Acción: rellena el campo con <b>🔍 BD</b> o escríbelo manualmente y pulsa <b>▶ Ejecutar</b> de nuevo.</span>
+        🔵 <b>code=6 — mPYME necesita parámetros específicos</b><br>
+        <span style="color:#374151">El mensaje <i>"No es posible acceder a la BD"</i> es el texto genérico de mPYME para code=6. <b>Firebird está OK</b> — el formato del identificador no coincide.</span><br>
+        <span style="color:#374151">① Pulsa <b>🔍 BD</b> → chips con valores reales → pulsa uno → ▶ Ejecutar</span><br>
+        <span style="color:#374151">② Ejecuta la operación <b>Campos (.info)</b> de esta clase para ver el formato exacto que espera mPYME</span><br>
+        <span style="color:#374151">③ En el panel de diagnóstico abajo, busca el intento "browse sin params" — si da code=0 hay datos</span>
       </div>`:""}
       ${campos.length?`<p style="font-size:0.75em;color:#64748b;font-weight:600;margin:5px 0 2px">Campos detectados:</p>${camposHtml}`:""}
       ${tablaHtml}
+      ${res.info_servidor_html||''}
       ${res.diagnostico_html||''}
     </div>`;
   }
@@ -3138,6 +3140,28 @@ const ApiExplorerModule = {
           + (nRows > 20 ? '<div style="padding:3px 10px;font-size:0.73em;color:#64748b;background:#f8fafc;border-top:1px solid #e2e8f0">… y '+(nRows-20)+' registros más</div>' : '')
           + '</div>';
         r.campos_detectados = keys;
+      }
+      // Panel info_servidor: si code=6 y tenemos info() del servidor, mostrarlo
+      if (r.code === 6 && r.info_servidor) {
+        var infoSrv = r.info_servidor;
+        var infoColor = infoSrv.code === 0 ? '#f0fdf4' : '#fef9c3';
+        var infoBorder = infoSrv.code === 0 ? '#86efac' : '#fde68a';
+        var infoHtml = '<div style="margin-top:6px;background:'+infoColor+';border:1px solid '+infoBorder+';border-radius:6px;padding:8px 12px;font-size:0.8em">';
+        if (infoSrv.code === 0 && infoSrv.campos && infoSrv.campos.length) {
+          infoHtml += '<b>📋 Estructura real de mPYME para esta clase (via info()):</b><br>';
+          infoHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">';
+          (infoSrv.campos||[]).forEach(function(c){
+            var cn = typeof c==='object'?(c.nombre||c.name||c.campo||c.field||JSON.stringify(c)):String(c);
+            infoHtml += '<span style="background:#dcfce7;padding:2px 7px;border-radius:4px;font-family:monospace;font-size:0.88em">'+cn+'</span>';
+          });
+          infoHtml += '</div><div style="margin-top:4px;color:#166534;font-size:0.85em">💡 Usa estos campos como nombres de parámetros al ejecutar con 🔍 BD o manualmente.</div>';
+        } else if (infoSrv.code === 0) {
+          infoHtml += '<b>📋 info() OK</b> — '+( infoSrv.msg||"Estructura obtenida");
+        } else {
+          infoHtml += '<b>⚠️ info() code='+infoSrv.code+'</b> — '+(infoSrv.msg||"");
+        }
+        infoHtml += '</div>';
+        r.info_servidor_html = infoHtml;
       }
       // Panel diagnóstico de intentos
       if (r.intentos_diagnostico && r.intentos_diagnostico.length > 1) {

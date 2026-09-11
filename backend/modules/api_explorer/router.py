@@ -885,8 +885,8 @@ MAPA_FIREBIRD = {
     "partidas":    ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
     "proordutil":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
     "proordprev":  ("PROYECTOS",     "CODIGO",  "NOMBRE",       "codProyecto"),
-    "reporden":    ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
-    "repordutil":  ("REPCAB",        "CODIGO",  "CODIGO",       "codOrden"),
+    "reporden":    ("REPCAB",        "CODMAESTRO",  "CODMAESTRO",  "codOrden"),
+    "repordutil":  ("REPCAB",        "CODMAESTRO",  "CODMAESTRO",  "codOrden"),
     "recursos":    ("RECURSO",       "CODIGO",  "DESCRIPCION",  "codRecurso"),
     "repobjetos":  ("REPOBJETO",     "CODIGO",  "NOMBRE",       "codObjeto"),
     "repinst":     ("REPINSTALACION","CODIGO",  "NOMBRE",       "codInst"),
@@ -1115,10 +1115,32 @@ async def auto_probar(request: AutoProbarRequest):
             else:
                 intentos.append({"desc":"Firebird no disponible","params":{},"code":-1,"ms":0,
                                   "n_items":0,"ok":False,"servidor":fb.get("error","No disponible")})
-    # PASO 4: ultimo recurso browse sin params
+    # PASO 4: filtros de dominio conocidos
     if code!=0 and operacion=="browse":
-        rf,mf=_llama({},"browse sin params (ultimo recurso)")
+        for _fp in [{},{"pagesize":"1"},{"pagesize":"1","page":"1"},
+                    {"columns":"[]"},{"filter":"{}"}]:
+            if code==0: break
+            try:
+                rfd,mfd=svc._client().browse(svc.ssid1,svc.ssid2,clase,_fp)
+                if isinstance(rfd,dict) and rfd.get("code")==0: raw,ms,code=rfd,mfd,0
+            except: pass
+    # PASO 5: ultimo recurso absoluto
+    if code!=0 and operacion=="browse":
+        rf,mf=_llama({},"browse vacio ultimo recurso")
         if isinstance(rf,dict) and rf.get("code")==0: raw,ms,code=rf,mf,0
+    # PASO 6: si sigue code=6, llamar info() para revelar estructura real mPYME
+    _info_servidor={}
+    if code==6:
+        try:
+            iraw,_=svc._client().info(svc.ssid1,svc.ssid2,clase)
+            if isinstance(iraw,dict) and iraw.get("code")==0:
+                _info_servidor={"code":0,"campos":iraw.get("data",[]),
+                                "msg":"info() OK — campos de mPYME obtenidos correctamente"}
+            else:
+                _info_servidor={"code":(iraw or {}).get("code",-1),
+                                "msg":str((iraw or {}).get("data",""))[:200]}
+        except Exception as _ei:
+            _info_servidor={"code":-1,"msg":str(_ei)[:200]}
     raw_data=raw.get("data") if isinstance(raw,dict) else None
     items=[]
     if isinstance(raw_data,list): items=raw_data
@@ -1176,6 +1198,7 @@ async def auto_probar(request: AutoProbarRequest):
             "raw_servidor":_rm,
             "items":items[:25],
             "items_muestra":items[:5],
+            "info_servidor":_info_servidor,
             "muestra_tipos":({k:type(v).__name__ for k,v in items[0].items()} if n>0 and isinstance(items[0],dict) else {}),
             "intentos_diagnostico":intentos,
             "diag_resumen":dr}
