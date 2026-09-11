@@ -2711,7 +2711,7 @@ const ApiExplorerModule = {
     const isMock = s.use_mock;
     const empresa = s.empresa || "JDDC";
     const usuario = s.usuario || "---";
-    const apiUrl = (s.config && s.config.api_url) || s.api_url || "(no configurada — ver SQLOB_API_URL en .env)";
+    const apiUrl = ((_state.config && _state.config.api_url) || (s.config && s.config.api_url) || s.api_url || "(ver SQLOB_API_URL en .env)");
     const ts = new Date().toLocaleString("es-ES");
     const SEP = "=".repeat(72); const sep = "-".repeat(72);
     const hay = Object.keys(_probRes).length > 0;
@@ -2757,8 +2757,8 @@ const ApiExplorerModule = {
     ln("0. ESTADO CONEXION BASE DE DATOS FIREBIRD"); ln(sep);
     ln("  (Firebird es la BD de SQL Obras — se usa para obtener IDs reales al probar la API)");
     try {
-      // Llamada sincrona-fake: usamos datos en caché si existen, o indicamos que hay que comprobarlo
-      const fbCache = window._ae_diag_fb_cache;
+      // Usar diagnostico FB cacheado si existe, o el de debug-firebird-ids
+      const fbCache = window._ae_diag_fb_cache || window._ae_debug_fb_cache;
       if (fbCache) {
         ln("  DB_HOST   : " + (fbCache.db_host||"no configurado"));
         ln("  DB_PORT   : " + (fbCache.db_port||3050));
@@ -3219,22 +3219,31 @@ const ApiExplorerModule = {
     try {
       const r = await _fetch("/debug-firebird-ids", {method:"POST", body:"{}"});
       if (!r.success) { div.innerHTML = "<span style='color:#dc2626'>Error</span>"; return; }
-      var html = "<table style='width:100%;border-collapse:collapse;font-size:0.76em;margin-top:4px'>";
-      html += "<tr style='background:#f1f5f9'><th style='padding:3px 8px;text-align:left'>Clase</th><th>Tabla</th><th>Campo ID</th><th>OK</th><th>N vals</th><th>Primeros valores</th></tr>";
+      // Mostrar resultado de conn_test primero
+      var ct = r.conn_test || {};
+      var ctColor = ct.ok ? "#f0fdf4" : "#fef2f2";
+      var ctBorder = ct.ok ? "#86efac" : "#fca5a5";
+      var html = "<div style='background:"+ctColor+";border:1px solid "+ctBorder+";border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:0.8em'>";
+      html += ct.ok
+        ? "<b>✅ Conexion directa Firebird OK</b> — "+ct.n_rows+" registros en PROYECTOS<br><span style='color:#64748b'>Host: "+r.db_host+" | BD: "+r.db_name+"</span>"
+        : "<b>❌ Conexion directa Firebird FALLO</b><br><code style='color:#dc2626;font-size:0.85em'>"+ct.error+"</code><br><span style='color:#64748b'>Host: "+r.db_host+" | BD: "+r.db_name+"</span>";
+      html += "</div>";
+      html += "<table style='width:100%;border-collapse:collapse;font-size:0.76em;margin-top:4px'>";
+      html += "<tr style='background:#f1f5f9'><th style='padding:3px 8px;text-align:left'>Clase</th><th>Tabla</th><th>Campo</th><th>OK</th><th>Vals</th><th>Valores / Error exacto</th></tr>";
       Object.entries(r.resultados||{}).forEach(function(e){
         var cls=e[0], d=e[1];
         var bg = d.ok ? "#f0fdf4" : "#fef2f2";
         var ico = d.ok ? "✅" : "❌";
         html += "<tr style='background:"+bg+";border-bottom:1px solid #e2e8f0'>";
         html += "<td style='padding:3px 8px;font-weight:600'>"+cls+"</td>";
-        html += "<td style='padding:3px 8px;font-family:monospace'>"+d.tabla+"</td>";
-        html += "<td style='padding:3px 8px;font-family:monospace'>"+d.campo_id+"</td>";
+        html += "<td style='padding:3px 8px;font-family:monospace;font-size:0.85em'>"+d.tabla+"</td>";
+        html += "<td style='padding:3px 8px;font-family:monospace;font-size:0.85em'>"+d.campo_id+"</td>";
         html += "<td style='padding:3px 8px;text-align:center'>"+ico+"</td>";
         html += "<td style='padding:3px 8px;text-align:center'>"+(d.ok?d.n_valores:"—")+"</td>";
         if (d.ok && d.primeros && d.primeros.length)
-          html += "<td style='padding:3px 8px;font-family:monospace;font-size:0.9em'>"+d.primeros.slice(0,3).join(" | ")+"</td>";
+          html += "<td style='padding:3px 8px;font-family:monospace;font-size:0.88em'>"+d.primeros.slice(0,3).join(" | ")+"</td>";
         else
-          html += "<td style='padding:3px 8px;color:#dc2626;font-size:0.85em'>"+(d.error||"sin datos")+"</td>";
+          html += "<td style='padding:3px 8px;color:#dc2626;font-size:0.82em;word-break:break-word'>"+(d.error||"sin datos")+"</td>";
         html += "</tr>";
       });
       html += "</table>";

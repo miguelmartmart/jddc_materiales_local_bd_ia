@@ -991,11 +991,14 @@ def _firebird_ids(clase: str, n: int = 5) -> dict:
     except Exception as exc:
         from backend.core.config.settings import settings as _s
         import logging as _log
+        err_full = f"{type(exc).__name__}: {str(exc)}"
         _log.getLogger(__name__).warning(
-            f"[api_explorer] _firebird_ids({clase}): {type(exc).__name__}: {str(exc)[:300]}")
+            f"[api_explorer] _firebird_ids({clase}) tabla={info[0] if info else '?'}: {err_full}")
         return {"ok": False,
-                "error": f"{type(exc).__name__}: {str(exc)[:250]}",
-                "db_host": _s.DB_HOST, "db_name": _s.DB_NAME}
+                "error": err_full[:500],
+                "db_host": _s.DB_HOST, "db_name": _s.DB_NAME,
+                "tabla_intentada": info[0] if info else "?",
+                "campo_intentado": info[1] if info else "?"}
 
 
 def _firebird_primer_id(clase: str) -> dict:
@@ -1109,7 +1112,14 @@ async def auto_probar(request: AutoProbarRequest):
     if code!=0 and operacion in("browse","read"):
         if code==6 or _code5_es_params:
             nid=True
-            fb=_firebird_ids_cached(clase,10)
+            # Retry hasta 2 veces si _firebird_ids falla (Firebird puede necesitar tiempo)
+            fb = {"ok": False, "error": "no iniciado"}
+            for _retry_fb in range(3):
+                fb = _firebird_ids_cached(clase, 10)
+                if fb.get("ok"): break
+                if _retry_fb < 2:
+                    import time as _tw; _tw.sleep(0.3 * (_retry_fb + 1))
+                    _FB_CACHE.pop(clase, None)  # invalidar cache para forzar reintento
             if fb.get("ok") and fb.get("valores"):
                 papi=fb["param"]; ids_fb_probados=list(fb["valores"])
                 for val in fb["valores"]:
@@ -1441,9 +1451,19 @@ async def diagnostico_firebird():
 
 @router.post("/debug-firebird-ids")
 async def debug_firebird_ids(request: dict = None):
-    """Debug: prueba _firebird_ids para cada clase y devuelve el resultado exacto."""
+    """Debug: prueba _firebird_ids para cada clase y devuelve el resultado exacto con error completo."""
+    from backend.core.config.settings import settings as _s
     clases = list(MAPA_FIREBIRD.keys())
     resultados = {}
+    # Primero hacer una conexion de prueba directa para ver si el driver funciona
+    conn_test = {"ok": False, "error": "", "n_rows": 0}
+    try:
+        drv_t = _get_db_driver()
+        rows_t = drv_t.execute_query("SELECT COUNT(*) AS N FROM PROYECTOS")
+        drv_t.disconnect()
+        conn_test = {"ok": True, "error": "", "n_rows": (rows_t[0].get("N") or rows_t[0].get("n",0)) if rows_t else 0}
+    except Exception as _e_conn:
+        conn_test = {"ok": False, "error": str(_e_conn)}
     for clase in clases:
         r = _firebird_ids(clase, n=3)
         resultados[clase] = {
@@ -1451,8 +1471,10 @@ async def debug_firebird_ids(request: dict = None):
             "param": r.get("param",""), "n_valores": len(r.get("valores",[])),
             "primeros": r.get("valores",[])[:3],
             "tabla": MAPA_FIREBIRD[clase][0], "campo_id": MAPA_FIREBIRD[clase][1],
+            "tabla_err": r.get("tabla_intentada",""), "campo_err": r.get("campo_intentado",""),
         }
-    return {"success": True, "resultados": resultados}
+    return {"success": True, "resultados": resultados, "conn_test": conn_test,
+            "db_host": _s.DB_HOST, "db_name": _s.DB_NAME, "db_user": _s.DB_USER}
 
 
 @router.get("/informe-completo")
