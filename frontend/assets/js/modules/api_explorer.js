@@ -574,6 +574,7 @@ function renderProbador(s) {
          ${sesion?`<button onclick="ApiExplorerModule.doDiagnosticoFirebird()" class="btn secondary" style="white-space:nowrap;font-size:0.83em" title="Comprobar conexion Firebird y ver IDs reales disponibles">🔌 Diagnóstico BD</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doTestNewCancel()" class="btn secondary" style="white-space:nowrap;font-size:0.83em;background:#7c3aed;color:white;border-color:#7c3aed" title="Prueba new+cancel (seguro, no persiste) para verificar si la BD de mPYME responde">🔬 Test BD (new+cancel)</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doCentroDiagnostico(event)" style="white-space:nowrap;font-size:0.85em;font-weight:700;padding:6px 16px;background:linear-gradient(135deg,#dc2626,#9333ea);color:white;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.18)" title="Diagnóstico exhaustivo automático — prueba TODO antes de escalar al técnico">🎯 Diagnóstico completo</button>`:""}
+         ${sesion?`<button onclick="ApiExplorerModule.doVerificarMantenimiento(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer" title="Verificar si SQL Obras está en modo mantenimiento + instrucciones para desactivarlo">🔧 Modo mantenimiento</button>`:""}
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -3282,6 +3283,103 @@ const ApiExplorerModule = {
       </div>`;
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '🎯 Diagnóstico completo'; }
+    }
+  },
+
+  async doVerificarMantenimiento(event) {
+    // Verifica si SQL Obras está en modo mantenimiento y muestra instrucciones paso a paso
+    const btn = event?.target;
+    const root = document.getElementById('ae-super-diag-root');
+    if (!root) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando…'; }
+
+    root.innerHTML = `<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 16px;color:#c2410c">
+      ⏳ Verificando modo mantenimiento en SQL Obras…
+    </div>`;
+
+    try {
+      const r = await _fetch('/modo-mantenimiento', {method:'GET'});
+      const mant = r.esta_en_mantenimiento;
+      const code = r.browse_clientes_code;
+      const inst = r.instrucciones || {};
+
+      const headBg = mant === true ? '#7c2d12' : mant === false ? '#14532d' : '#1e3a5f';
+      const headIcon = mant === true ? '🔴' : mant === false ? '🟢' : '❓';
+      const headTxt = mant === true
+        ? 'MODO MANTENIMIENTO ACTIVO — La API no puede procesar peticiones'
+        : mant === false
+        ? 'Modo mantenimiento NO detectado — browse(clientes) responde correctamente'
+        : 'No se pudo verificar (sin sesión activa)';
+
+      let h = `<div style="border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);margin-bottom:8px">
+        <div style="background:${headBg};color:white;padding:14px 18px">
+          <div style="font-size:1.1em;font-weight:700">${headIcon} ${headTxt}</div>
+          <div style="font-size:0.8em;opacity:0.85;margin-top:4px">
+            browse(clientes) → code=${code ?? '—'} · ${r.api_url || ''} · ${r.timestamp?.slice(0,19)||''}
+          </div>
+        </div>`;
+
+      // Mensaje del servidor
+      if (r.browse_clientes_msg) {
+        h += `<div style="background:#fff7ed;border-left:4px solid #f97316;padding:8px 14px;font-size:0.84em;color:#9a3412">
+          📨 Mensaje exacto del servidor: <strong>"${r.browse_clientes_msg}"</strong>
+        </div>`;
+      }
+
+      // Nota doc oficial
+      if (r.nota_doc) {
+        h += `<div style="background:#f0f9ff;border-left:4px solid #0284c7;padding:8px 14px;font-size:0.8em;color:#0c4a6e">
+          📖 ${r.nota_doc}
+        </div>`;
+      }
+
+      if (mant === true) {
+        // Mostrar opciones de resolución
+        h += `<div style="padding:14px 18px;background:#fffbeb">
+          <div style="font-weight:700;font-size:0.92em;color:#92400e;margin-bottom:10px">
+            🛠️ Cómo desactivar el modo mantenimiento — opciones en orden de prioridad:
+          </div>`;
+
+        const opciones = [
+          {key:'opcion_A', color:'#166534', bg:'#f0fdf4', bor:'#86efac'},
+          {key:'opcion_B', color:'#1e40af', bg:'#eff6ff', bor:'#93c5fd'},
+          {key:'opcion_C', color:'#92400e', bg:'#fffbeb', bor:'#fde68a'},
+          {key:'opcion_D', color:'#6b21a8', bg:'#faf5ff', bor:'#d8b4fe'},
+        ];
+        opciones.forEach(({key, color, bg, bor}) => {
+          const op = inst[key];
+          if (!op) return;
+          h += `<div style="background:${bg};border:1px solid ${bor};border-radius:8px;padding:10px 14px;margin-bottom:8px">
+            <div style="font-weight:700;color:${color};font-size:0.88em;margin-bottom:6px">${op.titulo}</div>
+            <ol style="margin:0;padding-left:18px;font-size:0.82em;color:#374151">
+              ${(op.pasos||[]).map(p=>`<li style="margin-bottom:3px">${p}</li>`).join('')}
+            </ol>
+          </div>`;
+        });
+        h += `</div>`;
+      } else if (mant === false) {
+        h += `<div style="padding:14px 18px;background:#f0fdf4;color:#166534;font-size:0.87em">
+          ✅ El modo mantenimiento no está activo. Si el Diagnóstico completo sigue fallando,
+          el problema puede ser de <strong>licencias mPYME</strong> o de <strong>parámetros de browse</strong>.
+          Usa el botón <strong>🎯 Diagnóstico completo</strong> para el análisis exhaustivo.
+        </div>`;
+      }
+
+      h += `<div style="padding:8px 14px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:right">
+        <button onclick="ApiExplorerModule.doVerificarMantenimiento({target:this})"
+          style="font-size:0.8em;padding:4px 12px;background:#ea580c;color:white;border:none;border-radius:4px;cursor:pointer">
+          🔄 Verificar de nuevo
+        </button>
+      </div>
+      </div>`;
+
+      root.innerHTML = h;
+    } catch(e) {
+      root.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b">
+        ❌ Error verificando: ${e.message}
+      </div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔧 Modo mantenimiento'; }
     }
   },
 

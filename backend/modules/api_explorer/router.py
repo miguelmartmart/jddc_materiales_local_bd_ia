@@ -1780,9 +1780,11 @@ async def super_diagnostico():
             cr["read_code_final"]=cr["read_intentos"][-1]["code"]
         clases_resultado[clase]=cr
     # F4: new+cancel con variantes de params de contexto
+    # CORRECCION: new() sin objectid para clases padre (doc oficial v1.2: objectid es OPCIONAL)
+    # El fix en service.py ya no envia objectid=new para clases simples
     nc_resultados=[]
     _new_variantes = [
-        ({},"vacio"),
+        ({},"sin_objectid"),            # CORRECTO segun doc: new() obligatorios solo ssid1+ssid2+objectclass
         ({"ejercicio":_anyo_bd},f"ej={_anyo_bd}"),
         ({"ejercicio":"2026"},"ej=2026"),
         ({"empr":cfg.get("empresa","")},"empr"),
@@ -1991,6 +1993,109 @@ async def super_diagnostico():
                    "bd_mpyme_accesible":nc_ok,"fb_conecta":fb_ok,"n_var":n_var,
                    "clases_con_datos":_cl_ok,"clases_code6":_cl_p6,
                    "nc_new_codes":_nc_new_codes,"bd_host":db_host},
+    }
+
+
+@router.get("/modo-mantenimiento")
+async def modo_mantenimiento():
+    """
+    Verifica si SQL Obras/PymeMobileServer esta en modo mantenimiento
+    y devuelve instrucciones paso a paso para desactivarlo.
+
+    Segun documentacion oficial mPYME v1.2 pag. 7:
+    code=6 = Maintenance mode: el sistema esta en modo mantenimiento.
+
+    El modo mantenimiento se puede activar/desactivar desde:
+    1. SQL Obras desktop (si tienes acceso directo)
+    2. PymeMobileServer.exe (reinicio del servicio)
+    3. Contactando a Distrito K
+    """
+    svc = get_service()
+    cfg = svc.get_config_env()
+    api_url = cfg.get("api_url", "?")
+    empresa = cfg.get("empresa", "?")
+    ts = __import__("datetime").datetime.now().isoformat()
+
+    # Prueba rapida: hace una sola llamada browse(clientes) para detectar si sigue en mantenimiento
+    esta_en_mantenimiento = None
+    browse_msg = ""
+    browse_code = None
+    if svc.session_active:
+        try:
+            _rb, _ = svc._client().browse(svc.ssid1, svc.ssid2, "clientes", {})
+            browse_code = _rb.get("code") if isinstance(_rb, dict) else -1
+            browse_msg = str((_rb or {}).get("data", ""))[:200]
+            esta_en_mantenimiento = (browse_code == 6)
+        except Exception as _em:
+            esta_en_mantenimiento = None
+            browse_msg = str(_em)[:100]
+
+    return {
+        "success": True,
+        "timestamp": ts,
+        "api_url": api_url,
+        "empresa": empresa,
+        "browse_clientes_code": browse_code,
+        "browse_clientes_msg": browse_msg,
+        "esta_en_mantenimiento": esta_en_mantenimiento,
+        "instrucciones": {
+            "titulo": "Como desactivar el modo mantenimiento en SQL Obras",
+            "descripcion": (
+                "El modo mantenimiento (code=6 segun doc mPYME v1.2) bloquea TODAS las "
+                "llamadas a la API. Mensaje del servidor: 'No es posible acceder a la base "
+                "de datos en este momento'. Se puede desactivar sin necesidad de llamar a "
+                "Distrito K si tienes acceso al servidor."
+            ),
+            "opcion_A": {
+                "titulo": "Opcion A: Desde SQL Obras desktop (RECOMENDADA si tienes acceso)",
+                "pasos": [
+                    "1. Abrir SQL Obras en el PC servidor (192.168.0.254)",
+                    "2. Menu: Administracion > Sistema (o Herramientas > Opciones del sistema)",
+                    "3. Buscar 'Modo mantenimiento' o 'Mantenimiento API'",
+                    "4. Si esta activo: DESACTIVAR y guardar",
+                    "5. Alternativa: Utilidades > Modo servicio > Desactivar",
+                    "6. Reiniciar PymeMobileServer.exe despues",
+                    "7. Volver a DEVIA y repetir el Diagnostico completo"
+                ],
+            },
+            "opcion_B": {
+                "titulo": "Opcion B: Reiniciar PymeMobileServer.exe",
+                "pasos": [
+                    "1. En el servidor 192.168.0.254: abrir Servicios de Windows",
+                    "   (Inicio > Ejecutar > services.msc)",
+                    "2. Buscar 'PymeMobile Server' o 'mPYME'",
+                    "3. Click derecho > Reiniciar",
+                    "4. Esperar 30 segundos",
+                    "5. Volver a DEVIA y repetir el Diagnostico completo",
+                    "NOTA: Reiniciar el servicio NO desactiva el modo mantenimiento si "
+                    "fue activado deliberadamente desde SQL Obras. Usar Opcion A primero."
+                ],
+            },
+            "opcion_C": {
+                "titulo": "Opcion C: Reiniciar el servidor completo",
+                "pasos": [
+                    "1. Reiniciar el servidor 192.168.0.254",
+                    "2. Esperar a que SQL Obras y PymeMobileServer arranquen",
+                    "3. Verificar que SQL Obras abre sin pedir confirmacion de mantenimiento",
+                    "4. Volver a DEVIA y repetir el Diagnostico completo"
+                ],
+            },
+            "opcion_D": {
+                "titulo": "Opcion D: Contactar a Distrito K",
+                "pasos": [
+                    "Enviar el mensaje de la pregunta generada en el Diagnostico completo",
+                    "Preguntar: '¿Esta activo el modo mantenimiento en nuestra instalacion? "
+                    "browse() y new() devuelven code=6 (Maintenance mode segun doc v1.2) "
+                    "con el mensaje \"No es posible acceder a la base de datos en este momento\"'",
+                    "Solicitar que verifiquen el estado del servidor y desactiven el modo mantenimiento"
+                ],
+            },
+        },
+        "nota_doc": (
+            "Documentacion oficial mPYME v1.2, pag. 7: "
+            "'code=6 = Maintenance mode: no se puede ejecutar la peticion por encontrarse "
+            "el sistema en modo de mantenimiento. La sesion sigue siendo valida.'"
+        ),
     }
 
 

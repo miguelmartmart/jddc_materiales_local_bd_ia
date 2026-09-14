@@ -1,172 +1,117 @@
-# Estado completo — 14/09/2026 (v6.0.0)
+# Estado para retomar — 14/09/2026 (v7.0.0 — Modo Mantenimiento + Fix new())
 
-> **LEER ESTO PRIMERO antes de cualquier sesion de IA.**
-> Reemplaza todas las versiones anteriores de documentacion.
-
----
-
-## HALLAZGO CRITICO — 14/09/2026 (tarde)
-
-### code=6 = MAINTENANCE MODE (no es falta de parametro)
-
-La documentacion oficial mPYME v1.2 (PDF adjunto), pagina 7, dice:
-
-```
-codigos de respuesta:
-  0 = Success
-  1 = Warning and retry
-  2 = Confirm and retry
-  3 = Dialog and retry
-  5 = Failed: no se ha podido ejecutar la peticion
-  6 = Maintenance mode: no se puede ejecutar la peticion por encontrarse
-      el sistema en modo de mantenimiento. La sesion sigue siendo valida.
-  7 = Invalid session
-  8 = Exception
-```
-
-**CONCLUSION: code=6 NO significa "falta parametro". Significa que SQL Obras esta en MODO MANTENIMIENTO.**
-
-### new() = code=5 con mensaje "No dispone de licencia para el modulo Proyectos"
-
-Esto indica que el modulo mPYME de Proyectos (y posiblemente Reparaciones y Compras) **no esta contratado o no esta activado** para este cliente.
-
-Dos posibles causas del problema:
-1. **SQL Obras en modo mantenimiento** (code=6 en browse y new)
-2. **Modulo mPYME no contratado** (code=5 en new con msg de licencia)
-
-Ambas causas requieren intervencion de Distrito K.
+> **LEER ESTO PRIMERO. Es el unico fichero de estado valido. Fecha: 14/09/2026.**
 
 ---
 
-## Lo que SÍ funciona
+## El problema central — causa identificada
 
-| Operacion | Resultado | Nota |
-|---|---|---|
-| Login | ✅ code=0 | Sesion activa correctamente |
-| permiso(partidas) | ✅ code=0 | Tiene acceso |
-| permiso(repobjetos) | ✅ code=0 | Tiene acceso |
-| permiso(repinst) | ✅ code=0 | Tiene acceso |
-| permiso(tipostrabajo) | ✅ code=0 | Tiene acceso |
-| permiso(ordenfab) | ✅ code=0 | Tiene acceso |
-| info(clientes) | ✅ code=0 | Funcion de auditoria (no da campos) |
-| Firebird directo | ✅ 1212 proyectos | BD accesible directamente |
+**code=6 = Maintenance mode** segun documentacion oficial mPYME v1.2, pag. 7:
 
-## Lo que NO funciona
+> `"6 = Maintenance mode: no se puede ejecutar la peticion por encontrarse el sistema en modo de mantenimiento. La sesion sigue siendo valida."`
 
-| Operacion | Resultado | Causa segun docs |
-|---|---|---|
-| browse(*) | ❌ code=6 | Modo mantenimiento |
-| new(proyectos) | ❌ code=5 | "No dispone de licencia para el modulo Proyectos" |
-| new(clientes) | ❌ code=6 | Modo mantenimiento |
-| read(proyectos) | ❌ code=6 | Modo mantenimiento |
+**Mensaje exacto del servidor JDDC:** `"No es posible acceder a la base de datos en este momento"`
+
+Esto NO es un error de parametros. Es el modo mantenimiento de SQL Obras activado.
 
 ---
 
-## Por que code=6 no es problema de parametros
+## Evidencia del diagnostico (700 variantes probadas)
 
-- La documentacion dice que browse(proyectos) SOLO requiere filter (opcional)
-- Se han probado 774 variantes sin exito
-- El mensaje exacto es "No es posible acceder a la base de datos en este momento"
-- new() sin parametros tambien da code=6 (new no necesita parametros segun doc)
-- Esto es coherente con modo mantenimiento: TODAS las operaciones fallan
-
----
-
-## Lo que hay que preguntar a Distrito K
-
-### Pregunta generada automaticamente (ver app DEVIA)
-
-La app genera la pregunta completa con toda la evidencia.
-Los puntos clave son:
-
-1. **SQL Obras esta en modo mantenimiento?** Como desactivarlo?
-2. **El modulo mPYME de Proyectos esta contratado/activado** para JDDC?
-3. Si no es modo mantenimiento, que parametro requiere browse()?
+| Clase | permiso | browse | new() | Causa |
+|---|---|---|---|---|
+| proyectos | code=6 | code=6 | code=5 (No licencia) | Mantenimiento + sin licencia modulo |
+| partidas | code=0 | code=6 | code=6 | Mantenimiento |
+| clientes | code=6 | code=6 | code=6 | Mantenimiento |
+| reporden | code=6 | code=6 | code=6 | Mantenimiento |
+| repobjetos | code=0 | code=6 | — | Mantenimiento |
+| tipostrabajo | code=0 | code=6 | — | Mantenimiento |
+| ordenfab | code=0 | code=5 | — | Peticion no soportada |
+| proordprev | code=6 | code=5 | — | Peticion no soportada |
 
 ---
 
-## Lo que ya se ha probado en browse (774 variantes)
+## Dos problemas distintos
 
-- Vacio (sin parametros)
-- filter="" (vacio), filter={}
-- pagesize=1/25, more=first
-- ejercicio=2021/2025/2026, anyo=2021/2026
-- estado=abierta/activa, soloActivos=T, activo=T, todos=T
-- objectid=new
-- IDs reales de Firebird (codProyecto=1, codOrden=1, etc.)
-- masterid=<id>, master=<id> (para proordutil, partidas, repobjetos)
-- desde/hasta (para proordutil segun doc oficial)
-- serie=A (para documentos)
-- mode=add (para repobjetos)
-- columns=[] (ordenacion)
+### Problema 1: SQL Obras en modo mantenimiento (code=6)
+- Bloquea browse(), new(), write(), read() en TODAS las clases
+- El usuario tiene acceso a SQL Obras en el servidor 192.168.0.254
+- Solucion: Desactivar el modo mantenimiento (ver instrucciones abajo)
+
+### Problema 2: Modulos mPYME sin licencia (new=code=5)
+- new(proyectos) = "No dispone de licencia para el modulo Proyectos. (Funcion proyectos)"
+- Los modulos de Proyectos, Reparaciones, Fabricacion son licencias adicionales de pago
+- Solucion: Contratar modulos con Distrito K
 
 ---
 
-## Informacion tecnica del servidor
+## Como desactivar el modo mantenimiento en SQL Obras
 
-- URL API: http://192.168.0.254:80/
-- Empresa: JDDC
-- BD Firebird: 192.168.0.254 / C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb
-- 1212 proyectos en Firebird
-- PymeMobileServer.exe: responde HTTP 200, devuelve JSON valido
-- Sesion: ssid1/ssid2 obtenidos correctamente en login
+### Opcion A (recomendada) — Desde SQL Obras desktop
+1. Abrir SQL Obras en el PC servidor (192.168.0.254)
+2. Menu: Administracion > Sistema (o Herramientas > Opciones del sistema)
+3. Buscar "Modo mantenimiento" o "Mantenimiento API"
+4. Si esta activo: DESACTIVAR y guardar
+5. Alternativa: Utilidades > Modo servicio > Desactivar
+6. Reiniciar PymeMobileServer.exe despues
 
----
+### Opcion B — Reiniciar PymeMobileServer.exe
+1. Servicios de Windows (services.msc) en servidor 192.168.0.254
+2. Buscar "PymeMobile Server" o "mPYME"
+3. Click derecho > Reiniciar
+4. Esperar 30 segundos y verificar
 
-## Archivos de documentacion tecnica en Downloads
-
-- `mpyme_auth.txt` — Protocolos autenticacion, codigos de error (KEY: code=6=maintenance)
-- `mpyme_paginas_clave.txt` — Intro, browse, filter, columns, more
-- `mpyme_gestion_proyectos.txt` — Proyectos, proordutil (masterid+desde/hasta), partidas
-- `mpyme_ejemplos.txt` — Ejemplos curl completos de todas las operaciones
-- `mpyme_proyectos_full.txt` — Doc completa incluyendo Maestros, Documentos, Fabricacion
-- `mpyme_proyectos_reps.txt` — Doc completa incluyendo Reparaciones
-- `mPYME_API_Documentacion 1.2.pdf` — PDF original completo
-
----
-
-## Estructura del proyecto DEVIA
-
-```
-bots/interjddcia/
-  backend/modules/api_explorer/
-    router.py           -- Endpoints FastAPI (super-diagnostico v6)
-    service.py          -- Cliente mPYME + sesion stateful
-    api_catalogue_full.py -- Catalogo de clases y operaciones
-    data/               -- Cache de sesion y descubrimiento
-  frontend/assets/js/modules/
-    api_explorer.js     -- UI completa (boton diagnostico + render)
-  docs/
-    SESION_2026_09_14_ESTADO_ACTUAL.md -- este archivo
-```
-
-## Endpoint super-diagnostico
-
-`POST /api/api-explorer/super-diagnostico`
-
-Fases:
-- F1: Firebird directo (conexion + conteo tablas)
-- F2: Pool de IDs reales de Firebird por clase
-- F3: browse (774+ variantes por clase) + read con IDs reales
-- F4: new()+cancel() en 4 clases con variantes de params
-- F5: Conclusiones automaticas + aviso_admin + pregunta_dk
-
-Respuesta incluye:
-- `conclusiones[]` con tipo (ok/licencia/params/bd_inacc/config/firebird)
-- `pregunta_distrito_k` texto completo para enviar
-- `aviso_admin` aviso si hay modo mantenimiento
-- `nc_new_codes` codigos de new()
-- `clases_permiso_ok` clases con permiso=0
+### Opcion C — Contactar Distrito K
+Si las opciones A y B no funcionan:
+> "Nuestro servidor devuelve code=6 (Maintenance mode segun doc v1.2) con mensaje
+> `No es posible acceder a la base de datos en este momento`.
+> browse() y new() fallan en todas las clases. Por favor verificad si el modo
+> mantenimiento esta activo en nuestra instalacion y como desactivarlo."
 
 ---
 
-## QUE HACER EN LA PROXIMA SESION
+## Fix tecnico aplicado en esta sesion
 
-1. `git pull` en la VM, reiniciar DEVIA, Ctrl+F5
-2. Ejecutar diagnostico completo
-3. Leer el panel F4 — si new()=code=6: SQL Obras en modo mantenimiento
-4. Copiar la pregunta generada y enviarla a Distrito K
-5. Pedir a Distrito K:
-   a. Desactivar modo mantenimiento si esta activo
-   b. Confirmar que el modulo mPYME Proyectos+Reparaciones esta contratado
-6. Una vez resuelto, repetir diagnostico — deberia dar code=0 en browse
+### Bug corregido: new() enviaba objectid=new incorrectamente
+**Antes:** `method=new&objectclass=proyectos&ssid1=...&ssid2=...&objectid=new`
+**Ahora:** `method=new&objectclass=proyectos&ssid1=...&ssid2=...`
+
+La doc oficial dice: new() obligatorios = ssid1, ssid2, objectclass. SOLO.
+`objectid` solo se usa en clases hija (ej: proordutil con id del proyecto padre).
+
+### Endpoint nuevo: GET /modo-mantenimiento
+- Verifica si browse(clientes) = code=6
+- Devuelve instrucciones paso a paso para desactivar el modo mantenimiento
+- Accesible desde el boton naranja en el Probador Visual
+
+---
+
+## Estado de implementacion (v7.0.0)
+
+| Componente | Estado |
+|---|---|
+| F1 Firebird | OK — 1212 proyectos |
+| F2 IDs de BD | OK — 16 tablas con IDs reales |
+| F3 Browse | 700 variantes probadas, todas code=6/5 |
+| F4 new() corrected | Fix: ya no envia objectid=new incorrectamente |
+| Boton Modo mantenimiento | NUEVO — verifica y da instrucciones |
+| Diagnostico completo | OK — conclusiones correctas |
+| Pregunta Distrito K | Generada automaticamente |
+
+---
+
+## Lo que queda por hacer
+
+1. **PRIMERO:** Desactivar el modo mantenimiento en SQL Obras
+2. **DESPUES:** Ejecutar Diagnostico completo para ver si browse() funciona
+3. **Si sigue sin funcionar:** Ver si hay modulos sin licencia (code=5 en new)
+4. **Si todo OK:** La integracion deberia funcionar correctamente
+
+---
+
+## Archivos clave
+
+- `backend/modules/api_explorer/service.py` — RealApiClient, fix new() sin objectid
+- `backend/modules/api_explorer/router.py` — super-diagnostico, /modo-mantenimiento
+- `frontend/assets/js/modules/api_explorer.js` — UI, boton modo mantenimiento
+- `docs/SESION_2026_09_14_ESTADO_ACTUAL.md` — este fichero

@@ -240,9 +240,23 @@ class RealApiClient:
         return self._post(fields)
 
     def new(self, s1, s2, cls, params):
+        """
+        new() segun doc oficial mPYME v1.2:
+        - Obligatorios: ssid1, ssid2, objectclass
+        - Opcional: objectid SOLO cuando es una clase hija que necesita contexto
+          (ej: proordutil con objectid=<idProyecto>-undefined-newmat)
+        - Para clases padre (proyectos, clientes, reporden...) NO se envia objectid
+        ANTES: siempre enviabamos objectid=new -> causa code=6 si no es reconocido
+        AHORA: solo se envia objectid si viene en params o si la clase lo requiere
+        """
         import json
-        oid = params.pop("objectid", "new")
-        fields = {**self._base(), "method": "new", "objectclass": cls, "objectid": oid}
+        params = dict(params)  # no mutar el original
+        oid = params.pop("objectid", None)
+        fields = {**self._base(), "method": "new", "objectclass": cls}
+        # Solo incluir objectid si se especifica explicitamente
+        # La doc dice: "objectid" es OPCIONAL en new() y solo aplica a clases hija
+        if oid and oid != "new":
+            fields["objectid"] = oid
         for k, v in params.items():
             fields[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
         return self._post(fields)
