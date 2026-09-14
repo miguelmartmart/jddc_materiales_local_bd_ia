@@ -1721,32 +1721,80 @@ async def super_diagnostico():
     _cl_ok  = [c for c,v in clases_resultado.items() if v["browse_ok"]]
     _cl_p6  = [c for c,v in clases_resultado.items() if not v["browse_ok"] and v.get("browse_code_final")==6]
     _cl_lic = [c for c,v in clases_resultado.items() if v.get("permiso_code")==1]
+    _cl_perm_ok = [c for c,v in clases_resultado.items() if v.get("permiso_code")==0]
+    _nc_new_codes = sorted({r["new_code"] for r in nc_resultados})
+    _nc_code6_all = bool(nc_resultados) and all(r["new_code"]==6 for r in nc_resultados)
+    _nc_code5_all = bool(nc_resultados) and all(r["new_code"]==5 for r in nc_resultados)
     conclusiones=[]
     if n_ok: conclusiones.append({"tipo":"ok","texto":f"✅ {n_ok} clase(s) con datos reales: {', '.join(_cl_ok)}"})
     if n_lic: conclusiones.append({"tipo":"licencia","texto":f"🚫 Sin licencia: {', '.join(_cl_lic)}"})
-    if _cl_p6:
-        conclusiones.append({"tipo":"bd_inacc" if not nc_ok else "params","texto":(
+    if nc_ok and _cl_p6:
+        conclusiones.append({"tipo":"params","texto":(
             f"🔵 {len(_cl_p6)} clase(s) code=6 tras {n_var} variantes. "
-            +("BD mPYME accesible (new+cancel OK). Problema: formato params browse." if nc_ok else
-              "BD mPYME NO accesible. Reiniciar SQL Obras + PymeMobileServer.exe."))})
+            f"BD mPYME accesible (new+cancel OK). Formato params browse incorrecto. "
+            f"Contactar Distrito K con pregunta generada abajo.")})
+    elif not nc_ok and (_cl_p6 or not n_ok):
+        if _nc_code6_all:
+            conclusiones.append({"tipo":"bd_inacc","texto":(
+                f"❌ CAUSA CONFIRMADA: PymeMobileServer no conecta a SQL Obras. "
+                f"new()=code=6 en todas las clases. "
+                f"Abrir SQL Obras en {fb_diag.get('db_host','?')} y reiniciar PymeMobileServer.exe.")})
+        elif _nc_code5_all:
+            conclusiones.append({"tipo":"bd_inacc","texto":(
+                f"❌ PymeMobileServer devuelve code=5 en new(). Error config/licencia interna.")})
+        else:
+            conclusiones.append({"tipo":"bd_inacc","texto":(
+                f"❌ BD mPYME NO accesible (new() codes={_nc_new_codes}). "
+                f"Reiniciar SQL Obras + PymeMobileServer.exe.")})
     if not fb_ok: conclusiones.append({"tipo":"firebird","texto":"❌ Firebird no conecta. Verificar .env"})
     empresa=cfg.get("empresa","?"); api_url=cfg.get("api_url","?")
+    db_host=fb_diag.get("db_host","?"); db_name=fb_diag.get("db_name","?")
     _ids_ej=[f"  - {c}: {ids_pool.get(c,{}).get('param','?')}={ids_pool.get(c,{}).get('valores',[None])[0]}"
              for c in _cl_p6[:3] if ids_pool.get(c,{}).get("ok")]
     _pe=clases_resultado.get(_cl_p6[0],{}).get("permiso_code","?") if _cl_p6 else "?"
+    _nc_msgs=[f"{r['clase']}: new()=code{r['new_code']} ({r['msg'][:60]})" for r in nc_resultados]
+    # Aviso para el administrador del servidor (BD no accesible)
+    aviso_admin=""
+    if not nc_ok:
+        _pok_str=(", ".join(_cl_perm_ok)) if _cl_perm_ok else "ninguna"
+        aviso_admin=(
+            f"AVISO URGENTE - Sistema DEVIA / SQL Obras ({ts_inicio[:19]})\n"
+            f"\nPymeMobileServer.exe ({api_url}) responde pero NO puede"
+            f" conectar internamente a la base de datos SQL Obras.\n"
+            f"\nEvidencia diagnostica automatica:\n"
+            f"  - Firebird conexion directa OK (host={db_host}, BD={db_name})\n"
+            f"  - new() en 4 clases: {chr(10).join(_nc_msgs)}\n"
+            f"  - {n_var} variantes de browse probadas: todas code=6 o code=5\n"
+            f"  - Clases con permiso=0 (autenticado): {_pok_str}\n"
+            f"\nACCION REQUERIDA en servidor {db_host}:\n"
+            f"  1. Verificar que SQL Obras esta abierto (aplicacion escritorio activa)\n"
+            f"  2. Reiniciar servicio PymeMobileServer.exe\n"
+            f"     (Servicios de Windows > PymeMobile Server > Reiniciar)\n"
+            f"  3. Si persiste: reiniciar el servidor {db_host} completo\n"
+            f"  4. Revisar log de PymeMobileServer.exe para errores internos\n"
+            f"\nUna vez resuelto, repetir el Diagnostico completo en DEVIA."
+        )
+    # Pregunta para Distrito K (solo si BD accesible y el problema son params)
     pregunta_dk=""
-    if _cl_p6:
+    if _cl_p6 and nc_ok:
         pregunta_dk=(
             f"Hola Distrito K,\n\nInstalacion: empresa={empresa}, URL={api_url}\n\n"
             f"Clases {', '.join(_cl_p6[:8])} devuelven code=6 en browse tras {n_var} variantes "
-            f"(vacio, pagesize, filter, IDs Firebird, ejercicio, estado, soloActivos, anyo, todos).\n\n"
-            +("IDs Firebird:\n"+"\n".join(_ids_ej)+"\n\n" if _ids_ej else "")
-            +f"permiso()=code={_pe} (acceso OK). new()+cancel(): {'OK' if nc_ok else 'FALLA'}\n\n"
+            f"(vacio, pagesize, filter, IDs Firebird reales, ejercicio, estado, soloActivos, anyo, todos).\n\n"
+            +("IDs Firebird probados:\n"+"\n".join(_ids_ej)+"\n\n" if _ids_ej else "")
+            +f"permiso()=code={_pe} (autenticado OK). new()+cancel(): OK (BD accesible).\n\n"
             "Preguntas:\n"
-            "  1. Parametro exacto obligatorio para browse en estas clases?\n"
-            "  2. Hay parametro de instalacion (ejercicio, codEmpresa, soloActivos)?\n"
-            "  3. code=6 = siempre 'falta parametro'?\n"
+            "  1. Que parametro exacto requiere browse en estas clases?\n"
+            "  2. Hay parametro de instalacion obligatorio (ejercicio, codEmpresa, soloActivos)?\n"
+            "  3. code=6 siempre significa falta parametro?\n"
             "  4. Se requiere objectid en browse o solo en read?\n\nGracias."
+        )
+    elif not nc_ok:
+        pregunta_dk=(
+            f"NOTA: La BD de mPYME no es accesible (new()=code={_nc_new_codes}).\n"
+            f"El problema es del servidor, no de parametros de browse.\n"
+            f"Ver aviso_admin para las acciones requeridas.\n"
+            f"Una vez resuelto, repetir el diagnostico para generar pregunta para Distrito K."
         )
     return {
         "success":True,"timestamp":ts_inicio,"empresa":empresa,"api_url":api_url,
@@ -1758,15 +1806,22 @@ async def super_diagnostico():
                         "detalle":{k:{"ok":v.get("ok"),"n":v.get("n",0),"tabla":v.get("tabla","")}
                                    for k,v in ids_pool.items()}},
             "browse":{"n_ok":n_ok,"n_code6":len(_cl_p6),"n_lic":n_lic,"n_var":n_var},
-            "new_cancel":{"resultados":nc_resultados,"alguno_ok":nc_ok},
+            "new_cancel":{"resultados":nc_resultados,"alguno_ok":nc_ok,
+                          "new_codes":_nc_new_codes,"nc_code6_all":_nc_code6_all},
         },
         "clases":clases_resultado,
         "ids_pool":{k:{"ok":v.get("ok"),"param":v.get("param"),"n":v.get("n",0),
                        "tabla":v.get("tabla"),"error":v.get("error")} for k,v in ids_pool.items()},
-        "conclusiones":conclusiones,"pregunta_distrito_k":pregunta_dk,
+        "conclusiones":conclusiones,
+        "pregunta_distrito_k":pregunta_dk,
+        "aviso_admin":aviso_admin,
+        "nc_new_codes":_nc_new_codes,
+        "bd_host":db_host,"bd_name":db_name,
+        "clases_permiso_ok":_cl_perm_ok,
         "resumen":{"n_browse_ok":n_ok,"n_sin_licencia":n_lic,"n_req_params":len(_cl_p6),
                    "bd_mpyme_accesible":nc_ok,"fb_conecta":fb_ok,"n_var":n_var,
-                   "clases_con_datos":_cl_ok,"clases_code6":_cl_p6},
+                   "clases_con_datos":_cl_ok,"clases_code6":_cl_p6,
+                   "nc_new_codes":_nc_new_codes,"bd_host":db_host},
     }
 
 

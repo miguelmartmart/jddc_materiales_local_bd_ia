@@ -3831,24 +3831,73 @@ function _renderCentroDiag(r) {
       </tr>`;
     });
     h+=`</tbody></table>`;
-    h+=nc.alguno_ok
-      ?`<div style="background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#166534">
-          ✅ BD de mPYME accesible — new() funciona. El problema de browse es de formato de parámetros → ver pregunta para Distrito K.</div>`
-      :`<div style="background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#92400e">
-          ⚠️ new() falla en todas las clases — BD SQL Obras no accesible desde PymeMobileServer.exe.
-          Verificar que SQL Obras está abierto en el servidor y reiniciar PymeMobileServer.exe.</div>`;
+    // Interpretacion segun nc_code6_all
+    const ncCode6All = nc.nc_code6_all || nc.new_codes && nc.new_codes.length===1 && nc.new_codes[0]===6;
+    if(nc.alguno_ok){
+      h+=`<div style="background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#166534">
+        ✅ BD de mPYME accesible — new() funciona correctamente. El problema es de formato de parámetros de browse → ver pregunta para Distrito K abajo.</div>`;
+    } else if(ncCode6All){
+      h+=`<div style="background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#7f1d1d">
+        ❌ <strong>CAUSA CONFIRMADA:</strong> new() devuelve code=6 en todas las clases.
+        PymeMobileServer.exe no puede conectar internamente a SQL Obras.
+        Ver panel de <strong>Acción Requerida</strong> abajo.</div>`;
+    } else {
+      h+=`<div style="background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#92400e">
+        ⚠️ new() falla (codes=${(nc.new_codes||[]).join(',')}) — BD SQL Obras no accesible.
+        Ver panel de Acción Requerida abajo.</div>`;
+    }
     h+=`</details>`;
   }
-  // Pregunta para Distrito K
-  if(r.pregunta_distrito_k){
-    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:8px 12px;background:linear-gradient(90deg,#fef3c7,#fefce8);border:1px solid #fde68a;border-radius:8px;color:#92400e">
-      📧 Pregunta lista para Distrito K — click para ver y copiar</summary>
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:0 0 8px 8px;padding:10px 14px">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+  // Panel ACCION REQUERIDA (cuando BD no accesible)
+  const ncOk=nc.alguno_ok;
+  if(!ncOk && r.aviso_admin){
+    const bdHost=r.bd_host||r.fases?.firebird?.db_host||'servidor';
+    h+=`<div style="margin-top:10px;border:2px solid #dc2626;border-radius:10px;overflow:hidden">
+      <div style="background:linear-gradient(90deg,#dc2626,#b91c1c);padding:10px 16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.2em">🚨</span>
+        <div>
+          <div style="color:white;font-weight:800;font-size:0.92em">ACCIÓN REQUERIDA — Servidor ${bdHost}</div>
+          <div style="color:rgba(255,255,255,0.85);font-size:0.77em">PymeMobileServer no puede conectar a SQL Obras</div>
+        </div>
+      </div>
+      <div style="background:#fff5f5;padding:12px 16px">
+        <div style="font-size:0.82em;color:#1e293b;margin-bottom:8px;font-weight:600">Pasos en el servidor ${bdHost}:</div>
+        <ol style="margin:0;padding-left:20px;font-size:0.81em;color:#374151;line-height:1.7">
+          <li>Abrir <strong>SQL Obras</strong> (aplicación de escritorio) — debe estar activo</li>
+          <li>Abrir <strong>Servicios de Windows</strong> → buscar <code>PymeMobile Server</code> → <strong>Reiniciar</strong></li>
+          <li>Si persiste: <strong>reiniciar el servidor</strong> ${bdHost} completo</li>
+          <li>Revisar el <strong>log de PymeMobileServer.exe</strong> para errores de conexión a BD</li>
+        </ol>
+        <div style="margin-top:8px;font-size:0.79em;color:#6b7280">Una vez resuelto → pulsar <strong>🎯 Diagnóstico completo</strong> de nuevo</div>
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button onclick="(function(b){const t=(window._ae_super_diag||{}).aviso_admin||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar aviso'},2000)}).catch(()=>alert(t))})(this)"
+            style="font-size:0.78em;padding:4px 12px;background:#dc2626;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">📋 Copiar aviso completo</button>
+          <button onclick="ApiExplorerModule.doCentroDiagnostico({target:this})"
+            style="font-size:0.78em;padding:4px 12px;background:#374151;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">🔄 Repetir diagnóstico</button>
+        </div>
+        <details style="margin-top:8px"><summary style="cursor:pointer;font-size:0.77em;color:#64748b">Ver aviso completo para el administrador</summary>
+          <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.76em;color:#374151;background:white;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;margin-top:4px;max-height:200px;overflow-y:auto">${r.aviso_admin}</pre>
+        </details>
+      </div>
+    </div>`;
+  }
+  // Pregunta para Distrito K (solo si BD accesible o como nota)
+  const preg=r.pregunta_distrito_k||'';
+  if(preg){
+    const esPreguntaReal=ncOk;
+    const bg=esPreguntaReal?'linear-gradient(90deg,#fef3c7,#fefce8)':'linear-gradient(90deg,#f0f9ff,#e0f2fe)';
+    const bor=esPreguntaReal?'#fde68a':'#7dd3fc';
+    const col=esPreguntaReal?'#92400e':'#0c4a6e';
+    const ico=esPreguntaReal?'📧':'ℹ️';
+    const lbl=esPreguntaReal?'Pregunta lista para Distrito K — click para ver y copiar':'Nota — resolver servidor primero';
+    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:8px 12px;background:${bg};border:1px solid ${bor};border-radius:8px;color:${col}">
+      ${ico} ${lbl}</summary>
+      <div style="background:${esPreguntaReal?'#fffbeb':'#f0f9ff'};border:1px solid ${bor};border-radius:0 0 8px 8px;padding:10px 14px">
+        ${esPreguntaReal?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
           <button onclick="(function(b){const t=(window._ae_super_diag||{}).pregunta_distrito_k||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar'},2000)}).catch(()=>alert(t))})(this)"
             style="font-size:0.79em;padding:4px 12px;background:#f59e0b;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">📋 Copiar</button>
-        </div>
-        <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.79em;color:#1e293b;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:0;max-height:250px;overflow-y:auto">${r.pregunta_distrito_k}</pre>
+        </div>`:''}
+        <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.79em;color:#1e293b;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:0;max-height:250px;overflow-y:auto">${preg}</pre>
       </div></details>`;
   }
   // Botones export + repetir
