@@ -1,318 +1,172 @@
-# Estado para retomar — 14/09/2026 (v5.0.0)
+# Estado completo — 14/09/2026 (v6.0.0)
 
-> **LEER ESTO PRIMERO. Reemplaza todas las versiones anteriores.**
-
-## Repo
-
-- **Remote:** https://github.com/miguelmartmart/jddc_materiales_local_bd_ia.git
-- **Rama:** main · **Commit:** e5f414a
-- **En VM:** cd bots/interjddcia && git pull && reiniciar DEVIA && Ctrl+F5
-
-```
-e5f414a  fix(super-diag): corregir sets malformados en variantes F3
-091b9d8  fix(super-diag): code=6=falta-param + read() + info_campos + msg exacto
-a5675ef  feat(super-diag): panel ACCION REQUERIDA
-df9687a  feat(super-diagnostico): Centro de Diagnostico Inteligente v4.0.0
-```
+> **LEER ESTO PRIMERO antes de cualquier sesion de IA.**
+> Reemplaza todas las versiones anteriores de documentacion.
 
 ---
 
-## Infraestructura OK
+## HALLAZGO CRITICO — 14/09/2026 (tarde)
 
-| Componente | Estado | Detalle |
+### code=6 = MAINTENANCE MODE (no es falta de parametro)
+
+La documentacion oficial mPYME v1.2 (PDF adjunto), pagina 7, dice:
+
+```
+codigos de respuesta:
+  0 = Success
+  1 = Warning and retry
+  2 = Confirm and retry
+  3 = Dialog and retry
+  5 = Failed: no se ha podido ejecutar la peticion
+  6 = Maintenance mode: no se puede ejecutar la peticion por encontrarse
+      el sistema en modo de mantenimiento. La sesion sigue siendo valida.
+  7 = Invalid session
+  8 = Exception
+```
+
+**CONCLUSION: code=6 NO significa "falta parametro". Significa que SQL Obras esta en MODO MANTENIMIENTO.**
+
+### new() = code=5 con mensaje "No dispone de licencia para el modulo Proyectos"
+
+Esto indica que el modulo mPYME de Proyectos (y posiblemente Reparaciones y Compras) **no esta contratado o no esta activado** para este cliente.
+
+Dos posibles causas del problema:
+1. **SQL Obras en modo mantenimiento** (code=6 en browse y new)
+2. **Modulo mPYME no contratado** (code=5 en new con msg de licencia)
+
+Ambas causas requieren intervencion de Distrito K.
+
+---
+
+## Lo que SÍ funciona
+
+| Operacion | Resultado | Nota |
 |---|---|---|
-| DEVIA FastAPI | OK | http://localhost:8001 |
-| Firebird | OK | 192.168.0.254:3050 SYSDBA · JUANDEDI\2021.fdb |
-| mPYME API | OK | http://192.168.0.254:80/ · Login OK usuario MMMIGUELANGEL |
-| PROYECTOS | OK | 1212 registros · CODIGO = 1, 10, 1001301 |
-| REPARA | OK | 8398 registros · CODIGO = 3, 4, 7 |
-| REPOBJETO | OK | 445 registros · CODIGO = 002KCPY1S368, 003KCHE1AC81 |
-| CLIENTE | OK | CODIGO = 1, 3, 10 |
-| DOCCAB | OK | CODIGO = 4, 6, 8 |
-| FABCAB | SIN DATOS | Tabla vacia |
+| Login | ✅ code=0 | Sesion activa correctamente |
+| permiso(partidas) | ✅ code=0 | Tiene acceso |
+| permiso(repobjetos) | ✅ code=0 | Tiene acceso |
+| permiso(repinst) | ✅ code=0 | Tiene acceso |
+| permiso(tipostrabajo) | ✅ code=0 | Tiene acceso |
+| permiso(ordenfab) | ✅ code=0 | Tiene acceso |
+| info(clientes) | ✅ code=0 | Funcion de auditoria (no da campos) |
+| Firebird directo | ✅ 1212 proyectos | BD accesible directamente |
 
----
+## Lo que NO funciona
 
-## El problema central: browse() y new() = code=6
-
-### Significado de code=6
-
-**code=6 = "No es posible acceder a la BD en este momento"**
-Segun service.py L281-283 (documentado en el propio codigo):
-> NO es error de BD. Es como mPYME dice "falta un parametro obligatorio".
-
-- Firebird conecta directamente (1212 proyectos OK)
-- PymeMobileServer responde HTTP 200
-- Conclusion: falta algun parametro que el servidor exige pero no documenta
-
-### new() tambien devuelve code=6
-new() con {} vacio devuelve code=6 = new() tambien exige parametros de contexto desconocidos.
-
-### Clases por resultado en permiso()
-
-| permiso=0 (acceso autenticado) | permiso=6 | permiso=5 |
+| Operacion | Resultado | Causa segun docs |
 |---|---|---|
-| partidas, repobjetos, repinst, tipostrabajo, clientes, ordenfab | proyectos, proordutil, reporden, repordutil, recursos, docalbcom, docfaccom, docpedcom | proveedores, articulos |
-
-### Variantes YA PROBADAS en browse (~650 total, todas code=6)
-
-```
-vacio, pagesize=1/25, num=20/100, filter={}, estado=abierta/activa
-soloActivos=T, activo=T, todos=T
-ejercicio=2021 (anyo real .fdb), ejercicio=2025/2026, anyo=2021/2026
-tipo=EMPLEADO/M, columns=[], page=1+pagesize=25
-objectid=new, empr=JDDC+pagesize=25
-codProyecto=1/10/1001301 (IDs reales Firebird PROYECTOS)
-codOrden=3/4/7 (IDs reales REPARA)
-codObjeto=002KCPY1S368 (IDs reales REPOBJETO)
-+ combinaciones: ID+pagesize, ID+ejercicio, ID+p1
-IDs reales de todas las tablas con 5 variantes cada uno
-```
-
-### Variantes YA PROBADAS en new() (todas code=6)
-```
-{} vacio, {ejercicio:"2021"}, {ejercicio:"2026"}, {empr:"JDDC"}
-```
+| browse(*) | ❌ code=6 | Modo mantenimiento |
+| new(proyectos) | ❌ code=5 | "No dispone de licencia para el modulo Proyectos" |
+| new(clientes) | ❌ code=6 | Modo mantenimiento |
+| read(proyectos) | ❌ code=6 | Modo mantenimiento |
 
 ---
 
-## LO QUE SI FUNCIONA
+## Por que code=6 no es problema de parametros
 
-- permiso() = code=0 en: partidas, repobjetos, repinst, tipostrabajo, clientes, ordenfab
-- info() = code=0 en: clientes (devuelve campos del servidor)
-- login() y logout() siempre funcionan
-- read() con IDs Firebird: PENDIENTE DE VERIFICAR en proximo diagnostico
-
----
-
-## COSAS QUE NO SE HAN PROBADO (trabajo para la proxima sesion)
-
-### GRUPO A: Variantes de browse pendientes (PRIORIDAD ALTA)
-
-| Prueba | Por que puede funcionar |
-|---|---|
-| filter={"codProyecto":"1"} (JSON serializado) | filter puede esperar JSON real, no string vacio |
-| filter={"CODIGO":"1"} | El filtro puede usar nombre de campo Firebird |
-| filter={"estado":"A"} | Codigos internos: A=Activo, C=Cerrado, P=Pendiente |
-| empr="1" (numero, no texto) | El protocolo doc dice empr=1 numerico, no "JDDC" |
-| empr="2", empr="3" | Probar otros numeros de empresa |
-| Sin empr en la llamada | La sesion puede ser suficiente sin empr en cada peticion |
-| rows=1, limit=1, top=1 | Nombres alternativos de pagesize |
-| objectclass=Proyectos (mayuscula inicial) | El servidor puede ser case-sensitive |
-| codProyecto="25/184" o "JDDC-001" | El ID mPYME puede ser distinto al CODIGO Firebird |
-| pagesize=1 & page=0 | Paginacion desde cero |
-| v=1.2, version=1.2 | La API puede requerir version explicita |
-| modulo=obras, vista=proyectos | Parametro de contexto de modulo ERP |
-
-### GRUPO B: Variantes de new() pendientes
-
-| Prueba | Por que |
-|---|---|
-| new({objectid:"new", codProyecto:"1"}) | Con ID de contexto |
-| new en tipostrabajo o repinst | Clases con permiso=0, mas prob. de funcionar |
-| new({objectid:"", ejercicio:"2021"}) | objectid vacio en vez de "new" |
-
-### GRUPO C: Operaciones no probadas nunca
-
-| Prueba | Riesgo | Por que |
-|---|---|---|
-| exec action=list | Bajo | Puede ser un browse alternativo sin filtros |
-| exec action=count | Bajo | Devuelve numero de registros |
-| exec action=getAll | Bajo | Variante de browse total |
-| exec action=find | Bajo | Busqueda alternativa |
-
-### GRUPO D: Verificaciones de protocolo
-
-| Prueba | Como |
-|---|---|
-| Texto exacto del data en code=6 | Ya capturado en browse_msg_exacto -- LEER EN PROXIMO DIAG |
-| Varia el mensaje entre clases? | Comparar browse_msg_exacto por clase |
-| HTTP status code en cada respuesta | Capturado en _http_status -- ver si siempre 200 |
-| info() en TODAS las clases (no solo clientes) | info(proyectos), info(reporden)... puede revelar campos |
-
-### GRUPO E: Hipotesis no descartadas
-
-| Hipotesis | Evidencia | Como descartar |
-|---|---|---|
-| El ID mPYME != CODIGO Firebird | REPOBJETO tiene IDs alfanumericos tipo UUID | read() con codigo alfanumerico completo |
-| empr debe ser numero | Protocolo doc dice empr=1 | Probar empr=1, empr=2 |
-| La sesion caduca sin avisar | Si ssid1/ssid2 caducan, code=6 en todo | Re-login forzado antes del diagnostico |
-| Hay parametro de "vista" o "rol" | Los ERP suelen tenerlo | Probar vista=, rol=, perfil=, modulo= |
-| filter va como query string no form | Algunos servidores PHP lo mezclan | Cambiar cliente HTTP |
+- La documentacion dice que browse(proyectos) SOLO requiere filter (opcional)
+- Se han probado 774 variantes sin exito
+- El mensaje exacto es "No es posible acceder a la base de datos en este momento"
+- new() sin parametros tambien da code=6 (new no necesita parametros segun doc)
+- Esto es coherente con modo mantenimiento: TODAS las operaciones fallan
 
 ---
 
-## Ficheros clave
+## Lo que hay que preguntar a Distrito K
 
-| Fichero | Lineas | Seccion |
-|---|---|---|
-| backend/modules/api_explorer/router.py | ~1953 | L1601: /super-diagnostico, L1637: F3, L1732: F4, L1764: F5 |
-| backend/modules/api_explorer/service.py | ~350 | L115: RealApiClient, L170: _base(), L216: browse(), L242: new() |
-| frontend/assets/js/modules/api_explorer.js | ~3960 | L575: boton, L3188: doCentroDiagnostico, L3662: _renderCentroDiag |
+### Pregunta generada automaticamente (ver app DEVIA)
 
-### MAPA_FIREBIRD (router.py ~L881)
+La app genera la pregunta completa con toda la evidencia.
+Los puntos clave son:
 
-```python
-"proyectos":   ("PROYECTOS",      "CODIGO", "NOMBRE",      "codProyecto")
-"reporden":    ("REPARA",          "CODIGO", "CODIGO",      "codOrden")
-"tipostrabajo":("TIPO",            "CODIGO", "DESCRIPCION", "codTrabajo")
-"repobjetos":  ("REPOBJETO",       "CODIGO", "NOMBRE",      "codObjeto")
-"repinst":     ("REPINSTALACION",  "CODIGO", "NOMBRE",      "codInst")
-"recursos":    ("RECURSO",         "CODIGO", "DESCRIPCION", "codRecurso")
-"articulos":   ("ARTICULO",        "CODIGO", "NOMBRE",      "codArticulo")
-"proveedores": ("PROVEED",         "CODIGO", "RAZONSOCIAL", "codProv")
-"clientes":    ("CLIENTE",         "CODIGO", "NOMBRE",      "codCliente")
-"docalbcom":   ("DOCCAB",          "CODIGO", "CODIGO",      "codDocumento")
-"ordenfab":    ("FABCAB",          "CODIGO", "CODIGO",      "codFab")  # tabla vacia
-```
-
-ATENCION: El CODIGO de Firebird puede NO ser el objectid que espera mPYME.
-REPOBJETO tiene CODIGO alfanumerico tipo 002KCPY1S368 -- parece un codigo interno.
+1. **SQL Obras esta en modo mantenimiento?** Como desactivarlo?
+2. **El modulo mPYME de Proyectos esta contratado/activado** para JDDC?
+3. Si no es modo mantenimiento, que parametro requiere browse()?
 
 ---
 
-## Protocolo API mPYME
+## Lo que ya se ha probado en browse (774 variantes)
 
-```
-URL:     http://192.168.0.254:80/
-Metodo:  POST form-urlencoded (NO JSON)
-Campos:  ssid1=X ssid2=X empr=JDDC method=browse objectclass=proyectos [+params]
-```
-
-### Codigos de respuesta
-```
-0  = OK
-1  = Sin licencia
-2  = Sin permiso
-5  = Params incompletos / peticion no reconocida / crash
-6  = Falta parametro obligatorio (NO error de BD)
-10 = Registro no encontrado
-20 = objectId no valido
--1 = Error de red
-```
+- Vacio (sin parametros)
+- filter="" (vacio), filter={}
+- pagesize=1/25, more=first
+- ejercicio=2021/2025/2026, anyo=2021/2026
+- estado=abierta/activa, soloActivos=T, activo=T, todos=T
+- objectid=new
+- IDs reales de Firebird (codProyecto=1, codOrden=1, etc.)
+- masterid=<id>, master=<id> (para proordutil, partidas, repobjetos)
+- desde/hasta (para proordutil segun doc oficial)
+- serie=A (para documentos)
+- mode=add (para repobjetos)
+- columns=[] (ordenacion)
 
 ---
 
-## Lo que hace el Diagnostico Completo (boton en Probador)
+## Informacion tecnica del servidor
 
-### F1: Firebird
-Conexion directa + COUNT de todas las tablas del MAPA_FIREBIRD.
-
-### F2: Pool de IDs
-1 sola conexion Firebird. Extrae hasta 10 IDs reales por clase.
-
-### F3: Browse + read + info por clase
-Para cada una de las 17 clases:
-- permiso() -- captura code y mensaje
-- info() -- captura code y si=0, nombres de campo del servidor
-- 23 variantes base de browse
-- +5 variantes x hasta 5 IDs Firebird reales (param, objectid, +pagesize, +ejercicio)
-- Captura el mensaje exacto del data en code=6
-- read() con hasta 3 IDs reales Firebird
-
-### F4: new() con variantes de contexto
-Proyectos, repobjetos, reporden, clientes.
-Variantes: vacio, ejercicio=2021, ejercicio=2026, empr=JDDC
-
-### F5: Conclusiones + Pregunta para Distrito K
-Genera pregunta con: mensaje exacto code=6, 650+ variantes probadas, que si funciona.
+- URL API: http://192.168.0.254:80/
+- Empresa: JDDC
+- BD Firebird: 192.168.0.254 / C:\Distrito\OBRAS\Database\JUANDEDI\2021.fdb
+- 1212 proyectos en Firebird
+- PymeMobileServer.exe: responde HTTP 200, devuelve JSON valido
+- Sesion: ssid1/ssid2 obtenidos correctamente en login
 
 ---
 
-## QUE HACER EN LA PROXIMA SESION DE IA
+## Archivos de documentacion tecnica en Downloads
 
-### Paso 1 -- Ejecutar nuevo diagnostico en la VM y LEER resultados
-
-```
-git pull origin main
-reiniciar DEVIA
-Ctrl+F5
-Probador Visual -> Diagnostico completo
-Esperar 90-120 segundos
-```
-
-Lo mas importante es anotar:
-1. El texto EXACTO de browse_msg_exacto (data en code=6) -- puede decir que param falta
-2. Si read() funciona en alguna clase y con que ID
-3. Si info() devuelve campos en alguna clase (y cuales campos)
-4. El mensaje exacto de new() code=6 -- puede diferir del de browse
-5. Si alguna clase tiene permiso=0 Y browse diferente de code=6
-
-### Paso 2 -- Implementar Grupo A (variantes pendientes)
-
-En router.py F3, anyadir a _variantes:
-```python
-# filter como JSON real con ID real
-({{"filter": json.dumps({{"codProyecto": _fb["valores"][0]}})}} , "filter-json"),
-# empr numerico
-({{"empr": "1", "pagesize": "25"}}, "empr1+p25"),
-({{"empr": "2", "pagesize": "25"}}, "empr2+p25"),
-# Llamada sin empr (quitarlo de _base para una prueba)
-# rows/limit como alternativas a pagesize
-({{"rows": "1"}}, "rows=1"),
-({{"limit": "1"}}, "limit=1"),
-# exec actions alternativas
-({{"method": "exec", "action": "list"}}, "exec-list"),
-```
-
-### Paso 3 -- Si ninguna variante funciona, enviar pregunta a Distrito K
-
-La pregunta ya esta generada en el panel amarillo del diagnostico.
-Boton Copiar -> enviar a Distrito K por email.
-
-La pregunta incluye:
-- Mensaje exacto code=6
-- Las 650+ variantes ya probadas
-- Que si funciona (read/info si aplica)
-- 5 preguntas precisas sobre parametros obligatorios
-
-### Paso 4 -- Cuando Distrito K responda
-
-Implementar el parametro que indiquen y probar.
-Si la respuesta es un nombre de parametro, se anyadira a _variantes y se re-ejecuta el diagnostico.
+- `mpyme_auth.txt` — Protocolos autenticacion, codigos de error (KEY: code=6=maintenance)
+- `mpyme_paginas_clave.txt` — Intro, browse, filter, columns, more
+- `mpyme_gestion_proyectos.txt` — Proyectos, proordutil (masterid+desde/hasta), partidas
+- `mpyme_ejemplos.txt` — Ejemplos curl completos de todas las operaciones
+- `mpyme_proyectos_full.txt` — Doc completa incluyendo Maestros, Documentos, Fabricacion
+- `mpyme_proyectos_reps.txt` — Doc completa incluyendo Reparaciones
+- `mPYME_API_Documentacion 1.2.pdf` — PDF original completo
 
 ---
 
-## Seguridad (OBLIGATORIO respetar)
+## Estructura del proyecto DEVIA
 
 ```
-browse / read / permiso / info / cancel -> SEGUROS (solo lectura)
-new + cancel -> temporal, no persiste, SEGURO
-write / imputaPro / delete / exec       -> ESCRITURA REAL IRREVERSIBLE
-                                          Solo con modo escritura activado + doble confirmacion
+bots/interjddcia/
+  backend/modules/api_explorer/
+    router.py           -- Endpoints FastAPI (super-diagnostico v6)
+    service.py          -- Cliente mPYME + sesion stateful
+    api_catalogue_full.py -- Catalogo de clases y operaciones
+    data/               -- Cache de sesion y descubrimiento
+  frontend/assets/js/modules/
+    api_explorer.js     -- UI completa (boton diagnostico + render)
+  docs/
+    SESION_2026_09_14_ESTADO_ACTUAL.md -- este archivo
 ```
+
+## Endpoint super-diagnostico
+
+`POST /api/api-explorer/super-diagnostico`
+
+Fases:
+- F1: Firebird directo (conexion + conteo tablas)
+- F2: Pool de IDs reales de Firebird por clase
+- F3: browse (774+ variantes por clase) + read con IDs reales
+- F4: new()+cancel() en 4 clases con variantes de params
+- F5: Conclusiones automaticas + aviso_admin + pregunta_dk
+
+Respuesta incluye:
+- `conclusiones[]` con tipo (ok/licencia/params/bd_inacc/config/firebird)
+- `pregunta_distrito_k` texto completo para enviar
+- `aviso_admin` aviso si hay modo mantenimiento
+- `nc_new_codes` codigos de new()
+- `clases_permiso_ok` clases con permiso=0
 
 ---
 
-## Modulo BD -- patron correcto
+## QUE HACER EN LA PROXIMA SESION
 
-```python
-from backend.core.factory.db_factory import DBFactory
-from backend.core.abstract.database import DBConfig
-from backend.core.config.settings import settings
-
-cfg = DBConfig(
-    host=settings.DB_HOST, port=settings.DB_PORT,
-    database=settings.DB_NAME, user=settings.DB_USER,
-    password=settings.DB_PASSWORD, charset="latin1"
-)
-drv = DBFactory.get_driver("firebird")
-drv.connect(cfg)
-rows = drv.execute_query("SELECT FIRST 5 CODIGO, NOMBRE FROM PROYECTOS")
-drv.disconnect()
-```
-
----
-
-## Hipotesis principal (la mas probable)
-
-El servidor mPYME requiere un parametro de contexto en browse y new
-que NO se llama ejercicio ni anyo.
-
-Candidatos:
-- El numero interno de empresa (empr=1 numerico, no texto)
-- Un parametro de "ejercicio contable" con nombre diferente (codEjercicio, ej, anio...)
-- Un parametro de modulo o vista (modulo=obras, vista=proyectos)
-- El objectid del objeto padre en clases jerarquicas (partidas necesita codProyecto padre)
-
-Solo Distrito K puede confirmar cual es.
+1. `git pull` en la VM, reiniciar DEVIA, Ctrl+F5
+2. Ejecutar diagnostico completo
+3. Leer el panel F4 — si new()=code=6: SQL Obras en modo mantenimiento
+4. Copiar la pregunta generada y enviarla a Distrito K
+5. Pedir a Distrito K:
+   a. Desactivar modo mantenimiento si esta activo
+   b. Confirmar que el modulo mPYME Proyectos+Reparaciones esta contratado
+6. Una vez resuelto, repetir diagnostico — deberia dar code=0 en browse

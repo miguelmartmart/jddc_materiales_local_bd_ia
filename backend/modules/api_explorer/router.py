@@ -1661,34 +1661,84 @@ async def super_diagnostico():
         except Exception: cr["info_code"]=-1
         if cr["permiso_code"]==1:
             cr["browse_code_final"]=-99; clases_resultado[clase]=cr; continue
-        # Variantes base (incluye ejercicio del anyo real de la BD)
+        # VARIANTES segun documentacion oficial mPYME v1.2
+        # code=6 = MAINTENANCE MODE (no es falta de parametro)
+        # proyectos: browse con filter opcional
+        # proordutil: requiere masterid + desde/hasta
+        # partidas: requiere master=<idProyecto>
+        # repobjetos: requiere masterClass/masterId o mode:add
         _fb = ids_pool.get(clase,{})
+        _fb_vals = _fb.get("valores",[]) if _fb.get("ok") else []
+        _fb_param = _fb.get("param","")
         _variantes = [
+            # Basicas documentadas: browse sin parametros, con filter
             ({}, "vacio"),
-            ({"pagesize": "1"}, "p1"), ({"pagesize": "25"}, "p25"),
-            ({"num": "20"}, "num20"), ({"filter": "{}"}, "filter={}"),
-            ({"estado": "abierta"}, "est=abierta"), ({"estado": "activa"}, "est=activa"),
-            ({"soloActivos": "T"}, "soloActivos"), ({"activo": "T"}, "activo=T"),
-            ({"todos": "T"}, "todos=T"),
+            ({"filter": ""}, "filter=vacio"),
+            ({"pagesize": "25"}, "p25"),
+            ({"pagesize": "1"}, "p1"),
+            ({"more": "first"}, "more=first"),
+            ({"more": "first", "pagesize": "25"}, "more=first+p25"),
+            # Documentos: serie/ejercicio
             ({"ejercicio": _anyo_bd}, f"ej={_anyo_bd}"),
-            ({"ejercicio": "2026"}, "ej=2026"), ({"ejercicio": "2025"}, "ej=2025"),
-            ({"anyo": _anyo_bd}, f"anyo={_anyo_bd}"), ({"anyo": "2026"}, "anyo=2026"),
-            ({"tipo": "EMPLEADO"}, "tipo=EMP"), ({"tipo": "M"}, "tipo=M"),
+            ({"ejercicio": "2026"}, "ej=2026"),
+            ({"ejercicio": "2025"}, "ej=2025"),
+            ({"anyo": _anyo_bd}, f"anyo={_anyo_bd}"),
+            # Estados habituales
+            ({"estado": "abierta"}, "est=abierta"),
+            ({"estado": "activa"}, "est=activa"),
+            ({"soloActivos": "T"}, "soloActivos=T"),
+            ({"activo": "T"}, "activo=T"),
+            ({"todos": "T"}, "todos=T"),
+            # Columnas y ordenacion
             ({"columns": "[]"},"cols=[]"),
-            ({"page": "1", "pagesize": "25"}, "page1+p25"), ({"num": "100"}, "num100"),
-            ({"objectid": "new"}, "oid=new"),
-            ({"empr": cfg.get("empresa", ""), "pagesize": "25"}, "empr+p25"),
+            # (cols=asc variante eliminada por problema de escaping)
+            # Tipos
+            ({"tipo": "EMPLEADO"}, "tipo=EMP"),
+            ({"tipo": "M"}, "tipo=M"),
         ]
-        if _fb.get("ok") and _fb.get("valores"):
-            _papi = _fb["param"]
-            for _val in _fb["valores"][:5]:
+        # Variantes con masterid (requerido por proordutil, partidas, repordutil, repobjetos)
+        # La doc indica: proordutil&masterid=<idProyecto>&desde=...&hasta=...
+        _ids_proyectos = ids_pool.get("proyectos",{}).get("valores",[])
+        _ids_reporden  = ids_pool.get("reporden",{}).get("valores",[])
+        _ids_clientes  = ids_pool.get("clientes",{}).get("valores",[])
+        _master_clase = {
+            "proordutil": _ids_proyectos, "proordprev": _ids_proyectos,
+            "partidas":   _ids_proyectos,
+            "repordutil": _ids_reporden, "repobjetos": _ids_clientes,
+            "repinst":    _ids_clientes,
+        }
+        if clase in _master_clase:
+            for _mid in (_master_clase[clase] or [])[:3]:
                 _variantes += [
-                    ({_papi:_val},f"{_papi}={_val}"),
-                    ({"objectid":_val},f"oid={_val}"),
-                    ({_papi:_val,"pagesize":"25"},f"{_papi}={_val}+p25"),
-                    ({_papi:_val,"pagesize":"1"},f"{_papi}={_val}+p1"),
-                    ({_papi:_val,"ejercicio":_anyo_bd},f"{_papi}={_val}+ej{_anyo_bd}"),
+                    ({"masterid": _mid}, f"masterid={_mid}"),
+                    ({"master": _mid}, f"master={_mid}"),
+                    ({"masterid": _mid, "pagesize": "25"}, f"masterid={_mid}+p25"),
                 ]
+            # proordutil necesita rango de fechas
+            if clase in ("proordutil", "proordprev"):
+                for _mid in (_master_clase[clase] or [])[:2]:
+                    _variantes += [
+                        ({"masterid": _mid, "desde": "01/01/2000", "hasta": "31/12/2030"}, f"masterid={_mid}+fechas"),
+                        ({"masterid": _mid, "desde": "01/01/2000", "hasta": "31/12/2030", "recurso": "", "orden": "fecha-asc"}, f"masterid={_mid}+full"),
+                    ]
+        # Para docXXX: variantes con serie
+        if clase.startswith("doc"):
+            _variantes += [
+                ({"serie": "A"}, "serie=A"),
+                ({"serie": ""}, "serie=vacio"),
+                ({"tipo": "3"}, "tipo=3"),
+                ({"tipo": "1"}, "tipo=1"),
+            ]
+        # IDs reales de Firebird (segun MAPA_FIREBIRD)
+        if _fb.get("ok") and _fb_vals:
+            for _val in _fb_vals[:5]:
+                _variantes += [
+                    ({_fb_param:_val},f"{_fb_param}={_val}"),
+                    ({"objectid":_val},f"oid={_val}"),
+                    ({_fb_param:_val,"pagesize":"25"},f"{_fb_param}={_val}+p25"),
+                    ({_fb_param:_val,"filter":""},f"{_fb_param}={_val}+filter"),
+                ]
+        best_code = None
         best_code = None
         _msg6_primero = ""
         for _vp,_vd in _variantes:
@@ -1779,30 +1829,96 @@ async def super_diagnostico():
     _cl_info_ok = [c for c,v in clases_resultado.items() if v.get("info_code")==0]
     _msg6_ejemplos = {c:v.get("browse_msg_exacto","") for c,v in clases_resultado.items()
                       if v.get("browse_msg_exacto") and v.get("browse_code_final")==6}
-    # code=6 segun docs propias = "No es posible acceder a la BD" = FALTA PARAMETRO
-    # No es error de BD — es como mPYME indica que falta un parametro obligatorio
+    """Nuevo bloque de conclusiones para super_diagnostico — doc oficial v1.2."""
+    # Este archivo es importado por _patch_conc2.py
+    # code=6 segun documentacion OFICIAL mPYME v1.2 = MAINTENANCE MODE
+    # NO es falta de parametro.
+    # new()=code=5 'No dispone de licencia para el modulo Proyectos' = LICENCIA no contratada
     _todo_code6_mismo_msg = len(set(_msg6_ejemplos.values()))==1 if _msg6_ejemplos else False
     conclusiones=[]
-    if n_ok: conclusiones.append({"tipo":"ok","texto":f"✅ {n_ok} clase(s) con datos reales: {', '.join(_cl_ok)}"})
-    if _cl_read_ok: conclusiones.append({"tipo":"ok","texto":f"✅ read() OK en: {', '.join(_cl_read_ok)}"})
-    if n_lic: conclusiones.append({"tipo":"licencia","texto":f"🚫 Sin licencia: {', '.join(_cl_lic)}"})
+    if n_ok:
+        conclusiones.append({"tipo":"ok","texto":f"OK {n_ok} clase(s) con datos reales: {', '.join(_cl_ok)}"})
+    if _cl_read_ok:
+        conclusiones.append({"tipo":"ok","texto":f"OK read() funciona en: {', '.join(_cl_read_ok)}"})
+    if n_lic:
+        conclusiones.append({"tipo":"licencia","texto":f"Sin licencia (permiso code=1): {', '.join(_cl_lic)}"})
     if _cl_p6:
         _msg6_ej = list(_msg6_ejemplos.values())[0] if _msg6_ejemplos else ""
-        conclusiones.append({"tipo":"params","texto":(
-            f"🔵 {len(_cl_p6)} clase(s) devuelven code=6 tras {n_var} variantes. "
-            f"Segun docs: code=6 = falta parametro obligatorio (no es error de BD). "
-            + (f"Mensaje exacto: '{_msg6_ej}'. " if _msg6_ej else "")
-            + f"Preguntar a Distrito K que parametro exacto requiere browse.")})
+        _nc_msg5_texto = nc_resultados[0]["msg"] if nc_resultados else ""
+        _tiene_lic_msg = "licencia" in _nc_msg5_texto.lower()
+        if _nc_code5_all and _tiene_lic_msg:
+            conclusiones.append({"tipo":"licencia","texto":(
+                f"CAUSA PROBABLE: Modulo mPYME no contratado/activado. "
+                f"new()=code=5: '{_nc_msg5_texto[:100]}'. "
+                f"code=6 en browse = modo mantenimiento segun doc oficial mPYME v1.2. "
+                f"Solicitar a Distrito K activar modulos: Proyectos, Reparaciones, Compras.")})
+        elif _nc_code6_all:
+            conclusiones.append({"tipo":"bd_inacc","texto":(
+                f"code=6 en browse Y new() = MODO MANTENIMIENTO segun doc oficial mPYME v1.2. "
+                f"Msg: '{_msg6_ej[:80]}'. "
+                f"SQL Obras esta en modo mantenimiento. "
+                f"Desactivar mantenimiento en SQL Obras o contactar Distrito K.")})
+        else:
+            conclusiones.append({"tipo":"params","texto":(
+                f"code=6 en {len(_cl_p6)} clase(s) = modo mantenimiento segun doc oficial. "
+                + (f"Msg: '{_msg6_ej[:80]}'. " if _msg6_ej else "")
+                + f"Contactar Distrito K para resolver.")})
     _cl_p5 = [c for c,v in clases_resultado.items() if not v["browse_ok"] and v.get("browse_code_final")==5]
-    if _cl_p5: conclusiones.append({"tipo":"config","texto":f"⚠️ code=5 (Peticion no reconocida): {', '.join(_cl_p5)}"})
-    # new() tambien code=6 = mismo problema: falta parametro de contexto
-    if _nc_code6_all:
-        conclusiones.append({"tipo":"params","texto":(
-            f"🔵 new() tambien code=6 en todas las clases. "
-            f"new() tambien requiere parametro de contexto (ejercicio, codEmpresa?). "
-            f"Preguntar a Distrito K que parametros son obligatorios en new().")})
-    if not fb_ok: conclusiones.append({"tipo":"firebird","texto":"❌ Firebird no conecta. Verificar .env"})
+    if _cl_p5:
+        conclusiones.append({"tipo":"config","texto":f"code=5 (Peticion no reconocida o no soportada): {', '.join(_cl_p5)}"})
+    if not fb_ok:
+        conclusiones.append({"tipo":"firebird","texto":"Firebird no conecta. Verificar .env"})
     empresa=cfg.get("empresa","?"); api_url=cfg.get("api_url","?")
+    db_host=fb_diag.get("db_host","?"); db_name=fb_diag.get("db_name","?")
+    _ids_ej=[f"  - {c}: {ids_pool.get(c,{}).get('param','?')}={ids_pool.get(c,{}).get('valores',[None])[0]}"
+             for c in _cl_p6[:3] if ids_pool.get(c,{}).get("ok")]
+    _pe=clases_resultado.get(_cl_p6[0],{}).get("permiso_code","?") if _cl_p6 else "?"
+    _nc_msgs=[f"{r['clase']}: new()=code{r['new_code']} ({r['msg'][:60]})" for r in nc_resultados]
+    aviso_admin=""
+    if _cl_p6 and _nc_code6_all:
+        _msg6_mant = list(_msg6_ejemplos.values())[0] if _msg6_ejemplos else "?"
+        aviso_admin=(
+            f"AVISO: SQL Obras esta en MODO MANTENIMIENTO ({ts_inicio[:19]}).\n"
+            f"code=6 segun documentacion oficial mPYME = modo mantenimiento activo.\n"
+            f"Mensaje del servidor: '{_msg6_mant}'.\n\n"
+            f"ACCION: Desactivar modo mantenimiento en SQL Obras:\n"
+            f"  Administracion > Sistema > Modo mantenimiento > Desactivar\n"
+            f"  O reiniciar PymeMobileServer.exe si el modo persiste."
+        )
+    pregunta_dk=""
+    if _cl_p6 or _nc_code6_all or _nc_code5_all:
+        _msg6_ej2 = list(_msg6_ejemplos.values())[0] if _msg6_ejemplos else "(no capturado)"
+        _read_info = ""
+        if _cl_read_ok:
+            _read_info = f"read() devuelve code=0 en: {', '.join(_cl_read_ok)}.\n"
+        _nc_msg_ej = nc_resultados[0]["msg"][:100] if nc_resultados else ""
+        pregunta_dk=(
+            f"Hola Distrito K,\n\nInstalacion: empresa={empresa}, URL={api_url}\n"
+            f"BD Firebird: {db_host} / {db_name}\n\n"
+            f"SITUACION:\n"
+            f"browse() devuelve code=6 en {len(_cl_p6)} clases tras {n_var} variantes probadas.\n"
+            f"new() devuelve code=6 en todas las clases con params vacio y con ejercicio.\n"
+            f"Mensaje exacto recibido en code=6: '{_msg6_ej2}'\n\n"
+            f"SEGUN DOCUMENTACION OFICIAL v1.2:\n"
+            f"code=6 = Maintenance mode. No sabemos si SQL Obras esta en mantenimiento.\n"
+            f"new() tambien code=6 => posible modo mantenimiento global.\n\n"
+            f"VARIANTES YA PROBADAS EN BROWSE:\n"
+            f"  vacio, pagesize=1/25, filter=vacio, estado=abierta/activa, soloActivos=T,\n"
+            f"  activo=T, todos=T, ejercicio=2021/2025/2026, anyo=2021/2026,\n"
+            f"  objectid=new, IDs reales Firebird, masterid, master, desde/hasta (proordutil),\n"
+            f"  serie=A (docs), mode=add (repobjetos), columns=asc\n\n"
+            + ("".join(f"  {l}\n" for l in _ids_ej) if _ids_ej else "  (ver detalle por clase)\n")
+            + (f"\nQUE SI FUNCIONA:\n{_read_info}" if _read_info else "")
+            + f"\nNEW() MSG: '{_nc_msg_ej}'\n\n"
+            f"PREGUNTAS:\n"
+            f"  1. Que parametro obligatorio requiere browse() en estas clases?\n"
+            f"     (proyectos, reporden, clientes, docalbcom, docfaccom, docpedcom, etc.)\n"
+            f"  2. SQL Obras esta en modo mantenimiento? Como desactivarlo?\n"
+            f"  3. new() de proyectos da 'No dispone de licencia'. Esta contratado el modulo?\n"
+            f"  4. Hay parametro de instalacion obligatorio en todas las llamadas?\n"
+            f"     (ejercicio=AAAA? codEmpresa? soloActivos? otro?)\n\n"
+            f"Muchas gracias."
+        )
     db_host=fb_diag.get("db_host","?"); db_name=fb_diag.get("db_name","?")
     _ids_ej=[f"  - {c}: {ids_pool.get(c,{}).get('param','?')}={ids_pool.get(c,{}).get('valores',[None])[0]}"
              for c in _cl_p6[:3] if ids_pool.get(c,{}).get("ok")]

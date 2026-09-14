@@ -3756,9 +3756,15 @@ function _renderCentroDiag(r) {
     </div>
   </div>`;
   // Conclusiones
-  const tipoCfg={ok:{bg:'#f0fdf4',bor:'#22c55e'},licencia:{bg:'#fef2f2',bor:'#dc2626'},
-    params:{bg:'#eff6ff',bor:'#3b82f6'},bd_inacc:{bg:'#fef2f2',bor:'#dc2626'},
-    firebird:{bg:'#fef2f2',bor:'#dc2626'}};
+  // Tipos de conclusiones con icono segun documentacion oficial
+  const tipoCfg={
+    ok:      {bg:'#f0fdf4',bor:'#22c55e',ico:'✅'},
+    licencia:{bg:'#fef2f2',bor:'#dc2626',ico:'🚫'},
+    params:  {bg:'#eff6ff',bor:'#3b82f6',ico:'🔵'},
+    bd_inacc:{bg:'#fff7ed',bor:'#f97316',ico:'🔧'},  // naranja = modo mantenimiento
+    config:  {bg:'#fefce8',bor:'#f59e0b',ico:'⚠️'},
+    firebird:{bg:'#fef2f2',bor:'#dc2626',ico:'❌'},
+  };
   h+=`<div style="margin-bottom:10px"><div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:5px">📋 Conclusiones automáticas</div>`;
   conclusiones.forEach(c=>{
     const cfg=tipoCfg[c.tipo]||{bg:'#f8fafc',bor:'#e2e8f0'};
@@ -3839,18 +3845,27 @@ function _renderCentroDiag(r) {
       </tr>`;
     });
     h+=`</tbody></table>`;
-    // code=6 en new() = falta parametro, NO error de BD (per docs propias)
+    // Interpretacion segun documentacion oficial mPYME v1.2
+    // code=6 = MAINTENANCE MODE (no es falta de parametro segun doc oficial p.7)
     const ncCode6All = nc.nc_code6_all || (nc.new_codes && nc.new_codes.length===1 && nc.new_codes[0]===6);
+    const ncCode5All = nc.new_codes && nc.new_codes.length===1 && nc.new_codes[0]===5;
+    const ncMsg0 = ncRes.length ? ncRes[0].msg||'' : '';
+    const tieneLicMsg = ncMsg0.toLowerCase().includes('licencia') || ncMsg0.toLowerCase().includes('licenc');
     if(nc.alguno_ok){
       h+=`<div style="background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#166534">
-        ✅ new() funciona correctamente — BD de mPYME accesible.</div>`;
+        ✅ new() funciona — BD mPYME accesible. El problema es de parámetros de browse().</div>`;
     } else if(ncCode6All){
-      h+=`<div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#1e40af">
-        🔵 new() devuelve code=6 (mismo que browse). Según documentación: code=6 = falta parámetro obligatorio, <strong>no es error de BD</strong>.
-        Preguntar a Distrito K qué parámetros requiere new() y browse(). Ver pregunta abajo.</div>`;
+      h+=`<div style="background:#fff7ed;border-left:3px solid #f97316;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#c2410c">
+        ⚠️ <strong>Documentación oficial mPYME v1.2, pág. 7:</strong> <em>code=6 = "Maintenance mode: no se puede ejecutar la petición por encontrarse el sistema en modo de mantenimiento."</em><br>
+        new() y browse() devuelven code=6 → <strong>SQL Obras está en modo mantenimiento</strong>.<br>
+        Acción: <strong>Desactivar modo mantenimiento en SQL Obras</strong> o contactar Distrito K.</div>`;
+    } else if(ncCode5All && tieneLicMsg){
+      h+=`<div style="background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#991b1b">
+        🚫 <strong>Módulo mPYME sin licencia:</strong> "${ncMsg0.slice(0,120)}".<br>
+        Solicitar a Distrito K que active los módulos: Proyectos, Reparaciones, Documentos de Compra.</div>`;
     } else {
       h+=`<div style="background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#92400e">
-        ⚠️ new() devuelve codes=${(nc.new_codes||[]).join(',')}. Ver detalles arriba.</div>`;
+        ⚠️ new() codes=${(nc.new_codes||[]).join(',')}. Msg: "${ncMsg0.slice(0,100)}". Ver detalles arriba y pregunta para Distrito K.</div>`;
     }
     h+=`</details>`;
   }
