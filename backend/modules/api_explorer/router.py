@@ -1664,20 +1664,20 @@ async def super_diagnostico():
         # Variantes base (incluye ejercicio del anyo real de la BD)
         _fb = ids_pool.get(clase,{})
         _variantes = [
-            ({},"vacio"),
-            ({"pagesize":"1"},"p1"),({{"pagesize":"25"}},"p25"),
-            ({"num":"20"},"num20"),({"filter":"{{}}"},"filter={{}}"),
-            ({"estado":"abierta"},"est=abierta"),({"estado":"activa"},"est=activa"),
-            ({"soloActivos":"T"},"soloActivos"),({"activo":"T"},"activo=T"),
-            ({"todos":"T"},"todos=T"),
-            ({"ejercicio":_anyo_bd},f"ej={_anyo_bd}"),
-            ({"ejercicio":"2026"},"ej=2026"),({{"ejercicio":"2025"}},"ej=2025"),
-            ({"anyo":_anyo_bd},f"anyo={_anyo_bd}"),({{"anyo":"2026"}},"anyo=2026"),
-            ({"tipo":"EMPLEADO"},"tipo=EMP"),({{"tipo":"M"}},"tipo=M"),
-            ({"columns":"[]"},"cols=[]"),
-            ({"page":"1","pagesize":"25"},"page1+p25"),({{"num":"100"}},"num100"),
-            ({"objectid":"new"},"oid=new"),
-            ({"empr":cfg.get("empresa",""),"pagesize":"25"},"empr+p25"),
+            ({}, "vacio"),
+            ({"pagesize": "1"}, "p1"), ({"pagesize": "25"}, "p25"),
+            ({"num": "20"}, "num20"), ({"filter": "{}"}, "filter={}"),
+            ({"estado": "abierta"}, "est=abierta"), ({"estado": "activa"}, "est=activa"),
+            ({"soloActivos": "T"}, "soloActivos"), ({"activo": "T"}, "activo=T"),
+            ({"todos": "T"}, "todos=T"),
+            ({"ejercicio": _anyo_bd}, f"ej={_anyo_bd}"),
+            ({"ejercicio": "2026"}, "ej=2026"), ({"ejercicio": "2025"}, "ej=2025"),
+            ({"anyo": _anyo_bd}, f"anyo={_anyo_bd}"), ({"anyo": "2026"}, "anyo=2026"),
+            ({"tipo": "EMPLEADO"}, "tipo=EMP"), ({"tipo": "M"}, "tipo=M"),
+            ({"columns": "[]"},"cols=[]"),
+            ({"page": "1", "pagesize": "25"}, "page1+p25"), ({"num": "100"}, "num100"),
+            ({"objectid": "new"}, "oid=new"),
+            ({"empr": cfg.get("empresa", ""), "pagesize": "25"}, "empr+p25"),
         ]
         if _fb.get("ok") and _fb.get("valores"):
             _papi = _fb["param"]
