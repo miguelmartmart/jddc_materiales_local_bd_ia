@@ -3775,27 +3775,32 @@ function _renderCentroDiag(r) {
         <th style="padding:4px 7px;text-align:center">permiso</th>
         <th style="padding:4px 7px;text-align:center">info</th>
         <th style="padding:4px 7px;text-align:center">browse</th>
+        <th style="padding:4px 7px;text-align:center">read()</th>
         <th style="padding:4px 7px;text-align:center">IDs BD</th>
-        <th style="padding:4px 7px;text-align:center">variantes</th>
-        <th style="padding:4px 7px;text-align:center">registros</th>
+        <th style="padding:4px 7px;text-align:center">var.</th>
         <th style="padding:4px 7px">estado</th>
       </tr></thead><tbody>`;
   Object.entries(clases).forEach(([cls,d])=>{
     const bOk=d.browse_ok; const bCode=d.browse_code_final; const pLic=d.permiso_code===1;
+    const rOk=d.read_ok; const rCode=d.read_code_final;
     const fbI=idsPool[cls]||{}; const nVar=(d.browse_intentos||[]).length;
-    const rowBg=bOk?'#f0fdf4':pLic?'#fef2f2':bCode===6?'#eff6ff':'white';
+    const rowBg=bOk?'#f0fdf4':pLic?'#fef2f2':rOk?'#fefce8':bCode===6?'#eff6ff':'white';
     const estCol=bOk?'#166534':pLic?'#991b1b':bCode===6?'#1e40af':'#64748b';
-    const estTxt=bOk?'✅ Datos reales':pLic?'🚫 Sin licencia':bCode===6?'🔵 code=6':`code=${bCode}`;
+    const estTxt=bOk?'✅ browse OK':rOk?'🟡 solo read':pLic?'🚫 Sin licencia':bCode===6?'🔵 code=6':`code=${bCode}`;
+    const readCell=rOk?`<span style="color:#166534;font-weight:700">✅</span>`:
+                   rCode===null?'—':
+                   `<span style="color:#94a3b8;font-size:0.85em">c=${rCode}</span>`;
     h+=`<tr style="border-bottom:1px solid #f1f5f9;background:${rowBg}">
       <td style="padding:4px 7px;font-weight:600">${cls}</td>
       <td style="padding:4px 7px;text-align:center">${_sdCode(d.permiso_code)}</td>
-      <td style="padding:4px 7px;text-align:center">${_sdCode(d.info_code)}</td>
+      <td style="padding:4px 7px;text-align:center">${_sdCode(d.info_code)}${d.info_campos&&d.info_campos.length?`<span style="color:#0369a1;font-size:0.75em"> ${d.info_campos.length}f</span>`:''}</td>
       <td style="padding:4px 7px;text-align:center;font-weight:600;color:${estCol}">${bOk?'✅ 0':'code='+(bCode??'?')}</td>
+      <td style="padding:4px 7px;text-align:center">${readCell}</td>
       <td style="padding:4px 7px;text-align:center">${fbI.ok?`<span style="color:#1e40af;font-weight:600">${fbI.n}</span>`:'—'}</td>
       <td style="padding:4px 7px;text-align:center;color:#64748b">${nVar}</td>
-      <td style="padding:4px 7px;text-align:center;font-weight:600;color:#16a34a">${bOk?(d.n_items||0):'—'}</td>
       <td style="padding:4px 7px;color:${estCol};font-size:0.91em">${estTxt}</td>
     </tr>`;
+    // Fila de datos si browse OK
     if(bOk&&d.items_muestra&&d.items_muestra.length){
       const cols=Object.keys(d.items_muestra[0]);
       h+=`<tr style="background:#f0fdf4"><td colspan="8" style="padding:4px 8px 8px">
@@ -3804,10 +3809,13 @@ function _renderCentroDiag(r) {
           <tbody>${d.items_muestra.map(row=>`<tr>${cols.map(c=>`<td style="padding:2px 7px">${row[c]??''}</td>`).join('')}</tr>`).join('')}</tbody>
         </table></div></td></tr>`;
     }
-    if(!bOk&&bCode===6&&nVar>0){
-      h+=`<tr style="background:#eff6ff"><td colspan="8" style="padding:3px 8px 6px;font-size:0.79em;color:#1e40af">
-        🔵 ${nVar} variantes — todas code=6. ${fbI.ok?`IDs de ${fbI.tabla} incluidos (${fbI.n} vals).`:'Sin IDs BD.'}
-      </td></tr>`;
+    // Fila de info: mensaje exacto code=6 + campos info() + read intentos
+    if(bCode===6||rOk||(d.info_campos&&d.info_campos.length)){
+      let sub='';
+      if(d.browse_msg_exacto) sub+=`<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:3px;font-size:0.88em">msg: "${d.browse_msg_exacto}"</span> `;
+      if(d.info_campos&&d.info_campos.length) sub+=`<span style="color:#0369a1">info: ${d.info_campos.slice(0,8).join(', ')}</span> `;
+      if(rOk&&d.read_intentos&&d.read_intentos.length) sub+=`<span style="color:#166534">read(${d.read_intentos.find(x=>x.code===0)?.objectid||'?'})=✅</span>`;
+      if(sub) h+=`<tr style="background:${bCode===6?'#eff6ff':rOk?'#fefce8':'#f8fafc'}"><td colspan="8" style="padding:2px 8px 5px;font-size:0.77em">${sub}</td></tr>`;
     }
   });
   h+=`</tbody></table></div></details>`;
@@ -3831,74 +3839,65 @@ function _renderCentroDiag(r) {
       </tr>`;
     });
     h+=`</tbody></table>`;
-    // Interpretacion segun nc_code6_all
-    const ncCode6All = nc.nc_code6_all || nc.new_codes && nc.new_codes.length===1 && nc.new_codes[0]===6;
+    // code=6 en new() = falta parametro, NO error de BD (per docs propias)
+    const ncCode6All = nc.nc_code6_all || (nc.new_codes && nc.new_codes.length===1 && nc.new_codes[0]===6);
     if(nc.alguno_ok){
       h+=`<div style="background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#166534">
-        ✅ BD de mPYME accesible — new() funciona correctamente. El problema es de formato de parámetros de browse → ver pregunta para Distrito K abajo.</div>`;
+        ✅ new() funciona correctamente — BD de mPYME accesible.</div>`;
     } else if(ncCode6All){
-      h+=`<div style="background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#7f1d1d">
-        ❌ <strong>CAUSA CONFIRMADA:</strong> new() devuelve code=6 en todas las clases.
-        PymeMobileServer.exe no puede conectar internamente a SQL Obras.
-        Ver panel de <strong>Acción Requerida</strong> abajo.</div>`;
+      h+=`<div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#1e40af">
+        🔵 new() devuelve code=6 (mismo que browse). Según documentación: code=6 = falta parámetro obligatorio, <strong>no es error de BD</strong>.
+        Preguntar a Distrito K qué parámetros requiere new() y browse(). Ver pregunta abajo.</div>`;
     } else {
       h+=`<div style="background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#92400e">
-        ⚠️ new() falla (codes=${(nc.new_codes||[]).join(',')}) — BD SQL Obras no accesible.
-        Ver panel de Acción Requerida abajo.</div>`;
+        ⚠️ new() devuelve codes=${(nc.new_codes||[]).join(',')}. Ver detalles arriba.</div>`;
     }
     h+=`</details>`;
   }
-  // Panel ACCION REQUERIDA (cuando BD no accesible)
-  const ncOk=nc.alguno_ok;
-  if(!ncOk && r.aviso_admin){
-    const bdHost=r.bd_host||r.fases?.firebird?.db_host||'servidor';
-    h+=`<div style="margin-top:10px;border:2px solid #dc2626;border-radius:10px;overflow:hidden">
-      <div style="background:linear-gradient(90deg,#dc2626,#b91c1c);padding:10px 16px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.2em">🚨</span>
-        <div>
-          <div style="color:white;font-weight:800;font-size:0.92em">ACCIÓN REQUERIDA — Servidor ${bdHost}</div>
-          <div style="color:rgba(255,255,255,0.85);font-size:0.77em">PymeMobileServer no puede conectar a SQL Obras</div>
-        </div>
-      </div>
-      <div style="background:#fff5f5;padding:12px 16px">
-        <div style="font-size:0.82em;color:#1e293b;margin-bottom:8px;font-weight:600">Pasos en el servidor ${bdHost}:</div>
-        <ol style="margin:0;padding-left:20px;font-size:0.81em;color:#374151;line-height:1.7">
-          <li>Abrir <strong>SQL Obras</strong> (aplicación de escritorio) — debe estar activo</li>
-          <li>Abrir <strong>Servicios de Windows</strong> → buscar <code>PymeMobile Server</code> → <strong>Reiniciar</strong></li>
-          <li>Si persiste: <strong>reiniciar el servidor</strong> ${bdHost} completo</li>
-          <li>Revisar el <strong>log de PymeMobileServer.exe</strong> para errores de conexión a BD</li>
-        </ol>
-        <div style="margin-top:8px;font-size:0.79em;color:#6b7280">Una vez resuelto → pulsar <strong>🎯 Diagnóstico completo</strong> de nuevo</div>
-        <div style="margin-top:8px;display:flex;gap:6px">
-          <button onclick="(function(b){const t=(window._ae_super_diag||{}).aviso_admin||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar aviso'},2000)}).catch(()=>alert(t))})(this)"
-            style="font-size:0.78em;padding:4px 12px;background:#dc2626;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">📋 Copiar aviso completo</button>
-          <button onclick="ApiExplorerModule.doCentroDiagnostico({target:this})"
-            style="font-size:0.78em;padding:4px 12px;background:#374151;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">🔄 Repetir diagnóstico</button>
-        </div>
-        <details style="margin-top:8px"><summary style="cursor:pointer;font-size:0.77em;color:#64748b">Ver aviso completo para el administrador</summary>
-          <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.76em;color:#374151;background:white;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;margin-top:4px;max-height:200px;overflow-y:auto">${r.aviso_admin}</pre>
-        </details>
-      </div>
-    </div>`;
+  // Panel de contexto: lo que SÍ funciona (read/info) — visibilidad inmediata
+  const clasesEv=r.clases||{};
+  const readOk=Object.entries(clasesEv).filter(([,v])=>v.read_ok).map(([c])=>c);
+  const infoOk=Object.entries(clasesEv).filter(([,v])=>v.info_code===0).map(([c])=>c);
+  const msg6Ej=Object.values(clasesEv).find(v=>v.browse_msg_exacto)?.browse_msg_exacto||'';
+  const nVarTotal=r.fases?.browse?.n_var||r.resumen?.n_var||0;
+  if(readOk.length||infoOk.length||msg6Ej){
+    h+=`<div style="margin-top:8px;background:#f0f9ff;border:1px solid #7dd3fc;border-radius:8px;padding:10px 14px">
+      <div style="font-weight:700;font-size:0.82em;color:#0c4a6e;margin-bottom:6px">🔍 Evidencia recopilada</div>
+      <div style="font-size:0.79em;color:#1e293b;line-height:1.8">`;
+    if(msg6Ej) h+=`<div>📌 <strong>Mensaje exacto code=6:</strong> <code style="background:#e0f2fe;padding:1px 6px;border-radius:3px">${msg6Ej}</code></div>`;
+    if(readOk.length) h+=`<div>✅ <strong>read() con ID real OK:</strong> ${readOk.join(', ')}</div>`;
+    if(infoOk.length) h+=`<div>✅ <strong>info() OK (campos conocidos):</strong> ${infoOk.join(', ')}</div>`;
+    // Mostrar campos de info() si existen
+    const conCampos=Object.entries(clasesEv).filter(([,v])=>v.info_campos&&v.info_campos.length);
+    if(conCampos.length){
+      h+=`<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.77em;color:#0369a1">Ver campos de info()</summary>
+        <div style="margin-top:4px">`;
+      conCampos.slice(0,4).forEach(([c,v])=>{
+        h+=`<div style="font-size:0.75em"><code style="color:#0369a1">${c}</code>: ${v.info_campos.join(', ')}</div>`;
+      });
+      h+=`</div></details>`;
+    }
+    h+=`</div></div>`;
   }
-  // Pregunta para Distrito K (solo si BD accesible o como nota)
+  // Panel pregunta para Distrito K — SIEMPRE visible si hay code=6
   const preg=r.pregunta_distrito_k||'';
   if(preg){
-    const esPreguntaReal=ncOk;
-    const bg=esPreguntaReal?'linear-gradient(90deg,#fef3c7,#fefce8)':'linear-gradient(90deg,#f0f9ff,#e0f2fe)';
-    const bor=esPreguntaReal?'#fde68a':'#7dd3fc';
-    const col=esPreguntaReal?'#92400e':'#0c4a6e';
-    const ico=esPreguntaReal?'📧':'ℹ️';
-    const lbl=esPreguntaReal?'Pregunta lista para Distrito K — click para ver y copiar':'Nota — resolver servidor primero';
-    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:8px 12px;background:${bg};border:1px solid ${bor};border-radius:8px;color:${col}">
-      ${ico} ${lbl}</summary>
-      <div style="background:${esPreguntaReal?'#fffbeb':'#f0f9ff'};border:1px solid ${bor};border-radius:0 0 8px 8px;padding:10px 14px">
-        ${esPreguntaReal?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-          <button onclick="(function(b){const t=(window._ae_super_diag||{}).pregunta_distrito_k||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar'},2000)}).catch(()=>alert(t))})(this)"
-            style="font-size:0.79em;padding:4px 12px;background:#f59e0b;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">📋 Copiar</button>
-        </div>`:''}
-        <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.79em;color:#1e293b;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:0;max-height:250px;overflow-y:auto">${preg}</pre>
-      </div></details>`;
+    h+=`<div style="margin-top:10px;border:2px solid #f59e0b;border-radius:10px;overflow:hidden">
+      <div style="background:linear-gradient(90deg,#f59e0b,#d97706);padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.1em">📧</span>
+          <div>
+            <div style="color:white;font-weight:800;font-size:0.9em">Pregunta para Distrito K — lista para enviar</div>
+            <div style="color:rgba(255,255,255,0.85);font-size:0.75em">Incluye evidencia exhaustiva: ${nVarTotal||r.resumen?.n_var||'?'} variantes probadas, IDs reales, mensajes exactos</div>
+          </div>
+        </div>
+        <button onclick="(function(b){const t=(window._ae_super_diag||{}).pregunta_distrito_k||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar'},2500)}).catch(()=>alert(t))})(this)"
+          style="font-size:0.8em;padding:5px 14px;background:white;color:#92400e;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">📋 Copiar</button>
+      </div>
+      <div style="background:#fffbeb;padding:10px 14px">
+        <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.78em;color:#1e293b;background:white;border:1px solid #fde68a;border-radius:6px;padding:10px 14px;margin:0;max-height:320px;overflow-y:auto">${preg}</pre>
+      </div>
+    </div>`;
   }
   // Botones export + repetir
   h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">

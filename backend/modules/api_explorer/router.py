@@ -1633,44 +1633,64 @@ async def super_diagnostico():
         except Exception as _e3:
             _slog.warning(f"[super-diag] pool: {_e3}")
 
-    # F3: permiso+info+browse por clase
+
+    # F3: permiso+info+browse+read por clase (captura msg exacto de code=6)
     from backend.modules.api_explorer.service import ALL_OBJECT_CLASSES
+    _anyo_bd = "2021"  # anyo real de la BD Firebird (juandedi/2021.fdb)
     clases_resultado: dict = {}
     for clase in ALL_OBJECT_CLASSES:
-        cr: dict = {"permiso_code":None,"permiso_msg":"","info_code":None,
+        cr: dict = {"permiso_code":None,"permiso_msg":"","info_code":None,"info_campos":[],
                     "browse_intentos":[],"browse_code_final":None,"browse_ok":False,
+                    "browse_msg_exacto":"",
+                    "read_intentos":[],"read_code_final":None,"read_ok":False,
                     "n_items":0,"items_muestra":[],"campos":[],"params_exitosos":None}
+        # permiso
         try:
             _pr,_ = svc._client().permiso(svc.ssid1,svc.ssid2,clase)
             cr["permiso_code"]=_pr.get("code") if isinstance(_pr,dict) else -1
-            cr["permiso_msg"]=str((_pr or {}).get("data",""))[:120]
-        except Exception as _ep: cr["permiso_code"]=-1; cr["permiso_msg"]=str(_ep)[:60]
+            cr["permiso_msg"]=str((_pr or {}).get("data",""))[:200]
+        except Exception as _ep: cr["permiso_code"]=-1; cr["permiso_msg"]=str(_ep)[:80]
+        # info (captura campos reales si code=0)
         try:
             _ir,_ = svc._client().info(svc.ssid1,svc.ssid2,clase)
             cr["info_code"]=_ir.get("code") if isinstance(_ir,dict) else -1
+            if cr["info_code"]==0:
+                _idata = (_ir or {}).get("data",{})
+                if isinstance(_idata,dict): cr["info_campos"]=list(_idata.keys())[:30]
+                elif isinstance(_idata,list): cr["info_campos"]=[str(x) for x in _idata[:30]]
         except Exception: cr["info_code"]=-1
         if cr["permiso_code"]==1:
             cr["browse_code_final"]=-99; clases_resultado[clase]=cr; continue
-        _variantes = [
-            ({},"vacio"),({"pagesize":"1"},"p1"),({"pagesize":"25"},"p25"),
-            ({"num":"20"},"num20"),({"filter":"{}"},"filter={}"),({"estado":"abierta"},"est=abierta"),
-            ({"estado":"activa"},"est=activa"),({"soloActivos":"T"},"soloActivos"),
-            ({"activo":"T"},"activo=T"),({"todos":"T"},"todos=T"),
-            ({"ejercicio":"2026"},"ej=2026"),({"ejercicio":"2025"},"ej=2025"),
-            ({"anyo":"2026"},"anyo=2026"),({"tipo":"EMPLEADO"},"tipo=EMP"),
-            ({"tipo":"M"},"tipo=M"),({"columns":"[]"},"cols=[]"),
-            ({"page":"1","pagesize":"25"},"page1+p25"),({"num":"100"},"num100"),
-        ]
+        # Variantes base (incluye ejercicio del anyo real de la BD)
         _fb = ids_pool.get(clase,{})
+        _variantes = [
+            ({},"vacio"),
+            ({"pagesize":"1"},"p1"),({{"pagesize":"25"}},"p25"),
+            ({"num":"20"},"num20"),({"filter":"{{}}"},"filter={{}}"),
+            ({"estado":"abierta"},"est=abierta"),({"estado":"activa"},"est=activa"),
+            ({"soloActivos":"T"},"soloActivos"),({"activo":"T"},"activo=T"),
+            ({"todos":"T"},"todos=T"),
+            ({"ejercicio":_anyo_bd},f"ej={_anyo_bd}"),
+            ({"ejercicio":"2026"},"ej=2026"),({{"ejercicio":"2025"}},"ej=2025"),
+            ({"anyo":_anyo_bd},f"anyo={_anyo_bd}"),({{"anyo":"2026"}},"anyo=2026"),
+            ({"tipo":"EMPLEADO"},"tipo=EMP"),({{"tipo":"M"}},"tipo=M"),
+            ({"columns":"[]"},"cols=[]"),
+            ({"page":"1","pagesize":"25"},"page1+p25"),({{"num":"100"}},"num100"),
+            ({"objectid":"new"},"oid=new"),
+            ({"empr":cfg.get("empresa",""),"pagesize":"25"},"empr+p25"),
+        ]
         if _fb.get("ok") and _fb.get("valores"):
             _papi = _fb["param"]
             for _val in _fb["valores"][:5]:
                 _variantes += [
-                    ({_papi:_val},f"{_papi}={_val}"),({"objectid":_val},f"oid={_val}"),
+                    ({_papi:_val},f"{_papi}={_val}"),
+                    ({"objectid":_val},f"oid={_val}"),
                     ({_papi:_val,"pagesize":"25"},f"{_papi}={_val}+p25"),
                     ({_papi:_val,"pagesize":"1"},f"{_papi}={_val}+p1"),
+                    ({_papi:_val,"ejercicio":_anyo_bd},f"{_papi}={_val}+ej{_anyo_bd}"),
                 ]
         best_code = None
+        _msg6_primero = ""
         for _vp,_vd in _variantes:
             if best_code==0: break
             try:
@@ -1678,8 +1698,9 @@ async def super_diagnostico():
                 _c = _rv.get("code") if isinstance(_rv,dict) else -1
                 _itms = _rv.get("items") or (_rv.get("data") if isinstance(_rv.get("data"),list) else [])
                 _n = len(_itms) if isinstance(_itms,list) else 0
-                cr["browse_intentos"].append({"desc":_vd,"code":_c,"n_items":_n,
-                                              "msg":str((_rv or {}).get("data",""))[:60]})
+                _msg_data = str((_rv or {}).get("data",""))[:120]
+                cr["browse_intentos"].append({"desc":_vd,"code":_c,"n_items":_n,"msg":_msg_data})
+                if _c==6 and not _msg6_primero: _msg6_primero = _msg_data
                 if _c==0:
                     best_code=0; cr["browse_ok"]=True; cr["n_items"]=_n; cr["params_exitosos"]=_vp
                     if not cr["items_muestra"] and isinstance(_itms,list) and _itms:
@@ -1687,31 +1708,59 @@ async def super_diagnostico():
                         cr["campos"]=(list(_itms[0].keys())[:20] if isinstance(_itms[0],dict) else [])
                 elif best_code is None: best_code=_c
             except Exception as _eb:
-                cr["browse_intentos"].append({"desc":_vd,"code":-1,"n_items":0,"msg":str(_eb)[:50]})
+                cr["browse_intentos"].append({"desc":_vd,"code":-1,"n_items":0,"msg":str(_eb)[:60]})
         cr["browse_code_final"]=best_code if best_code is not None else -1
-        clases_resultado[clase]=cr
-    # F4: new+cancel (4 clases, seguro)
-    nc_resultados=[]
-    for _cls4 in ["proyectos","repobjetos","reporden","clientes"]:
-        try:
-            _rn,_=svc._client().new(svc.ssid1,svc.ssid2,_cls4,{})
-            _cn=_rn.get("code") if isinstance(_rn,dict) else -1
-            _oid=""
-            if _cn==0:
-                _d4=(_rn or {}).get("data",{})
-                _oid=((_d4.get("objectId") or _d4.get("objectid") or _d4.get("id") or "new")
-                      if isinstance(_d4,dict) else "new")
-            _cc=-1
-            if _oid:
+        cr["browse_msg_exacto"]=_msg6_primero
+        # read() con IDs reales de Firebird
+        if _fb.get("ok") and _fb.get("valores"):
+            _papi = _fb["param"]
+            for _val in _fb["valores"][:3]:
                 try:
-                    _rc,_=svc._client().cancel(svc.ssid1,svc.ssid2,_cls4,{"objectid":_oid})
-                    _cc=_rc.get("code") if isinstance(_rc,dict) else -1
-                except Exception: pass
-            nc_resultados.append({"clase":_cls4,"new_code":_cn,"cancel_code":_cc,
-                                   "bd_accesible":_cn==0,"msg":str((_rn or {}).get("data",""))[:80]})
-        except Exception as _enc:
-            nc_resultados.append({"clase":_cls4,"new_code":-1,"cancel_code":-1,
-                                   "bd_accesible":False,"msg":str(_enc)[:80]})
+                    _rdr,_ = svc._client().read(svc.ssid1,svc.ssid2,clase,{_papi:_val})
+                    _rc = _rdr.get("code") if isinstance(_rdr,dict) else -1
+                    _rmsg = str((_rdr or {}).get("data",""))[:120]
+                    cr["read_intentos"].append({"objectid":_val,"code":_rc,"msg":_rmsg})
+                    if _rc==0 and not cr["read_ok"]:
+                        cr["read_ok"]=True; cr["read_code_final"]=0
+                        if not cr["info_campos"] and isinstance((_rdr or {}).get("data"),dict):
+                            cr["info_campos"]=list(_rdr["data"].keys())[:20]
+                except Exception as _er:
+                    cr["read_intentos"].append({"objectid":_val,"code":-1,"msg":str(_er)[:60]})
+        if cr["read_code_final"] is None and cr["read_intentos"]:
+            cr["read_code_final"]=cr["read_intentos"][-1]["code"]
+        clases_resultado[clase]=cr
+    # F4: new+cancel con variantes de params de contexto
+    nc_resultados=[]
+    _new_variantes = [
+        ({},"vacio"),
+        ({"ejercicio":_anyo_bd},f"ej={_anyo_bd}"),
+        ({"ejercicio":"2026"},"ej=2026"),
+        ({"empr":cfg.get("empresa","")},"empr"),
+    ]
+    for _cls4 in ["proyectos","repobjetos","reporden","clientes"]:
+        _nc_best_code=None; _nc_best_oid=""; _nc_best_variant=""; _nc_best_msg=""
+        for _nvp, _nvd in _new_variantes:
+            try:
+                _rn,_=svc._client().new(svc.ssid1,svc.ssid2,_cls4,dict(_nvp))
+                _cn=_rn.get("code") if isinstance(_rn,dict) else -1
+                _nmsg=str((_rn or {}).get("data",""))[:120]
+                if _cn==0:
+                    _d4=(_rn or {}).get("data",{})
+                    _oid=((_d4.get("objectId") or _d4.get("objectid") or _d4.get("id") or "new")
+                          if isinstance(_d4,dict) else "new")
+                    _nc_best_code=0; _nc_best_oid=_oid; _nc_best_variant=_nvd; _nc_best_msg=_nmsg; break
+                elif _nc_best_code is None: _nc_best_code=_cn; _nc_best_msg=_nmsg; _nc_best_variant=_nvd
+            except Exception as _enc:
+                if _nc_best_code is None: _nc_best_code=-1; _nc_best_msg=str(_enc)[:80]; _nc_best_variant=_nvd
+        _cc=-1
+        if _nc_best_oid:
+            try:
+                _rc,_=svc._client().cancel(svc.ssid1,svc.ssid2,_cls4,{"objectid":_nc_best_oid})
+                _cc=_rc.get("code") if isinstance(_rc,dict) else -1
+            except Exception: pass
+        nc_resultados.append({"clase":_cls4,"new_code":_nc_best_code,"cancel_code":_cc,
+                               "bd_accesible":_nc_best_code==0,
+                               "variant":_nc_best_variant,"msg":_nc_best_msg})
     # F5: Conclusiones automáticas
     n_ok  = sum(1 for v in clases_resultado.values() if v["browse_ok"])
     n_lic = sum(1 for v in clases_resultado.values() if v.get("permiso_code")==1)
@@ -1725,27 +1774,33 @@ async def super_diagnostico():
     _nc_new_codes = sorted({r["new_code"] for r in nc_resultados})
     _nc_code6_all = bool(nc_resultados) and all(r["new_code"]==6 for r in nc_resultados)
     _nc_code5_all = bool(nc_resultados) and all(r["new_code"]==5 for r in nc_resultados)
+    # Datos adicionales para analisis
+    _cl_read_ok = [c for c,v in clases_resultado.items() if v.get("read_ok")]
+    _cl_info_ok = [c for c,v in clases_resultado.items() if v.get("info_code")==0]
+    _msg6_ejemplos = {c:v.get("browse_msg_exacto","") for c,v in clases_resultado.items()
+                      if v.get("browse_msg_exacto") and v.get("browse_code_final")==6}
+    # code=6 segun docs propias = "No es posible acceder a la BD" = FALTA PARAMETRO
+    # No es error de BD — es como mPYME indica que falta un parametro obligatorio
+    _todo_code6_mismo_msg = len(set(_msg6_ejemplos.values()))==1 if _msg6_ejemplos else False
     conclusiones=[]
     if n_ok: conclusiones.append({"tipo":"ok","texto":f"✅ {n_ok} clase(s) con datos reales: {', '.join(_cl_ok)}"})
+    if _cl_read_ok: conclusiones.append({"tipo":"ok","texto":f"✅ read() OK en: {', '.join(_cl_read_ok)}"})
     if n_lic: conclusiones.append({"tipo":"licencia","texto":f"🚫 Sin licencia: {', '.join(_cl_lic)}"})
-    if nc_ok and _cl_p6:
+    if _cl_p6:
+        _msg6_ej = list(_msg6_ejemplos.values())[0] if _msg6_ejemplos else ""
         conclusiones.append({"tipo":"params","texto":(
-            f"🔵 {len(_cl_p6)} clase(s) code=6 tras {n_var} variantes. "
-            f"BD mPYME accesible (new+cancel OK). Formato params browse incorrecto. "
-            f"Contactar Distrito K con pregunta generada abajo.")})
-    elif not nc_ok and (_cl_p6 or not n_ok):
-        if _nc_code6_all:
-            conclusiones.append({"tipo":"bd_inacc","texto":(
-                f"❌ CAUSA CONFIRMADA: PymeMobileServer no conecta a SQL Obras. "
-                f"new()=code=6 en todas las clases. "
-                f"Abrir SQL Obras en {fb_diag.get('db_host','?')} y reiniciar PymeMobileServer.exe.")})
-        elif _nc_code5_all:
-            conclusiones.append({"tipo":"bd_inacc","texto":(
-                f"❌ PymeMobileServer devuelve code=5 en new(). Error config/licencia interna.")})
-        else:
-            conclusiones.append({"tipo":"bd_inacc","texto":(
-                f"❌ BD mPYME NO accesible (new() codes={_nc_new_codes}). "
-                f"Reiniciar SQL Obras + PymeMobileServer.exe.")})
+            f"🔵 {len(_cl_p6)} clase(s) devuelven code=6 tras {n_var} variantes. "
+            f"Segun docs: code=6 = falta parametro obligatorio (no es error de BD). "
+            + (f"Mensaje exacto: '{_msg6_ej}'. " if _msg6_ej else "")
+            + f"Preguntar a Distrito K que parametro exacto requiere browse.")})
+    _cl_p5 = [c for c,v in clases_resultado.items() if not v["browse_ok"] and v.get("browse_code_final")==5]
+    if _cl_p5: conclusiones.append({"tipo":"config","texto":f"⚠️ code=5 (Peticion no reconocida): {', '.join(_cl_p5)}"})
+    # new() tambien code=6 = mismo problema: falta parametro de contexto
+    if _nc_code6_all:
+        conclusiones.append({"tipo":"params","texto":(
+            f"🔵 new() tambien code=6 en todas las clases. "
+            f"new() tambien requiere parametro de contexto (ejercicio, codEmpresa?). "
+            f"Preguntar a Distrito K que parametros son obligatorios en new().")})
     if not fb_ok: conclusiones.append({"tipo":"firebird","texto":"❌ Firebird no conecta. Verificar .env"})
     empresa=cfg.get("empresa","?"); api_url=cfg.get("api_url","?")
     db_host=fb_diag.get("db_host","?"); db_name=fb_diag.get("db_name","?")
@@ -1753,48 +1808,46 @@ async def super_diagnostico():
              for c in _cl_p6[:3] if ids_pool.get(c,{}).get("ok")]
     _pe=clases_resultado.get(_cl_p6[0],{}).get("permiso_code","?") if _cl_p6 else "?"
     _nc_msgs=[f"{r['clase']}: new()=code{r['new_code']} ({r['msg'][:60]})" for r in nc_resultados]
-    # Aviso para el administrador del servidor (BD no accesible)
-    aviso_admin=""
-    if not nc_ok:
-        _pok_str=(", ".join(_cl_perm_ok)) if _cl_perm_ok else "ninguna"
-        aviso_admin=(
-            f"AVISO URGENTE - Sistema DEVIA / SQL Obras ({ts_inicio[:19]})\n"
-            f"\nPymeMobileServer.exe ({api_url}) responde pero NO puede"
-            f" conectar internamente a la base de datos SQL Obras.\n"
-            f"\nEvidencia diagnostica automatica:\n"
-            f"  - Firebird conexion directa OK (host={db_host}, BD={db_name})\n"
-            f"  - new() en 4 clases: {chr(10).join(_nc_msgs)}\n"
-            f"  - {n_var} variantes de browse probadas: todas code=6 o code=5\n"
-            f"  - Clases con permiso=0 (autenticado): {_pok_str}\n"
-            f"\nACCION REQUERIDA en servidor {db_host}:\n"
-            f"  1. Verificar que SQL Obras esta abierto (aplicacion escritorio activa)\n"
-            f"  2. Reiniciar servicio PymeMobileServer.exe\n"
-            f"     (Servicios de Windows > PymeMobile Server > Reiniciar)\n"
-            f"  3. Si persiste: reiniciar el servidor {db_host} completo\n"
-            f"  4. Revisar log de PymeMobileServer.exe para errores internos\n"
-            f"\nUna vez resuelto, repetir el Diagnostico completo en DEVIA."
-        )
-    # Pregunta para Distrito K (solo si BD accesible y el problema son params)
+    aviso_admin=""  # ya no hay aviso de servidor: code=6 = falta parametro, no es error de BD
+    # Pregunta correcta para Distrito K (siempre que haya code=6, independiente de new())
     pregunta_dk=""
-    if _cl_p6 and nc_ok:
+    if _cl_p6 or _nc_code6_all:
+        _msg6_ej = list(_msg6_ejemplos.values())[0] if _msg6_ejemplos else "(no capturado)"
+        _read_info = ""
+        if _cl_read_ok:
+            _read_info = f"read() devuelve code=0 en: {', '.join(_cl_read_ok)}.\n"
+        if _cl_info_ok:
+            _read_info += f"info() devuelve code=0 en: {', '.join(_cl_info_ok)}.\n"
+        _campos_info = {}
+        for _c, _v in clases_resultado.items():
+            if _v.get("info_campos"): _campos_info[_c] = _v["info_campos"][:10]
+        _campos_str = "\n".join(f"  - {c}: {', '.join(fs)}" for c,fs in list(_campos_info.items())[:4]) if _campos_info else ""
+        _nc_msg_ej = nc_resultados[0]["msg"][:100] if nc_resultados else ""
         pregunta_dk=(
-            f"Hola Distrito K,\n\nInstalacion: empresa={empresa}, URL={api_url}\n\n"
-            f"Clases {', '.join(_cl_p6[:8])} devuelven code=6 en browse tras {n_var} variantes "
-            f"(vacio, pagesize, filter, IDs Firebird reales, ejercicio, estado, soloActivos, anyo, todos).\n\n"
-            +("IDs Firebird probados:\n"+"\n".join(_ids_ej)+"\n\n" if _ids_ej else "")
-            +f"permiso()=code={_pe} (autenticado OK). new()+cancel(): OK (BD accesible).\n\n"
-            "Preguntas:\n"
-            "  1. Que parametro exacto requiere browse en estas clases?\n"
-            "  2. Hay parametro de instalacion obligatorio (ejercicio, codEmpresa, soloActivos)?\n"
-            "  3. code=6 siempre significa falta parametro?\n"
-            "  4. Se requiere objectid en browse o solo en read?\n\nGracias."
-        )
-    elif not nc_ok:
-        pregunta_dk=(
-            f"NOTA: La BD de mPYME no es accesible (new()=code={_nc_new_codes}).\n"
-            f"El problema es del servidor, no de parametros de browse.\n"
-            f"Ver aviso_admin para las acciones requeridas.\n"
-            f"Una vez resuelto, repetir el diagnostico para generar pregunta para Distrito K."
+            f"Hola Distrito K,\n\nInstalacion: empresa={empresa}, URL={api_url}\n"
+            f"BD Firebird: {db_host} / {db_name}\n\n"
+            f"SITUACION:\n"
+            f"browse() devuelve code=6 en {len(_cl_p6)} clases tras {n_var} variantes probadas.\n"
+            f"new() devuelve code=6 en todas las clases con params vacio y con ejercicio.\n"
+            f"Mensaje exacto recibido en code=6: '{_msg6_ej}'\n\n"
+            f"VARIANTES YA PROBADAS EN BROWSE:\n"
+            f"  vacio, pagesize=1/25, filter={{}}, estado=abierta/activa, soloActivos=T,\n"
+            f"  activo=T, todos=T, ejercicio=2021/2025/2026, anyo=2021/2026,\n"
+            f"  objectid=new, IDs reales Firebird con {_fb.get('param','?')}=\n"
+            + ("".join(f"  {l}\n" for l in _ids_ej) if _ids_ej else "  (ver detalle por clase)\n")
+            + (f"\nQUE SI FUNCIONA:\n{_read_info}" if _read_info else "")
+            + (f"\nCAMPOS CONOCIDOS (de info()):\n{_campos_str}\n" if _campos_str else "")
+            + f"\nNEW() MSG: '{_nc_msg_ej}'\n\n"
+            f"PREGUNTAS:\n"
+            f"  1. Que parametro obligatorio requiere browse() en estas clases?\n"
+            f"     (proyectos, reporden, clientes, docalbcom, docfaccom, docpedcom, etc.)\n"
+            f"  2. Que parametros obligatorios requiere new()?\n"
+            f"  3. El mensaje 'No es posible acceder a la base de datos' en code=6\n"
+            f"     siempre significa 'falta parametro' o hay otra causa?\n"
+            f"  4. Hay parametro de instalacion obligatorio en todas las llamadas?\n"
+            f"     (ejercicio=AAAA? codEmpresa? soloActivos? otro?)\n"
+            f"  5. La documentacion menciona parametros obligatorios por clase?\n\n"
+            f"Muchas gracias."
         )
     return {
         "success":True,"timestamp":ts_inicio,"empresa":empresa,"api_url":api_url,
