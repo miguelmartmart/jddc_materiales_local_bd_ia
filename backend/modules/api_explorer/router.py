@@ -1598,6 +1598,178 @@ async def get_informe_completo():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/super-diagnostico")
+async def super_diagnostico():
+    """Diagnostico exhaustivo: prueba TODO antes de escalar a Distrito K."""
+    import json as _sj
+    svc = get_service()
+    if not svc.session_active:
+        raise HTTPException(status_code=401, detail="Sin sesion activa.")
+    cfg = svc.get_config_env()
+    ts_inicio = __import__("datetime").datetime.now().isoformat()
+    import logging as _lg2; _slog = _lg2.getLogger(__name__)
+
+    # F1: Firebird + F2: Pool IDs
+    fb_diag = _firebird_diagnostico()
+    ids_pool: dict = {}
+    if fb_diag.get("conexion_ok"):
+        try:
+            drv_pool = _get_db_driver()
+            try:
+                for _cl, (_t, _ci, _cd, _pm) in MAPA_FIREBIRD.items():
+                    try:
+                        _sql = (f"SELECT FIRST 10 {_ci} FROM {_t} ORDER BY {_ci}" if _ci==_cd else
+                                f"SELECT FIRST 10 {_ci}, {_cd} FROM {_t} ORDER BY {_ci}")
+                        _rows = drv_pool.execute_query(_sql)
+                        _vals = []
+                        for _r in (_rows or []):
+                            for _k in [_ci, _ci.lower(), _ci.upper()]:
+                                if _r.get(_k): _vals.append(str(_r[_k]).strip()); break
+                        ids_pool[_cl] = {"ok":bool(_vals),"param":_pm,"valores":_vals,"tabla":_t,"n":len(_vals)}
+                    except Exception as _e2:
+                        ids_pool[_cl] = {"ok":False,"error":str(_e2)[:120],"tabla":_t,"n":0}
+            finally:
+                drv_pool.disconnect()
+        except Exception as _e3:
+            _slog.warning(f"[super-diag] pool: {_e3}")
+
+    # F3: permiso+info+browse por clase
+    from backend.modules.api_explorer.service import ALL_OBJECT_CLASSES
+    clases_resultado: dict = {}
+    for clase in ALL_OBJECT_CLASSES:
+        cr: dict = {"permiso_code":None,"permiso_msg":"","info_code":None,
+                    "browse_intentos":[],"browse_code_final":None,"browse_ok":False,
+                    "n_items":0,"items_muestra":[],"campos":[],"params_exitosos":None}
+        try:
+            _pr,_ = svc._client().permiso(svc.ssid1,svc.ssid2,clase)
+            cr["permiso_code"]=_pr.get("code") if isinstance(_pr,dict) else -1
+            cr["permiso_msg"]=str((_pr or {}).get("data",""))[:120]
+        except Exception as _ep: cr["permiso_code"]=-1; cr["permiso_msg"]=str(_ep)[:60]
+        try:
+            _ir,_ = svc._client().info(svc.ssid1,svc.ssid2,clase)
+            cr["info_code"]=_ir.get("code") if isinstance(_ir,dict) else -1
+        except Exception: cr["info_code"]=-1
+        if cr["permiso_code"]==1:
+            cr["browse_code_final"]=-99; clases_resultado[clase]=cr; continue
+        _variantes = [
+            ({},"vacio"),({"pagesize":"1"},"p1"),({"pagesize":"25"},"p25"),
+            ({"num":"20"},"num20"),({"filter":"{}"},"filter={}"),({"estado":"abierta"},"est=abierta"),
+            ({"estado":"activa"},"est=activa"),({"soloActivos":"T"},"soloActivos"),
+            ({"activo":"T"},"activo=T"),({"todos":"T"},"todos=T"),
+            ({"ejercicio":"2026"},"ej=2026"),({"ejercicio":"2025"},"ej=2025"),
+            ({"anyo":"2026"},"anyo=2026"),({"tipo":"EMPLEADO"},"tipo=EMP"),
+            ({"tipo":"M"},"tipo=M"),({"columns":"[]"},"cols=[]"),
+            ({"page":"1","pagesize":"25"},"page1+p25"),({"num":"100"},"num100"),
+        ]
+        _fb = ids_pool.get(clase,{})
+        if _fb.get("ok") and _fb.get("valores"):
+            _papi = _fb["param"]
+            for _val in _fb["valores"][:5]:
+                _variantes += [
+                    ({_papi:_val},f"{_papi}={_val}"),({"objectid":_val},f"oid={_val}"),
+                    ({_papi:_val,"pagesize":"25"},f"{_papi}={_val}+p25"),
+                    ({_papi:_val,"pagesize":"1"},f"{_papi}={_val}+p1"),
+                ]
+        best_code = None
+        for _vp,_vd in _variantes:
+            if best_code==0: break
+            try:
+                _rv,_ = svc._client().browse(svc.ssid1,svc.ssid2,clase,dict(_vp))
+                _c = _rv.get("code") if isinstance(_rv,dict) else -1
+                _itms = _rv.get("items") or (_rv.get("data") if isinstance(_rv.get("data"),list) else [])
+                _n = len(_itms) if isinstance(_itms,list) else 0
+                cr["browse_intentos"].append({"desc":_vd,"code":_c,"n_items":_n,
+                                              "msg":str((_rv or {}).get("data",""))[:60]})
+                if _c==0:
+                    best_code=0; cr["browse_ok"]=True; cr["n_items"]=_n; cr["params_exitosos"]=_vp
+                    if not cr["items_muestra"] and isinstance(_itms,list) and _itms:
+                        cr["items_muestra"]=_itms[:3]
+                        cr["campos"]=(list(_itms[0].keys())[:20] if isinstance(_itms[0],dict) else [])
+                elif best_code is None: best_code=_c
+            except Exception as _eb:
+                cr["browse_intentos"].append({"desc":_vd,"code":-1,"n_items":0,"msg":str(_eb)[:50]})
+        cr["browse_code_final"]=best_code if best_code is not None else -1
+        clases_resultado[clase]=cr
+    # F4: new+cancel (4 clases, seguro)
+    nc_resultados=[]
+    for _cls4 in ["proyectos","repobjetos","reporden","clientes"]:
+        try:
+            _rn,_=svc._client().new(svc.ssid1,svc.ssid2,_cls4,{})
+            _cn=_rn.get("code") if isinstance(_rn,dict) else -1
+            _oid=""
+            if _cn==0:
+                _d4=(_rn or {}).get("data",{})
+                _oid=((_d4.get("objectId") or _d4.get("objectid") or _d4.get("id") or "new")
+                      if isinstance(_d4,dict) else "new")
+            _cc=-1
+            if _oid:
+                try:
+                    _rc,_=svc._client().cancel(svc.ssid1,svc.ssid2,_cls4,{"objectid":_oid})
+                    _cc=_rc.get("code") if isinstance(_rc,dict) else -1
+                except Exception: pass
+            nc_resultados.append({"clase":_cls4,"new_code":_cn,"cancel_code":_cc,
+                                   "bd_accesible":_cn==0,"msg":str((_rn or {}).get("data",""))[:80]})
+        except Exception as _enc:
+            nc_resultados.append({"clase":_cls4,"new_code":-1,"cancel_code":-1,
+                                   "bd_accesible":False,"msg":str(_enc)[:80]})
+    # F5: Conclusiones automáticas
+    n_ok  = sum(1 for v in clases_resultado.values() if v["browse_ok"])
+    n_lic = sum(1 for v in clases_resultado.values() if v.get("permiso_code")==1)
+    nc_ok = any(r["bd_accesible"] for r in nc_resultados)
+    fb_ok = fb_diag.get("conexion_ok",False)
+    n_var = sum(len(v["browse_intentos"]) for v in clases_resultado.values())
+    _cl_ok  = [c for c,v in clases_resultado.items() if v["browse_ok"]]
+    _cl_p6  = [c for c,v in clases_resultado.items() if not v["browse_ok"] and v.get("browse_code_final")==6]
+    _cl_lic = [c for c,v in clases_resultado.items() if v.get("permiso_code")==1]
+    conclusiones=[]
+    if n_ok: conclusiones.append({"tipo":"ok","texto":f"✅ {n_ok} clase(s) con datos reales: {', '.join(_cl_ok)}"})
+    if n_lic: conclusiones.append({"tipo":"licencia","texto":f"🚫 Sin licencia: {', '.join(_cl_lic)}"})
+    if _cl_p6:
+        conclusiones.append({"tipo":"bd_inacc" if not nc_ok else "params","texto":(
+            f"🔵 {len(_cl_p6)} clase(s) code=6 tras {n_var} variantes. "
+            +("BD mPYME accesible (new+cancel OK). Problema: formato params browse." if nc_ok else
+              "BD mPYME NO accesible. Reiniciar SQL Obras + PymeMobileServer.exe."))})
+    if not fb_ok: conclusiones.append({"tipo":"firebird","texto":"❌ Firebird no conecta. Verificar .env"})
+    empresa=cfg.get("empresa","?"); api_url=cfg.get("api_url","?")
+    _ids_ej=[f"  - {c}: {ids_pool.get(c,{}).get('param','?')}={ids_pool.get(c,{}).get('valores',[None])[0]}"
+             for c in _cl_p6[:3] if ids_pool.get(c,{}).get("ok")]
+    _pe=clases_resultado.get(_cl_p6[0],{}).get("permiso_code","?") if _cl_p6 else "?"
+    pregunta_dk=""
+    if _cl_p6:
+        pregunta_dk=(
+            f"Hola Distrito K,\n\nInstalacion: empresa={empresa}, URL={api_url}\n\n"
+            f"Clases {', '.join(_cl_p6[:8])} devuelven code=6 en browse tras {n_var} variantes "
+            f"(vacio, pagesize, filter, IDs Firebird, ejercicio, estado, soloActivos, anyo, todos).\n\n"
+            +("IDs Firebird:\n"+"\n".join(_ids_ej)+"\n\n" if _ids_ej else "")
+            +f"permiso()=code={_pe} (acceso OK). new()+cancel(): {'OK' if nc_ok else 'FALLA'}\n\n"
+            "Preguntas:\n"
+            "  1. Parametro exacto obligatorio para browse en estas clases?\n"
+            "  2. Hay parametro de instalacion (ejercicio, codEmpresa, soloActivos)?\n"
+            "  3. code=6 = siempre 'falta parametro'?\n"
+            "  4. Se requiere objectid en browse o solo en read?\n\nGracias."
+        )
+    return {
+        "success":True,"timestamp":ts_inicio,"empresa":empresa,"api_url":api_url,
+        "fases":{
+            "firebird":{"ok":fb_ok,"db_host":fb_diag.get("db_host",""),
+                        "db_name":fb_diag.get("db_name",""),"error":fb_diag.get("error",""),
+                        "n_proyectos":fb_diag.get("tablas_probadas",{}).get("PROYECTOS",{}).get("n_registros",0)},
+            "ids_pool":{"n_clases":sum(1 for v in ids_pool.values() if v.get("ok")),
+                        "detalle":{k:{"ok":v.get("ok"),"n":v.get("n",0),"tabla":v.get("tabla","")}
+                                   for k,v in ids_pool.items()}},
+            "browse":{"n_ok":n_ok,"n_code6":len(_cl_p6),"n_lic":n_lic,"n_var":n_var},
+            "new_cancel":{"resultados":nc_resultados,"alguno_ok":nc_ok},
+        },
+        "clases":clases_resultado,
+        "ids_pool":{k:{"ok":v.get("ok"),"param":v.get("param"),"n":v.get("n",0),
+                       "tabla":v.get("tabla"),"error":v.get("error")} for k,v in ids_pool.items()},
+        "conclusiones":conclusiones,"pregunta_distrito_k":pregunta_dk,
+        "resumen":{"n_browse_ok":n_ok,"n_sin_licencia":n_lic,"n_req_params":len(_cl_p6),
+                   "bd_mpyme_accesible":nc_ok,"fb_conecta":fb_ok,"n_var":n_var,
+                   "clases_con_datos":_cl_ok,"clases_code6":_cl_p6},
+    }
+
+
 class ValoresParamRequest(BaseModel):
     clase: str
     campo: str   # nombre del parámetro API: "codProyecto", "codOrden", etc.

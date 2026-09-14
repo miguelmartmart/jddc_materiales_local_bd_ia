@@ -573,6 +573,7 @@ function renderProbador(s) {
            : `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:5px 10px;font-size:0.8em;color:#92400e">⚠️ Conectarse en <b>Conexión</b></div>`}
          ${sesion?`<button onclick="ApiExplorerModule.doDiagnosticoFirebird()" class="btn secondary" style="white-space:nowrap;font-size:0.83em" title="Comprobar conexion Firebird y ver IDs reales disponibles">🔌 Diagnóstico BD</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doTestNewCancel()" class="btn secondary" style="white-space:nowrap;font-size:0.83em;background:#7c3aed;color:white;border-color:#7c3aed" title="Prueba new+cancel (seguro, no persiste) para verificar si la BD de mPYME responde">🔬 Test BD (new+cancel)</button>`:""}
+         ${sesion?`<button onclick="ApiExplorerModule.doCentroDiagnostico(event)" style="white-space:nowrap;font-size:0.85em;font-weight:700;padding:6px 16px;background:linear-gradient(135deg,#dc2626,#9333ea);color:white;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.18)" title="Diagnóstico exhaustivo automático — prueba TODO antes de escalar al técnico">🎯 Diagnóstico completo</button>`:""}
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -585,6 +586,7 @@ function renderProbador(s) {
     </div>
     ${escAviso}
     <div id="ae-probador-todo-result" style="margin-top:8px"></div>
+    <div id="ae-super-diag-root" style="margin-top:8px"></div>
     <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       ${isMock?`<span style="background:#dbeafe;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#1d4ed8">🔵 BD Simulada</span>`:`<span style="background:#dcfce7;padding:3px 9px;border-radius:4px;font-size:0.76em;color:#166534">🟢 API Real — SQL Obras</span>`}
     </div>
@@ -2699,6 +2701,56 @@ const ApiExplorerModule = {
     }
   },
 
+  _exportSuperDiagTxt() {
+    const r = window._ae_super_diag;
+    if (!r) { alert('Ejecuta el diagnóstico completo primero.'); return; }
+    const SEP = '='.repeat(70); const sep = '-'.repeat(70);
+    const L = []; const ln = x => L.push(String(x ?? ''));
+    ln(SEP); ln('SUPER DIAGNÓSTICO — API mPYME (Distrito K / SQL Obras)');
+    ln('DEVIA API Explorer · Diagnóstico exhaustivo automatizado'); ln(SEP);
+    ln('Empresa: ' + (r.empresa || '?')); ln('URL API: ' + (r.api_url || '?'));
+    ln('Fecha:   ' + (r.timestamp || '').slice(0, 19)); ln('');
+    ln('RESUMEN'); ln(sep);
+    const rs = r.resumen || {};
+    ln('Clases con datos reales: ' + (rs.n_browse_ok || 0));
+    ln('Clases code=6 (todas variantes): ' + (rs.n_req_params || 0));
+    ln('Clases sin licencia: ' + (rs.n_sin_licencia || 0));
+    ln('BD Firebird conecta: ' + (rs.fb_conecta ? 'SÍ' : 'NO'));
+    ln('BD mPYME accesible (new+cancel): ' + (rs.bd_mpyme_accesible ? 'SÍ' : 'NO'));
+    ln('Total variantes probadas: ' + (rs.n_var || 0));
+    ln('Clases con datos: ' + (rs.clases_con_datos || []).join(', '));
+    ln('Clases siempre code=6: ' + (rs.clases_code6 || []).join(', ')); ln('');
+    ln('CONCLUSIONES'); ln(sep);
+    (r.conclusiones || []).forEach(c => ln(c.texto)); ln('');
+    ln('DETALLE POR CLASE'); ln(sep);
+    Object.entries(r.clases || {}).forEach(([cls, d]) => {
+      ln(`\n[${cls}]`);
+      ln('  permiso: code=' + d.permiso_code + ' | info: code=' + d.info_code);
+      ln('  browse final: code=' + d.browse_code_final + ' | ok=' + d.browse_ok + ' | n_items=' + d.n_items);
+      ln('  variantes probadas: ' + (d.browse_intentos || []).length);
+      if (d.browse_ok && d.campos && d.campos.length) ln('  campos: ' + d.campos.slice(0, 15).join(', '));
+      if (!d.browse_ok && d.browse_code_final === 6) {
+        const allCodes = [...new Set((d.browse_intentos || []).map(i => i.code))];
+        ln('  todas las variantes devuelven: ' + allCodes.join(', '));
+      }
+    });
+    ln(''); ln('PREGUNTA PARA DISTRITO K'); ln(sep);
+    ln(r.pregunta_distrito_k || 'N/A'); ln(''); ln(SEP);
+    const blob = new Blob([L.join('\n')], {type: 'text/plain;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'super_diagnostico_' + (r.empresa || 'api') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  },
+
+  _exportSuperDiagJson() {
+    const r = window._ae_super_diag;
+    if (!r) { alert('Ejecuta el diagnóstico completo primero.'); return; }
+    const blob = new Blob([JSON.stringify(r, null, 2)], {type: 'application/json;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'super_diagnostico_' + (r.empresa || 'api') + '_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  },
+
   setProbadorPerfil(perfil) {
     _state.probadorPerfil = perfil;
     renderMain();
@@ -3183,6 +3235,56 @@ const ApiExplorerModule = {
   },
 
 
+  async doCentroDiagnostico(event) {
+    // ── Centro de Diagnóstico Inteligente ─────────────────────────────────────
+    // Prueba TODO automáticamente antes de escalar al técnico de Distrito K.
+    // Fases: Firebird → IDs Pool → permiso/info/browse (20+var/clase) → new+cancel → conclusión
+    const btn = event?.target;
+    const root = document.getElementById('ae-super-diag-root');
+    if (!root) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Diagnosticando…'; }
+
+    // Panel de progreso
+    root.innerHTML = `
+      <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:12px;padding:16px 20px;color:white;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:1.6em">🎯</span>
+          <div>
+            <div style="font-weight:700;font-size:1.0em">Centro de Diagnóstico Inteligente</div>
+            <div style="font-size:0.78em;color:#a5b4fc">Agota TODAS las pruebas automáticas antes de escalar al técnico</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:0.76em">
+          <div style="background:rgba(255,255,255,0.1);border-radius:6px;padding:6px 8px;text-align:center">
+            <div style="font-size:1.3em">⏳</div><div>F1: Firebird</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:6px;padding:6px 8px;text-align:center">
+            <div style="font-size:1.3em">⏳</div><div>F2: IDs BD</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:6px;padding:6px 8px;text-align:center">
+            <div style="font-size:1.3em">⏳</div><div>F3: Browse ×20+var</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:6px;padding:6px 8px;text-align:center">
+            <div style="font-size:1.3em">⏳</div><div>F4: new+cancel</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:0.8em;color:#c7d2fe">⏳ Ejecutando diagnóstico exhaustivo… (puede tardar 60-120 seg)</div>
+      </div>`;
+
+    try {
+      const r = await _fetch('/super-diagnostico', {method:'POST'});
+      window._ae_super_diag = r;
+      root.innerHTML = _renderCentroDiag(r);
+    } catch(e) {
+      root.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b">
+        ❌ <b>Error ejecutando el diagnóstico:</b> ${e.message}
+        <br><span style="font-size:0.85em;color:#64748b">Si el error es 401, conectarse primero en la pestaña Conexión.</span>
+      </div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🎯 Diagnóstico completo'; }
+    }
+  },
+
   async doTestNewCancel() {
     // Prueba new()+cancel() en 4 clases — 100% seguro, no persiste nada
     // Objetivo: confirmar si la BD de mPYME esta accesible para operaciones de sesion
@@ -3606,6 +3708,160 @@ const ApiExplorerModule = {
 
 };
 
+// ── _renderCentroDiag ────────────────────────────────────────────────────────
+function _sdCode(code) {
+  if (code===null||code===undefined) return '<span style="color:#94a3b8">—</span>';
+  const m={0:'✅ 0',1:'🚫 1',2:'🔒 2',5:'⚠️ 5',6:'🔵 6',[-1]:'❌ -1',[-99]:'🔒 lic'};
+  const col=code===0?'#166534':code===6?'#1e40af':(code===1||code===-1)?'#dc2626':'#92400e';
+  return `<span style="color:${col};font-weight:600">${m[code]??code}</span>`;
+}
+function _sdFaseCell(ico,label,isOk,desc) {
+  const bg=isOk?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.08)';
+  return `<div style="padding:8px 10px;border-right:1px solid #e2e8f0;background:${bg}">
+    <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+      <span style="font-size:1.1em">${ico}</span>
+      <span style="font-size:0.77em;font-weight:700;color:#1e293b">${label}</span>
+      <span style="margin-left:auto">${isOk?'✅':'❌'}</span>
+    </div>
+    <div style="font-size:0.70em;color:#64748b;line-height:1.3">${desc}</div>
+  </div>`;
+}
+function _renderCentroDiag(r) {
+  const res=r.resumen||{}; const fases=r.fases||{};
+  const fb=fases.firebird||{}; const ip=fases.ids_pool||{};
+  const bw=fases.browse||{}; const nc=fases.new_cancel||{};
+  const conclusiones=r.conclusiones||[]; const clases=r.clases||{}; const idsPool=r.ids_pool||{};
+  const hayDatos=res.n_browse_ok>0; const parcial=hayDatos||res.bd_mpyme_accesible;
+  const cG=hayDatos?'#16a34a':parcial?'#d97706':'#dc2626';
+  const bgG=hayDatos?'#f0fdf4':parcial?'#fffbeb':'#fef2f2';
+  const borG=hayDatos?'#86efac':parcial?'#fde68a':'#fca5a5';
+  const icoG=hayDatos?'✅':parcial?'⚠️':'❌';
+  const lblG=hayDatos?'API FUNCIONAL':parcial?'PARCIALMENTE FUNCIONAL':'REQUIERE INTERVENCIÓN';
+  let h=`<div style="background:${bgG};border:2px solid ${borG};border-radius:12px;overflow:hidden;margin-bottom:10px">
+    <div style="background:${cG};padding:10px 16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.8em">${icoG}</span>
+      <div style="flex:1"><div style="font-weight:800;font-size:1.0em;color:white">${lblG}</div>
+        <div style="font-size:0.77em;color:rgba(255,255,255,0.85)">
+          ${res.n_browse_ok||0} clases con datos &nbsp;·&nbsp; ${res.n_req_params||0} code=6 &nbsp;·&nbsp;
+          ${res.n_sin_licencia||0} sin licencia &nbsp;·&nbsp; ${res.n_var||0} variantes probadas
+        </div>
+      </div>
+      <div style="font-size:0.73em;color:rgba(255,255,255,0.75);text-align:right">${(r.timestamp||'').slice(0,19)}<br>${r.empresa||''}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid ${borG}">
+      ${_sdFaseCell('🔥','F1 Firebird',fb.ok,fb.ok?`${fb.db_host||''}·${fb.n_proyectos||0} proyectos`:(fb.error||'No conecta'))}
+      ${_sdFaseCell('🗄️','F2 IDs BD',ip.n_clases>0,ip.n_clases>0?`${ip.n_clases} tablas con IDs`:'Sin IDs en BD')}
+      ${_sdFaseCell('🔍','F3 Browse',bw.n_ok>0,`${bw.n_ok||0} OK · ${bw.n_code6||0} code=6 · ${bw.n_var||0} variantes`)}
+      ${_sdFaseCell('🔬','F4 new+cancel',nc.alguno_ok,nc.alguno_ok?'BD mPYME accesible':'BD mPYME NO accesible')}
+    </div>
+  </div>`;
+  // Conclusiones
+  const tipoCfg={ok:{bg:'#f0fdf4',bor:'#22c55e'},licencia:{bg:'#fef2f2',bor:'#dc2626'},
+    params:{bg:'#eff6ff',bor:'#3b82f6'},bd_inacc:{bg:'#fef2f2',bor:'#dc2626'},
+    firebird:{bg:'#fef2f2',bor:'#dc2626'}};
+  h+=`<div style="margin-bottom:10px"><div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:5px">📋 Conclusiones automáticas</div>`;
+  conclusiones.forEach(c=>{
+    const cfg=tipoCfg[c.tipo]||{bg:'#f8fafc',bor:'#e2e8f0'};
+    h+=`<div style="background:${cfg.bg};border-left:4px solid ${cfg.bor};border-radius:0 6px 6px 0;padding:8px 13px;margin:4px 0;font-size:0.84em">${c.texto}</div>`;
+  });
+  h+=`</div>`;
+  // Tabla por clase
+  h+=`<details open><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:6px 0;color:#1e293b">
+    🗂️ Resultado por clase (${Object.keys(clases).length}) ▾</summary>
+    <div style="overflow-x:auto;margin-top:4px">
+    <table style="width:100%;border-collapse:collapse;font-size:0.76em">
+      <thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0">
+        <th style="padding:4px 7px;text-align:left">Clase</th>
+        <th style="padding:4px 7px;text-align:center">permiso</th>
+        <th style="padding:4px 7px;text-align:center">info</th>
+        <th style="padding:4px 7px;text-align:center">browse</th>
+        <th style="padding:4px 7px;text-align:center">IDs BD</th>
+        <th style="padding:4px 7px;text-align:center">variantes</th>
+        <th style="padding:4px 7px;text-align:center">registros</th>
+        <th style="padding:4px 7px">estado</th>
+      </tr></thead><tbody>`;
+  Object.entries(clases).forEach(([cls,d])=>{
+    const bOk=d.browse_ok; const bCode=d.browse_code_final; const pLic=d.permiso_code===1;
+    const fbI=idsPool[cls]||{}; const nVar=(d.browse_intentos||[]).length;
+    const rowBg=bOk?'#f0fdf4':pLic?'#fef2f2':bCode===6?'#eff6ff':'white';
+    const estCol=bOk?'#166534':pLic?'#991b1b':bCode===6?'#1e40af':'#64748b';
+    const estTxt=bOk?'✅ Datos reales':pLic?'🚫 Sin licencia':bCode===6?'🔵 code=6':`code=${bCode}`;
+    h+=`<tr style="border-bottom:1px solid #f1f5f9;background:${rowBg}">
+      <td style="padding:4px 7px;font-weight:600">${cls}</td>
+      <td style="padding:4px 7px;text-align:center">${_sdCode(d.permiso_code)}</td>
+      <td style="padding:4px 7px;text-align:center">${_sdCode(d.info_code)}</td>
+      <td style="padding:4px 7px;text-align:center;font-weight:600;color:${estCol}">${bOk?'✅ 0':'code='+(bCode??'?')}</td>
+      <td style="padding:4px 7px;text-align:center">${fbI.ok?`<span style="color:#1e40af;font-weight:600">${fbI.n}</span>`:'—'}</td>
+      <td style="padding:4px 7px;text-align:center;color:#64748b">${nVar}</td>
+      <td style="padding:4px 7px;text-align:center;font-weight:600;color:#16a34a">${bOk?(d.n_items||0):'—'}</td>
+      <td style="padding:4px 7px;color:${estCol};font-size:0.91em">${estTxt}</td>
+    </tr>`;
+    if(bOk&&d.items_muestra&&d.items_muestra.length){
+      const cols=Object.keys(d.items_muestra[0]);
+      h+=`<tr style="background:#f0fdf4"><td colspan="8" style="padding:4px 8px 8px">
+        <div style="overflow-x:auto"><table style="font-size:0.84em;border-collapse:collapse">
+          <thead><tr style="background:#dcfce7">${cols.map(c=>`<th style="padding:2px 7px;text-align:left;color:#166534">${c}</th>`).join('')}</tr></thead>
+          <tbody>${d.items_muestra.map(row=>`<tr>${cols.map(c=>`<td style="padding:2px 7px">${row[c]??''}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table></div></td></tr>`;
+    }
+    if(!bOk&&bCode===6&&nVar>0){
+      h+=`<tr style="background:#eff6ff"><td colspan="8" style="padding:3px 8px 6px;font-size:0.79em;color:#1e40af">
+        🔵 ${nVar} variantes — todas code=6. ${fbI.ok?`IDs de ${fbI.tabla} incluidos (${fbI.n} vals).`:'Sin IDs BD.'}
+      </td></tr>`;
+    }
+  });
+  h+=`</tbody></table></div></details>`;
+  // F4 new+cancel detalle
+  const ncRes=nc.resultados||[];
+  if(ncRes.length){
+    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:6px 0;color:#1e293b">
+      🔬 F4 new()+cancel() — ${nc.alguno_ok?'✅ BD mPYME accesible':'❌ BD NO accesible'}</summary>
+      <table style="width:100%;font-size:0.8em;border-collapse:collapse;margin-top:4px">
+        <thead><tr style="background:#f8fafc">
+          <th style="padding:4px 8px">Clase</th><th style="text-align:center">new()</th>
+          <th style="text-align:center">cancel()</th><th style="text-align:center">BD</th>
+          <th>Mensaje</th></tr></thead><tbody>`;
+    ncRes.forEach(nr=>{
+      h+=`<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:4px 8px"><code>${nr.clase}</code></td>
+        <td style="text-align:center">${nr.new_code===0?'✅ code=0':'❌ code='+nr.new_code}</td>
+        <td style="text-align:center">${nr.cancel_code===0?'✅':'—'}</td>
+        <td style="text-align:center;font-weight:700;color:${nr.bd_accesible?'#166534':'#dc2626'}">${nr.bd_accesible?'✅':'❌'}</td>
+        <td style="color:#64748b;font-size:0.88em">${(nr.msg||'').slice(0,80)}</td>
+      </tr>`;
+    });
+    h+=`</tbody></table>`;
+    h+=nc.alguno_ok
+      ?`<div style="background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#166534">
+          ✅ BD de mPYME accesible — new() funciona. El problema de browse es de formato de parámetros → ver pregunta para Distrito K.</div>`
+      :`<div style="background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;padding:7px 12px;margin-top:6px;font-size:0.79em;color:#92400e">
+          ⚠️ new() falla en todas las clases — BD SQL Obras no accesible desde PymeMobileServer.exe.
+          Verificar que SQL Obras está abierto en el servidor y reiniciar PymeMobileServer.exe.</div>`;
+    h+=`</details>`;
+  }
+  // Pregunta para Distrito K
+  if(r.pregunta_distrito_k){
+    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:0.84em;padding:8px 12px;background:linear-gradient(90deg,#fef3c7,#fefce8);border:1px solid #fde68a;border-radius:8px;color:#92400e">
+      📧 Pregunta lista para Distrito K — click para ver y copiar</summary>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:0 0 8px 8px;padding:10px 14px">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <button onclick="(function(b){const t=(window._ae_super_diag||{}).pregunta_distrito_k||'';navigator.clipboard.writeText(t).then(()=>{b.textContent='✅ Copiado!';setTimeout(()=>{b.textContent='📋 Copiar'},2000)}).catch(()=>alert(t))})(this)"
+            style="font-size:0.79em;padding:4px 12px;background:#f59e0b;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">📋 Copiar</button>
+        </div>
+        <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.79em;color:#1e293b;background:white;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:0;max-height:250px;overflow-y:auto">${r.pregunta_distrito_k}</pre>
+      </div></details>`;
+  }
+  // Botones export + repetir
+  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    <button onclick="ApiExplorerModule._exportSuperDiagTxt()"
+      style="font-size:0.81em;padding:5px 14px;background:#1e293b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">📄 Exportar TXT</button>
+    <button onclick="ApiExplorerModule._exportSuperDiagJson()"
+      style="font-size:0.81em;padding:5px 14px;background:#334155;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">💾 Exportar JSON</button>
+    <button onclick="ApiExplorerModule.doCentroDiagnostico({target:this})"
+      style="font-size:0.81em;padding:5px 14px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">🔄 Repetir</button>
+  </div>`;
+  return h;
+}
 window.ApiExplorerModule = ApiExplorerModule;
 
 // ── Event delegation para botones ae-plan-run (Plan de pruebas) ──────────
