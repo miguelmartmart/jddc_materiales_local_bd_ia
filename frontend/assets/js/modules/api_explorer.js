@@ -4119,6 +4119,7 @@ document.addEventListener('click', function(e) {
   } catch(err) { console.warn('ae-plan-run: params inválidos', err); }
   // Ejecutar sonda directamente en el Inspector > Resumen
   ApiExplorerModule._ejecutarPlanPruebaInspector(clase, op, params);
+}); // cierre addEventListener click
 
 // ── Catálogo de Datos API mPYME — basado en documentacion oficial v1.2 ───────────────────
 function _renderCatalogoDatos() {
@@ -5073,5 +5074,4 @@ function _renderValidarBD(r) {
   return h;
 }
 
-});
 
