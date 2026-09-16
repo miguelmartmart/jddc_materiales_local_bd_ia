@@ -51,17 +51,60 @@ CLASE_MODULO: Dict[str, Dict[str, str]] = {
     "docpedcom":    {"modulo": "Documentos de Compra", "licencia": "mPyme Documentos"},
     "ordenfab":     {"modulo": "Fabricacion", "licencia": "mPyme Fabricacion"},
 }
+# Operaciones segun documentacion oficial mPYME v1.2 (PDF extraido 16/09/2026)
+# Riesgo: 0=lectura, 1=temporal(new/edit/cancel), 2=escritura real(write/imputaPro), 3=destructivo(delete)
 CLASE_OPERACIONES: Dict[str, List[str]] = {
-    "proyectos": ["browse","read"], "partidas": ["browse","read"],
-    "proordutil": ["browse","read"], "proordprev": ["browse","read"],
-    "reporden": ["browse","read"], "repordutil": ["browse","read"],
-    "repobjetos": ["browse","read"], "repinst": ["browse","read"],
-    "tipostrabajo": ["browse"], "recursos": ["browse","read"],
-    "articulos": ["browse","read"], "proveedores": ["browse"],
-    "clientes": ["browse"], "docalbcom": ["browse","read"],
-    "docfaccom": ["browse","read"], "docpedcom": ["browse"],
-    "ordenfab": ["browse"],
+    # Gestion de Proyectos — doc pag.40-44
+    "proyectos":    ["browse", "read", "new", "edit", "write", "cancel"],
+    "partidas":     ["browse", "read"],
+    "proordutil":   ["browse", "read", "new", "write"],
+    "proordprev":   ["browse", "read", "new", "write"],
+    # Reparaciones — doc pag.45-48
+    "reporden":     ["browse", "read", "new", "edit", "write", "cancel"],
+    "repordutil":   ["browse", "new", "write", "cancel"],
+    "repobjetos":   ["browse", "read"],
+    "repinst":      ["browse", "read"],
+    "tipostrabajo": ["browse"],
+    # Maestros — doc pag.11-21
+    "recursos":     ["browse", "read"],
+    "articulos":    ["browse", "read"],
+    "proveedores":  ["browse"],
+    "clientes":     ["browse", "read"],
+    # Documentos de Compra — doc pag.22-30
+    "docalbcom":    ["browse", "read", "imputaPro", "imputaRep"],
+    "docfaccom":    ["browse", "read", "imputaPro"],
+    "docpedcom":    ["browse"],
+    "ordenfab":     ["browse"],
 }
+
+# Nivel de riesgo por operacion (segun doc oficial y api_explorer)
+RIESGO_OPERACION: Dict[str, int] = {
+    "browse":    0,   # Solo lectura
+    "read":      0,   # Solo lectura
+    "permiso":   0,   # Solo lectura
+    "info":      0,   # Solo lectura
+    "cancel":    0,   # Descarta objeto temporal — seguro
+    "new":       1,   # Crea objeto TEMPORAL — no persiste hasta write
+    "edit":      1,   # Modifica objeto temporal — no persiste hasta write
+    "write":     2,   # PERSISTE en BD — IRREVERSIBLE
+    "imputaPro": 2,   # Vincula linea de compra a proyecto — IRREVERSIBLE
+    "imputaRep": 2,   # Vincula linea a reparacion — IRREVERSIBLE
+    "imputaFab": 2,   # Vincula linea a fabricacion — IRREVERSIBLE
+    "delete":    3,   # Elimina definitivamente — DESTRUCTIVO
+}
+
+# Confirmacion requerida segun riesgo
+CONFIRMACION_REQUERIDA: Dict[int, str] = {
+    0: "",                           # Sin confirmacion
+    1: "",                           # Sin confirmacion (temporal, reversible con cancel)
+    2: "CONFIRMAR ESCRITURA",        # Texto exacto requerido
+    3: "CONFIRMAR BORRADO DEFINITIVO",  # Texto exacto requerido
+}
+
+# Operaciones que requieren sesion_escritura activa (riesgo >= 2)
+OPERACIONES_ESCRITURA_REAL = {"write", "imputaPro", "imputaRep", "imputaFab", "delete"}
+# Operaciones temporales (riesgo 1 — seguras, no necesitan doble confirmacion)
+OPERACIONES_TEMPORALES = {"new", "edit", "cancel"}
 CLASE_COLS_BROWSE: Dict[str, str] = {
     # Columnas verificadas con SELECT en BD JDDC (16/09/2026)
     "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA",

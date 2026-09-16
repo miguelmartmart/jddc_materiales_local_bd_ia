@@ -1,0 +1,225 @@
+[
+  {
+    "id": "f8eb8b38",
+    "timestamp": "2026-09-16T14:59:36.299189",
+    "clase": "proordprev",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordprev' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ea71d916",
+    "timestamp": "2026-09-16T14:59:35.435252",
+    "clase": "proordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordutil' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7b4e94a4",
+    "timestamp": "2026-09-16T14:59:34.650980",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c5664118",
+    "timestamp": "2026-09-16T14:56:21.753826",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2f48b97a",
+    "timestamp": "2026-09-16T14:53:47.865641",
+    "clase": "repordutil",
+    "operacion": "read",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid obligatorio",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7fe03cb5",
+    "timestamp": "2026-09-16T14:53:43.010274",
+    "clase": "repordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'repordutil' requiere param 'codOrden'",
+      "param_requerido": "codOrden",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "abcac3c0",
+    "timestamp": "2026-09-16T14:53:38.058267",
+    "clase": "repordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'repordutil' requiere param 'codOrden'",
+      "param_requerido": "codOrden",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6aac310a",
+    "timestamp": "2026-09-16T14:53:30.419921",
+    "clase": "repordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'repordutil' requiere param 'codOrden'",
+      "param_requerido": "codOrden",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "59b69fc4",
+    "timestamp": "2026-09-16T14:53:19.954467",
+    "clase": "proordprev",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordprev' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "5c6f3c53",
+    "timestamp": "2026-09-16T14:53:17.762346",
+    "clase": "proordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordutil' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "30a43e8c",
+    "timestamp": "2026-09-16T14:52:43.020883",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "bb7c3a05",
+    "timestamp": "2026-09-16T14:52:35.797611",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  }
+]

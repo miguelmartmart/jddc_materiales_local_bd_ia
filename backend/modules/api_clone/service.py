@@ -12,6 +12,8 @@ from backend.modules.api_clone.queries import (
     CLASE_TABLA_MAP, CLASE_WHERE, CLASE_MODULO, CLASE_OPERACIONES,
     CLASE_COLS_BROWSE, CLASE_COLS_READ, CLASE_PARAM_REQUERIDO,
     PARAM_A_COLUMNA, ALL_CLASES,
+    RIESGO_OPERACION, CONFIRMACION_REQUERIDA,
+    OPERACIONES_ESCRITURA_REAL, OPERACIONES_TEMPORALES,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,11 +62,26 @@ def _get_driver():
     return drv
 
 class ApiCloneService:
-    """Replica browse/read/permiso/info/discover-all con SQL Firebird real."""
+    """
+    Replica browse/read/permiso/info/discover-all CON datos reales de Firebird.
+    Ademas soporta new/edit/write/cancel/imputaPro/imputaRep segun doc mPYME v1.2.
+
+    SISTEMA DE PROTECCION DE ESCRITURA (3 niveles):
+      Nivel 0 — lectura: browse, read, permiso, info, cancel → siempre permitido
+      Nivel 1 — temporal: new, edit → permitido con modo_escritura=True (no persiste)
+      Nivel 2 — ESCRITURA REAL: write, imputaPro, imputaRep → requiere:
+                  (a) modo_escritura=True
+                  (b) confirmacion exacta == 'CONFIRMAR ESCRITURA'
+                  (c) session_escritura activa (activada explicitamente)
+      Nivel 3 — DESTRUCTIVO: delete → requiere ademas confirmacion='CONFIRMAR BORRADO DEFINITIVO'
+    """
 
     def __init__(self):
         self._history = _cargar_json(_HISTORY_FILE, [])
         self._matrix  = _cargar_json(_MATRIX_FILE, {})
+        self.modo_escritura: bool = False       # Habilita new/edit
+        self.session_escritura: bool = False    # Habilita write/imputaPro (requiere activacion explicita)
+        self._objetos_temporales: Dict = {}     # objectid -> {clase, data, ts}
 
     def _log(self, clase, op, params, data, ms, n=0, n_items=None, error=None):
         # n_items es alias de n para compatibilidad con las llamadas existentes
@@ -302,19 +319,200 @@ class ApiCloneService:
             "clases": resultados,
         }
 
+    # ── PROTECCION DE ESCRITURA ───────────────────────────────────────────────
+
+    def _verificar_escritura(self, op: str, confirmacion: str = "") -> Optional[str]:
+        """Devuelve None si OK, string con motivo de bloqueo si no."""
+        riesgo = RIESGO_OPERACION.get(op, 0)
+        if riesgo == 0:
+            return None
+        if riesgo >= 1 and not self.modo_escritura:
+            return (f"'{op}' requiere modo escritura (Paso 1). "
+                    "Activa en la pestana Escritura -> 'Activar Modo Escritura'.")
+        if riesgo >= 2 and not self.session_escritura:
+            return (f"'{op}' es ESCRITURA REAL IRREVERSIBLE. "
+                    "Requiere activar sesion de escritura (Paso 2) con 'CONFIRMAR ESCRITURA'.")
+        if riesgo >= 2 and confirmacion != CONFIRMACION_REQUERIDA.get(2, ""):
+            texto = CONFIRMACION_REQUERIDA[2]
+            return f"'{op}' requiere confirmacion exacta en el body: '{texto}'. Recibido: '{confirmacion}'"
+        if riesgo >= 3 and confirmacion != CONFIRMACION_REQUERIDA.get(3, ""):
+            texto = CONFIRMACION_REQUERIDA[3]
+            return f"'{op}' DESTRUCTIVO. Confirmacion: '{texto}'. Recibido: '{confirmacion}'"
+        return None
+
+    def new(self, clase: str) -> Dict:
+        """Crea objeto TEMPORAL en memoria (Riesgo 1 — no persiste hasta write)."""
+        t0 = time.time()
+        bloqueo = self._verificar_escritura("new")
+        if bloqueo:
+            return self._log(clase, "new", {}, None, 0, error=f"BLOQUEADO: {bloqueo}")
+        info = CLASE_TABLA_MAP.get(clase)
+        if not info:
+            return self._log(clase, "new", {}, None, 0, error=f"Clase '{clase}' no reconocida")
+        oid = f"TMP_{clase.upper()}_{uuid.uuid4().hex[:8].upper()}"
+        self._objetos_temporales[oid] = {
+            "clase": clase, "tabla": info[0], "data": {}, "ts": datetime.now().isoformat(),
+        }
+        ms = round((time.time()-t0)*1000)
+        data = {"objectid": oid, "clase": clase, "estado": "temporal",
+                "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."}
+        return self._log(clase, "new", {}, data, ms, n_items=1)
+
+    def edit(self, clase: str, objectid: str, data: Dict) -> Dict:
+        """Modifica datos del objeto temporal (Riesgo 1 — no persiste hasta write)."""
+        t0 = time.time()
+        bloqueo = self._verificar_escritura("edit")
+        if bloqueo:
+            return self._log(clase, "edit", {"objectid": objectid}, None, 0, error=f"BLOQUEADO: {bloqueo}")
+        if objectid not in self._objetos_temporales:
+            return self._log(clase, "edit", {"objectid": objectid}, None, 0,
+                             error=f"objectid '{objectid}' no encontrado. Ejecuta 'new' primero.")
+        obj = self._objetos_temporales[objectid]
+        obj["data"].update(data)
+        obj["ts_edit"] = datetime.now().isoformat()
+        ms = round((time.time()-t0)*1000)
+        result = {"objectid": objectid, "clase": clase, "data_actual": obj["data"],
+                  "nota": "Datos en memoria. Aun NO persistidos en BD. Usa 'write' para guardar."}
+        return self._log(clase, "edit", {"objectid": objectid}, result, ms, n_items=1)
+
+    def cancel(self, clase: str, objectid: str) -> Dict:
+        """Descarta objeto temporal. Seguro (riesgo 0) — no persiste nada."""
+        t0 = time.time()
+        if objectid in self._objetos_temporales:
+            del self._objetos_temporales[objectid]
+            data = {"objectid": objectid, "estado": "cancelado",
+                    "nota": "Objeto descartado. NADA guardado en BD."}
+        else:
+            data = {"objectid": objectid, "estado": "no_encontrado",
+                    "nota": "objectid no estaba en memoria (ya cancelado o nunca creado)."}
+        ms = round((time.time()-t0)*1000)
+        return self._log(clase, "cancel", {"objectid": objectid}, data, ms)
+
+    def write(self, clase: str, objectid: str, data: Dict, confirmacion: str = "") -> Dict:
+        """PERSISTE en Firebird via INSERT. RIESGO 2 — IRREVERSIBLE."""
+        t0 = time.time()
+        bloqueo = self._verificar_escritura("write", confirmacion)
+        if bloqueo:
+            return self._log(clase, "write", {"objectid": objectid}, None, 0, error=f"BLOQUEADO: {bloqueo}")
+        info = CLASE_TABLA_MAP.get(clase)
+        if not info:
+            return self._log(clase, "write", {"objectid": objectid}, None, 0, error=f"Clase '{clase}' desconocida")
+        tabla = info[0]
+        obj_temp = self._objetos_temporales.get(objectid, {})
+        datos = {**obj_temp.get("data", {}), **data}
+        if not datos:
+            return self._log(clase, "write", {"objectid": objectid}, None, 0,
+                             error="Sin datos. Usa 'new' + 'edit' para rellenar campos primero.")
+        cols = list(datos.keys())
+        vals = [str(v) if not isinstance(v, (int, float, bool, type(None))) else v for v in datos.values()]
+        sql = f"INSERT INTO {tabla} ({', '.join(cols)}) VALUES ({', '.join(['?' for _ in cols])})"
+        try:
+            drv = _get_driver()
+            try:
+                affected = drv.execute_command(sql, tuple(vals))
+            finally:
+                drv.disconnect()
+            if objectid in self._objetos_temporales:
+                del self._objetos_temporales[objectid]
+            ms = round((time.time()-t0)*1000)
+            result = {"objectid": objectid, "tabla": tabla, "filas_afectadas": affected,
+                      "ADVERTENCIA": "IRREVERSIBLE — persistido en BD produccion"}
+            return self._log(clase, "write", {"objectid": objectid}, result, ms, n_items=affected)
+        except Exception as exc:
+            ms = round((time.time()-t0)*1000)
+            return self._log(clase, "write", {"objectid": objectid}, None, ms,
+                             error=f"{type(exc).__name__}: {str(exc)[:400]}")
+
+    def imputa(self, clase: str, objectid: str, accion: str,
+               cod_maestro: str, cod_detalle: str = "",
+               subcontrata: str = "F", confirmacion: str = "") -> Dict:
+        """Imputa linea de compra a Proyecto/Reparacion. RIESGO 2 — IRREVERSIBLE."""
+        t0 = time.time()
+        bloqueo = self._verificar_escritura(accion, confirmacion)
+        if bloqueo:
+            return self._log(clase, accion, {"objectid": objectid}, None, 0, error=f"BLOQUEADO: {bloqueo}")
+        if accion not in ("imputaPro", "imputaRep", "imputaFab"):
+            return self._log(clase, accion, {}, None, 0, error=f"accion '{accion}' no valida")
+        partes = str(objectid).split("-")
+        cod_doc = partes[0]; cod_lin = partes[1] if len(partes) > 1 else "1"
+        sql = ("INSERT INTO DOCLINIMPUTACION (CODDOCUMENTO, CODLINEA, CODIGO, CODPROYECTO, PARTIDA, SUBCONTRATA) "
+               "VALUES (?, ?, ?, ?, ?, ?)")
+        try:
+            drv = _get_driver()
+            try:
+                affected = drv.execute_command(sql, (cod_doc, cod_lin, "1", cod_maestro, cod_detalle, subcontrata))
+            finally:
+                drv.disconnect()
+            ms = round((time.time()-t0)*1000)
+            tipo = {"imputaPro":"proyecto","imputaRep":"reparacion","imputaFab":"fabricacion"}.get(accion)
+            result = {"clase": clase, "objectid": objectid, "accion": accion, "tipo": tipo,
+                      "cod_maestro": cod_maestro, "cod_detalle": cod_detalle,
+                      "filas_afectadas": affected, "ADVERTENCIA": "IRREVERSIBLE"}
+            return self._log(clase, accion, {"objectid": objectid}, result, ms, n_items=affected)
+        except Exception as exc:
+            ms = round((time.time()-t0)*1000)
+            return self._log(clase, accion, {"objectid": objectid}, None, ms,
+                             error=f"{type(exc).__name__}: {str(exc)[:400]}")
+
+    def activar_modo_escritura(self, conf: str) -> Dict:
+        """Paso 1/2: habilita new/edit (temporales). Req: 'ACTIVAR ESCRITURA'"""
+        if conf != "ACTIVAR ESCRITURA":
+            return {"ok": False,
+                    "error": "Escribe exactamente: ACTIVAR ESCRITURA",
+                    "nota": "Paso 1 solo activa new/edit (temporales). write requiere Paso 2."}
+        self.modo_escritura = True; self.session_escritura = False
+        return {"ok": True, "modo_escritura": True, "session_escritura": False,
+                "mensaje": "Paso 1/2 ACTIVADO. new/edit disponibles (temporales, sin persistir). "
+                           "Para write/imputaPro: Paso 2 con 'CONFIRMAR ESCRITURA'."}
+
+    def activar_session_escritura(self, conf: str) -> Dict:
+        """Paso 2/2: habilita write/imputaPro (IRREVERSIBLE). Req: 'CONFIRMAR ESCRITURA'"""
+        if not self.modo_escritura:
+            return {"ok": False, "error": "Activa primero el Paso 1 (Activar Modo Escritura)."}
+        if conf != "CONFIRMAR ESCRITURA":
+            return {"ok": False, "error": "Escribe exactamente: CONFIRMAR ESCRITURA",
+                    "ADVERTENCIA": "write/imputaPro son IRREVERSIBLES — modifican BD produccion."}
+        self.session_escritura = True
+        return {"ok": True, "modo_escritura": True, "session_escritura": True,
+                "ADVERTENCIA": "SESION ESCRITURA ACTIVA. write/imputaPro DISPONIBLES y son IRREVERSIBLES. "
+                               "Cada peticion requiere ademas confirmacion='CONFIRMAR ESCRITURA'."}
+
+    def desactivar_escritura(self) -> Dict:
+        """Desactiva ambos niveles. Descarta objetos temporales."""
+        self.modo_escritura = False; self.session_escritura = False
+        n_tmp = len(self._objetos_temporales); self._objetos_temporales.clear()
+        return {"ok": True, "modo_escritura": False, "session_escritura": False,
+                "objetos_temporales_descartados": n_tmp,
+                "mensaje": "Escritura desactivada. Solo lectura activa."}
+
+    def get_objetos_temporales(self) -> Dict:
+        return {"total": len(self._objetos_temporales),
+                "objetos": [{"objectid": oid, "clase": obj["clase"], "ts": obj["ts"],
+                             "campos": list(obj["data"].keys())}
+                            for oid, obj in self._objetos_temporales.items()]}
+
     def get_catalogue(self):
         from collections import defaultdict
         pm: Dict = defaultdict(dict)
         for clase, ops in CLASE_OPERACIONES.items():
             mod = CLASE_MODULO.get(clase,{}).get("modulo","Otros")
             pm[mod][clase] = ops
-        return {"catalogue": dict(pm), "all_classes": ALL_CLASES, "fuente": "firebird_directo"}
+        return {"catalogue": dict(pm), "all_classes": ALL_CLASES, "fuente": "firebird_directo",
+                "riesgo_operaciones": RIESGO_OPERACION,
+                "confirmaciones_requeridas": CONFIRMACION_REQUERIDA}
 
     def get_status(self):
-        return {"fuente": "firebird_directo", "db_host": settings.DB_HOST,
-                "db_name_short": settings.DB_NAME[-40:] if settings.DB_NAME else "(no config)",
-                "db_configurada": bool(settings.DB_NAME),
-                "total_clases": len(ALL_CLASES), "historial_entradas": len(self._history)}
+        return {
+            "fuente": "firebird_directo",
+            "db_host": settings.DB_HOST,
+            "db_name_short": settings.DB_NAME[-40:] if settings.DB_NAME else "(no config)",
+            "db_configurada": bool(settings.DB_NAME),
+            "total_clases": len(ALL_CLASES),
+            "historial_entradas": len(self._history),
+            "modo_escritura": self.modo_escritura,
+            "session_escritura": self.session_escritura,
+            "objetos_temporales": len(self._objetos_temporales),
+        }
 
     def get_history(self, limit=100): return self._history[:min(limit, MAX_HISTORY)]
     def get_matrix(self): return self._matrix

@@ -1,0 +1,30 @@
+{
+  "partidas": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T14:59:34.650980"
+    }
+  },
+  "proordutil": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T14:59:35.435252"
+    }
+  },
+  "proordprev": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T14:59:36.299189"
+    }
+  },
+  "repordutil": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T14:53:43.010274"
+    },
+    "read": {
+      "estado": "falla",
+      "ts": "2026-09-16T14:53:47.865641"
+    }
+  }
+}
