@@ -191,6 +191,12 @@ app.include_router(db_simulator_router, prefix="/api/db-simulator", tags=["DB Si
 from backend.modules.api_explorer.router import router as api_explorer_router
 app.include_router(api_explorer_router, prefix="/api/api-explorer", tags=["API Explorer — Distrito K"])
 
+# BD Clone — Explorador SQL directo sobre Firebird real
+# Ejecuta SELECT libres y consultas predefinidas directamente en la BD Firebird.
+# No requiere API mPYME ni sesion — conexion directa con FirebirdDriver del proyecto.
+from backend.modules.bd_clone.router import router as bd_clone_router
+app.include_router(bd_clone_router, prefix="/api/bd-clone", tags=["BD Clone — SQL Directo Firebird"])
+
 # Pre-cargar ContextRetriever al arrancar (indices en memoria desde el inicio)
 from backend.modules.db_explorer.context_retriever import get_context_retriever as _load_retriever
 _load_retriever()

@@ -88,6 +88,7 @@ class App {
       "db-simulator": "🎭 BD Simulada — Simulador SQLite",
       siuo: "🧠 Índices SIUO — Sistema de Índices Ultra-Optimizado",
       "api-explorer": "🔌 API Explorer — Explorador/Validador API Distrito K",
+      "bd-clone": "🗃️ BD Clone — SQL Directo Firebird Real",
     };
     document.getElementById("page-title").textContent =
       titles[viewName] || "DEVIA";
@@ -125,6 +126,21 @@ class App {
             "<br><small>Revisa la consola del navegador para más detalles.</small>" +
             "</div>";
         }
+      }
+    }
+
+    // Inicializar BD Clone cuando se navega a él (lazy-init en cada visita)
+    if (viewName === "bd-clone") {
+      try {
+        if (window.BDCloneModule && typeof window.BDCloneModule.onEnter === "function") {
+          window.BDCloneModule.onEnter();
+        } else {
+          console.error("[App.navigate] BDCloneModule not available");
+          const root = document.getElementById("bd-clone-root");
+          if (root) root.innerHTML = '<div style="padding:30px;color:#dc2626;background:#fef2f2;border-radius:8px;"><strong>Error:</strong> Modulo BD Clone no disponible. Verifica que el backend esta corriendo.</div>';
+        }
+      } catch (err) {
+        console.error("[App.navigate] BDCloneModule.onEnter() failed:", err);
       }
     }
 

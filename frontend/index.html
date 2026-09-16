@@ -61,6 +61,9 @@
                     <li data-view="api-explorer" data-tooltip="API Explorer Distrito K">
                         <span>🔌</span><span class="nav-label">API Explorer</span>
                     </li>
+                    <li data-view="bd-clone" data-tooltip="BD Clone — SQL Directo Firebird">
+                        <span>🗃️</span><span class="nav-label">BD Clone</span>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -1179,6 +1182,16 @@
                     </div>
                 </div>
 
+                <!-- BD Clone — SQL Directo Firebird -->
+                <div id="view-bd-clone" class="view-section" style="display:none;">
+                    <div id="bd-clone-root" style="padding:4px 0;">
+                        <div style="text-align:center; padding:40px; color:#64748b;">
+                            <div style="font-size:2em;">🗃️</div>
+                            <p>Cargando BD Clone...</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -1365,6 +1378,8 @@
     <script type="module" src="assets/js/modules/siuo.js?v=2"></script>
     <!-- API Explorer: modulo ES para el explorador/validador API Distrito K -->
     <script type="module" src="assets/js/modules/api_explorer.js?v=9"></script>
+    <!-- BD Clone: explorador SQL directo sobre Firebird real -->
+    <script type="module" src="assets/js/modules/bd_clone.js?v=1"></script>
     <script type="module" src="assets/js/core/app.js?v=7"></script>
 </body>
 
