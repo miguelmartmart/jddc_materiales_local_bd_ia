@@ -2109,7 +2109,11 @@ async def validar_datos_bd():
                 "timestamp": ts, "nota": "Ejecutar desde la VM en la red local."}
     def _q(sql):
         try: return drv.execute_query(sql) or []
-        except Exception as ex: return [{"ERROR": str(ex)[:100]}]
+        except Exception as ex:
+            msg=str(ex)
+            if "-204" in msg or "Table unknown" in msg.lower():
+                return []  # tabla no existe, lista vacia limpia
+            return [{"ERROR": msg[:100]}]
     def _count(tabla_o_sql):
         try:
             sql=(tabla_o_sql if tabla_o_sql.strip().upper().startswith("SELECT")
@@ -2117,7 +2121,13 @@ async def validar_datos_bd():
             r=drv.execute_query(sql)
             if not r: return 0
             row=r[0]; return row.get("N") or row.get("n") or 0
-        except Exception as ex: return f"ERR:{str(ex)[:60]}"
+        except Exception as ex:
+            msg=str(ex)
+            if "-204" in msg or "Table unknown" in msg.lower():
+                return "NO_EXISTE"  # tabla no existe en esta BD
+            if "-206" in msg or "Column unknown" in msg.lower():
+                return "COL_ERROR"  # columna no existe, tabla existe
+            return f"ERR:{msg[:60]}"
     resultado={"timestamp":ts,"modulos":{},"success":False}
     try:
         # --- MAESTROS ---
@@ -2161,7 +2171,7 @@ async def validar_datos_bd():
                 elif tabla=="PREPREVLIN":
                     m=_q("SELECT FIRST 3 CODMAESTRO,CODRECURSO,DURACION,PRECIO FROM PREPREVLIN ORDER BY CODMAESTRO")
                 elif tabla=="PRESUPROYE":
-                    m=_q("SELECT FIRST 3 CODIGO,CODPROYECTO,DESCRIPCION FROM PRESUPROYE ORDER BY CODPROYECTO DESC")
+                    m=_q("SELECT FIRST 3 CODPROYECTO,DESCRIPCION,IMPORTE FROM PRESUPROYE ORDER BY CODPROYECTO DESC")
             proy_tablas[tabla]={"desc":desc,"n":n,"ok":isinstance(n,int) and n>0,"muestra":m}
         n_pu=proy_tablas.get("PREUTILLIN",{}).get("n",0)
         n_pp=proy_tablas.get("PREPREVLIN",{}).get("n",0)
@@ -2219,8 +2229,8 @@ async def validar_datos_bd():
             ),
         }
         # --- DOCUMENTOS COMPRA ---
-        n_ap=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
-        n_fp=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=2 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
+        n_ap=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND TRIM(CODPROYECTO)<>''")
+        n_fp=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=2 AND CODPROYECTO IS NOT NULL AND TRIM(CODPROYECTO)<>''")
         tipos_doc=_q("SELECT TIPO,COUNT(*) AS N FROM DOCCAB WHERE TIPO IN (1,2,3,11,12,13,21) GROUP BY TIPO ORDER BY TIPO")
         alb_m=_q("SELECT FIRST 3 CODIGO,SERIE,NUMERO,FECHA,CODCLIENTE,CODPROYECTO,IMPORTETOTAL FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL ORDER BY FECHA DESC")
         resultado["modulos"]["documentos_compra"]={
@@ -2276,7 +2286,11 @@ async def informe_maestro():
         fb_ok = True
         def _q(sql):
             try: return drv.execute_query(sql) or []
-            except Exception as ex: return [{"ERROR": str(ex)[:120]}]
+            except Exception as ex:
+                msg=str(ex)
+                if "-204" in msg or "Table unknown" in msg.lower():
+                    return []
+                return [{"ERROR": msg[:120]}]
         def _n(sql_o_tabla):
             sql = (sql_o_tabla if sql_o_tabla.strip().upper().startswith("SELECT")
                    else f"SELECT COUNT(*) AS N FROM {sql_o_tabla}")
@@ -2284,7 +2298,13 @@ async def informe_maestro():
                 r = drv.execute_query(sql)
                 if not r: return 0
                 row = r[0]; return int(row.get("N") or row.get("n") or 0)
-            except Exception as ex: return f"ERR:{str(ex)[:60]}"
+            except Exception as ex:
+                msg=str(ex)
+                if "-204" in msg or "Table unknown" in msg.lower():
+                    return "NO_EXISTE"
+                if "-206" in msg or "Column unknown" in msg.lower():
+                    return "COL_ERROR"
+                return f"ERR:{msg[:60]}"
 
         # Maestros
         fb_datos["n_clientes"]     = _n("CLIENTE")

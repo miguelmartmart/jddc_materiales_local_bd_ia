@@ -3926,6 +3926,7 @@ const ApiExplorerModule = {
     else if(fmt==='csv')   this._dl(this._eC(cl),`informe_mpyme_${em}_${fch}.csv`,'text/csv');
     else if(fmt==='html')  this._dl(this._eH(r,cl,nv,em,fch),`informe_mpyme_${em}_${fch}.html`,'text/html');
     else if(fmt==='email') this._dl(this._eE(r,cl,em,fch),`correo_dk_${em}_${fch}.txt`,'text/plain');
+    else if(fmt==='pdf')   this._ePDF(r,cl,nv,em,fch);
   },
   _dl(c,n,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t+';charset=utf-8'}));a.download=n;a.click();URL.revokeObjectURL(a.href);},
   _eT(r,cl,nv,em,fch){
@@ -3937,7 +3938,7 @@ const ApiExplorerModule = {
     if(r.mantenimiento_detectado)t+='\nMODO MANTENIMIENTO (code=6) doc mpyme v1.2 pag.7\n';
     return t+s+'\nGenerado por DEVIA API Explorer -- Solo lectura\n'+s+'\n';
   },
-  _eC(cl){const H=['Clase','Modulo','Tabla Firebird','N Registros BD','Permiso API','Browse API','Recom','Licencia','Hay Datos'];const rows=[H.join(',')];Object.entries(cl).forEach(([c,d])=>{rows.push([c,(d.modulo||'').replace(/,/g,' '),(d.tabla_firebird||'').replace(/,/g,' '),d.n_registros_bd===null?'N/A':String(d.n_registros_bd),d.api_permiso_code===null?'N/A':String(d.api_permiso_code),d.api_browse_code===null?'N/A':String(d.api_browse_code),(d.recomendacion||'').replace(/,/g,' '),d.necesita_licencia?'SI':'NO',d.n_registros_bd>0?'SI':'NO'].map(v=>'+v+').join(','));});return rows.join('\r\n');},
+  _eC(cl){const H=['Clase','Modulo','Tabla Firebird','N Registros BD','Permiso API','Browse API','Recom','Licencia','Hay Datos'];const rows=[H.join(',')];Object.entries(cl).forEach(([c,d])=>{rows.push([c,(d.modulo||'').replace(/,/g,' '),(d.tabla_firebird||'').replace(/,/g,' '),d.n_registros_bd===null?'N/A':String(d.n_registros_bd),d.api_permiso_code===null?'N/A':String(d.api_permiso_code),d.api_browse_code===null?'N/A':String(d.api_browse_code),(d.recomendacion||'').replace(/,/g,' '),d.necesita_licencia?'SI':'NO',d.n_registros_bd>0?'SI':'NO'].map(v=>'"'+String(v||'').replace(/"/g,"'")+'"').join(','));});return rows.join('\r\n');},
   _eH(r,cl,nv,em,fch){
     const mant=r.mantenimiento_detectado;
     let h='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe mPYME '+em+'</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:24px}h1{color:#0f172a}h2{color:#1e40af;border-bottom:2px solid #e2e8f0;padding-bottom:6px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:7px 10px;text-align:left}td{padding:6px 10px;border-bottom:1px solid #f1f5f9}.ok{background:#dcfce7;color:#166534}.warn{background:#fef9c3;color:#92400e}.pill{display:inline-block;padding:2px 8px;border-radius:9px;font-size:0.78em;font-weight:700}pre{background:#f8fafc;padding:12px;border-radius:6px;overflow-x:auto;font-size:0.78em;white-space:pre-wrap}</style></head><body>';
@@ -3959,6 +3960,52 @@ const ApiExplorerModule = {
     if(cll.length){t+='\n--- PROBLEMA 2: LICENCIAS ---\nClases ['+cll.join(',')+'] devuelven code=5 de licencia.\nDatos en BD:';Object.entries(cl).filter(([,d])=>d.n_registros_bd>0).forEach(([c,d])=>t+='\n  '+c+': '+d.n_registros_bd.toLocaleString()+' reg en '+d.tabla_firebird);t+='\nPREGUNTA 2: Licencias necesarias y coste?\n';}
     t+='\n--- RESUMEN BD ---\n';Object.entries(cl).forEach(([c,d])=>t+='  '+c+': '+(d.n_registros_bd===null?'no comprobado':d.n_registros_bd>0?d.n_registros_bd.toLocaleString()+' reg':'vacia')+' en '+(d.tabla_firebird||'?')+'\n');
     return t+'\nGracias.\n'+sep+'\nGenerado por DEVIA API Explorer\n';
+  },
+
+  // PDF: abre ventana imprimible para guardar como PDF
+  _ePDF(r,cl,nv,em,fch){
+    const mant=r.mantenimiento_detectado;
+    const fbOk=r.fb_ok;
+    let html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+      +'<title>Informe mPYME '+em+' '+fch+'</title>'
+      +'<style>'
+      +'*{box-sizing:border-box}'
+      +'body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:0 auto;padding:24px 32px;color:#1e293b;font-size:10pt}'
+      +'h1{color:#0f172a;border-bottom:3px solid #0f172a;padding-bottom:8px;font-size:16pt}'
+      +'h2{color:#1e40af;border-bottom:2px solid #e2e8f0;padding-bottom:4px;margin-top:24px;font-size:12pt}'
+      +'table{width:100%;border-collapse:collapse;font-size:8.5pt;margin:10px 0}'
+      +'th{background:#f1f5f9;padding:5px 8px;text-align:left;border:1px solid #e2e8f0;font-weight:700}'
+      +'td{padding:4px 8px;border:1px solid #e2e8f0;vertical-align:top}'
+      +'.ok{background:#dcfce7;color:#166534}.warn{background:#fef9c3;color:#92400e}'
+      +'.pill{display:inline-block;padding:1px 7px;border-radius:8px;font-size:8pt;font-weight:700}'
+      +'pre{background:#f8fafc;padding:10px;border-radius:4px;font-size:8pt;white-space:pre-wrap;border:1px solid #e2e8f0}'
+      +'@media print{body{padding:12px}}'
+      +'</style></head><body>';
+    html+=`<h1>&#128203; Informe Maestro API mPYME</h1>`;
+    html+=`<p><b>Empresa:</b> ${em} | <b>Servidor:</b> ${r.api_url||'--'} | <b>Fecha:</b> ${fch}</p>`;
+    html+=`<p><b>Firebird:</b> ${fbOk?'OK':'NO ACCESIBLE'} | <b>Sesion API:</b> ${r.sesion_activa?'Activa':'Sin sesion'} | <b>Clases:</b> ${Object.keys(cl).length}</p>`;
+    if(mant) html+='<div style="background:#fff7ed;border:2px solid #f97316;border-radius:6px;padding:8px 12px;margin:8px 0"><b>MODO MANTENIMIENTO ACTIVO</b> — browse() code=6. Contactar Distrito K.</div>';
+    if(nv&&nv.n1)html+='<h2>Resumen Ejecutivo</h2><pre>'+nv.n1.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>';
+    html+='<h2>Tabla Cruzada BD + API</h2>';
+    html+='<table><thead><tr><th>Clase</th><th>Modulo</th><th>Tabla BD</th><th>N Reg</th><th>Perm</th><th>Browse</th><th>Recomendacion</th><th>Lic</th></tr></thead><tbody>';
+    Object.entries(cl).forEach(([clase,d])=>{
+      const nb=d.n_registros_bd===null?'N/A':(typeof d.n_registros_bd==='number'?d.n_registros_bd.toLocaleString('es-ES'):String(d.n_registros_bd));
+      const rec=d.recomendacion||'';
+      const tg=rec.startsWith('disponible')?'ok':rec.startsWith('comprar')||rec.startsWith('estudiar')?'warn':'';
+      html+=`<tr><td><b>${clase}</b></td><td>${d.modulo||''}</td><td style="font-family:monospace">${d.tabla_firebird||''}</td><td style="text-align:right">${nb}</td><td style="text-align:center">${d.api_permiso_code===null?'--':d.api_permiso_code}</td><td style="text-align:center">${d.api_browse_code===null?'--':d.api_browse_code}</td><td><span class="pill ${tg}">${rec}</span></td><td style="text-align:center">${d.necesita_licencia?'SI':'NO'}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    if(nv&&nv.n2)html+='<h2>Analisis por Modulo</h2><pre>'+nv.n2.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>';
+    const correoTxt=this._eE(r,cl,em,fch);
+    html+='<h2>Correo para Distrito K</h2><pre>'+correoTxt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>';
+    html+='<hr><p style="font-size:8pt;color:#94a3b8">DEVIA API Explorer — Solo lectura — '+new Date().toLocaleString('es-ES')+'</p>';
+    html+='</body></html>';
+    const w=window.open('','_blank','width=960,height=750');
+    if(!w){alert('Activa las ventanas emergentes para generar el PDF');return;}
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>w.print(),600);
   },
 
 };
@@ -4563,13 +4610,18 @@ function _renderCatalogoDatos() {
     </div>
   </div>`;
 
-  // Boton copiar correo
-  const correo = _generarCorreo();
-  h += `<div style="background:#fafafa;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:10px">
+  // Boton copiar correo — usamos textarea oculta para evitar conflictos de comillas en onclick
+  const correoB64 = btoa(unescape(encodeURIComponent(_generarCorreo())));
+  h += `<div style="background:#fafafa;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:0.84em;color:#374151;font-weight:600">📧 Correo listo para Distrito K:</span>
-    <button onclick="navigator.clipboard.writeText(${JSON.stringify(correo)}).then(()=>{this.textContent='✅ Copiado!';setTimeout(()=>this.textContent='📋 Copiar correo completo',2000)})"
+    <textarea id="cat-correo-hidden" style="display:none" readonly>${correoB64}</textarea>
+    <button onclick="(function(btn){const t=document.getElementById('cat-correo-hidden');if(!t)return;const txt=decodeURIComponent(escape(atob(t.value)));navigator.clipboard.writeText(txt).then(()=>{btn.textContent='✅ Copiado!';setTimeout(()=>btn.textContent='📋 Copiar correo completo',2000)})})(this)"
       style="padding:5px 14px;background:#0369a1;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82em;font-weight:600">
       📋 Copiar correo completo
+    </button>
+    <button onclick="(function(){const t=document.getElementById('cat-correo-hidden');if(!t)return;const txt=decodeURIComponent(escape(atob(t.value)));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='correo_dk_JDDC.txt';a.click()})()"
+      style="padding:5px 14px;background:#166534;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82em;font-weight:600">
+      ⬇ Descargar TXT
     </button>
     <span style="font-size:0.77em;color:#94a3b8">Incluye situacion actual, datos que necesitamos y preguntas concretas</span>
   </div>`;
@@ -5020,12 +5072,23 @@ function _renderValidarBD(r) {
   function _tablaRow(nombre, info) {
     if (!info || typeof info !== 'object') return '';
     const n = info.n ?? info.N ?? '?';
-    const ok = info.ok || info.hay_datos || (typeof n==='number'&&n>0);
-    const col = ok ? '#166534' : '#dc2626';
-    const muestra = info.muestra||[];
-    let html = `<tr style="border-bottom:1px solid #f1f5f9">
-      <td style="padding:3px 8px;font-family:monospace;font-size:0.83em;color:#0369a1">${nombre}</td>
-      <td style="padding:3px 8px;text-align:right;font-weight:700;color:${col}">${typeof n==='number'?n.toLocaleString('es-ES'):n}</td>
+    // Determinar estado visual
+    const noExiste = (n === 'NO_EXISTE');
+    const colErr   = (n === 'COL_ERROR');
+    const isErr    = typeof n === 'string' && n.startsWith('ERR:');
+    const ok = !noExiste && !colErr && !isErr && (info.ok || info.hay_datos || (typeof n==='number'&&n>0));
+    const col = noExiste ? '#94a3b8' : colErr ? '#d97706' : isErr ? '#dc2626' : ok ? '#166534' : '#dc2626';
+    const nDisplay = noExiste
+      ? '<span title="Tabla no existe en esta BD" style="color:#94a3b8;font-size:0.85em">— no existe</span>'
+      : colErr
+        ? '<span title="Tabla existe pero columna consultada no coincide" style="color:#d97706;font-size:0.85em">⚠ col?</span>'
+        : isErr
+          ? `<span title="${n}" style="color:#dc2626;font-size:0.82em">ERR</span>`
+          : typeof n==='number' ? n.toLocaleString('es-ES') : n;
+    const muestra = (noExiste || colErr || isErr) ? [] : (info.muestra||[]);
+    let html = `<tr style="border-bottom:1px solid #f1f5f9;${noExiste?'opacity:0.55':''}">
+      <td style="padding:3px 8px;font-family:monospace;font-size:0.83em;color:${noExiste?'#94a3b8':'#0369a1'}">${nombre}</td>
+      <td style="padding:3px 8px;text-align:right;font-weight:700;color:${col}">${nDisplay}</td>
       <td style="padding:3px 8px;font-size:0.78em;color:#64748b">${info.desc||''}</td>
     </tr>`;
     if (muestra.length) {
@@ -5136,7 +5199,23 @@ function _renderValidarBD(r) {
       </div>`;
     }
     h += `</div></details>`;
-  
+  });  // cierre forEach mods
+
+  h += `</div>`; // cierre padding-container
+
+  // Footer validacion BD
+  h += `<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 16px;
+    font-size:0.78em;color:#64748b;display:flex;justify-content:space-between;align-items:center">
+    <span>🔒 Solo lectura · SELECT COUNT(*) + SELECT FIRST 3 · Ninguna modificación</span>
+    <button onclick="ApiExplorerModule.doValidarDatosBD({target:this})"
+      style="padding:4px 12px;background:#166534;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">
+      🔄 Repetir validación
+    </button>
+  </div></div>`;
+
+  return h;
+}
+
 // ── _renderInformeMaestro ─────────────────────────────────────────────────────────────────
 function _renderInformeMaestro(r) {
   if (!r || !r.success) {
@@ -5352,6 +5431,7 @@ function _renderInformeMaestro(r) {
       <button onclick="ApiExplorerModule._expInforme('csv')" style="padding:3px 12px;background:#374151;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#128202; CSV</button>
       <button onclick="ApiExplorerModule._expInforme('html')" style="padding:3px 12px;background:#1e40af;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#127760; HTML</button>
       <button onclick="ApiExplorerModule._expInforme('email')" style="padding:3px 12px;background:#166534;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#128231; Correo DK</button>
+      <button onclick="ApiExplorerModule._expInforme('pdf')" style="padding:3px 12px;background:#7c2d12;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em" title="Abre ventana de impresion — guarda como PDF con Ctrl+P">&#128438; PDF / Imprimir</button>
     </div>
   </div>
   </div>`;
@@ -5369,23 +5449,6 @@ function _renderInformeMaestro(r) {
   function _copy(id,btn){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.value).then(()=>{btn.textContent='✅ Copiado!';setTimeout(()=>btn.textContent='📋 Copiar',2500)});}
   setTimeout(()=>_imTab('visual'),50);
   <\/script>`;
-
-  return h;
-}
-
-});
-
-  h += `</div>`;
-
-  // Footer
-  h += `<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 16px;
-    font-size:0.78em;color:#64748b;display:flex;justify-content:space-between;align-items:center">
-    <span>🔒 Solo lectura · SELECT COUNT(*) + SELECT FIRST 3 · Ninguna modificación</span>
-    <button onclick="ApiExplorerModule.doValidarDatosBD({target:this})"
-      style="padding:4px 12px;background:#166534;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">
-      🔄 Repetir validación
-    </button>
-  </div></div>`;
 
   return h;
 }
