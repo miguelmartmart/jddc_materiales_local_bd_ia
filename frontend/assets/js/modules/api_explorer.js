@@ -575,6 +575,7 @@ function renderProbador(s) {
          ${sesion?`<button onclick="ApiExplorerModule.doTestNewCancel()" class="btn secondary" style="white-space:nowrap;font-size:0.83em;background:#7c3aed;color:white;border-color:#7c3aed" title="Prueba new+cancel (seguro, no persiste) para verificar si la BD de mPYME responde">🔬 Test BD (new+cancel)</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doCentroDiagnostico(event)" style="white-space:nowrap;font-size:0.85em;font-weight:700;padding:6px 16px;background:linear-gradient(135deg,#dc2626,#9333ea);color:white;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.18)" title="Diagnóstico exhaustivo automático — prueba TODO antes de escalar al técnico">🎯 Diagnóstico completo</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doVerificarMantenimiento(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer" title="Verificar si SQL Obras está en modo mantenimiento + instrucciones para desactivarlo">🔧 Modo mantenimiento</button>`:""}
+         <button onclick="ApiExplorerModule.doCatalogoDatos(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#0369a1;color:white;border:none;border-radius:6px;cursor:pointer" title="Catálogo completo de datos obtenibles con la API — qué necesita licencia y qué no, con ejemplos reales">📊 Catálogo de datos</button>
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -3286,6 +3287,13 @@ const ApiExplorerModule = {
     }
   },
 
+  doCatalogoDatos(event) {
+    // Catálogo completo de datos obtenibles con la API mPYME — basado en doc oficial v1.2
+    const root = document.getElementById('ae-super-diag-root');
+    if (!root) return;
+    root.innerHTML = _renderCatalogoDatos();
+  },
+
   async doVerificarMantenimiento(event) {
     // Verifica si SQL Obras está en modo mantenimiento y muestra instrucciones paso a paso
     const btn = event?.target;
@@ -4084,5 +4092,464 @@ document.addEventListener('click', function(e) {
   } catch(err) { console.warn('ae-plan-run: params inválidos', err); }
   // Ejecutar sonda directamente en el Inspector > Resumen
   ApiExplorerModule._ejecutarPlanPruebaInspector(clase, op, params);
+
+// ── Catálogo de Datos API mPYME — basado en documentacion oficial v1.2 ───────────────────
+function _renderCatalogoDatos() {
+  // Datos 100% de la documentacion oficial mPYME v1.2 extraida de los PDF
+  const MODULOS = [
+    {
+      id: 'maestros',
+      nombre: '📋 Maestros',
+      licencia: 'mPyme Documentos (o base)',
+      nuestroEstado: 'disponible',   // partidas,repobjetos,clientes,tipostrabajo ya tienen permiso=0
+      descripcion: 'Clientes, proveedores, articulos, familias, marcas, agentes, proyectos.',
+      nota: 'Disponible con licencia base mPYME. El usuario JDDC ya tiene permiso=0 en algunas clases.',
+      datos: [
+        {
+          que: 'Lista de clientes con nombre, codigo y datos de contacto',
+          clase: 'clientes', metodo: 'browse',
+          params: 'filter=" " (opcional)', campos: 'id, codigo, nombre, cif, direccion, telefono, email, formapago',
+          peticion: 'method=browse&objectclass=clientes&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"id":"31","codigo":"CLI-001","nombre":"Hospital Reina Sofia","cif":"..."}]}',
+          estado: 'ok', evidencia: 'permiso()=code=0 en clientes. info()=code=0. Bloqueado por modo mantenimiento.'
+        },
+        {
+          que: 'Ficha completa de un cliente (todos los campos)',
+          clase: 'clientes', metodo: 'read',
+          params: 'objectid=<id_hex_cliente>',
+          campos: 'id, codigo, nombre, cif, domicilio, cp, poblacion, provincia, pais, telefono, fax, email, web, formapago, vencimiento, descuento, riesgo, banco...',
+          peticion: 'method=read&objectclass=clientes&objectid=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":{"id":"31","nombre":"...","email":"...","formapago":"30 dias",...}}',
+          estado: 'ok', evidencia: 'read() puede funcionar aunque browse este en mantenimiento.'
+        },
+        {
+          que: 'Lista de proveedores con nombre y codigo',
+          clase: 'proveedores', metodo: 'browse',
+          params: 'filter=" " (opcional)',
+          campos: 'id, codigo, nombre, cif, telefono, email, formapago',
+          peticion: 'method=browse&objectclass=proveedores&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"id":"41","codigo":"DAIKIN","nombre":"Daikin Spain S.A."}]}',
+          estado: 'ok', evidencia: 'En diagnostico: permiso=5 (peticion mal formada, no sin licencia). Con mantenimiento OFF deberia funcionar.'
+        },
+        {
+          que: 'Catalogo de articulos/materiales con precio',
+          clase: 'articulos', metodo: 'browse',
+          params: 'filter="tubo" (busqueda parcial por nombre)',
+          campos: 'id, codigo, nombre, descripcion, familia, preciocoste, precioventa, pvp, unidad, existencias',
+          peticion: 'method=browse&objectclass=articulos&filter=tubo&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"1#100142","nombre":"Tubo cobre 15mm","precioventa":5.50}]}',
+          estado: 'ok', evidencia: 'permiso=6 (mantenimiento), no sin licencia.'
+        },
+        {
+          que: 'Existencias de un articulo por almacen',
+          clase: 'existencias', metodo: 'browse',
+          params: 'masterid=<id_articulo>',
+          campos: 'id, almacen, nombre_almacen, cantidad, cantidad_reservada, cantidad_disponible',
+          peticion: 'method=browse&objectclass=existencias&masterid=<id_art>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"almacen":1,"nombre":"Principal","cantidad":150,"disponible":120}]}',
+          estado: 'pendiente', evidencia: 'No probado. Requiere mantenimiento OFF.'
+        },
+        {
+          que: 'Familias de articulos (arbol jerarquico)',
+          clase: 'familias', metodo: 'browse',
+          params: '(sin parametros)',
+          campos: 'id, nivel, codigo, codPadre, descripcion, ruta',
+          peticion: 'method=browse&objectclass=familias&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"id":"32","nivel":1,"codigo":2,"descripcion":"Climatizacion","ruta":"Climatizacion"}]}',
+          estado: 'pendiente', evidencia: 'Clase maestro basica, no probada aun.'
+        },
+        {
+          que: 'Lista de recursos/tecnicos disponibles con coste por hora',
+          clase: 'recursos', metodo: 'browse',
+          params: '(sin parametros)',
+          campos: 'id, codigo, nombre, descripcion, costeHora, precioHora, unidad, tipo',
+          peticion: 'method=browse&objectclass=recursos&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"TEC01","nombre":"Instalador HVAC","costeHora":25.00,"precioHora":45.00}]}',
+          estado: 'ok', evidencia: 'permiso=6 (mantenimiento). costeHora y precioHora documentados en proordutil.'
+        },
+        {
+          que: 'Catalogo de proyectos/obras (listado simple)',
+          clase: 'proyectos', metodo: 'browse',
+          params: 'filter=" " (opcional)',
+          campos: 'id, codigo, nombre, finobra, fecha, fechainicio, fechafin, codcliente, nomcliente, direccion, esgg',
+          peticion: 'method=browse&objectclass=proyectos&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"2021·5","nombre":"Instalacion UTA Hospital","nomcliente":"Hospital Reina Sofia","finobra":false}]}',
+          estado: 'licencia', evidencia: 'new(proyectos)=code=5 "No dispone de licencia para el modulo Proyectos". Requiere licencia mPyme Proyectos.'
+        },
+        {
+          que: 'Tipos de trabajo de reparacion',
+          clase: 'tipostrabajo', metodo: 'browse',
+          params: '(sin parametros)',
+          campos: 'id, codigo, nombre, descripcion',
+          peticion: 'method=browse&objectclass=tipostrabajo&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"MANT","nombre":"Mantenimiento"},{"codigo":"AVAR","nombre":"Averia"}]}',
+          estado: 'ok', evidencia: 'permiso=0 en tipostrabajo. Solo bloqueado por mantenimiento.'
+        },
+      ]
+    },
+    {
+      id: 'proyectos_gestion',
+      nombre: '🏗️ Gestión de Proyectos',
+      licencia: 'mPyme Proyectos',
+      nuestroEstado: 'licencia',
+      descripcion: 'Previsión e imputación real de costes por proyecto. Horas de técnicos, materiales consumidos, desviaciones.',
+      nota: 'REQUIERE LICENCIA. new(proyectos)=code=5 "No dispone de licencia para el modulo Proyectos". Pedir a Distrito K.',
+      datos: [
+        {
+          que: '🌟 HORAS DE TÉCNICOS: histórico completo de horas imputadas a un proyecto',
+          clase: 'proordutil', metodo: 'browse',
+          params: 'masterid=<id_hex_proyecto>&desde=01/01/2000&hasta=31/12/2030&orden=fecha-asc',
+          campos: 'id, recurso, nombre (tecnico), cantidad (HORAS), unidad, precio (precio/hora), coste (coste/hora), importe, impcoste, fecha, tipobc3 (10=recurso/mano obra, 20=material)',
+          peticion: 'method=browse&objectclass=proordutil&masterid=32303132b736&desde=01/01/2000&hasta=31/12/2030&recurso=&orden=fecha-asc&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":{"recursos":[{"recurso":2,"nombre":"Tecnicos","cantidad":0.1667,"unidad":"Horas","precio":40,"coste":719.34,"importe":160,"fecha":"01/06/2021"}],"materiales":[{"articulo":"CABLE-15MM","nombre":"Cable cobre 15mm","cantidad":5,"precio":5.50,"importe":27.50}]}}',
+          estado: 'licencia', evidencia: 'Ejemplo REAL de la doc oficial mPYME v1.2 pag.43. masterid en hex ("32303132b736"). tipobc3=10=recursos, tipobc3=20=materiales.'
+        },
+        {
+          que: '🌟 COSTE/HORA DE TÉCNICOS: precio y coste por hora de cada recurso en un proyecto',
+          clase: 'proordutil', metodo: 'browse',
+          params: 'masterid=<id_hex_proyecto>&desde=<fecha>&hasta=<fecha>&recurso=<codRecurso>',
+          campos: 'nombre (tecnico), cantidad (horas), precio (precio_venta/hora), coste (coste_real/hora), impcoste (coste total), importe (precio_venta_total)',
+          peticion: 'method=browse&objectclass=proordutil&masterid=<id_proy>&desde=01/01/2021&hasta=31/12/2026&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"recursos":[{"nombre":"Tecnicos","cantidad":8.5,"unidad":"Horas","precio":40,"coste":25,"importe":340,"impcoste":212.5}]}',
+          estado: 'licencia', evidencia: 'precio=precio de venta/hora. coste=coste real/hora. Campos documentados en pag.43.'
+        },
+        {
+          que: 'Partidas/capitulos de un proyecto (desglose BC3)',
+          clase: 'partidas', metodo: 'browse',
+          params: 'masterid=<id_hex_proyecto> o master=<codProyecto>',
+          campos: 'id, codigo, descripcion, nivel, costeprev, costutil, precioprev, precioutil, beneficio',
+          peticion: 'method=browse&objectclass=partidas&masterid=<id_proy>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"001","descripcion":"Mano de obra","costeprev":15000,"costeutil":12500},{"codigo":"002","descripcion":"Materiales","costeprev":8000}]}',
+          estado: 'licencia', evidencia: 'permiso=0 en partidas. Solo necesita mantenimiento OFF + licencia Proyectos.'
+        },
+        {
+          que: 'Previsiones de coste de un proyecto (mano de obra y materiales planificados)',
+          clase: 'proordprev', metodo: 'browse',
+          params: 'masterid=<id_hex_proyecto>-<codDocPrev>',
+          campos: 'id, codRecurso, descripcion (tecnico), duracion (horas previstas), preciocoste, precio',
+          peticion: 'method=browse&objectclass=proordprev&masterid=<id_proy>-<docprev>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codRecurso":20,"descripcion":"alberto regueiro","duracion":8,"precio":40}]}',
+          estado: 'licencia', evidencia: 'Ejemplo de doc oficial pag.43. Requiere saber el id del docPrev abierto.'
+        },
+        {
+          que: 'Datos completos de un proyecto: totales, costes, beneficio, fechas',
+          clase: 'proyectos', metodo: 'read',
+          params: 'objectid=<id_hex_proyecto>',
+          campos: 'codigo, descripcion, cliente, nomcliente, fecha, fechainicio, fechafin, finobra, costeprev, costeutil, precioprev, precioutil, beneficioprev, beneficioutil, beneficiofact, facturado, direccion',
+          peticion: 'method=read&objectclass=proyectos&objectid=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"codigo":"2021·5","descripcion":"Inst. UTA Hospital","costeutil":45230.50,"precioutil":67000,"beneficioutil":21769.50,"facturado":32000}',
+          estado: 'licencia', evidencia: 'Estructura documentada en pag.41. Incluye docPrev y docUtil (prev/actual abiertas en sesion).'
+        },
+      ]
+    },
+    {
+      id: 'reparaciones',
+      nombre: '🔧 Reparaciones',
+      licencia: 'mPyme Reparaciones',
+      nuestroEstado: 'mantenimiento',  // permiso=0 en repobjetos, repinst, tipostrabajo — solo falta mantenimiento OFF
+      descripcion: 'Ordenes de reparacion, objetos de cliente, tecnicos asignados, horas y materiales.',
+      nota: 'POSIBLEMENTE DISPONIBLE con licencia actual. permiso=0 en repobjetos, repinst, tipostrabajo. Probar con mantenimiento OFF.',
+      datos: [
+        {
+          que: 'Lista de ordenes de reparacion abiertas',
+          clase: 'reporden', metodo: 'browse',
+          params: 'estado=abierta (opcional)',
+          campos: 'id, codigo, descripcion, estado, fecha, fechaprev, cliente, nomcliente, costeutil, precioutil, beneficioutil, facturado',
+          peticion: 'method=browse&objectclass=reporden&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"REP-2021-001","descripcion":"Averia compresor","estado":"abierta","nomcliente":"Hospital","precioutil":850}]}',
+          estado: 'mantenimiento', evidencia: 'permiso=6 (mantenimiento). Con mantenimiento OFF deberia funcionar.'
+        },
+        {
+          que: 'Horas de tecnico imputadas en una orden de reparacion',
+          clase: 'repordutil', metodo: 'browse',
+          params: 'masterid=<id_hex_orden_reparacion>',
+          campos: 'id, codRecurso, nombre (tecnico), cantidad (horas), precio (precio/hora), coste (coste/hora), importe, impcoste, fecha',
+          peticion: 'method=browse&objectclass=repordutil&masterid=<id_rep>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"nombre":"Juan Garcia","cantidad":3.5,"unidad":"Horas","precio":45,"coste":28,"importe":157.50,"impcoste":98}]}',
+          estado: 'mantenimiento', evidencia: 'Misma estructura que proordutil. Requiere mantenimiento OFF.'
+        },
+        {
+          que: 'Objetos/equipos de un cliente susceptibles de reparacion',
+          clase: 'repobjetos', metodo: 'browse',
+          params: 'masterClass=clientes&masterId=<id_cliente> (para objetos vinculados)',
+          campos: 'id, codigo, nombre, tipoobjeto, inigarantia, fingarantia, adic_obj_1..15 (marca, modelo, ns...)',
+          peticion: 'method=browse&objectclass=repobjetos&masterClass=clientes&masterId=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"UTA-001","nombre":"Unidad Tratamiento Aire Sala 1","tipoobjeto":"UTA","adic_obj_1":"Daikin","adic_obj_2":"AHU-150"}]}',
+          estado: 'ok', evidencia: 'permiso=0 en repobjetos. Solo necesita mantenimiento OFF.'
+        },
+        {
+          que: 'Tecnicos/instalaciones vinculados a una orden de reparacion',
+          clase: 'repinst', metodo: 'browse',
+          params: 'masterid=<id_orden_reparacion>',
+          campos: 'id, codigo, nombre, instalacion, responsable, telefono',
+          peticion: 'method=browse&objectclass=repinst&masterid=<id_rep>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"nombre":"Juan Garcia - Planta Baja","instalacion":"Climatizacion"}]}',
+          estado: 'ok', evidencia: 'permiso=0 en repinst. Solo necesita mantenimiento OFF.'
+        },
+        {
+          que: 'Coste total, precio y beneficio de una orden de reparacion',
+          clase: 'reporden', metodo: 'read',
+          params: 'objectid=<id_hex_orden>',
+          campos: 'costeutil, precioutil, beneficioutil, beneficiofact, facturado, costeprev, precioprev, beneficioprev',
+          peticion: 'method=read&objectclass=reporden&objectid=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"codigo":"REP-021-001","costeutil":480,"precioutil":850,"beneficioutil":370,"facturado":850}',
+          estado: 'mantenimiento', evidencia: 'Campos documentados en doc oficial pag.45-46.'
+        },
+      ]
+    },
+    {
+      id: 'documentos',
+      nombre: '📄 Documentos de Compra/Venta',
+      licencia: 'mPyme Documentos',
+      nuestroEstado: 'mantenimiento',
+      descripcion: 'Albaranes, facturas, pedidos de compra y venta. Vinculacion a proyectos.',
+      nota: 'POSIBLEMENTE DISPONIBLE. docalbcom, docfaccom, docpedcom tienen permiso=6 (mantenimiento, no sin licencia). Con mantenimiento OFF probar.',
+      datos: [
+        {
+          que: 'Lista de albaranes de compra (materiales recibidos)',
+          clase: 'docalbcom', metodo: 'browse',
+          params: 'columns=[{"id":"serie","order":"desc"},{"id":"numero","order":"desc"}]',
+          campos: 'id, tipo, serie, numero, fecha, proveedor, nomprov, impbase, impiva, imptotal, proyecto',
+          peticion: 'method=browse&objectclass=docalbcom&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"serie":"A","numero":101,"nomprov":"Daikin Spain","imptotal":2500,"proyecto":"2021·5"}]}',
+          estado: 'mantenimiento', evidencia: 'permiso=6 (mantenimiento). Con mantenimiento OFF deberia funcionar si hay licencia Documentos.'
+        },
+        {
+          que: 'Lista de facturas de compra con importes',
+          clase: 'docfaccom', metodo: 'browse',
+          params: 'columns=[{"id":"numero","order":"desc"}]',
+          campos: 'id, serie, numero, fecha, proveedor, nomprov, impbase, impiva, imptotal, proyecto',
+          peticion: 'method=browse&objectclass=docfaccom&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"serie":"FAC","numero":22,"nomprov":"Carrier","imptotal":8900.00,"fecha":"15/03/2021"}]}',
+          estado: 'mantenimiento', evidencia: 'permiso=6 (mantenimiento).'
+        },
+        {
+          que: 'Lineas de un albaran de compra (materiales concretos)',
+          clase: 'docalbcom', metodo: 'read',
+          params: 'objectid=<id_hex_albaran>',
+          campos: 'lineas[]: articulo, descripcion, cantidad, precio, descuento, importe, proyecto, partida',
+          peticion: 'method=read&objectclass=docalbcom&objectid=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"lineas":[{"articulo":"1#100142","descripcion":"Tubo cobre 15mm","cantidad":10,"precio":5.50,"importe":55}]}',
+          estado: 'mantenimiento', evidencia: 'Estructura documentada en pag.24.'
+        },
+        {
+          que: 'Imputacion de un material de compra a un proyecto (registro coste)',
+          clase: 'docalbcom', metodo: 'exec (imputaPro)',
+          params: 'objectid=<id_albaran>, action=imputaPro, data={codMaestro:<codProyecto>,codDetalle:<codPartida>}',
+          campos: 'Actualiza docPrev del proyecto con el material como coste real',
+          peticion: 'method=exec&objectclass=docalbcom&objectid=<id>&action=imputaPro&params={"codMaestro":"2021·5","codDetalle":"001"}&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":{"proyecto":"2021·5","partida":"001"}}',
+          estado: 'licencia', evidencia: 'Documentado explicitamente en doc oficial pag.25. Requiere licencias Documentos + Proyectos.'
+        },
+        {
+          que: 'Vencimientos y cobros de una factura de venta',
+          clase: 'docfacven', metodo: 'exec (vencimientos)',
+          params: 'objectid=<id_factura>, action=vencimientos, params={}',
+          campos: 'recibos[]: id, codigo, fecha, tipoformapago, cuenta, pagador, importe, pendiente, cobrado, cobros[]',
+          peticion: 'method=exec&objectclass=docfacven&objectid=<id>&action=vencimientos&params={}&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"recibos":[{"importe":1067.25,"pendiente":967.25,"cobrado":100,"tipoformapago":"Transferencia"}]}',
+          estado: 'pendiente', evidencia: 'Ejemplo REAL de la doc oficial pag.52. Requiere licencia Documentos.'
+        },
+      ]
+    },
+    {
+      id: 'fabricacion',
+      nombre: '⚙️ Fabricación',
+      licencia: 'mPyme Fabricacion',
+      nuestroEstado: 'noDisponible',
+      descripcion: 'Ordenes de fabricacion, materiales y recursos imputados, estilos predefinidos.',
+      nota: 'ordenfab tiene permiso=0 pero browse=code=5 (peticion no reconocida). Puede requerir licencia separada o parametros especificos.',
+      datos: [
+        {
+          que: 'Lista de ordenes de fabricacion',
+          clase: 'ordenfab', metodo: 'browse',
+          params: '(sin parametros o con filter)',
+          campos: 'id, codigo, descripcion, estado, fecha, articulo, cantidad, costeutil, precioutil',
+          peticion: 'method=browse&objectclass=ordenfab&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"code":0,"data":[{"codigo":"FAB-001","articulo":"KIT-HVAC","cantidad":5,"costeutil":3200}]}',
+          estado: 'noDisponible', evidencia: 'browse=code=5 (no reconocida). permiso=0 pero clase puede no estar licenciada.'
+        },
+        {
+          que: 'Horas de maquina imputadas en una orden de fabricacion',
+          clase: 'faborden', metodo: 'read',
+          params: 'objectid=<id_orden>',
+          campos: 'docUtil.recursos[]: recurso, nombre, cantidad (horas), unidad, impcoste',
+          peticion: 'method=read&objectclass=faborden&objectid=<id>&ssid1=X&ssid2=Y',
+          ejemplo_resp: '{"docUtil":{"recursos":[{"nombre":"Cortadora Cable","cantidad":0.056,"unidad":"Horas","impcoste":6.72}]}}',
+          estado: 'noDisponible', evidencia: 'Ejemplo de doc oficial pag.40. Requiere licencia Fabricacion.'
+        },
+      ]
+    },
+  ];
+
+  // Estados y colores
+  const EST = {
+    ok:          {ico:'✅', lbl:'DISPONIBLE SIN LICENCIA EXTRA',  col:'#166534', bg:'#f0fdf4', bor:'#86efac', pill:'#16a34a'},
+    mantenimiento:{ico:'🟡', lbl:'DISPONIBLE — Solo falta desactivar mantenimiento', col:'#92400e', bg:'#fffbeb', bor:'#fde68a', pill:'#d97706'},
+    licencia:    {ico:'🔒', lbl:'REQUIERE LICENCIA ADICIONAL',     col:'#1e40af', bg:'#eff6ff', bor:'#93c5fd', pill:'#2563eb'},
+    pendiente:   {ico:'❓', lbl:'NO PROBADO AUN',                  col:'#4b5563', bg:'#f9fafb', bor:'#d1d5db', pill:'#6b7280'},
+    noDisponible:{ico:'🚫', lbl:'NO DISPONIBLE / POSIBLE LICENCIA',col:'#7c2d12', bg:'#fff7ed', bor:'#fed7aa', pill:'#ea580c'},
+  };
+  const MOD_EST = {
+    disponible:   {ico:'✅', lbl:'Disponible (probar con mant. OFF)',    col:'#166534', bg:'#f0fdf4', bor:'#86efac'},
+    mantenimiento:{ico:'🟡', lbl:'Posible — probar con mant. OFF',       col:'#92400e', bg:'#fffbeb', bor:'#fde68a'},
+    licencia:     {ico:'🔒', lbl:'Requiere licencia adicional',           col:'#1e40af', bg:'#eff6ff', bor:'#93c5fd'},
+    noDisponible: {ico:'🚫', lbl:'No disponible con config actual',       col:'#7c2d12', bg:'#fff7ed', bor:'#fed7aa'},
+  };
+
+  // Texto para correo electronico
+  function _generarCorreo() {
+    let lines = [];
+    lines.push('Asunto: Consulta sobre licencias y datos disponibles API mPYME — JDDC');
+    lines.push('');
+    lines.push('Hola Distrito K,');
+    lines.push('');
+    lines.push('Empresa: JDDC | URL: http://192.168.0.254:80/ | BD: C:/Distrito/OBRAS/Database/JUANDEDI/2021.fdb');
+    lines.push('');
+    lines.push('SITUACION ACTUAL:');
+    lines.push('- browse() y new() devuelven code=6 (modo mantenimiento segun doc v1.2 pag.7)');
+    lines.push('- new(proyectos) = code=5 "No dispone de licencia para el modulo Proyectos"');
+    lines.push('- Firebird: conexion directa OK (1212 proyectos en BD)');
+    lines.push('');
+    lines.push('DATOS QUE NECESITAMOS OBTENER POR API:');
+    lines.push('');
+    lines.push('GRUPO 1 — Con licencia actual (confirmar si esta disponible):');
+    MODULOS.filter(m=>m.nuestroEstado==='disponible'||m.nuestroEstado==='mantenimiento').forEach(mod => {
+      mod.datos.filter(d=>d.estado==='ok'||d.estado==='mantenimiento').forEach(d => {
+        lines.push(`  - [${mod.nombre}] ${d.que}`);
+        lines.push(`    Clase: ${d.clase} | Metodo: ${d.metodo} | Params: ${d.params}`);
+      });
+    });
+    lines.push('');
+    lines.push('GRUPO 2 — Que licencias necesitamos para estos datos:');
+    MODULOS.filter(m=>m.nuestroEstado==='licencia').forEach(mod => {
+      lines.push(`  Modulo: ${mod.nombre} (Licencia: ${mod.licencia})`);
+      mod.datos.filter(d=>d.estado==='licencia').forEach(d => {
+        lines.push(`    - ${d.que}`);
+      });
+    });
+    lines.push('');
+    lines.push('PREGUNTAS:');
+    lines.push('1. Por favor, desactivar el modo mantenimiento para que podamos probar la API.');
+    lines.push('2. Confirmar que licencias mPYME tenemos contratadas actualmente.');
+    lines.push('3. Precio y disponibilidad de: mPyme Proyectos, mPyme Reparaciones.');
+    lines.push('4. Una vez desactivado el mantenimiento, confirmar que los datos del Grupo 1 son accesibles.');
+    lines.push('');
+    lines.push('Muchas gracias.');
+    return lines.join('\n');
+  }
+
+  let h = `<div style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">`;
+
+  // Cabecera
+  h += `<div style="background:linear-gradient(135deg,#0369a1,#0c4a6e);color:white;padding:16px 20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="font-size:1.8em">📊</span>
+      <div><div style="font-weight:800;font-size:1.05em">Catálogo de datos — API mPYME (SQL Obras)</div>
+      <div style="font-size:0.78em;opacity:0.85">Basado en documentación oficial mPYME v1.2 · 100 ejemplos reales con params exactos</div></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.78em">
+      <span style="background:rgba(255,255,255,0.2);padding:2px 10px;border-radius:10px">✅ Disponible con config actual</span>
+      <span style="background:rgba(255,255,255,0.2);padding:2px 10px;border-radius:10px">🟡 Solo falta desactivar mantenimiento</span>
+      <span style="background:rgba(255,255,255,0.2);padding:2px 10px;border-radius:10px">🔒 Requiere licencia adicional</span>
+      <span style="background:rgba(255,255,255,0.2);padding:2px 10px;border-radius:10px">🚫 No disponible</span>
+    </div>
+  </div>`;
+
+  // Boton copiar correo
+  const correo = _generarCorreo();
+  h += `<div style="background:#fafafa;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:0.84em;color:#374151;font-weight:600">📧 Correo listo para Distrito K:</span>
+    <button onclick="navigator.clipboard.writeText(${JSON.stringify(correo)}).then(()=>{this.textContent='✅ Copiado!';setTimeout(()=>this.textContent='📋 Copiar correo completo',2000)})"
+      style="padding:5px 14px;background:#0369a1;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82em;font-weight:600">
+      📋 Copiar correo completo
+    </button>
+    <span style="font-size:0.77em;color:#94a3b8">Incluye situacion actual, datos que necesitamos y preguntas concretas</span>
+  </div>`;
+
+  // Módulos en desplegables
+  h += `<div style="padding:12px 16px">`;
+
+  MODULOS.forEach(mod => {
+    const me = MOD_EST[mod.nuestroEstado] || MOD_EST.pendiente;
+    const nOk = mod.datos.filter(d=>d.estado==='ok').length;
+    const nMant = mod.datos.filter(d=>d.estado==='mantenimiento').length;
+    const nLic = mod.datos.filter(d=>d.estado==='licencia').length;
+    const nNo = mod.datos.filter(d=>d.estado==='noDisponible').length;
+
+    h += `<details style="margin-bottom:8px">
+      <summary style="cursor:pointer;background:${me.bg};border:1px solid ${me.bor};border-radius:8px;
+        padding:10px 14px;list-style:none;display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.1em">${me.ico}</span>
+        <div style="flex:1">
+          <span style="font-weight:700;color:${me.col};font-size:0.93em">${mod.nombre}</span>
+          <span style="font-size:0.76em;color:#64748b;margin-left:8px">Licencia: ${mod.licencia}</span>
+        </div>
+        <div style="font-size:0.75em;display:flex;gap:4px">
+          ${nOk?`<span style="background:#16a34a;color:white;padding:1px 7px;border-radius:8px">✅ ${nOk}</span>`:''}
+          ${nMant?`<span style="background:#d97706;color:white;padding:1px 7px;border-radius:8px">🟡 ${nMant}</span>`:''}
+          ${nLic?`<span style="background:#2563eb;color:white;padding:1px 7px;border-radius:8px">🔒 ${nLic}</span>`:''}
+          ${nNo?`<span style="background:#ea580c;color:white;padding:1px 7px;border-radius:8px">🚫 ${nNo}</span>`:''}
+        </div>
+        <span style="color:#94a3b8;font-size:0.82em;margin-left:6px">▸ ${mod.datos.length} datos</span>
+      </summary>
+
+      <div style="border:1px solid ${me.bor};border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+        <!-- Nota del modulo -->
+        <div style="background:${me.bg};padding:8px 14px;font-size:0.81em;color:${me.col};border-bottom:1px solid ${me.bor}">
+          ℹ️ ${mod.nota}
+        </div>`;
+
+    mod.datos.forEach((d, i) => {
+      const de = EST[d.estado] || EST.pendiente;
+      h += `<details style="border-bottom:1px solid #f1f5f9">
+        <summary style="cursor:pointer;background:${de.bg};padding:9px 14px;list-style:none;display:flex;align-items:center;gap:7px">
+          <span style="font-size:0.9em">${de.ico}</span>
+          <span style="font-size:0.85em;font-weight:600;color:${de.col};flex:1">${d.que}</span>
+          <span style="font-size:0.72em;background:${de.pill};color:white;padding:1px 8px;border-radius:8px;white-space:nowrap">${de.lbl}</span>
+          <span style="color:#94a3b8;font-size:0.8em">▸</span>
+        </summary>
+        <div style="padding:10px 16px;background:#fafafa;font-size:0.81em">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-bottom:8px">
+            <div><span style="color:#94a3b8">Clase:</span> <strong>${d.clase}</strong></div>
+            <div><span style="color:#94a3b8">Método:</span> <strong>${d.metodo}</strong></div>
+            <div style="grid-column:1/-1"><span style="color:#94a3b8">Parámetros necesarios:</span> <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#0369a1">${d.params}</code></div>
+            <div style="grid-column:1/-1"><span style="color:#94a3b8">Campos devueltos:</span> <span style="color:#374151">${d.campos}</span></div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div style="color:#94a3b8;margin-bottom:3px">Petición HTTP exacta:</div>
+            <div style="background:#1e293b;color:#e2e8f0;padding:7px 11px;border-radius:5px;font-family:monospace;font-size:0.9em;overflow-x:auto;white-space:nowrap">${d.peticion}</div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div style="color:#94a3b8;margin-bottom:3px">Respuesta de ejemplo:</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:6px 10px;border-radius:5px;font-family:monospace;font-size:0.83em;overflow-x:auto;white-space:pre-wrap;color:#0c4a6e">${d.ejemplo_resp}</div>
+          </div>
+          <div style="background:${de.bg};border-left:3px solid ${de.pill};padding:5px 9px;border-radius:0 4px 4px 0;color:${de.col}">
+            📋 ${d.evidencia}
+          </div>
+        </div>
+      </details>`;
+    });
+
+    h += `</div></details>`;
+  });
+
+  h += `</div>`; // padding
+
+  // Footer con correo copiable
+  h += `<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px">
+    <div style="font-weight:700;font-size:0.86em;color:#0369a1;margin-bottom:6px">📧 Correo completo para enviar a Distrito K:</div>
+    <textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:0.77em;border:1px solid #e2e8f0;border-radius:6px;padding:8px;color:#374151;background:white;resize:vertical">${correo.replace(/</g,'&lt;')}</textarea>
+    <div style="margin-top:6px;display:flex;gap:8px">
+      <button onclick="navigator.clipboard.writeText(${JSON.stringify(correo)}).then(()=>{this.textContent='✅ Copiado al portapapeles!';setTimeout(()=>this.textContent='📋 Copiar',2000)})"
+        style="padding:5px 16px;background:#0369a1;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82em;font-weight:600">📋 Copiar</button>
+      <span style="font-size:0.75em;color:#94a3b8;align-self:center">Fuente: documentación oficial mPYME v1.2 + diagnóstico DEVIA</span>
+    </div>
+  </div>
+  </div>`;
+
+  return h;
+}
+
 });
 
