@@ -3,14 +3,18 @@ from typing import Dict, List, Optional, Tuple
 
 # (tabla_fb, campo_pk, campo_desc, param_api)
 CLASE_TABLA_MAP: Dict[str, Tuple[str, str, str, str]] = {
-    "proyectos":    ("PROYECTOS",     "CODIGO",        "NOMBRE",       "codProyecto"),
-    "partidas":     ("PRESUPROYE",    "CODPRESUPUESTO","CODPROYECTO",  "codProyecto"),
-    "proordutil":   ("PREUTILLIN",    "CODIGO",        "CODMAESTRO",   "codProyecto"),
-    "proordprev":   ("PREPREVLIN",    "CODIGO",        "CODMAESTRO",   "codProyecto"),
-    # REPCAB = tabla de partes/ordenes SAT (nombre real en BD JDDC, verificado en diagnostico)
-    # El api_explorer usaba REPARA pero en esta BD la tabla es REPCAB con 19.108 registros
-    "reporden":     ("REPCAB",        "CODIGO",        "DESCRIPCION",  "codOrden"),
-    "repordutil":   ("RABUTILLIN",    "CODIGO",        "CODMAESTRO",   "codOrden"),
+    # Tablas verificadas con SELECT en BD JDDC real (16/09/2026)
+    "proyectos":    ("PROYECTOS",     "CODIGO",        "NOMBRE",         "codProyecto"),
+    "partidas":     ("PRESUPROYE",    "CODPRESUPUESTO","CODPROYECTO",    "codProyecto"),
+    # OBRALIN = lineas de obra/costes imputados a proyecto (942.084 reg)
+    # Equivale a proordutil en mPYME (costes reales imputados)
+    "proordutil":   ("OBRALIN",       "CODIGO",        "CODPROYECTO",    "codProyecto"),
+    # OBRALIN con ESPREVISION = previsiones (mismo formato, misma tabla)
+    "proordprev":   ("OBRALIN",       "CODIGO",        "CODPROYECTO",    "codProyecto"),
+    # REPARA = ordenes de reparacion reales (8.412 reg, verificado)
+    "reporden":     ("REPARA",        "CODIGO",        "DESCRIPCION",    "codOrden"),
+    # REPCAR = lineas/materiales de reparacion (12.091 reg)
+    "repordutil":   ("REPCAR",        "CODREPARA",     "CODCLASE",       "codOrden"),
     "repobjetos":   ("REPOBJETO",     "CODIGO",        "NOMBRE",       "codObjeto"),
     "repinst":      ("REPINSTALACION","CODIGO",        "NOMBRE",       "codInst"),
     "tipostrabajo": ("TIPO",          "CODIGO",        "DESCRIPCION",  "codTrabajo"),
@@ -59,13 +63,16 @@ CLASE_OPERACIONES: Dict[str, List[str]] = {
     "ordenfab": ["browse"],
 }
 CLASE_COLS_BROWSE: Dict[str, str] = {
+    # Columnas verificadas con SELECT en BD JDDC (16/09/2026)
     "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA",
     "partidas":     "CODPRESUPUESTO, CODPROYECTO",
-    "proordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
-    "proordprev":   "CODIGO, CODMAESTRO, CODRECURSO, DURACION, PRECIO",
-    # REPCAB — columnas con * para descubrir estructura real de la BD
-    "reporden":     "*",
-    "repordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
+    # OBRALIN: CODCAB, CODIGO, CODPROYECTO, ESPREVISION, FECHA, CODARTICULO, CODRECURSO, NOMBRE
+    "proordutil":   "CODCAB, CODIGO, CODPROYECTO, FECHA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION",
+    "proordprev":   "CODCAB, CODIGO, CODPROYECTO, FECHA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION",
+    # REPARA: CODIGO, SERIE, NUMERO, DESCRIPCION, FECHA, CODCLIENTE, CODESTADO
+    "reporden":     "CODIGO, SERIE, NUMERO, DESCRIPCION, FECHA, CODCLIENTE, CODESTADO",
+    # REPCAR: CODREPARA, CODCLASE, CODCARACT, VALOR, CANTIDAD
+    "repordutil":   "CODREPARA, CODCLASE, CODCARACT, VALOR, CANTIDAD",
     "repobjetos":   "CODIGO, NOMBRE",
     "repinst":      "CODIGO, NOMBRE",
     "tipostrabajo": "CODIGO, DESCRIPCION",
@@ -79,12 +86,13 @@ CLASE_COLS_BROWSE: Dict[str, str] = {
     "ordenfab":     "CODIGO",
 }
 CLASE_COLS_READ: Dict[str, str] = {
+    # Columnas read verificadas (16/09/2026)
     "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA, OBSERVACIONES, PORCRETENCION",
     "partidas":     "CODPRESUPUESTO, CODPROYECTO, CODPROYSUBCONTRATA",
-    "proordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
-    "proordprev":   "CODIGO, CODMAESTRO, CODRECURSO, DURACION, PRECIO",
-    "reporden":     "*",
-    "repordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
+    "proordutil":   "CODCAB, CODIGO, CODPROYECTO, FECHA, FECHAALTA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION, PARTIDA",
+    "proordprev":   "CODCAB, CODIGO, CODPROYECTO, FECHA, FECHAALTA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION, PARTIDA",
+    "reporden":     "CODIGO, SERIE, NUMERO, DESCRIPCION, FECHA, CODCLIENTE, CODREPOBJETO, CODTIPOTRABAJO, FECHAINICIO, FECHAFIN, CODESTADO, OBSERVACIONES",
+    "repordutil":   "CODREPARA, CODCLASE, CODCARACT, VALOR, CANTIDAD, VALORMEMO",
     "repobjetos":   "CODIGO, NOMBRE",
     "repinst":      "CODIGO, NOMBRE",
     "tipostrabajo": "CODIGO, DESCRIPCION",
@@ -109,10 +117,10 @@ CLASE_PARAM_REQUERIDO: Dict[str, Optional[str]] = {
 PARAM_A_COLUMNA: Dict[str, Dict[str, str]] = {
     "proyectos":    {"codProyecto": "CODIGO"},
     "partidas":     {"codProyecto": "CODPROYECTO"},
-    "proordutil":   {"codProyecto": "CODMAESTRO"},
-    "proordprev":   {"codProyecto": "CODMAESTRO"},
-    "reporden":     {"codOrden": "CODIGO"},
-    "repordutil":   {"codOrden": "CODMAESTRO"},
+    "proordutil":   {"codProyecto": "CODPROYECTO"},   # OBRALIN.CODPROYECTO
+    "proordprev":   {"codProyecto": "CODPROYECTO"},   # OBRALIN.CODPROYECTO
+    "reporden":     {"codOrden": "CODIGO"},           # REPARA.CODIGO
+    "repordutil":   {"codOrden": "CODREPARA"},        # REPCAR.CODREPARA
     "repobjetos":   {"codObjeto": "CODIGO"},
     "repinst":      {"codInst": "CODIGO"},
     "tipostrabajo": {"codTrabajo": "CODIGO"},

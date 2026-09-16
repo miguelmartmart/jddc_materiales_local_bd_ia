@@ -66,7 +66,10 @@ class ApiCloneService:
         self._history = _cargar_json(_HISTORY_FILE, [])
         self._matrix  = _cargar_json(_MATRIX_FILE, {})
 
-    def _log(self, clase, op, params, data, ms, n=0, error=None):
+    def _log(self, clase, op, params, data, ms, n=0, n_items=None, error=None):
+        # n_items es alias de n para compatibilidad con las llamadas existentes
+        if n_items is not None:
+            n = n_items
         estado = "falla" if error else "ok"
         entry = {
             "id": str(uuid.uuid4())[:8],
