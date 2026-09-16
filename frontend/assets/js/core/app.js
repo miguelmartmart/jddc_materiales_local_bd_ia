@@ -88,6 +88,7 @@ class App {
       "db-simulator": "🎭 BD Simulada — Simulador SQLite",
       siuo: "🧠 Índices SIUO — Sistema de Índices Ultra-Optimizado",
       "api-explorer": "🔌 API Explorer — Explorador/Validador API Distrito K",
+      "api-clone": "🔁 API Clone — SQL Directo Firebird (Datos Reales, sin mPYME)",
       "bd-clone": "🗃️ BD Clone — SQL Directo Firebird Real",
     };
     document.getElementById("page-title").textContent =
@@ -126,6 +127,21 @@ class App {
             "<br><small>Revisa la consola del navegador para más detalles.</small>" +
             "</div>";
         }
+      }
+    }
+
+    // Inicializar API Clone cuando se navega a el (lazy-init en cada visita)
+    if (viewName === "api-clone") {
+      try {
+        if (window.ApiCloneModule && typeof window.ApiCloneModule.onEnter === "function") {
+          window.ApiCloneModule.onEnter();
+        } else {
+          console.error("[App.navigate] ApiCloneModule not available");
+          const root = document.getElementById("api-clone-root");
+          if (root) root.innerHTML = '<div style="padding:30px;color:#dc2626;background:#fef2f2;border-radius:8px;"><strong>Error:</strong> Modulo API Clone no disponible.</div>';
+        }
+      } catch (err) {
+        console.error("[App.navigate] ApiCloneModule.onEnter() failed:", err);
       }
     }
 

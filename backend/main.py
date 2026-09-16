@@ -191,6 +191,10 @@ app.include_router(db_simulator_router, prefix="/api/db-simulator", tags=["DB Si
 from backend.modules.api_explorer.router import router as api_explorer_router
 app.include_router(api_explorer_router, prefix="/api/api-explorer", tags=["API Explorer — Distrito K"])
 
+# API Clone — Replica interfaz API Explorer con SQL Firebird directo (CERO MOCKS)
+from backend.modules.api_clone.router import router as api_clone_router
+app.include_router(api_clone_router, prefix="/api/api-clone", tags=["API Clone — SQL Firebird Directo"])
+
 # BD Clone — Explorador SQL directo sobre Firebird real
 # Ejecuta SELECT libres y consultas predefinidas directamente en la BD Firebird.
 # No requiere API mPYME ni sesion — conexion directa con FirebirdDriver del proyecto.
