@@ -285,7 +285,7 @@ class BDCloneService:
         TABLAS = [
             "PROYECTOS", "REPCAB", "REPOBJETO", "REPINSTALACION",
             "RECURSO", "ARTICULO", "CLIENTE", "PROVEED",
-            "DOCCAB", "DOCLIN", "PRESUPROYE", "PARTPROYE",
+            "DOCCAB", "DOCLIN", "PRESUPROYE",
         ]
         result = {
             "db_host": settings.DB_HOST, "db_port": settings.DB_PORT,

@@ -7,7 +7,9 @@ CLASE_TABLA_MAP: Dict[str, Tuple[str, str, str, str]] = {
     "partidas":     ("PRESUPROYE",    "CODPRESUPUESTO","CODPROYECTO",  "codProyecto"),
     "proordutil":   ("PREUTILLIN",    "CODIGO",        "CODMAESTRO",   "codProyecto"),
     "proordprev":   ("PREPREVLIN",    "CODIGO",        "CODMAESTRO",   "codProyecto"),
-    "reporden":     ("REPARA",        "CODIGO",        "DESCRIPCION",  "codOrden"),
+    # REPCAB = tabla de partes/ordenes SAT (nombre real en BD JDDC, verificado en diagnostico)
+    # El api_explorer usaba REPARA pero en esta BD la tabla es REPCAB con 19.108 registros
+    "reporden":     ("REPCAB",        "CODIGO",        "DESCRIPCION",  "codOrden"),
     "repordutil":   ("RABUTILLIN",    "CODIGO",        "CODMAESTRO",   "codOrden"),
     "repobjetos":   ("REPOBJETO",     "CODIGO",        "NOMBRE",       "codObjeto"),
     "repinst":      ("REPINSTALACION","CODIGO",        "NOMBRE",       "codInst"),
@@ -61,7 +63,8 @@ CLASE_COLS_BROWSE: Dict[str, str] = {
     "partidas":     "CODPRESUPUESTO, CODPROYECTO",
     "proordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
     "proordprev":   "CODIGO, CODMAESTRO, CODRECURSO, DURACION, PRECIO",
-    "reporden":     "CODIGO, DESCRIPCION, FECHA, CODCLIENTE, ESTADO",
+    # REPCAB — columnas con * para descubrir estructura real de la BD
+    "reporden":     "*",
     "repordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
     "repobjetos":   "CODIGO, NOMBRE",
     "repinst":      "CODIGO, NOMBRE",
@@ -80,7 +83,7 @@ CLASE_COLS_READ: Dict[str, str] = {
     "partidas":     "CODPRESUPUESTO, CODPROYECTO, CODPROYSUBCONTRATA",
     "proordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
     "proordprev":   "CODIGO, CODMAESTRO, CODRECURSO, DURACION, PRECIO",
-    "reporden":     "CODIGO, DESCRIPCION, FECHA, CODCLIENTE, ESTADO",
+    "reporden":     "*",
     "repordutil":   "CODIGO, CODMAESTRO, CODRECURSO, CANTIDAD, PRECIO, COSTE, FECHA",
     "repobjetos":   "CODIGO, NOMBRE",
     "repinst":      "CODIGO, NOMBRE",
