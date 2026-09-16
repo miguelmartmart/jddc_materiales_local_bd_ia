@@ -3305,17 +3305,15 @@ const ApiExplorerModule = {
 
       const headBg = mant === true ? '#7c2d12' : mant === false ? '#14532d' : '#1e3a5f';
       const headIcon = mant === true ? '🔴' : mant === false ? '🟢' : '❓';
-      const headTxt = mant === true
-        ? 'MODO MANTENIMIENTO ACTIVO — La API no puede procesar peticiones'
-        : mant === false
-        ? 'Modo mantenimiento NO detectado — browse(clientes) responde correctamente'
+      const headTxt = mant === true ? 'MODO MANTENIMIENTO ACTIVO'
+        : mant === false ? 'Modo mantenimiento NO detectado'
         : 'No se pudo verificar (sin sesión activa)';
 
-      let h = `<div style="border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);margin-bottom:8px">
+      let h = `<div style="border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12);margin-bottom:8px">
         <div style="background:${headBg};color:white;padding:14px 18px">
           <div style="font-size:1.1em;font-weight:700">${headIcon} ${headTxt}</div>
           <div style="font-size:0.8em;opacity:0.85;margin-top:4px">
-            browse(clientes) → code=${code ?? '—'} · ${r.api_url || ''} · ${r.timestamp?.slice(0,19)||''}
+            browse(clientes)=code=${code??'—'} &nbsp;·&nbsp; ${r.api_url||''} &nbsp;·&nbsp; ${r.timestamp?.slice(0,19)||''}
           </div>
         </div>`;
 
@@ -3334,41 +3332,86 @@ const ApiExplorerModule = {
       }
 
       if (mant === true) {
-        // Mostrar opciones de resolución
-        h += `<div style="padding:14px 18px;background:#fffbeb">
-          <div style="font-weight:700;font-size:0.92em;color:#92400e;margin-bottom:10px">
-            🛠️ Cómo desactivar el modo mantenimiento — opciones en orden de prioridad:
+        // ── AVISO DE SEGURIDAD ──────────────────────────────────────────────────
+        h += `<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px">
+          <div style="font-weight:700;color:#991b1b;font-size:0.93em;margin-bottom:8px">⚠️ ANTES DE HACER NADA — Lee esto:</div>
+          <div style="font-size:0.83em;color:#374151;line-height:1.6">
+            <p style="margin:0 0 6px">El modo mantenimiento puede estar activo por razones muy distintas:</p>
+            <ul style="margin:0 0 8px;padding-left:16px">
+              <li style="margin-bottom:3px"><strong>Actualización en curso por Distrito K</strong> — desactivarlo podría corromper la BD</li>
+              <li style="margin-bottom:3px"><strong>Backup automático</strong> — se desactiva solo al terminar, no tocar</li>
+              <li style="margin-bottom:3px"><strong>Activado manualmente a propósito</strong> — hay que saber por qué antes de desactivarlo</li>
+              <li style="margin-bottom:3px"><strong>Error/accidente</strong> — en este caso sí se puede desactivar sin riesgo</li>
+            </ul>
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:7px 11px">
+              🔑 <strong>Pregunta clave:</strong> ¿Sabes quién lo activó y por qué?<br>
+              <span style="color:#92400e">Si no lo sabes → pregunta a Distrito K PRIMERO. Ver opción recomendada abajo.</span>
+            </div>
+          </div>
+        </div>`;
+
+        // Opción recomendada: preguntar primero
+        const apiUrl = r.api_url || '';
+        h += `<div style="background:#f0f9ff;border-left:4px solid #0284c7;padding:11px 14px;font-size:0.83em">
+          <div style="font-weight:700;color:#0369a1;margin-bottom:5px">🏆 Lo más seguro: preguntar a Distrito K primero</div>
+          <div style="background:white;border:1px solid #bae6fd;border-radius:5px;padding:7px 10px;font-family:monospace;font-size:0.89em;color:#0c4a6e;white-space:pre-wrap;margin-top:4px">Hola, en nuestra instalación (empresa=JDDC, ${apiUrl}), la API devuelve code=6 ("No es posible acceder a la base de datos en este momento") en TODAS las clases. Según la documentación oficial mPYME v1.2 pág.7 esto significa modo mantenimiento. ¿Está activo a propósito? ¿Podemos desactivarlo sin riesgo?</div>
+        </div>`;
+
+        // Opciones de resolución con riesgo visible
+        h += `<div style="padding:12px 16px;background:#fffbeb">
+          <div style="font-weight:700;font-size:0.9em;color:#92400e;margin-bottom:8px">
+            🛠️ Si sabes que se activó por error — opciones ordenadas por riesgo:
           </div>`;
 
         const opciones = [
-          {key:'opcion_A', color:'#166534', bg:'#f0fdf4', bor:'#86efac'},
-          {key:'opcion_B', color:'#1e40af', bg:'#eff6ff', bor:'#93c5fd'},
-          {key:'opcion_C', color:'#92400e', bg:'#fffbeb', bor:'#fde68a'},
-          {key:'opcion_D', color:'#6b21a8', bg:'#faf5ff', bor:'#d8b4fe'},
+          {key:'opcion_A', riesgo:'BAJO', icon:'🟢', color:'#166534', bg:'#f0fdf4', bor:'#86efac',
+           nota:'Solo si SABES que se activó por accidente. Necesitas acceso físico o remoto a SQL Obras.'},
+          {key:'opcion_B', riesgo:'MEDIO', icon:'🟡', color:'#92400e', bg:'#fffbeb', bor:'#fde68a',
+           nota:'Reiniciar el servicio NO desactiva el mantenimiento si fue activado desde SQL Obras. Puede interrumpir sesiones activas de otros usuarios.'},
+          {key:'opcion_C', riesgo:'MAYOR', icon:'🟠', color:'#7c2d12', bg:'#fff7ed', bor:'#fdba74',
+           nota:'Corta TODAS las conexiones. Hacerlo en horario laboral puede causar pérdida de datos no guardados.'},
         ];
-        opciones.forEach(({key, color, bg, bor}) => {
+        opciones.forEach(({key, riesgo, icon, color, bg, bor, nota}) => {
           const op = inst[key];
           if (!op) return;
-          h += `<div style="background:${bg};border:1px solid ${bor};border-radius:8px;padding:10px 14px;margin-bottom:8px">
-            <div style="font-weight:700;color:${color};font-size:0.88em;margin-bottom:6px">${op.titulo}</div>
-            <ol style="margin:0;padding-left:18px;font-size:0.82em;color:#374151">
-              ${(op.pasos||[]).map(p=>`<li style="margin-bottom:3px">${p}</li>`).join('')}
-            </ol>
-          </div>`;
+          h += `<details style="margin-bottom:6px">
+            <summary style="cursor:pointer;background:${bg};border:1px solid ${bor};border-radius:8px;
+              padding:8px 12px;font-size:0.86em;font-weight:700;color:${color};list-style:none;display:flex;justify-content:space-between">
+              <span>${icon} Riesgo ${riesgo} — ${op.titulo}</span>
+              <span style="font-weight:400;font-size:0.88em">▸ ver pasos</span>
+            </summary>
+            <div style="background:${bg};border:1px solid ${bor};border-top:none;border-radius:0 0 8px 8px;padding:9px 13px">
+              <div style="background:rgba(0,0,0,0.05);border-radius:4px;padding:5px 9px;font-size:0.79em;
+                color:${color};margin-bottom:7px">⚠️ ${nota}</div>
+              <ol style="margin:0;padding-left:16px;font-size:0.81em;color:#374151">
+                ${(op.pasos||[]).map(p=>`<li style="margin-bottom:3px">${p}</li>`).join('')}
+              </ol>
+            </div>
+          </details>`;
         });
         h += `</div>`;
       } else if (mant === false) {
-        h += `<div style="padding:14px 18px;background:#f0fdf4;color:#166534;font-size:0.87em">
-          ✅ El modo mantenimiento no está activo. Si el Diagnóstico completo sigue fallando,
-          el problema puede ser de <strong>licencias mPYME</strong> o de <strong>parámetros de browse</strong>.
-          Usa el botón <strong>🎯 Diagnóstico completo</strong> para el análisis exhaustivo.
+        h += `<div style="padding:13px 16px;background:#f0fdf4;border-left:4px solid #16a34a;font-size:0.86em;line-height:1.6">
+          <div style="font-weight:700;color:#166534;font-size:0.95em;margin-bottom:5px">✅ Modo mantenimiento NO activo ahora mismo</div>
+          <p style="margin:0 0 6px;color:#374151">Si el Diagnóstico completo sigue dando errores, el problema es distinto:</p>
+          <ul style="margin:0;padding-left:16px;color:#374151">
+            <li><strong>code=5 en new(proyectos)</strong> → módulo Proyectos mPYME no contratado</li>
+            <li><strong>code=6 en browse pero no en clientes</strong> → posible filtro de usuario en SQL Obras</li>
+            <li><strong>Sigue todo code=6</strong> → el mantenimiento puede haberse desactivado entre pruebas; repetir el diagnóstico</li>
+          </ul>
+          <div style="margin-top:8px;color:#166534">→ Usa <strong>🎯 Diagnóstico completo</strong> para el análisis exhaustivo.</div>
+        </div>`;
+      } else {
+        h += `<div style="padding:11px 14px;background:#f1f5f9;color:#475569;font-size:0.84em">
+          ℹ️ Sin sesión activa. Conéctate primero en la pestaña <strong>Conexión</strong>.
         </div>`;
       }
 
-      h += `<div style="padding:8px 14px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:right">
+      h += `<div style="padding:8px 14px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:space-between;align-items:center">
+        <span style="font-size:0.74em;color:#94a3b8">Esta comprobación solo lee — no modifica nada</span>
         <button onclick="ApiExplorerModule.doVerificarMantenimiento({target:this})"
           style="font-size:0.8em;padding:4px 12px;background:#ea580c;color:white;border:none;border-radius:4px;cursor:pointer">
-          🔄 Verificar de nuevo
+          🔄 Comprobar de nuevo
         </button>
       </div>
       </div>`;
