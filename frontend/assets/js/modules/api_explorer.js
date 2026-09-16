@@ -3315,6 +3315,7 @@ const ApiExplorerModule = {
     try {
       const r = await _fetch('/informe-maestro', {method:'GET'});
       window._ae_informe_maestro = r;
+      window._ae_informe_cache=r;
       root.innerHTML = _renderInformeMaestro(r);
     } catch(e) {
       root.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b">
@@ -3911,6 +3912,53 @@ const ApiExplorerModule = {
         activeBtn.textContent = '▶ Ejecutar ahora';
       }
     }
+  },
+
+
+  // -- EXPORTAR INFORME MAESTRO ---
+  _expInforme(fmt){
+    const r=window._ae_informe_cache;
+    if(!r||!r.success){alert('Ejecuta el Informe Maestro primero.');return;}
+    const em=r.empresa||'JDDC',fch=new Date().toISOString().slice(0,10);
+    const cl=r.clases_cruzadas||{},nv=r.niveles_texto||{};
+    if(fmt==='txt')   this._dl(this._eT(r,cl,nv,em,fch),`informe_mpyme_${em}_${fch}.txt`,'text/plain');
+    else if(fmt==='json')  this._dl(JSON.stringify(r,null,2),`informe_mpyme_${em}_${fch}.json`,'application/json');
+    else if(fmt==='csv')   this._dl(this._eC(cl),`informe_mpyme_${em}_${fch}.csv`,'text/csv');
+    else if(fmt==='html')  this._dl(this._eH(r,cl,nv,em,fch),`informe_mpyme_${em}_${fch}.html`,'text/html');
+    else if(fmt==='email') this._dl(this._eE(r,cl,em,fch),`correo_dk_${em}_${fch}.txt`,'text/plain');
+  },
+  _dl(c,n,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t+';charset=utf-8'}));a.download=n;a.click();URL.revokeObjectURL(a.href);},
+  _eT(r,cl,nv,em,fch){
+    const s='='.repeat(70),s2='-'.repeat(70);
+    let t=s+'\nINFORME MAESTRO API mPYME -- '+em+'\nFecha: '+fch+' Servidor: '+(r.api_url||'')+'\n'+s+'\n\n';
+    [['n1','Nivel 1 Resumen ejecutivo'],['n2','Nivel 2 Por modulo'],['n3','Nivel 3 Descripcion completa'],['n4','Nivel 4 Tecnico'],['n5','Nivel 5 API completa']].forEach(([k,lb])=>{if(nv[k])t+=lb+'\n'+s2+'\n'+nv[k]+'\n\n';});
+    t+='TABLA CRUZADA FIREBIRD+API\n'+s2+'\nClase'.padEnd(22)+'Tabla BD'.padEnd(22)+'N Reg'.padEnd(10)+'Perm'.padEnd(7)+'Browse'.padEnd(9)+'Recom\n'+s2+'\n';
+    Object.entries(cl).forEach(([c,d])=>{const nb=d.n_registros_bd===null?'N/A':String(d.n_registros_bd),ap=d.api_permiso_code===null?'N/A':String(d.api_permiso_code),ab=d.api_browse_code===null?'N/A':String(d.api_browse_code);t+=c.padEnd(22)+(d.tabla_firebird||'').padEnd(22)+nb.padEnd(10)+ap.padEnd(7)+ab.padEnd(9)+(d.recomendacion||'').slice(0,28)+'\n';});
+    if(r.mantenimiento_detectado)t+='\nMODO MANTENIMIENTO (code=6) doc mpyme v1.2 pag.7\n';
+    return t+s+'\nGenerado por DEVIA API Explorer -- Solo lectura\n'+s+'\n';
+  },
+  _eC(cl){const H=['Clase','Modulo','Tabla Firebird','N Registros BD','Permiso API','Browse API','Recom','Licencia','Hay Datos'];const rows=[H.join(',')];Object.entries(cl).forEach(([c,d])=>{rows.push([c,(d.modulo||'').replace(/,/g,' '),(d.tabla_firebird||'').replace(/,/g,' '),d.n_registros_bd===null?'N/A':String(d.n_registros_bd),d.api_permiso_code===null?'N/A':String(d.api_permiso_code),d.api_browse_code===null?'N/A':String(d.api_browse_code),(d.recomendacion||'').replace(/,/g,' '),d.necesita_licencia?'SI':'NO',d.n_registros_bd>0?'SI':'NO'].map(v=>'+v+').join(','));});return rows.join('\r\n');},
+  _eH(r,cl,nv,em,fch){
+    const mant=r.mantenimiento_detectado;
+    let h='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe mPYME '+em+'</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:24px}h1{color:#0f172a}h2{color:#1e40af;border-bottom:2px solid #e2e8f0;padding-bottom:6px}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:7px 10px;text-align:left}td{padding:6px 10px;border-bottom:1px solid #f1f5f9}.ok{background:#dcfce7;color:#166534}.warn{background:#fef9c3;color:#92400e}.pill{display:inline-block;padding:2px 8px;border-radius:9px;font-size:0.78em;font-weight:700}pre{background:#f8fafc;padding:12px;border-radius:6px;overflow-x:auto;font-size:0.78em;white-space:pre-wrap}</style></head><body>';
+    h+=`<h1>Informe Maestro API mPYME</h1><p><b>Empresa:</b>${em}|<b>Servidor:</b>${r.api_url||''}|<b>Fecha:</b>${fch}</p>`;
+    if(mant)h+='<div style="background:#fff7ed;border:2px solid #f97316;border-radius:8px;padding:12px;margin:12px 0"><b>MODO MANTENIMIENTO</b> code=6 en browse+new.</div>';
+    h+='<h2>Datos reales</h2><table><thead><tr><th>Clase</th><th>Modulo</th><th>Tabla BD</th><th>N Reg</th><th>Perm</th><th>Browse</th><th>Recom</th><th>Lic</th></tr></thead><tbody>';
+    Object.entries(cl).forEach(([c,d])=>{const rec=d.recomendacion||'',tg=rec.startsWith('disponible')||rec.startsWith('comprar')?'ok':'warn';h+=`<tr><td><b>${c}</b></td><td>${d.modulo||''}</td><td>${d.tabla_firebird||''}</td><td>${d.n_registros_bd===null?'N/A':(d.n_registros_bd||0).toLocaleString()}</td><td>${d.api_permiso_code===null?'N/A':d.api_permiso_code}</td><td>${d.api_browse_code===null?'N/A':d.api_browse_code}</td><td><span class="pill ${tg}">${rec}</span></td><td>${d.necesita_licencia?'<span class="pill warn">SI</span>':'<span class="pill ok">NO</span>'}</td></tr>`;});
+    h+='</tbody></table>';
+    if(nv.n1)h+=`<h2>Nivel 1</h2><pre>${nv.n1}</pre>`;if(nv.n3)h+=`<h2>Nivel 3</h2><pre>${nv.n3}</pre>`;if(nv.n5)h+=`<h2>Nivel 5 API</h2><pre>${nv.n5}</pre>`;
+    return h+'<hr><p style="font-size:0.75em;color:#64748b">Generado por DEVIA API Explorer</p></body></html>';
+  },
+  _eE(r,cl,em,fch){
+    const url=r.api_url||'?',mant=r.mantenimiento_detectado;
+    const clm=Object.entries(cl).filter(([,d])=>d.api_browse_code===6).map(([c])=>c);
+    const cll=Object.entries(cl).filter(([,d])=>d.necesita_licencia).map(([c])=>c);
+    const sep='='.repeat(60);
+    let t=sep+'\nCORREO PARA DISTRITO K\nEmpresa:'+em+' Servidor:'+url+' Fecha:'+fch+'\n'+sep+'\n\nHola Distrito K,\n\nSomos '+em+', servidor mPYME en '+url+'.\n';
+    if(mant)t+='\n--- PROBLEMA 1: MODO MANTENIMIENTO ---\nClases ['+clm.join(',')+'] devuelven code=6.\nDoc mPYME v1.2 pag.7: code=6=Maintenance mode.\nPREGUNTA 1: Activo? Como desactivar?\n';
+    if(cll.length){t+='\n--- PROBLEMA 2: LICENCIAS ---\nClases ['+cll.join(',')+'] devuelven code=5 de licencia.\nDatos en BD:';Object.entries(cl).filter(([,d])=>d.n_registros_bd>0).forEach(([c,d])=>t+='\n  '+c+': '+d.n_registros_bd.toLocaleString()+' reg en '+d.tabla_firebird);t+='\nPREGUNTA 2: Licencias necesarias y coste?\n';}
+    t+='\n--- RESUMEN BD ---\n';Object.entries(cl).forEach(([c,d])=>t+='  '+c+': '+(d.n_registros_bd===null?'no comprobado':d.n_registros_bd>0?d.n_registros_bd.toLocaleString()+' reg':'vacia')+' en '+(d.tabla_firebird||'?')+'\n');
+    return t+'\nGracias.\n'+sep+'\nGenerado por DEVIA API Explorer\n';
   },
 
 };
@@ -5291,13 +5339,20 @@ function _renderInformeMaestro(r) {
   h += `</tbody></table></div></div>`;
   h += `</div>`; // panel-visual
 
-  // Footer comun
-  h += `<div style="padding:8px 14px;background:#0f172a;color:white;font-size:0.75em;display:flex;justify-content:space-between;align-items:center">
-    <span>🔒 Solo lectura · SELECT COUNT(*)+FIRST 3 en Firebird · permiso()+browse() en API · nada inventado</span>
-    <button onclick="ApiExplorerModule.doInformeMaestro({target:this})"
-      style="padding:3px 12px;background:#1e3a5f;color:white;border:1px solid #3b5f8a;border-radius:4px;cursor:pointer;font-size:0.85em">
-      🔄 Regenerar
-    </button>
+  // Footer con exportacion
+  h += `<div style="padding:8px 14px;background:#0f172a;color:white;font-size:0.75em">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span>&#128274; Solo lectura &middot; SELECT COUNT(*) en Firebird &middot; nada inventado</span>
+      <button onclick="ApiExplorerModule.doInformeMaestro({target:this})" style="padding:3px 12px;background:#1e3a5f;color:white;border:1px solid #3b5f8a;border-radius:4px;cursor:pointer;font-size:0.85em">&#128260; Regenerar</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:6px;border-top:1px solid #1e3a5f">
+      <span style="color:#94a3b8;font-size:0.82em;align-self:center">&#128228; Exportar:</span>
+      <button onclick="ApiExplorerModule._expInforme('txt')" style="padding:3px 12px;background:#374151;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#128196; TXT</button>
+      <button onclick="ApiExplorerModule._expInforme('json')" style="padding:3px 12px;background:#374151;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">{ } JSON</button>
+      <button onclick="ApiExplorerModule._expInforme('csv')" style="padding:3px 12px;background:#374151;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#128202; CSV</button>
+      <button onclick="ApiExplorerModule._expInforme('html')" style="padding:3px 12px;background:#1e40af;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#127760; HTML</button>
+      <button onclick="ApiExplorerModule._expInforme('email')" style="padding:3px 12px;background:#166534;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">&#128231; Correo DK</button>
+    </div>
   </div>
   </div>`;
 
