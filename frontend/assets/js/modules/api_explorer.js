@@ -577,6 +577,7 @@ function renderProbador(s) {
          ${sesion?`<button onclick="ApiExplorerModule.doVerificarMantenimiento(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer" title="Verificar si SQL Obras está en modo mantenimiento + instrucciones para desactivarlo">🔧 Modo mantenimiento</button>`:""}
          <button onclick="ApiExplorerModule.doCatalogoDatos(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#0369a1;color:white;border:none;border-radius:6px;cursor:pointer" title="Catálogo completo de datos obtenibles con la API — qué necesita licencia y qué no, con ejemplos reales">📊 Catálogo de datos</button>
          <button onclick="ApiExplorerModule.doValidarDatosBD(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#166534;color:white;border:none;border-radius:6px;cursor:pointer" title="Valida directamente en Firebird que los datos que promete cada módulo API realmente existen en la BD — antes de pagar licencias">🔬 Validar datos en BD</button>
+         <button onclick="ApiExplorerModule.doInformeMaestro(event)" style="white-space:nowrap;font-size:0.82em;font-weight:700;padding:5px 14px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.25)" title="Informe maestro: BD real + API real cruzados — niveles ejecutivo/módulo/técnico/Distrito K — 100% datos reales, nada inventado">📋 Informe maestro</button>
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -3295,6 +3296,36 @@ const ApiExplorerModule = {
     root.innerHTML = _renderCatalogoDatos();
   },
 
+  async doInformeMaestro(event) {
+    // Informe maestro: BD real + API real cruzados — 100% datos reales
+    const btn = event?.target;
+    const root = document.getElementById('ae-super-diag-root');
+    if (!root) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando informe…'; }
+
+    root.innerHTML = `<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;border-radius:8px;padding:14px 18px">
+      <div style="font-weight:700;font-size:1.0em;margin-bottom:6px">📋 Generando Informe Maestro…</div>
+      <div style="font-size:0.82em;opacity:0.85">
+        Consultando Firebird (tablas reales) + API mPYME (permiso+browse por clase).<br>
+        Cruzando datos: para cada clase API → registros reales en BD → respuesta real de la API.<br>
+        <em>Solo lectura — no modifica nada. Puede tardar 30-60 segundos.</em>
+      </div>
+    </div>`;
+
+    try {
+      const r = await _fetch('/informe-maestro', {method:'GET'});
+      window._ae_informe_maestro = r;
+      root.innerHTML = _renderInformeMaestro(r);
+    } catch(e) {
+      root.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b">
+        ❌ Error: ${e.message}<br>
+        <span style="font-size:0.84em;color:#64748b">Ejecutar desde la VM con DEVIA corriendo y Firebird accesible.</span>
+      </div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📋 Informe maestro'; }
+    }
+  },
+
   async doValidarDatosBD(event) {
     // Valida en Firebird que los datos que la API mPYME promete existen realmente
     const btn = event?.target;
@@ -5057,7 +5088,237 @@ function _renderValidarBD(r) {
       </div>`;
     }
     h += `</div></details>`;
+  
+// ── _renderInformeMaestro ─────────────────────────────────────────────────────────────────
+function _renderInformeMaestro(r) {
+  if (!r || !r.success) {
+    const err = (r||{}).error || 'Respuesta vacia';
+    return `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px 18px;color:#991b1b">
+      <b>❌ Error en el informe maestro:</b> ${err}<br>
+      <span style="font-size:0.84em;color:#64748b">Ejecutar desde la VM con DEVIA corriendo y Firebird accesible.</span>
+    </div>`;
+  }
+
+  const clases   = r.clases_cruzadas || {};
+  const fb       = r.fb_datos || {};
+  const api      = r.api_resultados || {};
+  const niveles  = r.niveles_texto || {};
+  const fbOk     = r.fb_ok;
+  const sesion   = r.sesion_activa;
+  const mant     = r.mantenimiento_detectado;
+
+  // ─ helpers ─
+  const REC_CFG = {
+    disponible_sin_licencia_extra:  {ico:'✅', lbl:'Disponible',     col:'#166534', bg:'#f0fdf4', pill:'#16a34a'},
+    comprar_licencia_vale_la_pena:  {ico:'💰', lbl:'Comprar lic.',  col:'#1e40af', bg:'#eff6ff', pill:'#2563eb'},
+    estudiar_antes_de_comprar:      {ico:'🧠', lbl:'Estudiar',      col:'#92400e', bg:'#fffbeb', pill:'#d97706'},
+    tabla_vacia_cambiar_flujo:      {ico:'⚠️', lbl:'BD sin datos',  col:'#92400e', bg:'#fffbeb', pill:'#d97706'},
+    revisar:                        {ico:'?',  lbl:'Revisar',       col:'#64748b', bg:'#f8fafc', pill:'#94a3b8'},
+  };
+  function _rc(key){return REC_CFG[key]||{ico:'?',lbl:key,col:'#64748b',bg:'#f8fafc',pill:'#94a3b8'};}
+  function _n(v){return typeof v==='number'?v.toLocaleString('es-ES'):(v||'?');}
+  function _pcode(c){const m={0:'✅ 0',1:'🚧 1',5:'⚠️ 5',6:'🔵 6'};return m[c]??`code=${c}`;}
+  function _copy(id,btn){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.value).then(()=>{btn.textContent='✅ Copiado!';setTimeout(()=>btn.textContent='📋 Copiar',2500)});}
+
+  // ─ Cabecera ─
+  const headBg = mant?'#7c2d12':!fbOk?'#1e3a5f':'#0f172a';
+  const headMsg = mant?'🔴 MODO MANTENIMIENTO ACTIVO (code=6 en todas las clases)':(!fbOk?'⚠️ Firebird no accesible':'');
+  let h = `<div style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.10)">`;
+
+  h += `<div style="background:${headBg};color:white;padding:15px 20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="font-size:1.8em">📋</span>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:1.05em">Informe Maestro — API mPYME + BD Firebird</div>
+        <div style="font-size:0.79em;opacity:0.85">100% datos reales · ${r.timestamp?.slice(0,19)||''} · ${r.empresa||''} · ${r.api_url||''}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:0.78em">
+      <span style="background:rgba(255,255,255,0.18);padding:2px 9px;border-radius:8px">🔥 Firebird: ${fbOk?'OK':'NO ACCESIBLE'}</span>
+      <span style="background:rgba(255,255,255,0.18);padding:2px 9px;border-radius:8px">🔑 API: ${sesion?'sesion activa':'sin sesion'}</span>
+      <span style="background:rgba(255,255,255,0.18);padding:2px 9px;border-radius:8px">${mant?'🔴 Mantenimiento ACTIVO':'🟢 Mantenimiento: no detectado'}</span>
+      <span style="background:rgba(255,255,255,0.18);padding:2px 9px;border-radius:8px">🔗 ${Object.keys(clases).length} clases API analizadas</span>
+    </div>
+    ${headMsg?`<div style="background:rgba(255,50,50,0.25);border:1px solid rgba(255,100,100,0.4);border-radius:5px;padding:6px 12px;margin-top:8px;font-size:0.83em;font-weight:600">${headMsg}</div>`:''}
+  </div>`;
+
+  // ─ Tabs de niveles ─
+  const TABS = [
+    {id:'n1', lbl:'📖 Ejecutivo',   sub:'5 lineas'},
+    {id:'n2', lbl:'📊 Por m\u00f3dulo',  sub:'con BD+API'},
+    {id:'n3', lbl:'📝 Datos reales', sub:'tabla por clase'},
+    {id:'n4', lbl:'⚙️ T\u00e9cnico',    sub:'peticion exacta'},
+    {id:'n5', lbl:'📧 Distrito K',  sub:'correo listo'},
+    {id:'visual', lbl:'🔬 Visual',      sub:'graficos'},
+  ];
+
+  h += `<div style="display:flex;flex-wrap:wrap;border-bottom:2px solid #e2e8f0;background:#f8fafc" id="im-tabs">`;
+  TABS.forEach(t=>{
+    h += `<button id="im-tab-${t.id}" onclick="_imTab('${t.id}')"
+      style="flex:1;min-width:80px;padding:9px 8px;border:none;background:transparent;
+        border-bottom:3px solid transparent;cursor:pointer;font-size:0.78em;font-weight:600;color:#64748b">
+      <div>${t.lbl}</div><div style="font-size:0.8em;font-weight:400;color:#94a3b8">${t.sub}</div>
+    </button>`;
   });
+  h += `</div>`;
+
+  // ─ Paneles de texto (n1..n5) ─
+  const nivelesDef = [
+    {id:'n1', key:'n1_ejecutivo',   color:'#166534', bg:'#f0fdf4', bor:'#86efac'},
+    {id:'n2', key:'n2_por_modulo',  color:'#1e40af', bg:'#eff6ff', bor:'#93c5fd'},
+    {id:'n3', key:'n3_datos_reales',color:'#6b21a8', bg:'#faf5ff', bor:'#d8b4fe'},
+    {id:'n4', key:'n4_tecnico',     color:'#92400e', bg:'#fffbeb', bor:'#fde68a'},
+    {id:'n5', key:'n5_distrito_k',  color:'#0369a1', bg:'#f0f9ff', bor:'#bae6fd'},
+  ];
+  nivelesDef.forEach(nv=>{
+    const txt = (niveles[nv.key]||'(sin datos)').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    h += `<div id="im-panel-${nv.id}" style="display:none">
+      <div style="background:${nv.bg};border-left:4px solid ${nv.bor};padding:8px 14px;
+        display:flex;align-items:center;gap:10px">
+        <div style="flex:1;font-size:0.82em;color:${nv.color};font-weight:600">
+          Texto listo para copiar — ${nv.id.toUpperCase()}
+        </div>
+        <button onclick="_copy('im-txt-${nv.id}',this)"
+          style="padding:4px 14px;background:${nv.color};color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600">
+          📋 Copiar
+        </button>
+      </div>
+      <textarea id="im-txt-${nv.id}" readonly
+        style="width:100%;height:300px;font-family:monospace;font-size:0.74em;border:none;
+          border-top:1px solid #e2e8f0;padding:10px 14px;background:#fafafa;
+          resize:vertical;box-sizing:border-box;display:block;color:#1e293b">${txt}</textarea>
+    </div>`;
+  });
+
+  // ─ Panel visual ─
+  h += `<div id="im-panel-visual" style="display:none;padding:12px 14px">`;
+
+  // Datos Firebird reales
+  if (fbOk) {
+    h += `<div style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:0.88em;color:#0f172a;margin-bottom:8px">
+        🔥 Datos reales en BD Firebird — 100% SELECT COUNT(*)
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">`;
+    const kpis = [
+      {k:'n_clientes',lbl:'Clientes',col:'#0369a1'},{k:'n_proveedores',lbl:'Proveedores',col:'#0369a1'},
+      {k:'n_articulos',lbl:'Art\u00edculos',col:'#0369a1'},{k:'n_recursos',lbl:'T\u00e9cnicos',col:'#059669'},
+      {k:'n_proyectos',lbl:'Proyectos',col:'#7c3aed'},{k:'n_proy_activos',lbl:'Proy. activos',col:'#7c3aed'},
+      {k:'n_preutillin',lbl:'Horas en proyectos',col:'#dc2626'},{k:'n_preprevlin',lbl:'Previsiones proy.',col:'#7c3aed'},
+      {k:'n_repara',lbl:'Partes SAT',col:'#ea580c'},{k:'n_repara_abiertas',lbl:'Partes abiertos',col:'#ea580c'},
+      {k:'n_rabutillin',lbl:'Horas en partes',col:'#dc2626'},{k:'n_repobjetos',lbl:'Objetos cliente',col:'#ea580c'},
+      {k:'n_albcom',lbl:'Alb. compra',col:'#0369a1'},{k:'n_faccom',lbl:'Fact. compra',col:'#0369a1'},
+      {k:'n_albcom_proy',lbl:'Alb.+proyecto',col:'#7c3aed'},{k:'n_doccab_total',lbl:'Total docs',col:'#0369a1'},
+    ];
+    kpis.forEach(kpi=>{
+      const v = fb[kpi.k];
+      const hasData = typeof v==='number' && v>0;
+      h += `<div style="background:white;border:1px solid #e2e8f0;border-radius:7px;padding:8px 10px;text-align:center">
+        <div style="font-size:1.25em;font-weight:800;color:${hasData?kpi.col:'#94a3b8'}">${_n(v)}</div>
+        <div style="font-size:0.71em;color:#64748b;margin-top:2px">${kpi.lbl}</div>
+      </div>`;
+    });
+    h += `</div></div>`;
+
+    // Top tecnicos si hay
+    if (fb.top_tecnicos && fb.top_tecnicos.length) {
+      h += `<div style="margin-bottom:10px">
+        <div style="font-weight:700;font-size:0.85em;color:#0f172a;margin-bottom:5px">👷 Top t\u00e9cnicos por horas imputadas en proyectos (BD real)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.8em">
+          <thead><tr style="background:#f1f5f9"><th style="padding:4px 8px;text-align:left">T\u00e9cnico</th><th style="padding:4px 8px;text-align:right">Horas</th><th style="padding:4px 8px;text-align:right">Imputaciones</th><th style="padding:4px 8px;text-align:right">Precio/h</th></tr></thead>
+          <tbody>${fb.top_tecnicos.map(t=>`<tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:3px 8px;font-weight:600">${t.TECNICO||t.tecnico||'?'}</td>
+            <td style="padding:3px 8px;text-align:right;color:#dc2626;font-weight:700">${(+((t.HORAS_TOTALES||t.horas_totales)||0)).toFixed(1)}h</td>
+            <td style="padding:3px 8px;text-align:right">${t.N_IMPUTACIONES||t.n_imputaciones||0}</td>
+            <td style="padding:3px 8px;text-align:right">${(+((t.PRECIO_MEDIO||t.precio_medio)||0)).toFixed(2)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`;
+    }
+    if (fb.top_tecnicos_rep && fb.top_tecnicos_rep.length) {
+      h += `<div style="margin-bottom:10px">
+        <div style="font-weight:700;font-size:0.85em;color:#0f172a;margin-bottom:5px">🔧 Top t\u00e9cnicos por horas en partes SAT (BD real)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.8em">
+          <thead><tr style="background:#f1f5f9"><th style="padding:4px 8px;text-align:left">T\u00e9cnico</th><th style="padding:4px 8px;text-align:right">Horas</th><th style="padding:4px 8px;text-align:right">Partes</th><th style="padding:4px 8px;text-align:right">Precio/h</th></tr></thead>
+          <tbody>${fb.top_tecnicos_rep.map(t=>`<tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:3px 8px;font-weight:600">${t.TECNICO||t.tecnico||'?'}</td>
+            <td style="padding:3px 8px;text-align:right;color:#ea580c;font-weight:700">${(+((t.HORAS_TOTALES||t.horas_totales)||0)).toFixed(1)}h</td>
+            <td style="padding:3px 8px;text-align:right">${t.N_PARTES||t.n_partes||0}</td>
+            <td style="padding:3px 8px;text-align:right">${(+((t.PRECIO_MEDIO||t.precio_medio)||0)).toFixed(2)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`;
+    }
+  }
+
+  // Tabla cruzada BD + API por clase
+  h += `<div>
+    <div style="font-weight:700;font-size:0.88em;color:#0f172a;margin-bottom:6px">
+      🔗 Cruce BD+API por clase — datos 100% reales
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.78em">
+      <thead><tr style="background:#0f172a;color:white">
+        <th style="padding:5px 8px;text-align:left">Clase API</th>
+        <th style="padding:5px 8px;text-align:left">M\u00f3dulo</th>
+        <th style="padding:5px 8px;text-align:left">Licencia</th>
+        <th style="padding:5px 8px;text-align:right">Regs BD</th>
+        <th style="padding:5px 8px;text-align:center">permiso</th>
+        <th style="padding:5px 8px;text-align:center">browse</th>
+        <th style="padding:5px 8px;text-align:center">Acci\u00f3n</th>
+      </tr></thead>
+      <tbody>`;
+  Object.entries(clases).forEach(([clase,cruce])=>{
+    const rc = _rc(cruce.recomendacion);
+    const apiR = cruce.api_res||{};
+    const n = cruce.n_registros_fb;
+    const nOk = typeof n==='number' && n>0;
+    h += `<tr style="border-bottom:1px solid #f1f5f9;background:${rc.bg}">
+      <td style="padding:4px 8px;font-weight:700">${clase}</td>
+      <td style="padding:4px 8px;color:#64748b;font-size:0.9em">${cruce.modulo||''}</td>
+      <td style="padding:4px 8px;font-size:0.85em;color:#374151">${cruce.licencia||''}</td>
+      <td style="padding:4px 8px;text-align:right;font-weight:700;color:${nOk?'#166534':'#dc2626'}">${_n(n)}</td>
+      <td style="padding:4px 8px;text-align:center">${_pcode(apiR.permiso_code)}</td>
+      <td style="padding:4px 8px;text-align:center">${_pcode(apiR.browse_code)}</td>
+      <td style="padding:4px 8px;text-align:center">
+        <span style="background:${rc.pill};color:white;padding:1px 7px;border-radius:8px;font-size:0.78em;font-weight:600;white-space:nowrap">${rc.ico} ${rc.lbl}</span>
+      </td>
+    </tr>`;
+    if (apiR.browse_msg && (apiR.browse_code===6||apiR.browse_code===5)) {
+      h += `<tr style="background:#fafafa"><td colspan="7" style="padding:2px 8px 5px;font-size:0.74em;color:#64748b;font-family:monospace">
+        msg: "${apiR.browse_msg.slice(0,120)}"
+      </td></tr>`;
+    }
+  });
+  h += `</tbody></table></div></div>`;
+  h += `</div>`; // panel-visual
+
+  // Footer comun
+  h += `<div style="padding:8px 14px;background:#0f172a;color:white;font-size:0.75em;display:flex;justify-content:space-between;align-items:center">
+    <span>🔒 Solo lectura · SELECT COUNT(*)+FIRST 3 en Firebird · permiso()+browse() en API · nada inventado</span>
+    <button onclick="ApiExplorerModule.doInformeMaestro({target:this})"
+      style="padding:3px 12px;background:#1e3a5f;color:white;border:1px solid #3b5f8a;border-radius:4px;cursor:pointer;font-size:0.85em">
+      🔄 Regenerar
+    </button>
+  </div>
+  </div>`;
+
+  // Scripts
+  h += `<script>
+  function _imTab(id){
+    ['n1','n2','n3','n4','n5','visual'].forEach(t=>{
+      const p=document.getElementById('im-panel-'+t);
+      const b=document.getElementById('im-tab-'+t);
+      if(p) p.style.display=t===id?'block':'none';
+      if(b){b.style.borderBottomColor=t===id?'#0f172a':'transparent';b.style.color=t===id?'#0f172a':'#64748b';b.style.background=t===id?'white':'transparent';}
+    });
+  }
+  function _copy(id,btn){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.value).then(()=>{btn.textContent='✅ Copiado!';setTimeout(()=>btn.textContent='📋 Copiar',2500)});}
+  setTimeout(()=>_imTab('visual'),50);
+  <\/script>`;
+
+  return h;
+}
+
+});
 
   h += `</div>`;
 

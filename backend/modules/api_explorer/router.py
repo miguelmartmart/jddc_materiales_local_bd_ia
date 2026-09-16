@@ -2255,6 +2255,513 @@ async def validar_datos_bd():
     return resultado
 
 
+@router.get("/informe-maestro")
+async def informe_maestro():
+    import datetime as _dt
+    ts = _dt.datetime.now().isoformat()
+    svc = get_service()
+    cfg = svc.get_config_env()
+    api_url = cfg.get("api_url","?")
+    empresa = cfg.get("empresa","?")
+    sesion_activa = svc.session_active
+
+    # ======================================================
+    # BLOQUE 1: Firebird — datos reales de la BD
+    # ======================================================
+    fb_ok = False
+    fb_error = ""
+    fb_datos = {}
+    try:
+        drv = _get_db_driver()
+        fb_ok = True
+        def _q(sql):
+            try: return drv.execute_query(sql) or []
+            except Exception as ex: return [{"ERROR": str(ex)[:120]}]
+        def _n(sql_o_tabla):
+            sql = (sql_o_tabla if sql_o_tabla.strip().upper().startswith("SELECT")
+                   else f"SELECT COUNT(*) AS N FROM {sql_o_tabla}")
+            try:
+                r = drv.execute_query(sql)
+                if not r: return 0
+                row = r[0]; return int(row.get("N") or row.get("n") or 0)
+            except Exception as ex: return f"ERR:{str(ex)[:60]}"
+
+        # Maestros
+        fb_datos["n_clientes"]     = _n("CLIENTE")
+        fb_datos["n_proveedores"]  = _n("PROVEED")
+        fb_datos["n_articulos"]    = _n("ARTICULO")
+        fb_datos["n_recursos"]     = _n("RECURSO")
+        fb_datos["n_repobjetos"]   = _n("REPOBJETO")
+        fb_datos["n_repinstalacion"] = _n("REPINSTALACION")
+        fb_datos["n_familias"]     = _n("FAMILIA")
+        fb_datos["muestra_recursos"] = _q("SELECT FIRST 8 CODIGO,DESCRIPCION FROM RECURSO ORDER BY CODIGO")
+        fb_datos["muestra_clientes"] = _q("SELECT FIRST 3 CODIGO,RAZONSOCIAL FROM CLIENTE ORDER BY CODIGO")
+        # Proyectos
+        fb_datos["n_proyectos"]    = _n("PROYECTOS")
+        fb_datos["n_proy_activos"] = _n("SELECT COUNT(*) AS N FROM PROYECTOS WHERE FINOBRA<>'T'")
+        fb_datos["n_preutillin"]   = _n("PREUTILLIN")
+        fb_datos["n_preutilcab"]   = _n("PREUTILCAB")
+        fb_datos["n_preprevlin"]   = _n("PREPREVLIN")
+        fb_datos["n_presuproye"]   = _n("PRESUPROYE")
+        fb_datos["n_partproye"]    = _n("PARTPROYE")
+        if isinstance(fb_datos["n_preutillin"],int) and fb_datos["n_preutillin"]>0:
+            fb_datos["muestra_horas_proyecto"] = _q(
+                "SELECT FIRST 5 pl.CODMAESTRO,pl.CODRECURSO,pl.CANTIDAD,pl.PRECIO,pl.COSTE,"
+                "pl.FECHA,r.DESCRIPCION AS TECNICO "
+                "FROM PREUTILLIN pl LEFT JOIN RECURSO r ON pl.CODRECURSO=r.CODIGO "
+                "WHERE pl.CANTIDAD>0 ORDER BY pl.FECHA DESC"
+            )
+            fb_datos["rango_fechas_imputacion"] = _q(
+                "SELECT MIN(FECHA) AS DESDE, MAX(FECHA) AS HASTA, COUNT(DISTINCT CODMAESTRO) AS N_PROYECTOS "
+                "FROM PREUTILLIN WHERE CANTIDAD>0"
+            )
+            fb_datos["top_tecnicos"] = _q(
+                "SELECT FIRST 5 pl.CODRECURSO, r.DESCRIPCION AS TECNICO, "
+                "COUNT(*) AS N_IMPUTACIONES, SUM(pl.CANTIDAD) AS HORAS_TOTALES, "
+                "AVG(pl.PRECIO) AS PRECIO_MEDIO "
+                "FROM PREUTILLIN pl LEFT JOIN RECURSO r ON pl.CODRECURSO=r.CODIGO "
+                "WHERE pl.CANTIDAD>0 GROUP BY pl.CODRECURSO,r.DESCRIPCION "
+                "ORDER BY HORAS_TOTALES DESC"
+            )
+        else:
+            fb_datos["muestra_horas_proyecto"] = []
+            fb_datos["rango_fechas_imputacion"] = []
+            fb_datos["top_tecnicos"] = []
+        # Reparaciones
+        fb_datos["n_repara"]       = _n("REPARA")
+        fb_datos["n_repara_abiertas"] = _n("SELECT COUNT(*) AS N FROM REPARA WHERE ESTADO='A'")
+        fb_datos["n_rabutillin"]   = _n("RABUTILLIN")
+        fb_datos["n_rabutilcab"]   = _n("RABUTILCAB")
+        fb_datos["muestra_repara"] = _q("SELECT FIRST 3 CODIGO,DESCRIPCION,FECHA,CODCLIENTE,ESTADO FROM REPARA ORDER BY FECHA DESC")
+        if isinstance(fb_datos["n_rabutillin"],int) and fb_datos["n_rabutillin"]>0:
+            fb_datos["muestra_horas_rep"] = _q(
+                "SELECT FIRST 5 rl.CODMAESTRO,rl.CODRECURSO,rl.CANTIDAD,rl.PRECIO,rl.COSTE,"
+                "rl.FECHA,r.DESCRIPCION AS TECNICO "
+                "FROM RABUTILLIN rl LEFT JOIN RECURSO r ON rl.CODRECURSO=r.CODIGO "
+                "WHERE rl.CANTIDAD>0 ORDER BY rl.FECHA DESC"
+            )
+            fb_datos["top_tecnicos_rep"] = _q(
+                "SELECT FIRST 5 rl.CODRECURSO,r.DESCRIPCION AS TECNICO,"
+                "COUNT(*) AS N_PARTES,SUM(rl.CANTIDAD) AS HORAS_TOTALES,AVG(rl.PRECIO) AS PRECIO_MEDIO "
+                "FROM RABUTILLIN rl LEFT JOIN RECURSO r ON rl.CODRECURSO=r.CODIGO "
+                "WHERE rl.CANTIDAD>0 GROUP BY rl.CODRECURSO,r.DESCRIPCION "
+                "ORDER BY HORAS_TOTALES DESC"
+            )
+        else:
+            fb_datos["muestra_horas_rep"] = []
+            fb_datos["top_tecnicos_rep"] = []
+        # Documentos
+        fb_datos["n_doccab_total"]  = _n("DOCCAB")
+        fb_datos["dist_tipos_doc"]  = _q("SELECT TIPO,COUNT(*) AS N FROM DOCCAB GROUP BY TIPO ORDER BY N DESC")
+        fb_datos["n_albcom"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3")
+        fb_datos["n_faccom"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=2")
+        fb_datos["n_pedcom"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=1")
+        fb_datos["n_albven"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=13")
+        fb_datos["n_facven"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=12")
+        fb_datos["n_albcom_proy"]   = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
+        fb_datos["muestra_albcom_proy"] = _q(
+            "SELECT FIRST 3 CODIGO,SERIE,NUMERO,FECHA,CODCLIENTE,CODPROYECTO,IMPORTETOTAL "
+            "FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL ORDER BY FECHA DESC"
+        ) if isinstance(fb_datos.get("n_albcom_proy"),int) and fb_datos["n_albcom_proy"]>0 else []
+
+        drv.disconnect()
+    except Exception as e:
+        fb_ok = False
+        fb_error = str(e)[:200]
+        try: drv.disconnect()
+        except: pass
+
+    # ======================================================
+    # BLOQUE 2: API mPYME — llamadas reales (permiso + browse si posible)
+    # ======================================================
+    api_clases = {
+        "clientes":     {"modulo":"maestros","licencia":"base","tabla_fb":"CLIENTE","n_fb":fb_datos.get("n_clientes",0)},
+        "proveedores":  {"modulo":"maestros","licencia":"base","tabla_fb":"PROVEED","n_fb":fb_datos.get("n_proveedores",0)},
+        "articulos":    {"modulo":"maestros","licencia":"base","tabla_fb":"ARTICULO","n_fb":fb_datos.get("n_articulos",0)},
+        "recursos":     {"modulo":"maestros","licencia":"base","tabla_fb":"RECURSO","n_fb":fb_datos.get("n_recursos",0)},
+        "proyectos":    {"modulo":"proyectos","licencia":"mPyme Proyectos","tabla_fb":"PROYECTOS","n_fb":fb_datos.get("n_proyectos",0)},
+        "partidas":     {"modulo":"proyectos","licencia":"mPyme Proyectos","tabla_fb":"PROYECTOS","n_fb":fb_datos.get("n_proyectos",0)},
+        "proordutil":   {"modulo":"proyectos","licencia":"mPyme Proyectos","tabla_fb":"PREUTILLIN","n_fb":fb_datos.get("n_preutillin",0)},
+        "proordprev":   {"modulo":"proyectos","licencia":"mPyme Proyectos","tabla_fb":"PREPREVLIN","n_fb":fb_datos.get("n_preprevlin",0)},
+        "reporden":     {"modulo":"reparaciones","licencia":"mPyme Reparaciones","tabla_fb":"REPARA","n_fb":fb_datos.get("n_repara",0)},
+        "repordutil":   {"modulo":"reparaciones","licencia":"mPyme Reparaciones","tabla_fb":"RABUTILLIN","n_fb":fb_datos.get("n_rabutillin",0)},
+        "repobjetos":   {"modulo":"reparaciones","licencia":"mPyme Reparaciones","tabla_fb":"REPOBJETO","n_fb":fb_datos.get("n_repobjetos",0)},
+        "tipostrabajo": {"modulo":"reparaciones","licencia":"mPyme Reparaciones","tabla_fb":"TIPO","n_fb":0},
+        "docalbcom":    {"modulo":"documentos","licencia":"mPyme Documentos","tabla_fb":"DOCCAB","n_fb":fb_datos.get("n_albcom",0)},
+        "docfaccom":    {"modulo":"documentos","licencia":"mPyme Documentos","tabla_fb":"DOCCAB","n_fb":fb_datos.get("n_faccom",0)},
+        "docpedcom":    {"modulo":"documentos","licencia":"mPyme Documentos","tabla_fb":"DOCCAB","n_fb":fb_datos.get("n_pedcom",0)},
+        "ordenfab":     {"modulo":"fabricacion","licencia":"mPyme Fabricacion","tabla_fb":"FABCAB","n_fb":0},
+    }
+    api_resultados = {}
+    mantenimiento_detectado = False
+    if sesion_activa:
+        for clase, info in api_clases.items():
+            res = {"permiso_code":None,"permiso_msg":"","browse_code":None,"browse_msg":"",
+                   "browse_n":0,"browse_muestra":[],"new_code":None,"new_msg":""}
+            # permiso
+            try:
+                rp,_ = svc._client().permiso(svc.ssid1,svc.ssid2,clase)
+                res["permiso_code"] = rp.get("code") if isinstance(rp,dict) else -1
+                res["permiso_msg"] = str((rp or {}).get("data",""))[:150]
+            except Exception as ep:
+                res["permiso_code"] = -1; res["permiso_msg"] = str(ep)[:80]
+            # browse rapido (solo si permiso no es =1)
+            if res["permiso_code"] != 1:
+                try:
+                    rb,_ = svc._client().browse(svc.ssid1,svc.ssid2,clase,{})
+                    res["browse_code"] = rb.get("code") if isinstance(rb,dict) else -1
+                    res["browse_msg"] = str((rb or {}).get("data",""))[:200]
+                    if res["browse_code"] == 6: mantenimiento_detectado = True
+                    if res["browse_code"] == 0:
+                        data = (rb or {}).get("data",{})
+                        items = data.get("items",[]) if isinstance(data,dict) else (data if isinstance(data,list) else [])
+                        res["browse_n"] = len(items)
+                        res["browse_muestra"] = items[:2]
+                except Exception as eb:
+                    res["browse_code"] = -1; res["browse_msg"] = str(eb)[:80]
+            api_resultados[clase] = res
+
+    # ======================================================
+    # BLOQUE 3: Cruzar BD + API para cada clase
+    # ======================================================
+    def _clasificar(clase, info, api_res):
+        n_fb = info.get("n_fb",0)
+        n_fb_int = n_fb if isinstance(n_fb,int) else 0
+        perm = (api_res or {}).get("permiso_code")
+        browse = (api_res or {}).get("browse_code")
+        # Estado API
+        if perm == 1:
+            api_estado = "sin_licencia"
+        elif browse == 6:
+            api_estado = "mantenimiento"
+        elif browse == 0:
+            api_estado = "funciona"
+        elif browse == 5:
+            api_estado = "error_params"
+        elif perm == 0:
+            api_estado = "permiso_ok_browse_bloqueado"
+        elif perm is None:
+            api_estado = "sin_sesion"
+        else:
+            api_estado = f"code_{browse or perm}"
+        # Estado BD
+        if not fb_ok:
+            bd_estado = "fb_no_accesible"
+        elif n_fb_int > 0:
+            bd_estado = "datos_reales"
+        elif isinstance(n_fb,int):
+            bd_estado = "tabla_vacia"
+        else:
+            bd_estado = "error"
+        # Recomendacion
+        lic = info.get("licencia","base")
+        if bd_estado == "datos_reales" and lic == "base":
+            rec = "disponible_sin_licencia_extra"
+        elif bd_estado == "datos_reales" and lic != "base":
+            rec = "comprar_licencia_vale_la_pena"
+        elif bd_estado == "tabla_vacia" and lic != "base":
+            rec = "estudiar_antes_de_comprar"
+        elif bd_estado == "tabla_vacia" and lic == "base":
+            rec = "tabla_vacia_cambiar_flujo"
+        else:
+            rec = "revisar"
+        return {"api_estado":api_estado,"bd_estado":bd_estado,"recomendacion":rec,
+                "n_registros_fb":n_fb_int,"tabla_fb":info.get("tabla_fb",""),
+                "licencia":lic,"modulo":info.get("modulo","")}
+
+    clases_cruzadas = {}
+    for clase, info in api_clases.items():
+        api_res = api_resultados.get(clase,{})
+        cruce = _clasificar(clase, info, api_res)
+        cruce["api_res"] = api_res
+        clases_cruzadas[clase] = cruce
+
+    # ======================================================
+    # BLOQUE 4: Textos de informe en 5 niveles
+    # ======================================================
+    def _lineas_nivel1():
+        L=[]
+        L.append("INFORME MAESTRO API mPYME - JDDC")
+        L.append(f"Fecha: {ts[:19]} | URL: {api_url} | BD: Firebird {'OK' if fb_ok else 'NO ACCESIBLE'}")
+        L.append("="*60)
+        n_ok    = sum(1 for c in clases_cruzadas.values() if c["bd_estado"]=="datos_reales" and c["licencia"]=="base")
+        n_lic   = sum(1 for c in clases_cruzadas.values() if c["bd_estado"]=="datos_reales" and c["licencia"]!="base")
+        n_vacio = sum(1 for c in clases_cruzadas.values() if c["bd_estado"]=="tabla_vacia")
+        n_mant  = sum(1 for c in clases_cruzadas.values() if c["api_estado"]=="mantenimiento")
+        L.append(f"Clases API con datos reales y sin licencia extra: {n_ok}")
+        L.append(f"Clases API con datos reales que requieren licencia: {n_lic}")
+        L.append(f"Clases API con tabla Firebird vacia (sin uso): {n_vacio}")
+        L.append(f"Clases bloqueadas por modo mantenimiento: {n_mant}")
+        L.append("")
+        L.append("ESTADO API: "+("MODO MANTENIMIENTO ACTIVO (code=6)" if mantenimiento_detectado else ("Sin sesion" if not sesion_activa else "OK")))
+        L.append("")
+        L.append("RESUMEN EJECUTIVO:")
+        mods = {}
+        for c,v in clases_cruzadas.items():
+            m = v["modulo"]; mods.setdefault(m,{"ok":0,"lic":0,"vacio":0,"total":0})
+            mods[m]["total"] += 1
+            if v["bd_estado"]=="datos_reales" and v["licencia"]=="base": mods[m]["ok"] += 1
+            elif v["bd_estado"]=="datos_reales": mods[m]["lic"] += 1
+            else: mods[m]["vacio"] += 1
+        for m,s in mods.items():
+            L.append(f"  {m}: {s['ok']} disponibles, {s['lic']} con datos (licencia), {s['vacio']} sin datos")
+        return "\n".join(L)
+
+    def _lineas_nivel2():
+        L=[]
+        L.append("INFORME API mPYME - NIVEL MODULO")
+        L.append(f"Fecha: {ts[:19]} | Empresa: {empresa} | URL: {api_url}")
+        L.append("="*65)
+        modulos_info = {
+            "maestros":{"lbl":"MAESTROS","lic":"Base"},
+            "proyectos":{"lbl":"GESTION DE PROYECTOS","lic":"mPyme Proyectos"},
+            "reparaciones":{"lbl":"REPARACIONES","lic":"mPyme Reparaciones"},
+            "documentos":{"lbl":"DOCUMENTOS DE COMPRA","lic":"mPyme Documentos"},
+            "fabricacion":{"lbl":"FABRICACION","lic":"mPyme Fabricacion"},
+        }
+        for mod_id, minfo in modulos_info.items():
+            clases_mod = {c:v for c,v in clases_cruzadas.items() if v["modulo"]==mod_id}
+            if not clases_mod: continue
+            L.append(f"\n{'='*65}")
+            L.append(f"MODULO: {minfo['lbl']} | Licencia: {minfo['lic']}")
+            L.append(f"{'='*65}")
+            for clase,cruce in clases_mod.items():
+                n = cruce["n_registros_fb"]
+                tabla = cruce["tabla_fb"]
+                bd_txt = f"{n:,} registros en {tabla}" if isinstance(n,int) and n>0 else f"VACIA/ERROR: {tabla}"
+                api_txt = cruce["api_estado"].replace("_"," ").upper()
+                rec_txt = cruce["recomendacion"].replace("_"," ").upper()
+                L.append(f"  {clase}:")
+                L.append(f"    BD Firebird: {bd_txt}")
+                L.append(f"    API estado:  {api_txt}")
+                L.append(f"    Accion:      {rec_txt}")
+        L.append("")
+        L.append("PROBLEMAS DETECTADOS:")
+        if mantenimiento_detectado:
+            L.append("  - MODO MANTENIMIENTO ACTIVO: browse()=code=6 en todas las clases")
+            L.append("    Doc oficial pag.7: 'Maintenance mode - la sesion sigue siendo valida'")
+            L.append("    Accion: contactar Distrito K o ver panel de modo mantenimiento en DEVIA")
+        if not sesion_activa:
+            L.append("  - SIN SESION API: conectarse en la pestana Conexion para datos de la API")
+        if not fb_ok:
+            L.append(f"  - FIREBIRD NO ACCESIBLE: {fb_error}")
+        return "\n".join(L)
+
+    def _lineas_nivel3():
+        L=[]
+        L.append("INFORME DETALLADO - DATOS REALES BD + ESTADO API")
+        L.append(f"Fecha: {ts[:19]} | Empresa: {empresa} | URL: {api_url}")
+        L.append(f"BD Firebird: {'OK' if fb_ok else 'NO ACCESIBLE - '+fb_error[:60]}")
+        L.append(f"Sesion API: {'activa' if sesion_activa else 'sin sesion'}")
+        L.append(f"Mantenimiento detectado: {'SI (code=6)' if mantenimiento_detectado else 'No'}")
+        L.append("="*70)
+        L.append("")
+        L.append("DATOS CLAVE DE LA BD FIREBIRD:")
+        if fb_ok:
+            L.append(f"  Clientes:      {fb_datos.get('n_clientes',0):,}")
+            L.append(f"  Proveedores:   {fb_datos.get('n_proveedores',0):,}")
+            L.append(f"  Articulos:     {fb_datos.get('n_articulos',0):,}")
+            L.append(f"  Tecnicos/Recursos: {fb_datos.get('n_recursos',0):,}")
+            L.append(f"  Proyectos:     {fb_datos.get('n_proyectos',0):,} (activos: {fb_datos.get('n_proy_activos',0):,})")
+            L.append(f"  Horas en proyectos (PREUTILLIN): {fb_datos.get('n_preutillin',0):,} imputaciones")
+            L.append(f"  Previsiones en proyectos (PREPREVLIN): {fb_datos.get('n_preprevlin',0):,}")
+            L.append(f"  Partes SAT (REPARA): {fb_datos.get('n_repara',0):,} (abiertos: {fb_datos.get('n_repara_abiertas',0):,})")
+            L.append(f"  Horas en partes SAT (RABUTILLIN): {fb_datos.get('n_rabutillin',0):,}")
+            L.append(f"  Objetos de cliente (REPOBJETO): {fb_datos.get('n_repobjetos',0):,}")
+            L.append(f"  Instalaciones (REPINSTALACION): {fb_datos.get('n_repinstalacion',0):,}")
+            L.append(f"  Albaranes compra: {fb_datos.get('n_albcom',0):,} | Facturas compra: {fb_datos.get('n_faccom',0):,}")
+            L.append(f"  Albaranes compra vinculados a proyecto: {fb_datos.get('n_albcom_proy',0):,}")
+            if fb_datos.get("muestra_recursos"):
+                L.append("")
+                L.append("  TECNICOS/RECURSOS (muestra BD real):")
+                for r in fb_datos["muestra_recursos"]:
+                    L.append(f"    {r.get('CODIGO','?')} - {r.get('DESCRIPCION','?')}")
+            if fb_datos.get("top_tecnicos"):
+                L.append("")
+                L.append("  TOP TECNICOS POR HORAS IMPUTADAS EN PROYECTOS:")
+                for r in fb_datos["top_tecnicos"]:
+                    L.append(f"    {r.get('TECNICO','?')}: {r.get('HORAS_TOTALES',0):.1f}h | precio medio: {r.get('PRECIO_MEDIO',0):.2f}")
+            if fb_datos.get("top_tecnicos_rep"):
+                L.append("")
+                L.append("  TOP TECNICOS POR HORAS EN PARTES SAT:")
+                for r in fb_datos["top_tecnicos_rep"]:
+                    L.append(f"    {r.get('TECNICO','?')}: {r.get('HORAS_TOTALES',0):.1f}h en {r.get('N_PARTES',0)} partes")
+        else:
+            L.append(f"  Firebird no accesible: {fb_error}")
+        L.append("")
+        L.append("-"*70)
+        L.append("CLASES API - CRUCE BD + API:")
+        for clase, cruce in clases_cruzadas.items():
+            perm = cruce["api_res"].get("permiso_code","?")
+            browse = cruce["api_res"].get("browse_code","?")
+            n = cruce["n_registros_fb"]
+            tabla = cruce["tabla_fb"]
+            L.append(f"")
+            L.append(f"  [{clase}]")
+            L.append(f"    Modulo API:  {cruce['modulo']} | Licencia: {cruce['licencia']}")
+            L.append(f"    BD:          {tabla} = {n:,} registros" if isinstance(n,int) else f"    BD:          {tabla} = {n}")
+            L.append(f"    API permiso: code={perm} | browse: code={browse}")
+            L.append(f"    Estado:      BD={cruce['bd_estado']} | API={cruce['api_estado']}")
+            L.append(f"    Accion:      {cruce['recomendacion']}")
+        return "\n".join(L)
+
+    def _lineas_nivel4():
+        L=[]
+        L.append("INFORME TECNICO COMPLETO - API mPYME + BD FIREBIRD")
+        L.append(f"Instalacion: empresa={empresa} | URL={api_url}")
+        L.append(f"BD: {cfg.get('db_host','?')} / {cfg.get('db_name','?')}")
+        L.append(f"Fecha: {ts[:19]}")
+        L.append(f"Sesion API: {'activa (ssid1+ssid2)' if sesion_activa else 'sin sesion'}")
+        L.append(f"Firebird: {'OK - conexion directa' if fb_ok else 'NO ACCESIBLE: '+fb_error[:80]}")
+        L.append("="*70)
+        L.append("")
+        L.append("PROTOCOLO API:")
+        L.append(f"  URL base:  {api_url}")
+        L.append("  HTTP: POST / | Content-Type: application/x-www-form-urlencoded")
+        L.append("  Auth: method=login&empr=<empresa>&user=<u>&pass=<sha1_base64>")
+        L.append("  Respuesta: {code: 0|5|6|7, data: {...}}")
+        L.append("  code=6: Maintenance mode (SITUACION ACTUAL)")
+        L.append("  code=5: Error o sin licencia")
+        L.append("")
+        L.append("="*70)
+        L.append("REFERENCIA POR CLASE API (BD + API + Peticion exacta):")
+        L.append("="*70)
+        peticiones = {
+            "clientes":   "method=browse&objectclass=clientes&ssid1=X&ssid2=Y",
+            "proveedores":"method=browse&objectclass=proveedores&ssid1=X&ssid2=Y",
+            "articulos":  "method=browse&objectclass=articulos&filter=<nombre>&ssid1=X&ssid2=Y",
+            "recursos":   "method=browse&objectclass=recursos&ssid1=X&ssid2=Y",
+            "proyectos":  "method=browse&objectclass=proyectos&ssid1=X&ssid2=Y",
+            "partidas":   "method=browse&objectclass=partidas&masterid=<id_proy_hex>&ssid1=X&ssid2=Y",
+            "proordutil": "method=browse&objectclass=proordutil&masterid=<id_proy_hex>&desde=01/01/2000&hasta=31/12/2030&orden=fecha-asc&ssid1=X&ssid2=Y",
+            "proordprev": "method=browse&objectclass=proordprev&masterid=<id_proy_hex>-<codDocPrev>&ssid1=X&ssid2=Y",
+            "reporden":   "method=browse&objectclass=reporden&ssid1=X&ssid2=Y",
+            "repordutil": "method=browse&objectclass=repordutil&masterid=<id_rep_hex>&ssid1=X&ssid2=Y",
+            "repobjetos": "method=browse&objectclass=repobjetos&masterClass=clientes&masterId=<id>&ssid1=X&ssid2=Y",
+            "tipostrabajo":"method=browse&objectclass=tipostrabajo&ssid1=X&ssid2=Y",
+            "docalbcom":  "method=browse&objectclass=docalbcom&ssid1=X&ssid2=Y",
+            "docfaccom":  "method=browse&objectclass=docfaccom&ssid1=X&ssid2=Y",
+            "docpedcom":  "method=browse&objectclass=docpedcom&ssid1=X&ssid2=Y",
+            "ordenfab":   "method=browse&objectclass=ordenfab&ssid1=X&ssid2=Y",
+        }
+        campos_api = {
+            "clientes":   "id, codigo, nombre, cif, telefono, email, formapago, direccion",
+            "proveedores":"id, codigo, nombre, cif, telefono, email, formapago",
+            "articulos":  "id, codigo, nombre, preciocoste, precioventa, pvp, familia, existencias",
+            "recursos":   "id, codigo, nombre, descripcion, costeHora, precioHora",
+            "proyectos":  "id, codigo, nombre, finobra, fecha, fechainicio, codcliente, nomcliente, direccion",
+            "partidas":   "id, codigo, descripcion, nivel, costeprev, costeutil",
+            "proordutil": "recursos[].nombre(tecnico), cantidad(HORAS), precio, coste, importe, fecha; materiales[].articulo, cantidad, precio",
+            "proordprev": "codRecurso, descripcion(tecnico), duracion(horas prev), precio",
+            "reporden":   "id, codigo, descripcion, estado, fecha, nomcliente, costeutil, precioutil, beneficioutil",
+            "repordutil": "nombre(tecnico), cantidad(horas), precio, coste, importe, fecha",
+            "repobjetos": "id, codigo, nombre, tipoobjeto, inigarantia, fingarantia, adic_obj_1..15",
+            "tipostrabajo":"id, codigo, nombre",
+            "docalbcom":  "id, serie, numero, fecha, proveedor, nomprov, impbase, impiva, imptotal, proyecto",
+            "docfaccom":  "id, serie, numero, fecha, proveedor, nomprov, impbase, impiva, imptotal",
+            "docpedcom":  "id, serie, numero, fecha, proveedor, imptotal",
+            "ordenfab":   "id, codigo, descripcion, estado, articulo, cantidad",
+        }
+        for clase, cruce in clases_cruzadas.items():
+            api_res = cruce["api_res"]
+            n = cruce["n_registros_fb"]
+            L.append(f"")
+            L.append(f"CLASS: {clase}")
+            L.append(f"  Modulo:         {cruce['modulo']}")
+            L.append(f"  Licencia:       {cruce['licencia']}")
+            L.append(f"  Tabla FB:       {cruce['tabla_fb']} = {n:,} registros" if isinstance(n,int) else f"  Tabla FB: {cruce['tabla_fb']} = {n}")
+            L.append(f"  BD estado:      {cruce['bd_estado']}")
+            L.append(f"  API permiso:    code={api_res.get('permiso_code','?')} | msg: {api_res.get('permiso_msg','')[:80]}")
+            L.append(f"  API browse:     code={api_res.get('browse_code','?')} | msg: {api_res.get('browse_msg','')[:100]}")
+            L.append(f"  API estado:     {cruce['api_estado']}")
+            L.append(f"  Recomendacion:  {cruce['recomendacion']}")
+            L.append(f"  Campos API:     {campos_api.get(clase,'(ver doc oficial)')}")
+            L.append(f"  Peticion HTTP:  POST {api_url}")
+            L.append(f"  Body:           {peticiones.get(clase,'method=browse&objectclass='+clase+'&ssid1=X&ssid2=Y')}")
+        return "\n".join(L)
+
+    def _lineas_dk():
+        L=[]
+        L.append("Asunto: Consulta sobre licencias, modo mantenimiento y datos disponibles - API mPYME JDDC")
+        L.append("")
+        L.append("Hola Distrito K,")
+        L.append("")
+        L.append(f"Instalacion: empresa={empresa} | URL={api_url}")
+        L.append(f"BD Firebird: {cfg.get('db_host','?')} / {cfg.get('db_name','?')}")
+        L.append(f"Diagnostico generado: {ts[:19]}")
+        L.append("")
+        L.append("PROBLEMA 1 — MODO MANTENIMIENTO (URGENTE):")
+        if mantenimiento_detectado:
+            L.append("  browse() y new() devuelven code=6 en TODAS las clases.")
+            L.append("  Segun doc oficial mPYME v1.2 pag.7: code=6 = Maintenance mode.")
+            L.append("  Mensaje exacto del servidor: 'No es posible acceder a la base de datos'")
+            L.append("  SOLICITUD: Por favor, desactivar el modo mantenimiento o indicarnos")
+            L.append("  como desactivarlo nosotros si tenemos acceso a SQL Obras.")
+        else:
+            L.append("  Anteriormente detectado. Estado actual: verificar con diagnostico completo.")
+        L.append("")
+        L.append("PROBLEMA 2 — LICENCIAS:")
+        L.append("  new(proyectos) = code=5 'No dispone de licencia para el modulo Proyectos'")
+        L.append("  Solicitud: confirmar que modulos mPYME tenemos contratados actualmente.")
+        L.append("")
+        L.append("DATOS QUE NECESITAMOS Y CONFIRMACION DE USO EN BD REAL:")
+        L.append("")
+        with_data = [(c,v) for c,v in clases_cruzadas.items() if v["bd_estado"]=="datos_reales"]
+        L.append("A) Clases con datos reales en BD (datos confirmados por SELECT en Firebird):")
+        for clase,cruce in with_data:
+            n = cruce["n_registros_fb"]
+            L.append(f"  - {clase}: {n:,} registros en {cruce['tabla_fb']} | Licencia: {cruce['licencia']}")
+        L.append("")
+        L.append("B) Licencias que necesitamos (con uso real confirmado en BD):")
+        need_lic = [(c,v) for c,v in clases_cruzadas.items()
+                    if v["bd_estado"]=="datos_reales" and v["licencia"]!="base"]
+        mods_lic = {}
+        for clase,cruce in need_lic:
+            m = cruce["licencia"]; mods_lic.setdefault(m,[]).append(clase)
+        for lic, clases_l in mods_lic.items():
+            L.append(f"  - {lic}: clases {', '.join(clases_l)}")
+        if not mods_lic:
+            L.append("  (pendiente de verificar - mantenimiento activo)")
+        L.append("")
+        L.append("C) Clases sin datos en BD (no se usaria aunque se compre la licencia):")
+        no_data = [(c,v) for c,v in clases_cruzadas.items() if v["bd_estado"]=="tabla_vacia"]
+        for clase,cruce in no_data:
+            L.append(f"  - {clase}: {cruce['tabla_fb']} = 0 registros")
+        L.append("")
+        L.append("PREGUNTAS CONCRETAS:")
+        L.append("  1. Modo mantenimiento: por que esta activo? como desactivarlo?")
+        L.append("  2. Que modulos mPYME tenemos contratados actualmente?")
+        L.append("  3. Precio de: mPyme Proyectos, mPyme Reparaciones, mPyme Documentos")
+        L.append("  4. Una vez activa la API sin mantenimiento, necesitamos el parametro exacto")
+        L.append("     para browse() de: proyectos, reporden, proordutil, repordutil")
+        L.append("  5. proordutil (horas por proyecto): hay parametro obligatorio masterid?")
+        L.append("     Ejemplo de la doc: masterid=<idProyectoHex>&desde=...&hasta=...")
+        L.append("")
+        L.append("Muchas gracias.")
+        return "\n".join(L)
+
+    return {
+        "success": True,
+        "timestamp": ts,
+        "empresa": empresa,
+        "api_url": api_url,
+        "sesion_activa": sesion_activa,
+        "fb_ok": fb_ok,
+        "fb_error": fb_error,
+        "fb_datos": fb_datos,
+        "api_resultados": api_resultados,
+        "clases_cruzadas": clases_cruzadas,
+        "mantenimiento_detectado": mantenimiento_detectado,
+        "niveles_texto": {
+            "n1_ejecutivo":   _lineas_nivel1(),
+            "n2_por_modulo":  _lineas_nivel2(),
+            "n3_datos_reales":_lineas_nivel3(),
+            "n4_tecnico":     _lineas_nivel4(),
+            "n5_distrito_k":  _lineas_dk(),
+        }
+    }
+
+
 class ValoresParamRequest(BaseModel):
     clase: str
     campo: str   # nombre del parámetro API: "codProyecto", "codOrden", etc.
