@@ -14,6 +14,7 @@ from backend.modules.api_clone.queries import (
     PARAM_A_COLUMNA, ALL_CLASES,
     RIESGO_OPERACION, CONFIRMACION_REQUERIDA,
     OPERACIONES_ESCRITURA_REAL, OPERACIONES_TEMPORALES,
+    CAMPOS_CLASE, FIABILIDAD_CLASE, LOOKUP_CAMPO,
 )
 
 logger = logging.getLogger(__name__)
@@ -491,15 +492,63 @@ class ApiCloneService:
                              "campos": list(obj["data"].keys())}
                             for oid, obj in self._objetos_temporales.items()]}
 
+    def valores_campo(self, campo: str, limit: int = 15) -> Dict:
+        """
+        Devuelve valores reales de la BD para autocompletar un campo en el Probador Manual.
+        Usa LOOKUP_CAMPO para saber qué tabla/columnas consultar.
+        Solo lectura — SELECT FIRST N desde la tabla FK correspondiente.
+        """
+        info = LOOKUP_CAMPO.get(campo)
+        if not info:
+            return {"ok": False, "campo": campo,
+                    "error": f"Campo '{campo}' no tiene tabla mapeada para lookup",
+                    "valores": []}
+        tabla = info["id_tabla"] if "id_tabla" in info else info["tabla"]
+        campo_id = info["id"]
+        campo_desc = info["desc"]
+        t0 = time.time()
+        try:
+            drv = _get_driver()
+            try:
+                if campo_id == campo_desc:
+                    sql = f"SELECT FIRST {limit} {campo_id} FROM {tabla} ORDER BY {campo_id}"
+                else:
+                    sql = f"SELECT FIRST {limit} {campo_id}, {campo_desc} FROM {tabla} ORDER BY {campo_id}"
+                rows = drv.execute_query(sql)
+            finally:
+                drv.disconnect()
+            valores = []
+            for row in rows:
+                vid = str(row.get(campo_id) or row.get(campo_id.lower()) or "").strip()
+                vdesc = str(row.get(campo_desc) or row.get(campo_desc.lower()) or "").strip()
+                if vid:
+                    valores.append({"id": vid, "desc": vdesc if vdesc != vid else vid})
+            ms = round((time.time()-t0)*1000)
+            return {"ok": True, "campo": campo, "tabla": tabla,
+                    "label": info["label"], "valores": valores, "ms": ms}
+        except Exception as exc:
+            ms = round((time.time()-t0)*1000)
+            return {"ok": False, "campo": campo, "tabla": tabla,
+                    "error": f"{type(exc).__name__}: {str(exc)[:300]}", "valores": [], "ms": ms}
+
     def get_catalogue(self):
         from collections import defaultdict
         pm: Dict = defaultdict(dict)
         for clase, ops in CLASE_OPERACIONES.items():
             mod = CLASE_MODULO.get(clase,{}).get("modulo","Otros")
             pm[mod][clase] = ops
-        return {"catalogue": dict(pm), "all_classes": ALL_CLASES, "fuente": "firebird_directo",
-                "riesgo_operaciones": RIESGO_OPERACION,
-                "confirmaciones_requeridas": CONFIRMACION_REQUERIDA}
+        return {
+            "catalogue": dict(pm),
+            "all_classes": ALL_CLASES,
+            "fuente": "firebird_directo",
+            "riesgo_operaciones": RIESGO_OPERACION,
+            "confirmaciones_requeridas": CONFIRMACION_REQUERIDA,
+            # Metadatos para el Probador Manual:
+            "campos_por_clase": CAMPOS_CLASE,
+            "fiabilidad_por_clase": FIABILIDAD_CLASE,
+            "lookup_campos": {k: {"label": v["label"], "tabla": v["tabla"]}
+                              for k, v in LOOKUP_CAMPO.items()},
+        }
 
     def get_status(self):
         return {

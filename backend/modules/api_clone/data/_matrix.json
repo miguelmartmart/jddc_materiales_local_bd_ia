@@ -2,29 +2,151 @@
   "partidas": {
     "browse": {
       "estado": "ok",
-      "ts": "2026-09-16T14:59:34.650980"
+      "ts": "2026-09-16T15:31:14.824154"
     }
   },
   "proordutil": {
     "browse": {
       "estado": "ok",
-      "ts": "2026-09-16T14:59:35.435252"
+      "ts": "2026-09-16T15:09:11.191617"
     }
   },
   "proordprev": {
     "browse": {
       "estado": "ok",
-      "ts": "2026-09-16T14:59:36.299189"
+      "ts": "2026-09-16T15:09:12.159569"
     }
   },
   "repordutil": {
     "browse": {
       "estado": "ok",
-      "ts": "2026-09-16T14:53:43.010274"
+      "ts": "2026-09-16T15:09:16.119563"
     },
     "read": {
       "estado": "falla",
       "ts": "2026-09-16T14:53:47.865641"
+    }
+  },
+  "proyectos": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.811654"
+    },
+    "new": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.726921"
+    },
+    "edit": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.647725"
+    },
+    "cancel": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.686602"
+    },
+    "write": {
+      "estado": "falla",
+      "ts": "2026-09-16T15:31:14.731435"
+    },
+    "permiso": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.768537"
+    },
+    "read": {
+      "estado": "falla",
+      "ts": "2026-09-16T15:31:14.897128"
+    }
+  },
+  "reporden": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:12.994771"
+    }
+  },
+  "repobjetos": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:16.934318"
+    }
+  },
+  "repinst": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:19.315310"
+    }
+  },
+  "tipostrabajo": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:21.466455"
+    }
+  },
+  "recursos": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:13:01.729174"
+    }
+  },
+  "articulos": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:13:12.710116"
+    }
+  },
+  "proveedores": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:25.055182"
+    }
+  },
+  "clientes": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:26.396836"
+    }
+  },
+  "docalbcom": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:31:14.844904"
+    },
+    "MALA": {
+      "estado": "falla",
+      "ts": "2026-09-16T15:31:14.753229"
+    }
+  },
+  "docfaccom": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:29.269204"
+    }
+  },
+  "docpedcom": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:09:30.717167"
+    }
+  },
+  "ordenfab": {
+    "browse": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:12:52.714391"
+    },
+    "info": {
+      "estado": "ok",
+      "ts": "2026-09-16T15:12:50.458538"
+    }
+  },
+  "clase_inexistente": {
+    "new": {
+      "estado": "falla",
+      "ts": "2026-09-16T15:31:14.608930"
+    }
+  },
+  "fake": {
+    "permiso": {
+      "estado": "falla",
+      "ts": "2026-09-16T15:31:14.789373"
     }
   }
 }

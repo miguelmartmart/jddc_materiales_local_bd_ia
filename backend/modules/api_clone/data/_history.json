@@ -1,5 +1,2551 @@
 [
   {
+    "id": "8edface0",
+    "timestamp": "2026-09-16T15:31:14.897128",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "No encontrado: CODIGO='FAKE'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "60a3bbd3",
+    "timestamp": "2026-09-16T15:31:14.879681",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid obligatorio",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e25f6c11",
+    "timestamp": "2026-09-16T15:31:14.863458",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "45871"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "CODIGO": "45871",
+      "NOMBRE": "T"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c33367d3",
+    "timestamp": "2026-09-16T15:31:14.844904",
+    "clase": "docalbcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "TIPO": 2
+        }
+      ],
+      "total": 5
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "9628a41b",
+    "timestamp": "2026-09-16T15:31:14.824154",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "09f6b23a",
+    "timestamp": "2026-09-16T15:31:14.811654",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "45871",
+          "NOMBRE": "P"
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "1a8c2308",
+    "timestamp": "2026-09-16T15:31:14.789373",
+    "clase": "fake",
+    "operacion": "permiso",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'fake' desconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6f87680c",
+    "timestamp": "2026-09-16T15:31:14.768537",
+    "clase": "proyectos",
+    "operacion": "permiso",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectClass": "proyectos",
+      "tabla_firebird": "PROYECTOS",
+      "n_registros": 1213,
+      "operaciones": [
+        "browse",
+        "read",
+        "new",
+        "edit",
+        "write",
+        "cancel"
+      ],
+      "modulo": "Gestion de Proyectos",
+      "licencia": "base",
+      "acceso": "directo_firebird"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "519ac3f1",
+    "timestamp": "2026-09-16T15:31:14.753229",
+    "clase": "docalbcom",
+    "operacion": "MALA",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "accion 'MALA' no valida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "16fd7b82",
+    "timestamp": "2026-09-16T15:31:14.731435",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_9EE25FAB"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' requiere confirmacion exacta en el body: 'CONFIRMAR ESCRITURA'. Recibido: 'mal'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "12d962ed",
+    "timestamp": "2026-09-16T15:31:14.726921",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_9EE25FAB",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "0932f9d6",
+    "timestamp": "2026-09-16T15:31:14.709554",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_9EA97E7A"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' es ESCRITURA REAL IRREVERSIBLE. Requiere activar sesion de escritura (Paso 2) con 'CONFIRMAR ESCRITURA'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "8b11be47",
+    "timestamp": "2026-09-16T15:31:14.706130",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_9EA97E7A",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "420d9b07",
+    "timestamp": "2026-09-16T15:31:14.686602",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "FAKE",
+      "estado": "no_encontrado",
+      "nota": "objectid no estaba en memoria (ya cancelado o nunca creado)."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "b5d1d326",
+    "timestamp": "2026-09-16T15:31:14.671286",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "TMP_PROYECTOS_D3D18B9B"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "TMP_PROYECTOS_D3D18B9B",
+      "estado": "cancelado",
+      "nota": "Objeto descartado. NADA guardado en BD."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ba4f9d4c",
+    "timestamp": "2026-09-16T15:31:14.664354",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_D3D18B9B",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d75e2186",
+    "timestamp": "2026-09-16T15:31:14.647725",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_PROYECTOS_0C3568FA"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_0C3568FA",
+      "clase": "proyectos",
+      "data_actual": {
+        "NOMBRE": "Test",
+        "CLIENTE": 999
+      },
+      "nota": "Datos en memoria. Aun NO persistidos en BD. Usa 'write' para guardar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2adb3bad",
+    "timestamp": "2026-09-16T15:31:14.643819",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_0C3568FA",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7793f0bc",
+    "timestamp": "2026-09-16T15:31:14.627433",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid 'TMP_FAKE' no encontrado. Ejecuta 'new' primero.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ffa52bde",
+    "timestamp": "2026-09-16T15:31:14.608930",
+    "clase": "clase_inexistente",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'clase_inexistente' no reconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "14e9d858",
+    "timestamp": "2026-09-16T15:31:14.591726",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_5B21B6B2",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ce957f6a",
+    "timestamp": "2026-09-16T15:31:14.567117",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'new' requiere modo escritura (Paso 1). Activa en la pestana Escritura -> 'Activar Modo Escritura'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e9aa86c4",
+    "timestamp": "2026-09-16T15:16:11.656323",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "No encontrado: CODIGO='FAKE'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d55a807e",
+    "timestamp": "2026-09-16T15:16:11.640514",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid obligatorio",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c0b61cea",
+    "timestamp": "2026-09-16T15:16:11.624548",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "45871"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "CODIGO": "45871",
+      "NOMBRE": "T"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c0971c01",
+    "timestamp": "2026-09-16T15:16:11.592544",
+    "clase": "docalbcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "TIPO": 2
+        }
+      ],
+      "total": 5
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "bb844209",
+    "timestamp": "2026-09-16T15:16:11.576840",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "a51cd3cc",
+    "timestamp": "2026-09-16T15:16:11.489199",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "45871",
+          "NOMBRE": "P"
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "58993355",
+    "timestamp": "2026-09-16T15:16:11.473120",
+    "clase": "fake",
+    "operacion": "permiso",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'fake' desconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "52435e2f",
+    "timestamp": "2026-09-16T15:16:11.441402",
+    "clase": "proyectos",
+    "operacion": "permiso",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectClass": "proyectos",
+      "tabla_firebird": "PROYECTOS",
+      "n_registros": 1213,
+      "operaciones": [
+        "browse",
+        "read",
+        "new",
+        "edit",
+        "write",
+        "cancel"
+      ],
+      "modulo": "Gestion de Proyectos",
+      "licencia": "base",
+      "acceso": "directo_firebird"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "9dba005b",
+    "timestamp": "2026-09-16T15:16:11.425674",
+    "clase": "docalbcom",
+    "operacion": "MALA",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "accion 'MALA' no valida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7e4d2027",
+    "timestamp": "2026-09-16T15:16:11.393921",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_3D20077A"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' requiere confirmacion exacta en el body: 'CONFIRMAR ESCRITURA'. Recibido: 'mal'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "50932539",
+    "timestamp": "2026-09-16T15:16:11.393921",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_3D20077A",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2ff0aa74",
+    "timestamp": "2026-09-16T15:16:11.378180",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_F36DE9E0"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' es ESCRITURA REAL IRREVERSIBLE. Requiere activar sesion de escritura (Paso 2) con 'CONFIRMAR ESCRITURA'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "698257ec",
+    "timestamp": "2026-09-16T15:16:11.362439",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_F36DE9E0",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "5f77d60b",
+    "timestamp": "2026-09-16T15:16:11.346738",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "FAKE",
+      "estado": "no_encontrado",
+      "nota": "objectid no estaba en memoria (ya cancelado o nunca creado)."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d3478bbc",
+    "timestamp": "2026-09-16T15:16:11.314718",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "TMP_PROYECTOS_91810C94"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "TMP_PROYECTOS_91810C94",
+      "estado": "cancelado",
+      "nota": "Objeto descartado. NADA guardado en BD."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "8842055d",
+    "timestamp": "2026-09-16T15:16:11.314718",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_91810C94",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "3a8ebbfb",
+    "timestamp": "2026-09-16T15:16:11.282891",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_PROYECTOS_FADC6153"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_FADC6153",
+      "clase": "proyectos",
+      "data_actual": {
+        "NOMBRE": "Test",
+        "CLIENTE": 999
+      },
+      "nota": "Datos en memoria. Aun NO persistidos en BD. Usa 'write' para guardar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ac149b4f",
+    "timestamp": "2026-09-16T15:16:11.282891",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_FADC6153",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "8e93917d",
+    "timestamp": "2026-09-16T15:16:11.250842",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid 'TMP_FAKE' no encontrado. Ejecuta 'new' primero.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e3f1400c",
+    "timestamp": "2026-09-16T15:16:11.234814",
+    "clase": "clase_inexistente",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'clase_inexistente' no reconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "59ea5063",
+    "timestamp": "2026-09-16T15:16:11.202984",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_21320588",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "539ae495",
+    "timestamp": "2026-09-16T15:16:11.187305",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'new' requiere modo escritura (Paso 1). Activa en la pestana Escritura -> 'Activar Modo Escritura'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "b0463149",
+    "timestamp": "2026-09-16T15:15:23.369296",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "No encontrado: CODIGO='FAKE'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "25e83049",
+    "timestamp": "2026-09-16T15:15:23.337516",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid obligatorio",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "b6fb5ef1",
+    "timestamp": "2026-09-16T15:15:23.305675",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "45871"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "CODIGO": "45871",
+      "NOMBRE": "T"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d48cb3e1",
+    "timestamp": "2026-09-16T15:15:23.276001",
+    "clase": "docalbcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "TIPO": 2
+        }
+      ],
+      "total": 5
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "aeccc453",
+    "timestamp": "2026-09-16T15:15:23.241876",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c669a9e8",
+    "timestamp": "2026-09-16T15:15:23.226065",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "45871",
+          "NOMBRE": "P"
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "76b0cf36",
+    "timestamp": "2026-09-16T15:15:23.194066",
+    "clase": "fake",
+    "operacion": "permiso",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'fake' desconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "9a95d6f9",
+    "timestamp": "2026-09-16T15:15:23.162339",
+    "clase": "proyectos",
+    "operacion": "permiso",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectClass": "proyectos",
+      "tabla_firebird": "PROYECTOS",
+      "n_registros": 1213,
+      "operaciones": [
+        "browse",
+        "read",
+        "new",
+        "edit",
+        "write",
+        "cancel"
+      ],
+      "modulo": "Gestion de Proyectos",
+      "licencia": "base",
+      "acceso": "directo_firebird"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "3005c205",
+    "timestamp": "2026-09-16T15:15:23.130275",
+    "clase": "docalbcom",
+    "operacion": "MALA",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "accion 'MALA' no valida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "bd00ead0",
+    "timestamp": "2026-09-16T15:15:23.114484",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_597EE156"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' requiere confirmacion exacta en el body: 'CONFIRMAR ESCRITURA'. Recibido: 'mal'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "586ed534",
+    "timestamp": "2026-09-16T15:15:23.098583",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_597EE156",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "50add52c",
+    "timestamp": "2026-09-16T15:15:23.082723",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_C1657CC6"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' es ESCRITURA REAL IRREVERSIBLE. Requiere activar sesion de escritura (Paso 2) con 'CONFIRMAR ESCRITURA'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "811a37e6",
+    "timestamp": "2026-09-16T15:15:23.082723",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_C1657CC6",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d2da5db2",
+    "timestamp": "2026-09-16T15:15:23.068885",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "FAKE",
+      "estado": "no_encontrado",
+      "nota": "objectid no estaba en memoria (ya cancelado o nunca creado)."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6ef43c78",
+    "timestamp": "2026-09-16T15:15:23.061442",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "TMP_PROYECTOS_8C6CF15F"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "TMP_PROYECTOS_8C6CF15F",
+      "estado": "cancelado",
+      "nota": "Objeto descartado. NADA guardado en BD."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7bec939b",
+    "timestamp": "2026-09-16T15:15:23.061442",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_8C6CF15F",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "56cb6cce",
+    "timestamp": "2026-09-16T15:15:23.019272",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_PROYECTOS_6000AEE8"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_6000AEE8",
+      "clase": "proyectos",
+      "data_actual": {
+        "NOMBRE": "Test",
+        "CLIENTE": 999
+      },
+      "nota": "Datos en memoria. Aun NO persistidos en BD. Usa 'write' para guardar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c1d8f836",
+    "timestamp": "2026-09-16T15:15:23.019272",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_6000AEE8",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2dc2cba7",
+    "timestamp": "2026-09-16T15:15:23.003341",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid 'TMP_FAKE' no encontrado. Ejecuta 'new' primero.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "29796487",
+    "timestamp": "2026-09-16T15:15:22.987546",
+    "clase": "clase_inexistente",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'clase_inexistente' no reconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e82d697f",
+    "timestamp": "2026-09-16T15:15:22.971448",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_7A4E51FB",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d1212400",
+    "timestamp": "2026-09-16T15:15:22.939535",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'new' requiere modo escritura (Paso 1). Activa en la pestana Escritura -> 'Activar Modo Escritura'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "adbaf88b",
+    "timestamp": "2026-09-16T15:15:03.772948",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "No encontrado: CODIGO='FAKE'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "36960d0e",
+    "timestamp": "2026-09-16T15:15:03.746689",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid obligatorio",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "16d749cf",
+    "timestamp": "2026-09-16T15:15:03.719414",
+    "clase": "proyectos",
+    "operacion": "read",
+    "params": {
+      "objectid": "45871"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "CODIGO": "45871",
+      "NOMBRE": "T"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c1d00581",
+    "timestamp": "2026-09-16T15:15:03.699504",
+    "clase": "docalbcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "TIPO": 2
+        }
+      ],
+      "total": 5
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c1d44c62",
+    "timestamp": "2026-09-16T15:15:03.676741",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "09e0a550",
+    "timestamp": "2026-09-16T15:15:03.654687",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "45871",
+          "NOMBRE": "P"
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "ca261d0b",
+    "timestamp": "2026-09-16T15:15:03.629288",
+    "clase": "fake",
+    "operacion": "permiso",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'fake' desconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c3aece70",
+    "timestamp": "2026-09-16T15:15:03.592408",
+    "clase": "proyectos",
+    "operacion": "permiso",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectClass": "proyectos",
+      "tabla_firebird": "PROYECTOS",
+      "n_registros": 1213,
+      "operaciones": [
+        "browse",
+        "read",
+        "new",
+        "edit",
+        "write",
+        "cancel"
+      ],
+      "modulo": "Gestion de Proyectos",
+      "licencia": "base",
+      "acceso": "directo_firebird"
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6d1555ab",
+    "timestamp": "2026-09-16T15:15:03.566683",
+    "clase": "docalbcom",
+    "operacion": "MALA",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "accion 'MALA' no valida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "91c9dbb9",
+    "timestamp": "2026-09-16T15:15:03.544835",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_249E091F"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' requiere confirmacion exacta en el body: 'CONFIRMAR ESCRITURA'. Recibido: 'mal'",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "724e382e",
+    "timestamp": "2026-09-16T15:15:03.541324",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_249E091F",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "93099d0e",
+    "timestamp": "2026-09-16T15:15:03.513169",
+    "clase": "proyectos",
+    "operacion": "write",
+    "params": {
+      "objectid": "TMP_PROYECTOS_F6EBA80D"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'write' es ESCRITURA REAL IRREVERSIBLE. Requiere activar sesion de escritura (Paso 2) con 'CONFIRMAR ESCRITURA'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "55c113f7",
+    "timestamp": "2026-09-16T15:15:03.497352",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_F6EBA80D",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "f66008f5",
+    "timestamp": "2026-09-16T15:15:03.497352",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "FAKE"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "FAKE",
+      "estado": "no_encontrado",
+      "nota": "objectid no estaba en memoria (ya cancelado o nunca creado)."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "a69efc38",
+    "timestamp": "2026-09-16T15:15:03.483367",
+    "clase": "proyectos",
+    "operacion": "cancel",
+    "params": {
+      "objectid": "TMP_PROYECTOS_55FA5056"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "objectid": "TMP_PROYECTOS_55FA5056",
+      "estado": "cancelado",
+      "nota": "Objeto descartado. NADA guardado en BD."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "dffb2e7a",
+    "timestamp": "2026-09-16T15:15:03.483367",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_55FA5056",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "b35cb3b9",
+    "timestamp": "2026-09-16T15:15:03.470346",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_PROYECTOS_04B4027F"
+    },
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_04B4027F",
+      "clase": "proyectos",
+      "data_actual": {
+        "NOMBRE": "Test",
+        "CLIENTE": 999
+      },
+      "nota": "Datos en memoria. Aun NO persistidos en BD. Usa 'write' para guardar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "361962fd",
+    "timestamp": "2026-09-16T15:15:03.465676",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_04B4027F",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "9dff516b",
+    "timestamp": "2026-09-16T15:15:03.444103",
+    "clase": "proyectos",
+    "operacion": "edit",
+    "params": {
+      "objectid": "TMP_FAKE"
+    },
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "objectid 'TMP_FAKE' no encontrado. Ejecuta 'new' primero.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "3280af1b",
+    "timestamp": "2026-09-16T15:15:03.418350",
+    "clase": "clase_inexistente",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "Clase 'clase_inexistente' no reconocida",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "7b3e1413",
+    "timestamp": "2026-09-16T15:15:03.393046",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 1,
+    "data": {
+      "objectid": "TMP_PROYECTOS_2176A8C9",
+      "clase": "proyectos",
+      "estado": "temporal",
+      "nota": "NO persiste hasta 'write'. Usa 'edit' para rellenar campos. Usa 'cancel' para descartar."
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "04cd5def",
+    "timestamp": "2026-09-16T15:15:03.363805",
+    "clase": "proyectos",
+    "operacion": "new",
+    "params": {},
+    "code": -1,
+    "estado": "falla",
+    "n_items": 0,
+    "data": null,
+    "error": "BLOQUEADO: 'new' requiere modo escritura (Paso 1). Activa en la pestana Escritura -> 'Activar Modo Escritura'.",
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "5f83c29d",
+    "timestamp": "2026-09-16T15:13:12.710116",
+    "clase": "articulos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "\t5015991",
+          "NOMBRE": "WIRE HARNESS ASSY COMPRESSOR",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 654
+        },
+        {
+          "CODIGO": "\r\n5036770",
+          "NOMBRE": "VALVULA 4 VIAS FOUR WAY VALVE COIL ASSY",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 0705097",
+          "NOMBRE": "TORNILLO 933 8.8 12X50",
+          "PRECIOCOSTE": 0.226,
+          "PRECIOVENTA": 0.3616,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 299.92.0010",
+          "NOMBRE": "VASO EXPANSIÓN CL FER",
+          "PRECIOCOSTE": 57.99,
+          "PRECIOVENTA": 57.99,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 350.66.0012",
+          "NOMBRE": "",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 654
+        }
+      ],
+      "total": 12377
+    },
+    "error": null,
+    "duracion_ms": 68,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "1f6709f7",
+    "timestamp": "2026-09-16T15:13:01.729174",
+    "clase": "recursos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "MANO DE OBRA"
+        },
+        {
+          "CODIGO": 2,
+          "DESCRIPCION": "DPTO INGENIERIA"
+        },
+        {
+          "CODIGO": 3,
+          "DESCRIPCION": "ENCARGADO OBRA"
+        },
+        {
+          "CODIGO": 4,
+          "DESCRIPCION": "OFICIAL INSTALADOR"
+        },
+        {
+          "CODIGO": 5,
+          "DESCRIPCION": "PEREZ FERNANDEZ ALEJANDRO"
+        }
+      ],
+      "total": 186
+    },
+    "error": null,
+    "duracion_ms": 32,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6a128db1",
+    "timestamp": "2026-09-16T15:12:57.054466",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "1",
+          "NOMBRE": "pruebas marian",
+          "CLIENTE": 15590,
+          "FECHAINICIO": "2021-11-18",
+          "FECHAFIN": null,
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "10",
+          "NOMBRE": "ENCARGADOS.",
+          "CLIENTE": 15590,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2025-01-15",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001301",
+          "NOMBRE": "1001301_DESMONTAJE DE EQUIPO",
+          "CLIENTE": 155925,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-04-25",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001302",
+          "NOMBRE": "47364_SPLIT EN LOS RECTORES",
+          "CLIENTE": 15294,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-06-05",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001330",
+          "NOMBRE": "1001330_SUSTITUCION EQUIPO SPLIT",
+          "CLIENTE": 1,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-05-15",
+          "TIPOOBRA": null
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 38,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "fff783ef",
+    "timestamp": "2026-09-16T15:12:52.714391",
+    "clase": "ordenfab",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 41,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "8a8d36f7",
+    "timestamp": "2026-09-16T15:12:50.458538",
+    "clase": "ordenfab",
+    "operacion": "info",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 10,
+    "data": {
+      "ok": true,
+      "tabla": "FABCAB",
+      "campos": [
+        {
+          "nombre": "CODMAESTRO",
+          "posicion": 0,
+          "tipo": "LONG"
+        },
+        {
+          "nombre": "ESPREVISION",
+          "posicion": 1,
+          "tipo": "LONG"
+        },
+        {
+          "nombre": "CODIGO",
+          "posicion": 2,
+          "tipo": "LONG"
+        },
+        {
+          "nombre": "SERIE",
+          "posicion": 3,
+          "tipo": "VARYING"
+        },
+        {
+          "nombre": "NUMERO",
+          "posicion": 4,
+          "tipo": "LONG"
+        },
+        {
+          "nombre": "CODALMACEN",
+          "posicion": 5,
+          "tipo": "LONG"
+        },
+        {
+          "nombre": "FECHA",
+          "posicion": 6,
+          "tipo": "DATE"
+        },
+        {
+          "nombre": "OBSERVACIONES",
+          "posicion": 7,
+          "tipo": "BLOB"
+        },
+        {
+          "nombre": "FIRMA",
+          "posicion": 8,
+          "tipo": "BLOB"
+        },
+        {
+          "nombre": "FIRMATRAZOS",
+          "posicion": 9,
+          "tipo": "BLOB"
+        }
+      ],
+      "ms": 49
+    },
+    "error": null,
+    "duracion_ms": 49,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2ee8c4d3",
+    "timestamp": "2026-09-16T15:09:31.830079",
+    "clase": "ordenfab",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 39,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e9faba9b",
+    "timestamp": "2026-09-16T15:09:30.717167",
+    "clase": "docpedcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 97,
+          "TIPO": 11,
+          "SERIE": "21",
+          "NUMERO": 8,
+          "FECHA": "2021-12-20",
+          "IMPORTETOTAL": 40868.69
+        },
+        {
+          "CODIGO": 232,
+          "TIPO": 11,
+          "SERIE": "21",
+          "NUMERO": 22233,
+          "FECHA": "2021-12-29",
+          "IMPORTETOTAL": 6105.97
+        },
+        {
+          "CODIGO": 233,
+          "TIPO": 11,
+          "SERIE": "22",
+          "NUMERO": 22234,
+          "FECHA": "2022-01-03",
+          "IMPORTETOTAL": 165.18
+        },
+        {
+          "CODIGO": 244,
+          "TIPO": 11,
+          "SERIE": "22",
+          "NUMERO": 22294,
+          "FECHA": "2022-01-17",
+          "IMPORTETOTAL": 1151.71
+        },
+        {
+          "CODIGO": 245,
+          "TIPO": 11,
+          "SERIE": "22",
+          "NUMERO": 22293,
+          "FECHA": "2022-01-17",
+          "IMPORTETOTAL": 2535.0
+        }
+      ],
+      "total": 10757
+    },
+    "error": null,
+    "duracion_ms": 54,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "715604f8",
+    "timestamp": "2026-09-16T15:09:29.269204",
+    "clase": "docfaccom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1636,
+          "TIPO": 3,
+          "SERIE": "I",
+          "NUMERO": 1,
+          "FECHA": "2022-01-03",
+          "IMPORTETOTAL": 357.86,
+          "CODCLIENTE": 12047
+        },
+        {
+          "CODIGO": 1824,
+          "TIPO": 3,
+          "SERIE": "A",
+          "NUMERO": 3,
+          "FECHA": "2022-01-05",
+          "IMPORTETOTAL": 511.87,
+          "CODCLIENTE": 13356
+        },
+        {
+          "CODIGO": 2173,
+          "TIPO": 3,
+          "SERIE": "M",
+          "NUMERO": 39,
+          "FECHA": "2022-03-01",
+          "IMPORTETOTAL": 341.83,
+          "CODCLIENTE": 13224
+        },
+        {
+          "CODIGO": 2177,
+          "TIPO": 3,
+          "SERIE": "M",
+          "NUMERO": 40,
+          "FECHA": "2022-03-02",
+          "IMPORTETOTAL": 212.96,
+          "CODCLIENTE": 13224
+        },
+        {
+          "CODIGO": 2179,
+          "TIPO": 3,
+          "SERIE": "M",
+          "NUMERO": 38,
+          "FECHA": "2022-03-01",
+          "IMPORTETOTAL": 231.11,
+          "CODCLIENTE": 13224
+        }
+      ],
+      "total": 8592
+    },
+    "error": null,
+    "duracion_ms": 53,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d2a62bbf",
+    "timestamp": "2026-09-16T15:09:27.666701",
+    "clase": "docalbcom",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 2172,
+          "TIPO": 2,
+          "SERIE": "SAT OM",
+          "NUMERO": 39,
+          "FECHA": "2022-03-08",
+          "IMPORTETOTAL": 341.83,
+          "CODCLIENTE": 13224
+        },
+        {
+          "CODIGO": 2176,
+          "TIPO": 2,
+          "SERIE": "SAT OM",
+          "NUMERO": 40,
+          "FECHA": "2022-03-02",
+          "IMPORTETOTAL": 212.96,
+          "CODCLIENTE": 13224
+        },
+        {
+          "CODIGO": 2178,
+          "TIPO": 2,
+          "SERIE": "SAT OM",
+          "NUMERO": 38,
+          "FECHA": "2022-03-01",
+          "IMPORTETOTAL": 231.11,
+          "CODCLIENTE": 13224
+        },
+        {
+          "CODIGO": 2181,
+          "TIPO": 2,
+          "SERIE": "SAT OT",
+          "NUMERO": 75,
+          "FECHA": "2022-02-28",
+          "IMPORTETOTAL": 816.57,
+          "CODCLIENTE": 3190
+        },
+        {
+          "CODIGO": 2185,
+          "TIPO": 2,
+          "SERIE": "SAT OM",
+          "NUMERO": 37,
+          "FECHA": "2022-02-24",
+          "IMPORTETOTAL": 594.11,
+          "CODCLIENTE": 12351
+        }
+      ],
+      "total": 5694
+    },
+    "error": null,
+    "duracion_ms": 35,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "93efdad1",
+    "timestamp": "2026-09-16T15:09:26.396836",
+    "clase": "clientes",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "RAZONSOCIAL": "CLIENTES VARIOS",
+          "NOMBRECOMERCIAL": "CLIENTES VARIOS",
+          "TEL": "",
+          "CP": null
+        },
+        {
+          "CODIGO": 3,
+          "RAZONSOCIAL": "Cliente Fantas Pruebas",
+          "NOMBRECOMERCIAL": "Cliente Fantas Pruebas",
+          "TEL": "968112233",
+          "CP": 0
+        },
+        {
+          "CODIGO": 10,
+          "RAZONSOCIAL": "JUAN DE DIOS CLIMATIZACION, SL",
+          "NOMBRECOMERCIAL": "JUAN DE DIOS CLIMATIZACION, SL",
+          "TEL": "968629066",
+          "CP": 0
+        },
+        {
+          "CODIGO": 1003,
+          "RAZONSOCIAL": "CONCHITA RODRIGUEZ MARIN",
+          "NOMBRECOMERCIAL": "CONCHITA RODRIGUEZ MARIN",
+          "TEL": "968242830",
+          "CP": 0
+        },
+        {
+          "CODIGO": 1006,
+          "RAZONSOCIAL": "CARMEN GARCIA HERNANDEZ",
+          "NOMBRECOMERCIAL": "CARMEN GARCIA HERNANDEZ",
+          "TEL": "968832182",
+          "CP": 30107
+        }
+      ],
+      "total": 9427
+    },
+    "error": null,
+    "duracion_ms": 45,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "3dfc51d6",
+    "timestamp": "2026-09-16T15:09:25.055182",
+    "clase": "proveedores",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "RAZONSOCIAL": "PROVEEDORES VARIOS"
+        },
+        {
+          "CODIGO": 3,
+          "RAZONSOCIAL": "JUAN DE DIOS CLIMATIZACION"
+        },
+        {
+          "CODIGO": 1056,
+          "RAZONSOCIAL": "MIGUEL GUERRERO VILLENA"
+        },
+        {
+          "CODIGO": 2247,
+          "RAZONSOCIAL": "Mª DEL CARMEN HERNANDEZ CONTRERAS"
+        },
+        {
+          "CODIGO": 2714,
+          "RAZONSOCIAL": "MIGUEL CANOVAS GARCIA"
+        }
+      ],
+      "total": 1789
+    },
+    "error": null,
+    "duracion_ms": 39,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "51fa4468",
+    "timestamp": "2026-09-16T15:09:23.418592",
+    "clase": "articulos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "\t5015991",
+          "NOMBRE": "WIRE HARNESS ASSY COMPRESSOR",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 654
+        },
+        {
+          "CODIGO": "\r\n5036770",
+          "NOMBRE": "VALVULA 4 VIAS FOUR WAY VALVE COIL ASSY",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 0705097",
+          "NOMBRE": "TORNILLO 933 8.8 12X50",
+          "PRECIOCOSTE": 0.226,
+          "PRECIOVENTA": 0.3616,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 299.92.0010",
+          "NOMBRE": "VASO EXPANSIÓN CL FER",
+          "PRECIOCOSTE": 57.99,
+          "PRECIOVENTA": 57.99,
+          "CODFAMILIA": 652
+        },
+        {
+          "CODIGO": " 350.66.0012",
+          "NOMBRE": "",
+          "PRECIOCOSTE": 0.0,
+          "PRECIOVENTA": 0.0,
+          "CODFAMILIA": 654
+        }
+      ],
+      "total": 12377
+    },
+    "error": null,
+    "duracion_ms": 59,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "e13c93c8",
+    "timestamp": "2026-09-16T15:09:22.539854",
+    "clase": "recursos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "MANO DE OBRA"
+        },
+        {
+          "CODIGO": 2,
+          "DESCRIPCION": "DPTO INGENIERIA"
+        },
+        {
+          "CODIGO": 3,
+          "DESCRIPCION": "ENCARGADO OBRA"
+        },
+        {
+          "CODIGO": 4,
+          "DESCRIPCION": "OFICIAL INSTALADOR"
+        },
+        {
+          "CODIGO": 5,
+          "DESCRIPCION": "PEREZ FERNANDEZ ALEJANDRO"
+        }
+      ],
+      "total": 186
+    },
+    "error": null,
+    "duracion_ms": 28,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "6708b384",
+    "timestamp": "2026-09-16T15:09:21.466455",
+    "clase": "tipostrabajo",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "27"
+        },
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "MANO OBRA"
+        },
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "MANTENIMIENTO"
+        },
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "SAT"
+        },
+        {
+          "CODIGO": 1,
+          "DESCRIPCION": "GERENCIA"
+        }
+      ],
+      "total": 192
+    },
+    "error": null,
+    "duracion_ms": 43,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "c4a48cc4",
+    "timestamp": "2026-09-16T15:09:19.315310",
+    "clase": "repinst",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 1,
+          "NOMBRE": "CALLE LAS NOTIAS, 10 - BAJO"
+        },
+        {
+          "CODIGO": 2,
+          "NOMBRE": "EDFI. CALIPSO 3ºC"
+        },
+        {
+          "CODIGO": 3,
+          "NOMBRE": "INICIA- OFICIA AUDICA TORREVIEJA"
+        },
+        {
+          "CODIGO": 4,
+          "NOMBRE": "MUSAN - 41 VIVIENDAS GUADALUPE"
+        },
+        {
+          "CODIGO": 5,
+          "NOMBRE": "EDF. INST.CREDITO Y FINANZAS CALLE VILLALEAL- MURCIA"
+        }
+      ],
+      "total": 124
+    },
+    "error": null,
+    "duracion_ms": 36,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "d7a362d4",
+    "timestamp": "2026-09-16T15:09:16.934318",
+    "clase": "repobjetos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "002KCPY1S368",
+          "NOMBRE": "CT24F NB0"
+        },
+        {
+          "CODIGO": "003KCHE1AC81",
+          "NOMBRE": "33,6/37,8"
+        },
+        {
+          "CODIGO": "003KCZR20469",
+          "NOMBRE": "ARNU18GTQB4"
+        },
+        {
+          "CODIGO": "007KCAS1JYY60",
+          "NOMBRE": "ARNU05GTRB4"
+        },
+        {
+          "CODIGO": "007KCBD0R269",
+          "NOMBRE": "ARNU05GTRB4"
+        }
+      ],
+      "total": 445
+    },
+    "error": null,
+    "duracion_ms": 39,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "01aa7d68",
+    "timestamp": "2026-09-16T15:09:16.119563",
+    "clase": "repordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'repordutil' requiere param 'codOrden'",
+      "param_requerido": "codOrden",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "b7a89eea",
+    "timestamp": "2026-09-16T15:09:12.994771",
+    "clase": "reporden",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": 3,
+          "SERIE": "22OT",
+          "NUMERO": 3,
+          "DESCRIPCION": "JOAQUIN ALBACETE -AIRE CALIENTE NO TIRA",
+          "FECHA": "2022-02-07",
+          "CODCLIENTE": 14493,
+          "CODESTADO": 10
+        },
+        {
+          "CODIGO": 4,
+          "SERIE": "22OG",
+          "NUMERO": 4,
+          "DESCRIPCION": "NO CALIENTA- INQUILLINO",
+          "FECHA": "2022-02-07",
+          "CODCLIENTE": 14341,
+          "CODESTADO": 10
+        },
+        {
+          "CODIGO": 7,
+          "SERIE": "22OT",
+          "NUMERO": 6,
+          "DESCRIPCION": "ITV CIUDAD DE MURCIA ( SPLIT CON PROBLEMA) 30/08/22 GARANT",
+          "FECHA": "2022-02-08",
+          "CODCLIENTE": 15297,
+          "CODESTADO": 10
+        },
+        {
+          "CODIGO": 8,
+          "SERIE": "22OT",
+          "NUMERO": 7,
+          "DESCRIPCION": "JOSE MIGUEL LORENZO -revision limpieza y ver compuerta.",
+          "FECHA": "2022-02-21",
+          "CODCLIENTE": 13264,
+          "CODESTADO": 10
+        },
+        {
+          "CODIGO": 9,
+          "SERIE": "22OT",
+          "NUMERO": 8,
+          "DESCRIPCION": "FERNANDO SAINZ SANZ - REVISAR INSTALACION",
+          "FECHA": "2022-02-21",
+          "CODCLIENTE": 15254,
+          "CODESTADO": 10
+        }
+      ],
+      "total": 8412
+    },
+    "error": null,
+    "duracion_ms": 51,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "2e37633e",
+    "timestamp": "2026-09-16T15:09:12.159569",
+    "clase": "proordprev",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordprev' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "5a3f9cd2",
+    "timestamp": "2026-09-16T15:09:11.191617",
+    "clase": "proordutil",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'proordutil' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "0cad0122",
+    "timestamp": "2026-09-16T15:09:09.584333",
+    "clase": "partidas",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 0,
+    "data": {
+      "aviso": "'partidas' requiere param 'codProyecto'",
+      "param_requerido": "codProyecto",
+      "items": [],
+      "total": 0
+    },
+    "error": null,
+    "duracion_ms": 0,
+    "fuente": "firebird_directo"
+  },
+  {
+    "id": "8fe1d5dd",
+    "timestamp": "2026-09-16T15:08:57.617833",
+    "clase": "proyectos",
+    "operacion": "browse",
+    "params": {},
+    "code": 0,
+    "estado": "ok",
+    "n_items": 5,
+    "data": {
+      "items": [
+        {
+          "CODIGO": "1",
+          "NOMBRE": "pruebas marian",
+          "CLIENTE": 15590,
+          "FECHAINICIO": "2021-11-18",
+          "FECHAFIN": null,
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "10",
+          "NOMBRE": "ENCARGADOS.",
+          "CLIENTE": 15590,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2025-01-15",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001301",
+          "NOMBRE": "1001301_DESMONTAJE DE EQUIPO",
+          "CLIENTE": 155925,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-04-25",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001302",
+          "NOMBRE": "47364_SPLIT EN LOS RECTORES",
+          "CLIENTE": 15294,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-06-05",
+          "TIPOOBRA": null
+        },
+        {
+          "CODIGO": "1001330",
+          "NOMBRE": "1001330_SUSTITUCION EQUIPO SPLIT",
+          "CLIENTE": 1,
+          "FECHAINICIO": null,
+          "FECHAFIN": "2024-05-15",
+          "TIPOOBRA": null
+        }
+      ],
+      "total": 1213
+    },
+    "error": null,
+    "duracion_ms": 43,
+    "fuente": "firebird_directo"
+  },
+  {
     "id": "f8eb8b38",
     "timestamp": "2026-09-16T14:59:36.299189",
     "clase": "proordprev",

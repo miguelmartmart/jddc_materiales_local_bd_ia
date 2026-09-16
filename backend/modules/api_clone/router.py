@@ -180,6 +180,62 @@ async def get_matrix():
     return {"matrix": get_service().get_matrix(), "catalogue": get_service().get_catalogue()}
 
 
+class ValoresCampoRequest(BaseModel):
+    campo: str     # nombre del parametro API: codProyecto, codOrden, etc.
+    limit: int = 15
+
+
+@router.post("/valores-campo")
+async def valores_campo(request: ValoresCampoRequest):
+    """
+    Devuelve valores reales de la BD para autocompletar un campo en el Probador Manual.
+    Usa el LOOKUP_CAMPO del queries.py para saber que tabla y columnas consultar.
+    - campo='codProyecto' → SELECT FIRST N CODIGO, NOMBRE FROM PROYECTOS
+    - campo='codOrden'    → SELECT FIRST N CODIGO, DESCRIPCION FROM REPARA
+    - etc.
+
+    Solo lectura. Sin modificar datos.
+    Devuelve lista de {id, desc} con valores reales de produccion.
+    """
+    try:
+        return get_service().valores_campo(request.campo, request.limit)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/fiabilidad/{clase}")
+async def get_fiabilidad(clase: str):
+    """
+    Devuelve la explicacion de fiabilidad de los resultados para una clase:
+    - nivel (ULTRA/ALTO/MEDIO)
+    - por que son fiables (PK directa, FK que garantiza aislamiento...)
+    - SQL de ejemplo ejecutado
+    - detalle de claves usadas
+    """
+    from backend.modules.api_clone.queries import FIABILIDAD_CLASE
+    f = FIABILIDAD_CLASE.get(clase)
+    if not f:
+        raise HTTPException(status_code=404, detail=f"Clase '{clase}' sin datos de fiabilidad")
+    return {"clase": clase, **f}
+
+
+@router.get("/campos/{clase}")
+async def get_campos_clase(clase: str):
+    """
+    Devuelve los campos/parametros de una clase con:
+    - descripcion en texto natural
+    - tipo de dato
+    - si es obligatorio
+    - ejemplo de valor
+    - tabla FK donde buscar valores reales (para el boton 'Buscar en BD')
+    """
+    from backend.modules.api_clone.queries import CAMPOS_CLASE
+    campos = CAMPOS_CLASE.get(clase)
+    if campos is None:
+        raise HTTPException(status_code=404, detail=f"Clase '{clase}' sin metadatos de campos")
+    return {"clase": clase, "campos": campos}
+
+
 # ── ENDPOINTS DE ESCRITURA (protegidos por 2 niveles de confirmacion) ─────────
 
 @router.post("/new")
