@@ -576,6 +576,7 @@ function renderProbador(s) {
          ${sesion?`<button onclick="ApiExplorerModule.doCentroDiagnostico(event)" style="white-space:nowrap;font-size:0.85em;font-weight:700;padding:6px 16px;background:linear-gradient(135deg,#dc2626,#9333ea);color:white;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.18)" title="Diagnóstico exhaustivo automático — prueba TODO antes de escalar al técnico">🎯 Diagnóstico completo</button>`:""}
          ${sesion?`<button onclick="ApiExplorerModule.doVerificarMantenimiento(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer" title="Verificar si SQL Obras está en modo mantenimiento + instrucciones para desactivarlo">🔧 Modo mantenimiento</button>`:""}
          <button onclick="ApiExplorerModule.doCatalogoDatos(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#0369a1;color:white;border:none;border-radius:6px;cursor:pointer" title="Catálogo completo de datos obtenibles con la API — qué necesita licencia y qué no, con ejemplos reales">📊 Catálogo de datos</button>
+         <button onclick="ApiExplorerModule.doValidarDatosBD(event)" style="white-space:nowrap;font-size:0.82em;font-weight:600;padding:5px 12px;background:#166534;color:white;border:none;border-radius:6px;cursor:pointer" title="Valida directamente en Firebird que los datos que promete cada módulo API realmente existen en la BD — antes de pagar licencias">🔬 Validar datos en BD</button>
          <button onclick="ApiExplorerModule.doExportarProbadorTxt()"
            class="btn secondary" style="white-space:nowrap;font-size:0.83em;${!hayRes?'opacity:0.5':''}"
            ${!hayRes?'title="Pulsa Probar todas primero para tener resultados"':''}>
@@ -3294,6 +3295,32 @@ const ApiExplorerModule = {
     root.innerHTML = _renderCatalogoDatos();
   },
 
+  async doValidarDatosBD(event) {
+    // Valida en Firebird que los datos que la API mPYME promete existen realmente
+    const btn = event?.target;
+    const root = document.getElementById('ae-super-diag-root');
+    if (!root) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Consultando BD real…'; }
+
+    root.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px 18px">
+      <div style="font-weight:700;color:#166534;margin-bottom:6px">🔬 Consultando Firebird directamente…</div>
+      <div style="font-size:0.84em;color:#374151">Ejecutando SELECT COUNT(*) en cada tabla relacionada con cada módulo API.<br>
+      Solo lectura — no modifica nada. Puede tardar 10-20 segundos.</div>
+    </div>`;
+
+    try {
+      const r = await _fetch('/validar-datos-bd', {method:'GET'});
+      root.innerHTML = _renderValidarBD(r);
+    } catch(e) {
+      root.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px 16px;color:#991b1b">
+        ❌ Error: ${e.message}<br>
+        <span style="font-size:0.84em;color:#64748b">Este endpoint requiere que DEVIA esté ejecutándose en la VM con acceso a Firebird.</span>
+      </div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔬 Validar datos en BD'; }
+    }
+  },
+
   async doVerificarMantenimiento(event) {
     // Verifica si SQL Obras está en modo mantenimiento y muestra instrucciones paso a paso
     const btn = event?.target;
@@ -4876,6 +4903,175 @@ function _renderCatalogoDatos() {
   return h;
 }
 
+
+
+// ── _renderValidarBD: muestra resultado de /validar-datos-bd ─────────────────
+function _renderValidarBD(r) {
+  if (!r.success && r.error) {
+    return `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px 18px;color:#991b1b">
+      <div style="font-weight:700;margin-bottom:6px">❌ Error conectando a Firebird</div>
+      <div style="font-size:0.84em">${r.error}</div>
+      <div style="margin-top:8px;font-size:0.8em;color:#64748b">${r.nota||'Ejecutar desde la VM con DEVIA corriendo.'}</div>
+    </div>`;
+  }
+
+  const mods = r.modulos || {};
+  const recs = r.recomendaciones || [];
+
+  // Color segun datos encontrados
+  function _modColor(mod) {
+    const tablas = Object.values(mod.tablas||{});
+    const alguno = tablas.some(t=>t.ok||t.hay_datos);
+    const n_clave = (() => {
+      const t = mod.tablas;
+      if (!t) return null;
+      if (t.PREUTILLIN) return t.PREUTILLIN.n;
+      if (t.RABUTILLIN) return t.RABUTILLIN.n;
+      if (t.alb_con_proyecto) return t.alb_con_proyecto.n;
+      if (t.CLIENTE) return t.CLIENTE.n;
+      return null;
+    })();
+    if (typeof n_clave === 'number' && n_clave > 0) return {c:'#166534',bg:'#f0fdf4',bor:'#86efac',ico:'✅'};
+    if (typeof n_clave === 'number' && n_clave === 0) return {c:'#92400e',bg:'#fffbeb',bor:'#fde68a',ico:'⚠️'};
+    if (alguno) return {c:'#1e40af',bg:'#eff6ff',bor:'#93c5fd',ico:'🔵'};
+    return {c:'#64748b',bg:'#f8fafc',bor:'#e2e8f0',ico:'?'};
+  }
+
+  function _tablaRow(nombre, info) {
+    if (!info || typeof info !== 'object') return '';
+    const n = info.n ?? info.N ?? '?';
+    const ok = info.ok || info.hay_datos || (typeof n==='number'&&n>0);
+    const col = ok ? '#166534' : '#dc2626';
+    const muestra = info.muestra||[];
+    let html = `<tr style="border-bottom:1px solid #f1f5f9">
+      <td style="padding:3px 8px;font-family:monospace;font-size:0.83em;color:#0369a1">${nombre}</td>
+      <td style="padding:3px 8px;text-align:right;font-weight:700;color:${col}">${typeof n==='number'?n.toLocaleString('es-ES'):n}</td>
+      <td style="padding:3px 8px;font-size:0.78em;color:#64748b">${info.desc||''}</td>
+    </tr>`;
+    if (muestra.length) {
+      const cols = Object.keys(muestra[0]);
+      html += `<tr><td colspan="3" style="padding:0 8px 6px">
+        <div style="overflow-x:auto">
+        <table style="font-size:0.74em;border-collapse:collapse;width:100%">
+          <thead><tr style="background:#f1f5f9">${cols.map(c=>`<th style="padding:2px 6px;text-align:left;color:#64748b">${c}</th>`).join('')}</tr></thead>
+          <tbody>${muestra.map(row=>`<tr>${cols.map(c=>`<td style="padding:2px 6px;border-bottom:1px solid #f8fafc;font-family:monospace">${row[c]??''}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table></div>
+      </td></tr>`;
+    }
+    return html;
+  }
+
+  let h = `<div style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">`;
+
+  // Cabecera
+  h += `<div style="background:linear-gradient(135deg,#166534,#14532d);color:white;padding:14px 20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span style="font-size:1.6em">🔬</span>
+      <div>
+        <div style="font-weight:800;font-size:1.02em">🔬 Validación de datos reales — Firebird directo</div>
+        <div style="font-size:0.78em;opacity:0.85">SELECT COUNT(*) en cada tabla · Solo lectura · ${r.timestamp?.slice(0,19)||''}</div>
+      </div>
+    </div>
+    <div style="font-size:0.8em;opacity:0.9;background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:5px">
+      🎯 Objetivo: confirmar que los datos que la API mPYME promete EXISTEN en la BD antes de pagar licencias
+    </div>
+  </div>`;
+
+  // Recomendaciones globales
+  if (recs.length) {
+    h += `<div style="padding:12px 16px;background:#f0fdf4;border-bottom:1px solid #86efac">
+      <div style="font-weight:700;color:#166534;font-size:0.9em;margin-bottom:6px">💡 Recomendaciones basadas en datos reales:</div>`;
+    recs.forEach(rec => {
+      const isComprar = rec.startsWith('COMPRAR')||rec.startsWith('ACTIVAR');
+      const isEval = rec.startsWith('EVALUAR')||rec.startsWith('ESTUDIAR');
+      const col = isComprar ? '#166534' : isEval ? '#92400e' : '#374151';
+      const bg  = isComprar ? '#dcfce7' : isEval ? '#fef9c3' : '#f1f5f9';
+      h += `<div style="background:${bg};border-radius:5px;padding:5px 10px;margin-bottom:4px;font-size:0.83em;color:${col};font-weight:600">${isComprar?'✅':isEval?'⚠️':'ℹ️'} ${rec}</div>`;
+    });
+    h += `</div>`;
+  }
+
+  // Modulos en desplegables
+  h += `<div style="padding:10px 14px">`;
+  const MOD_LABELS = {
+    maestros: '📋 Maestros (clientes, proveedores, artículos, técnicos)',
+    gestion_proyectos: '🏗️ Gestión de Proyectos — horas y costes imputados',
+    reparaciones: '🔧 Reparaciones — partes SAT y horas de técnico',
+    documentos_compra: '📄 Documentos de Compra vinculados a proyectos',
+  };
+
+  Object.entries(mods).forEach(([modId, mod]) => {
+    const lbl = MOD_LABELS[modId] || modId;
+    const col = _modColor(mod);
+    const tablas = mod.tablas || {};
+
+    // Determinar si hay datos en las tablas clave
+    const tablasArr = Object.entries(tablas);
+    const algunaOk = tablasArr.some(([,t])=> t && (t.ok||t.hay_datos||(typeof t.n==='number'&&t.n>0)));
+
+    h += `<details style="margin-bottom:8px" open>
+      <summary style="cursor:pointer;background:${col.bg};border:1px solid ${col.bor};
+        border-radius:8px;padding:9px 13px;list-style:none;display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.05em">${col.ico}</span>
+        <div style="flex:1">
+          <span style="font-weight:700;color:${col.c};font-size:0.9em">${lbl}</span>
+          <span style="font-size:0.75em;color:#64748b;margin-left:8px">${mod.api_licencia||''}</span>
+        </div>
+        <span style="color:#94a3b8;font-size:0.8em">▸ ver tablas</span>
+      </summary>
+
+      <div style="border:1px solid ${col.bor};border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+        <!-- Conclusion -->
+        <div style="background:${col.bg};padding:8px 13px;font-size:0.82em;color:${col.c};
+          border-bottom:1px solid ${col.bor};line-height:1.5">
+          ${col.ico} <strong>Conclusion:</strong> ${mod.conclusion||''}
+        </div>
+
+        <!-- Tabla de conteos -->
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82em">
+          <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="padding:5px 8px;text-align:left;color:#64748b">Tabla Firebird</th>
+            <th style="padding:5px 8px;text-align:right;color:#64748b">Registros</th>
+            <th style="padding:5px 8px;text-align:left;color:#64748b">Descripcion / Uso en API</th>
+          </tr></thead>
+          <tbody>`;
+
+    // Renderizar tablas (ignorar arrays de distribucion)
+    tablasArr.forEach(([nombre, info]) => {
+      if (Array.isArray(info)) {
+        // Distribucion de tipos de documento
+        h += `<tr><td colspan="3" style="padding:4px 8px;font-size:0.79em;color:#64748b">
+          ${nombre}: ${info.map(t=>`tipo${t.TIPO||t.tipo}=${t.N||t.n}`).join(', ')}
+        </td></tr>`;
+      } else if (info && typeof info === 'object') {
+        h += _tablaRow(nombre, info);
+      }
+    });
+
+    h += `</tbody></table></div>`;
+    if (mod.n_proyectos_bd !== undefined) {
+      h += `<div style="padding:5px 13px;font-size:0.78em;color:#0369a1;background:#f0f9ff">
+        📊 Proyectos totales en BD: <strong>${(mod.n_proyectos_bd||0).toLocaleString('es-ES')}</strong>
+      </div>`;
+    }
+    h += `</div></details>`;
+  });
+
+  h += `</div>`;
+
+  // Footer
+  h += `<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 16px;
+    font-size:0.78em;color:#64748b;display:flex;justify-content:space-between;align-items:center">
+    <span>🔒 Solo lectura · SELECT COUNT(*) + SELECT FIRST 3 · Ninguna modificación</span>
+    <button onclick="ApiExplorerModule.doValidarDatosBD({target:this})"
+      style="padding:4px 12px;background:#166534;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">
+      🔄 Repetir validación
+    </button>
+  </div></div>`;
+
+  return h;
+}
 
 });
 

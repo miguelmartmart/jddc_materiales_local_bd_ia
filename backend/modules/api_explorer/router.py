@@ -2099,6 +2099,162 @@ async def modo_mantenimiento():
     }
 
 
+@router.get("/validar-datos-bd")
+async def validar_datos_bd():
+    ts = __import__("datetime").datetime.now().isoformat()
+    try:
+        drv = _get_db_driver()
+    except Exception as e:
+        return {"success": False, "error": f"Firebird no accesible: {e}",
+                "timestamp": ts, "nota": "Ejecutar desde la VM en la red local."}
+    def _q(sql):
+        try: return drv.execute_query(sql) or []
+        except Exception as ex: return [{"ERROR": str(ex)[:100]}]
+    def _count(tabla_o_sql):
+        try:
+            sql=(tabla_o_sql if tabla_o_sql.strip().upper().startswith("SELECT")
+                 else f"SELECT COUNT(*) AS N FROM {tabla_o_sql}")
+            r=drv.execute_query(sql)
+            if not r: return 0
+            row=r[0]; return row.get("N") or row.get("n") or 0
+        except Exception as ex: return f"ERR:{str(ex)[:60]}"
+    resultado={"timestamp":ts,"modulos":{},"success":False}
+    try:
+        # --- MAESTROS ---
+        n_cli=_count("CLIENTE"); n_prov=_count("PROVEED"); n_art=_count("ARTICULO")
+        n_rec=_count("RECURSO"); n_reobj=_count("REPOBJETO"); n_repinst=_count("REPINSTALACION")
+        rec_m=_q("SELECT FIRST 5 CODIGO,DESCRIPCION FROM RECURSO ORDER BY CODIGO")
+        reobj_m=_q("SELECT FIRST 3 CODIGO,NOMBRE,CODPROPIETARIO FROM REPOBJETO ORDER BY CODIGO")
+        resultado["modulos"]["maestros"]={
+            "descripcion":"Clientes, proveedores, articulos, tecnicos, objetos de cliente",
+            "api_licencia":"Base (sin licencia extra)",
+            "tablas":{
+                "CLIENTE":{"n":n_cli,"ok":isinstance(n_cli,int) and n_cli>0},
+                "PROVEED":{"n":n_prov,"ok":isinstance(n_prov,int) and n_prov>0},
+                "ARTICULO":{"n":n_art,"ok":isinstance(n_art,int) and n_art>0},
+                "RECURSO":{"n":n_rec,"ok":isinstance(n_rec,int) and n_rec>0,"muestra":rec_m[:3]},
+                "REPOBJETO":{"n":n_reobj,"ok":isinstance(n_reobj,int) and n_reobj>0,"muestra":reobj_m[:3]},
+                "REPINSTALACION":{"n":n_repinst,"ok":isinstance(n_repinst,int) and n_repinst>0},
+            },
+            "conclusion":(
+                f"{n_cli} clientes, {n_prov} proveedores, {n_art} articulos, "
+                f"{n_rec} tecnicos, {n_reobj} objetos de cliente. DATOS REALES OK."
+                if all(isinstance(x,int) and x>0 for x in [n_cli,n_prov,n_art])
+                else "Algunas tablas vacias o error de acceso."
+            ),
+        }
+        # --- PROYECTOS ---
+        proy_defs=[
+            ("PREUTILLIN","Horas/costes imputados reales EN PROYECTOS (campo clave)"),
+            ("PREUTILCAB","Imputacion real cabecera"),
+            ("PREPREVLIN","Previsiones de horas por proyecto"),
+            ("PREPREV","Previsiones cabecera"),
+            ("PRESUPROYE","Presupuesto del proyecto"),
+            ("PARTPROYE","Partidas/capitulos BC3"),
+        ]
+        proy_tablas={}
+        for tabla,desc in proy_defs:
+            n=_count(tabla); m=[]
+            if isinstance(n,int) and n>0:
+                if tabla=="PREUTILLIN":
+                    m=_q("SELECT FIRST 3 pl.CODMAESTRO,pl.CODRECURSO,pl.CANTIDAD,pl.PRECIO,pl.COSTE,pl.FECHA,r.DESCRIPCION AS TECNICO FROM PREUTILLIN pl LEFT JOIN RECURSO r ON pl.CODRECURSO=r.CODIGO WHERE pl.CANTIDAD>0 ORDER BY pl.FECHA DESC")
+                elif tabla=="PREPREVLIN":
+                    m=_q("SELECT FIRST 3 CODMAESTRO,CODRECURSO,DURACION,PRECIO FROM PREPREVLIN ORDER BY CODMAESTRO")
+                elif tabla=="PRESUPROYE":
+                    m=_q("SELECT FIRST 3 CODIGO,CODPROYECTO,DESCRIPCION FROM PRESUPROYE ORDER BY CODPROYECTO DESC")
+            proy_tablas[tabla]={"desc":desc,"n":n,"ok":isinstance(n,int) and n>0,"muestra":m}
+        n_pu=proy_tablas.get("PREUTILLIN",{}).get("n",0)
+        n_pp=proy_tablas.get("PREPREVLIN",{}).get("n",0)
+        n_proy=_count("PROYECTOS")
+        resultado["modulos"]["gestion_proyectos"]={
+            "descripcion":"Horas imputadas en proyectos, previsiones, partidas, costes reales",
+            "api_licencia":"mPyme Proyectos (REQUIERE LICENCIA)",
+            "n_proyectos_bd":n_proy,
+            "tablas":proy_tablas,
+            "conclusion":(
+                f"{n_proy} proyectos en BD. {n_pu} imputaciones reales de horas, {n_pp} previsiones. "
+                "DATOS REALES. La licencia mPyme Proyectos dara acceso a horas/costes reales por tecnico y proyecto. MUY RENTABLE."
+                if isinstance(n_pu,int) and n_pu>0 else (
+                    f"{n_proy} proyectos en BD pero PREUTILLIN tiene {n_pu} registros. "
+                    "La empresa NO imputa horas/costes en proyectos dentro de SQL Obras. "
+                    "La licencia daria acceso a proyectos pero NO a horas de tecnico (no existen en BD)."
+                    if isinstance(n_pu,int) else f"ERROR: {n_pu}"
+                )
+            ),
+        }
+        # --- REPARACIONES ---
+        rep_defs=[
+            ("REPARA","Partes/ordenes de reparacion SAT"),
+            ("RABUTILLIN","Horas de tecnico en partes (campo clave)"),
+            ("RABUTILCAB","Horas imputadas cabecera"),
+            ("REPOBJETO","Objetos/equipos del cliente"),
+            ("REPINSTALACION","Instalaciones del cliente"),
+        ]
+        rep_tablas={}
+        for tabla,desc in rep_defs:
+            n=_count(tabla); m=[]
+            if isinstance(n,int) and n>0:
+                if tabla=="REPARA":
+                    m=_q("SELECT FIRST 3 CODIGO,DESCRIPCION,FECHA,CODCLIENTE FROM REPARA ORDER BY FECHA DESC")
+                elif tabla=="RABUTILLIN":
+                    m=_q("SELECT FIRST 3 rl.CODMAESTRO,rl.CODRECURSO,rl.CANTIDAD,rl.PRECIO,rl.COSTE,rl.FECHA,r.DESCRIPCION AS TECNICO FROM RABUTILLIN rl LEFT JOIN RECURSO r ON rl.CODRECURSO=r.CODIGO WHERE rl.CANTIDAD>0 ORDER BY rl.FECHA DESC")
+                elif tabla=="REPOBJETO":
+                    m=_q("SELECT FIRST 3 CODIGO,NOMBRE,CODPROPIETARIO FROM REPOBJETO ORDER BY CODIGO")
+            rep_tablas[tabla]={"desc":desc,"n":n,"ok":isinstance(n,int) and n>0,"muestra":m}
+        n_ru=rep_tablas.get("RABUTILLIN",{}).get("n",0)
+        n_ra=rep_tablas.get("REPARA",{}).get("n",0)
+        resultado["modulos"]["reparaciones"]={
+            "descripcion":"Partes SAT, horas de tecnico por parte, objetos de cliente",
+            "api_licencia":"mPyme Reparaciones (posible con licencia actual)",
+            "tablas":rep_tablas,
+            "conclusion":(
+                f"{n_ra} partes SAT con {n_ru} lineas de horas de tecnico. "
+                "DATOS REALES. La API repordutil dara horas reales por tecnico. MUY RELEVANTE."
+                if isinstance(n_ru,int) and n_ru>0 else (
+                    f"{n_ra} partes SAT pero RABUTILLIN={n_ru}. "
+                    "Los partes no llevan horas de tecnico detalladas en SQL Obras. "
+                    "La API daria cabeceras de partes pero no horas."
+                    if isinstance(n_ra,int) and n_ra>0 else f"VERIFICAR:{n_ru}"
+                )
+            ),
+        }
+        # --- DOCUMENTOS COMPRA ---
+        n_ap=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
+        n_fp=_count("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=2 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
+        tipos_doc=_q("SELECT TIPO,COUNT(*) AS N FROM DOCCAB WHERE TIPO IN (1,2,3,11,12,13,21) GROUP BY TIPO ORDER BY TIPO")
+        alb_m=_q("SELECT FIRST 3 CODIGO,SERIE,NUMERO,FECHA,CODCLIENTE,CODPROYECTO,IMPORTETOTAL FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL ORDER BY FECHA DESC")
+        resultado["modulos"]["documentos_compra"]={
+            "descripcion":"Albaranes y facturas de compra, vinculacion a proyectos",
+            "api_licencia":"mPyme Documentos",
+            "tablas":{"DOCCAB_tipos":tipos_doc,"alb_con_proyecto":{"n":n_ap,"muestra":alb_m[:3]},"fac_con_proyecto":{"n":n_fp}},
+            "conclusion":(
+                f"{n_ap} albaranes y {n_fp} facturas de compra vinculadas a proyectos. "
+                "La imputacion docalbcom->imputaPro funcionara con datos reales."
+                if isinstance(n_ap,int) and n_ap>0 else
+                "Documentos de compra no vinculados a proyectos. Revisar flujo antes de comprar."
+            ),
+        }
+        # --- RECOMENDACIONES ---
+        recs=[]
+        n_pu2=resultado["modulos"]["gestion_proyectos"]["tablas"].get("PREUTILLIN",{}).get("n",0)
+        n_ru2=resultado["modulos"]["reparaciones"]["tablas"].get("RABUTILLIN",{}).get("n",0)
+        n_ra2=resultado["modulos"]["reparaciones"]["tablas"].get("REPARA",{}).get("n",0)
+        n_ap2=resultado["modulos"]["documentos_compra"]["tablas"].get("alb_con_proyecto",{}).get("n",0)
+        if isinstance(n_pu2,int) and n_pu2>0: recs.append(f"COMPRAR mPyme Proyectos: {n_pu2} imputaciones de horas reales disponibles.")
+        else: recs.append("ESTUDIAR mPyme Proyectos: hay proyectos pero sin horas imputadas. Preguntar a DK sobre flujo.")
+        if isinstance(n_ru2,int) and n_ru2>0: recs.append(f"ACTIVAR Reparaciones: {n_ra2} partes con {n_ru2} horas de tecnico.")
+        elif isinstance(n_ra2,int) and n_ra2>0: recs.append(f"EVALUAR Reparaciones: {n_ra2} partes SAT pero sin horas detalladas en RABUTILLIN.")
+        if isinstance(n_ap2,int) and n_ap2>0: recs.append(f"ACTIVAR Documentos compra: {n_ap2} albaranes ya vinculados a proyectos.")
+        resultado["recomendaciones"]=recs
+        resultado["success"]=True
+    except Exception as e:
+        resultado["error"]=str(e)
+    finally:
+        try: drv.disconnect()
+        except: pass
+    return resultado
+
+
 class ValoresParamRequest(BaseModel):
     clase: str
     campo: str   # nombre del parámetro API: "codProyecto", "codOrden", etc.
