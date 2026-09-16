@@ -2378,7 +2378,7 @@ async def informe_maestro():
         fb_datos["n_pedcom"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=1")
         fb_datos["n_albven"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=13")
         fb_datos["n_facven"]        = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=12")
-        fb_datos["n_albcom_proy"]   = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND CODPROYECTO<>0")
+        fb_datos["n_albcom_proy"]   = _n("SELECT COUNT(*) AS N FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL AND TRIM(CAST(CODPROYECTO AS VARCHAR(40)))<>''")
         fb_datos["muestra_albcom_proy"] = _q(
             "SELECT FIRST 3 CODIGO,SERIE,NUMERO,FECHA,CODCLIENTE,CODPROYECTO,IMPORTETOTAL "
             "FROM DOCCAB WHERE TIPO=3 AND CODPROYECTO IS NOT NULL ORDER BY FECHA DESC"
@@ -2567,6 +2567,12 @@ async def informe_maestro():
             L.append(f"  - FIREBIRD NO ACCESIBLE: {fb_error}")
         return "\n".join(L)
 
+    def _sfmt(v, sufijo=""):
+        """Formatea un numero con miles o devuelve el string tal cual si no es int."""
+        if isinstance(v, int):
+            return f"{v:,}{sufijo}"
+        return f"{v}{sufijo}"
+
     def _lineas_nivel3():
         L=[]
         L.append("INFORME DETALLADO - DATOS REALES BD + ESTADO API")
@@ -2578,19 +2584,19 @@ async def informe_maestro():
         L.append("")
         L.append("DATOS CLAVE DE LA BD FIREBIRD:")
         if fb_ok:
-            L.append(f"  Clientes:      {fb_datos.get('n_clientes',0):,}")
-            L.append(f"  Proveedores:   {fb_datos.get('n_proveedores',0):,}")
-            L.append(f"  Articulos:     {fb_datos.get('n_articulos',0):,}")
-            L.append(f"  Tecnicos/Recursos: {fb_datos.get('n_recursos',0):,}")
-            L.append(f"  Proyectos:     {fb_datos.get('n_proyectos',0):,} (activos: {fb_datos.get('n_proy_activos',0):,})")
-            L.append(f"  Horas en proyectos (PREUTILLIN): {fb_datos.get('n_preutillin',0):,} imputaciones")
-            L.append(f"  Previsiones en proyectos (PREPREVLIN): {fb_datos.get('n_preprevlin',0):,}")
-            L.append(f"  Partes SAT (REPARA): {fb_datos.get('n_repara',0):,} (abiertos: {fb_datos.get('n_repara_abiertas',0):,})")
-            L.append(f"  Horas en partes SAT (RABUTILLIN): {fb_datos.get('n_rabutillin',0):,}")
-            L.append(f"  Objetos de cliente (REPOBJETO): {fb_datos.get('n_repobjetos',0):,}")
-            L.append(f"  Instalaciones (REPINSTALACION): {fb_datos.get('n_repinstalacion',0):,}")
-            L.append(f"  Albaranes compra: {fb_datos.get('n_albcom',0):,} | Facturas compra: {fb_datos.get('n_faccom',0):,}")
-            L.append(f"  Albaranes compra vinculados a proyecto: {fb_datos.get('n_albcom_proy',0):,}")
+            L.append(f"  Clientes:      {_sfmt(fb_datos.get('n_clientes',0))}")
+            L.append(f"  Proveedores:   {_sfmt(fb_datos.get('n_proveedores',0))}")
+            L.append(f"  Articulos:     {_sfmt(fb_datos.get('n_articulos',0))}")
+            L.append(f"  Tecnicos/Recursos: {_sfmt(fb_datos.get('n_recursos',0))}")
+            L.append(f"  Proyectos:     {_sfmt(fb_datos.get('n_proyectos',0))} (activos: {_sfmt(fb_datos.get('n_proy_activos',0))})")
+            L.append(f"  Horas en proyectos (PREUTILLIN): {_sfmt(fb_datos.get('n_preutillin',0), ' imputaciones')}")
+            L.append(f"  Previsiones en proyectos (PREPREVLIN): {_sfmt(fb_datos.get('n_preprevlin',0))}")
+            L.append(f"  Partes SAT (REPARA): {_sfmt(fb_datos.get('n_repara',0))} (abiertos: {_sfmt(fb_datos.get('n_repara_abiertas',0))})")
+            L.append(f"  Horas en partes SAT (RABUTILLIN): {_sfmt(fb_datos.get('n_rabutillin',0))}")
+            L.append(f"  Objetos de cliente (REPOBJETO): {_sfmt(fb_datos.get('n_repobjetos',0))}")
+            L.append(f"  Instalaciones (REPINSTALACION): {_sfmt(fb_datos.get('n_repinstalacion',0))}")
+            L.append(f"  Albaranes compra: {_sfmt(fb_datos.get('n_albcom',0))} | Facturas compra: {_sfmt(fb_datos.get('n_faccom',0))}")
+            L.append(f"  Albaranes compra vinculados a proyecto: {_sfmt(fb_datos.get('n_albcom_proy',0))}")
             if fb_datos.get("muestra_recursos"):
                 L.append("")
                 L.append("  TECNICOS/RECURSOS (muestra BD real):")
