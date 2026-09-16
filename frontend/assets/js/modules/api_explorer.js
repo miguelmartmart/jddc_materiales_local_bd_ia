@@ -4536,20 +4536,346 @@ function _renderCatalogoDatos() {
 
   h += `</div>`; // padding
 
-  // Footer con correo copiable
-  h += `<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px">
-    <div style="font-weight:700;font-size:0.86em;color:#0369a1;margin-bottom:6px">📧 Correo completo para enviar a Distrito K:</div>
-    <textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:0.77em;border:1px solid #e2e8f0;border-radius:6px;padding:8px;color:#374151;background:white;resize:vertical">${correo.replace(/</g,'&lt;')}</textarea>
-    <div style="margin-top:6px;display:flex;gap:8px">
-      <button onclick="navigator.clipboard.writeText(${JSON.stringify(correo)}).then(()=>{this.textContent='✅ Copiado al portapapeles!';setTimeout(()=>this.textContent='📋 Copiar',2000)})"
-        style="padding:5px 16px;background:#0369a1;color:white;border:none;border-radius:5px;cursor:pointer;font-size:0.82em;font-weight:600">📋 Copiar</button>
-      <span style="font-size:0.75em;color:#94a3b8;align-self:center">Fuente: documentación oficial mPYME v1.2 + diagnóstico DEVIA</span>
-    </div>
+  // ===========================================================
+  // SISTEMA DE EXPORTACION EN 5 NIVELES
+  // ===========================================================
+
+  // Helpers comunes
+  function _icopor(e){return {ok:'✅',mantenimiento:'🟡',licencia:'🔒',pendiente:'?',noDisponible:'🚫'}[e]||'?';}
+  function _lblestado(e){return {ok:'DISPONIBLE SIN LICENCIA EXTRA',mantenimiento:'DISPONIBLE (falta desactivar mantenimiento)',licencia:'REQUIERE LICENCIA ADICIONAL',pendiente:'NO PROBADO AUN',noDisponible:'NO DISPONIBLE'}[e]||e;}
+  function _copiar(txt,btn){navigator.clipboard.writeText(txt).then(()=>{btn.textContent='✅ Copiado!';setTimeout(()=>btn.textContent='📋 Copiar',2500)});}
+
+  // -------- NIVEL 1: Ultra-resumen ejecutivo (5 lineas) --------
+  function _exportNivel1(){
+    const L=[];
+    const tot=MODULOS.reduce((a,m)=>a+m.datos.length,0);
+    const nOk=MODULOS.reduce((a,m)=>a+m.datos.filter(d=>d.estado==='ok').length,0);
+    const nMant=MODULOS.reduce((a,m)=>a+m.datos.filter(d=>d.estado==='mantenimiento').length,0);
+    const nLic=MODULOS.reduce((a,m)=>a+m.datos.filter(d=>d.estado==='licencia').length,0);
+    L.push('RESUMEN API mPYME - JDDC / SQL Obras');
+    L.push('=====================================');
+    L.push('');
+    L.push(`Total de datos identificados: ${tot}`);
+    L.push(`✅ Disponibles YA (sin licencia extra): ${nOk} datos`);
+    L.push(`🟡 Disponibles en cuanto desactivemos el modo mantenimiento: ${nMant} datos`);
+    L.push(`🔒 Requieren comprar licencia adicional: ${nLic} datos`);
+    L.push('');
+    L.push('MODULOS:');
+    MODULOS.forEach(m=>{
+      const ico={disponible:'✅',mantenimiento:'🟡',licencia:'🔒',noDisponible:'🚫'}[m.nuestroEstado]||'?';
+      L.push(`  ${ico} ${m.nombre} - Licencia requerida: ${m.licencia}`);
+    });
+    L.push('');
+    L.push('SITUACION ACTUAL: Modo mantenimiento activo (code=6 en todas las llamadas).');
+    L.push('ACCION INMEDIATA: Contactar Distrito K para desactivar el modo mantenimiento.');
+    return L.join('\n');
+  }
+
+  // -------- NIVEL 2: Resumen por modulo con datos clave --------
+  function _exportNivel2(){
+    const L=[];
+    L.push('CATALOGO DE DATOS API mPYME - JDDC');
+    L.push('Nivel: Resumen por modulo');
+    L.push('Fuente: Documentacion oficial mPYME v1.2 + diagnostico DEVIA');
+    L.push('Fecha: '+new Date().toLocaleDateString('es-ES'));
+    L.push('='.repeat(60));
+    L.push('');
+    MODULOS.forEach(mod=>{
+      const ico={disponible:'✅',mantenimiento:'🟡',licencia:'🔒',noDisponible:'🚫'}[mod.nuestroEstado]||'?';
+      L.push(`${ico} ${mod.nombre.toUpperCase()}`);
+      L.push(`   Licencia necesaria: ${mod.licencia}`);
+      L.push(`   ${mod.nota}`);
+      L.push(`   Datos disponibles (${mod.datos.length}):`);
+      mod.datos.forEach(d=>{
+        L.push(`     ${_icopor(d.estado)} ${d.que}`);
+      });
+      L.push('');
+    });
+    L.push('='.repeat(60));
+    L.push('CONCLUSION:');
+    L.push('- Con la licencia actual: clientes, proveedores, articulos, tipostrabajo, recursos (con mant. OFF)');
+    L.push('- Para horas de tecnicos y costes de proyectos: necesitamos licencia mPyme Proyectos');
+    L.push('- Para ordenes de reparacion: posiblemente disponible con licencia actual (probar con mant. OFF)');
+    return L.join('\n');
+  }
+
+  // -------- NIVEL 3: Con descripcion de cada dato --------
+  function _exportNivel3(){
+    const L=[];
+    L.push('CATALOGO DE DATOS API mPYME - JDDC');
+    L.push('Nivel: Descripcion de cada dato disponible');
+    L.push('Fuente: Documentacion oficial mPYME v1.2');
+    L.push('Fecha: '+new Date().toLocaleDateString('es-ES'));
+    L.push('='.repeat(70));
+    L.push('');
+    MODULOS.forEach(mod=>{
+      const ico={disponible:'✅',mantenimiento:'🟡',licencia:'🔒',noDisponible:'🚫'}[mod.nuestroEstado]||'?';
+      L.push(`${ico} ${mod.nombre} [Licencia: ${mod.licencia}]`);
+      L.push('-'.repeat(60));
+      L.push(mod.descripcion);
+      L.push(`Estado general: ${mod.nota}`);
+      L.push('');
+      mod.datos.forEach((d,i)=>{
+        L.push(`  ${i+1}. ${_icopor(d.estado)} ${d.que}`);
+        L.push(`     Estado: ${_lblestado(d.estado)}`);
+        L.push(`     Clase API: ${d.clase} | Metodo: ${d.metodo}`);
+        L.push(`     Campos que devuelve: ${d.campos}`);
+        L.push(`     Evidencia: ${d.evidencia}`);
+        L.push('');
+      });
+      L.push('');
+    });
+    return L.join('\n');
+  }
+
+  // -------- NIVEL 4: Con detalles tecnicos (clase, campos, params) --------
+  function _exportNivel4(){
+    const L=[];
+    L.push('CATALOGO TECNICO API mPYME - JDDC');
+    L.push('Nivel: Detalles tecnicos (clase, metodo, parametros, campos)');
+    L.push('Fuente: Documentacion oficial mPYME v1.2 + pruebas DEVIA');
+    L.push('Fecha: '+new Date().toLocaleDateString('es-ES'));
+    L.push('');
+    L.push('PROTOCOLO:');
+    L.push('  URL base: http://192.168.0.254:80/');
+    L.push('  Metodo HTTP: POST a la raiz ("/")');
+    L.push('  Content-Type: application/x-www-form-urlencoded');
+    L.push('  Auth: ssid1 + ssid2 obtenidos del login');
+    L.push('  Login: method=login&empr=JDDC&user=<usuario>&pass=<sha1_base64_password>');
+    L.push('='.repeat(70));
+    L.push('');
+    MODULOS.forEach(mod=>{
+      const ico={disponible:'✅',mantenimiento:'🟡',licencia:'🔒',noDisponible:'🚫'}[mod.nuestroEstado]||'?';
+      L.push(`${ico} MODULO: ${mod.nombre} [Licencia requerida: ${mod.licencia}]`);
+      L.push('='.repeat(70));
+      L.push(mod.nota);
+      L.push('');
+      mod.datos.forEach((d,i)=>{
+        L.push(`  [${i+1}] ${_icopor(d.estado)} ${d.que}`);
+        L.push(`       Estado:      ${_lblestado(d.estado)}`);
+        L.push(`       Clase:       ${d.clase}`);
+        L.push(`       Metodo:      ${d.metodo}`);
+        L.push(`       Parametros:  ${d.params}`);
+        L.push(`       Campos:      ${d.campos}`);
+        L.push(`       Evidencia:   ${d.evidencia}`);
+        L.push('');
+      });
+    });
+    L.push('CODIGOS DE RESPUESTA:');
+    L.push('  0 = OK | 5 = Error/sin licencia | 6 = Modo mantenimiento | 7 = Sesion expirada');
+    L.push('  doc oficial mPYME v1.2 pag.7');
+    return L.join('\n');
+  }
+
+  // -------- NIVEL 5: Ultra-detallado con peticion HTTP exacta y respuesta --------
+  function _exportNivel5(){
+    const L=[];
+    L.push('REFERENCIA TECNICA COMPLETA - API mPYME (SQL Obras / Distrito K)');
+    L.push('Instalacion: JDDC | URL: http://192.168.0.254:80/');
+    L.push('BD Firebird: C:/Distrito/OBRAS/Database/JUANDEDI/2021.fdb');
+    L.push('Fuente: Documentacion oficial mPYME v1.2 + diagnostico DEVIA automatico');
+    L.push('Fecha: '+new Date().toLocaleDateString('es-ES'));
+    L.push('');
+    L.push('PROTOCOLO COMPLETO');
+    L.push('==================');
+    L.push('  URL base:       http://192.168.0.254:80/');
+    L.push('  HTTP method:    POST siempre a la raiz ("/")');
+    L.push('  Content-Type:   application/x-www-form-urlencoded');
+    L.push('  Respuesta:      JSON con {"code":N, "data":{...}}');
+    L.push('');
+    L.push('  AUTENTICACION:');
+    L.push('  POST / HTTP/1.1');
+    L.push('  method=login&empr=JDDC&user=<usuario>&pass=<SHA1_en_Base64_del_password>');
+    L.push('  Respuesta: {"code":0,"data":{"ssid1":"...","ssid2":"..."}}');
+    L.push('  -> Guardar ssid1 y ssid2 para incluirlos en TODAS las llamadas siguientes.');
+    L.push('');
+    L.push('  CODIGOS DE RESPUESTA (doc oficial pag.7):');
+    L.push('  0 = Success');
+    L.push('  1 = Warning and retry');
+    L.push('  2 = Confirm and retry');
+    L.push('  3 = Dialog and retry');
+    L.push('  5 = Failed (ej: sin licencia, parametro incorrecto)');
+    L.push('  6 = Maintenance mode (SITUACION ACTUAL - bloquea TODAS las llamadas)');
+    L.push('  7 = Invalid session (reautenticar)');
+    L.push('  8 = Exception (error servidor)');
+    L.push('');
+    L.push('  METODOS DISPONIBLES:');
+    L.push('  browse  - Lista de objetos. Params oblig: ssid1, ssid2, objectclass. Opc: filter, columns, more');
+    L.push('  read    - Objeto completo. Params oblig: ssid1, ssid2, objectclass, objectid');
+    L.push('  new     - Objeto nuevo con defaults. Params oblig: ssid1, ssid2, objectclass');
+    L.push('  edit    - Modifica objeto en sesion. Params oblig: + objectid, data');
+    L.push('  write   - Graba en BD. Params oblig: + objectid, data');
+    L.push('  cancel  - Descarta cambios. Params oblig: + objectid');
+    L.push('  exec    - Ejecuta accion. Params oblig: + objectid, action, params');
+    L.push('  permiso - Comprueba permiso sobre clase');
+    L.push('');
+    L.push('  PAGINACION (browse):');
+    L.push('  more=first | next | prior | last   (bloques de 120 registros por defecto)');
+    L.push('  filter=<texto>                      (filtro parcial en multiples campos)');
+    L.push('  columns=[{"id":"campo","order":"asc","value":"filtro"}]   (filtro y orden por columna)');
+    L.push('');
+    L.push('='.repeat(70));
+    L.push('REFERENCIA POR DATO');
+    L.push('='.repeat(70));
+    L.push('');
+    let n=0;
+    MODULOS.forEach(mod=>{
+      const ico={disponible:'✅',mantenimiento:'🟡',licencia:'🔒',noDisponible:'🚫'}[mod.nuestroEstado]||'?';
+      L.push(`${'#'.repeat(60)}`);
+      L.push(`MODULO: ${mod.nombre}`);
+      L.push(`LICENCIA: ${mod.licencia}`);
+      L.push(`ESTADO JDDC: ${mod.nota}`);
+      L.push(`${'#'.repeat(60)}`);
+      L.push('');
+      mod.datos.forEach(d=>{
+        n++;
+        L.push(`--- [${n}] ${_icopor(d.estado)} ${d.que} ---`);
+        L.push(`  Estado:          ${_lblestado(d.estado)}`);
+        L.push(`  Evidencia:       ${d.evidencia}`);
+        L.push(`  Clase API:       ${d.clase}`);
+        L.push(`  Metodo API:      ${d.metodo}`);
+        L.push(`  Parametros:      ${d.params}`);
+        L.push(`  Campos devueltos: ${d.campos}`);
+        L.push('');
+        L.push(`  PETICION HTTP:`);
+        L.push(`  POST http://192.168.0.254:80/`);
+        L.push(`  Content-Type: application/x-www-form-urlencoded`);
+        L.push(`  ${d.peticion}`);
+        L.push('');
+        L.push(`  RESPUESTA EJEMPLO:`);
+        L.push(`  ${d.ejemplo_resp}`);
+        L.push('');
+      });
+    });
+    L.push('='.repeat(70));
+    L.push('FIN DE REFERENCIA - '+new Date().toLocaleDateString('es-ES'));
+    return L.join('\n');
+  }
+
+  // -------- CORREO PARA DISTRITO K --------
+  function _exportCorreo(){
+    return _generarCorreo();
+  }
+
+  // -------- RENDER DEL PANEL DE EXPORTACION --------
+  const NIVELES = [
+    {
+      n:1, id:'n1',
+      titulo:'📖 Nivel 1 — Resumen ejecutivo',
+      subtitulo:'5 lineas. Para una reunion rapida o nota interna.',
+      color:'#166534', bg:'#f0fdf4', bor:'#86efac',
+      fn: _exportNivel1
+    },
+    {
+      n:2, id:'n2',
+      titulo:'📊 Nivel 2 — Resumen por modulo',
+      subtitulo:'Lista de datos por modulo con estado y nota. Para discutir con responsable.',
+      color:'#1e40af', bg:'#eff6ff', bor:'#93c5fd',
+      fn: _exportNivel2
+    },
+    {
+      n:3, id:'n3',
+      titulo:'📝 Nivel 3 — Con descripcion completa',
+      subtitulo:'Que devuelve cada dato, que campos incluye, evidencia. Para decision de compra.',
+      color:'#6b21a8', bg:'#faf5ff', bor:'#d8b4fe',
+      fn: _exportNivel3
+    },
+    {
+      n:4, id:'n4',
+      titulo:'⚙️ Nivel 4 — Detalles tecnicos',
+      subtitulo:'Clase, metodo, parametros, campos. Para equipo tecnico o IT.',
+      color:'#92400e', bg:'#fffbeb', bor:'#fde68a',
+      fn: _exportNivel4
+    },
+    {
+      n:5, id:'n5',
+      titulo:'💻 Nivel 5 — Referencia API completa',
+      subtitulo:'Peticion HTTP exacta, respuesta de ejemplo, codigos de error. Para desarrolladores.',
+      color:'#0f172a', bg:'#f8fafc', bor:'#cbd5e1',
+      fn: _exportNivel5
+    },
+    {
+      n:6, id:'n6',
+      titulo:'📧 Correo para Distrito K',
+      subtitulo:'Listo para enviar. Incluye situacion actual, datos necesarios y preguntas.',
+      color:'#0369a1', bg:'#f0f9ff', bor:'#bae6fd',
+      fn: _exportCorreo
+    },
+  ];
+
+  h += `
+  <div style="background:#0f172a;padding:14px 18px;margin-top:2px">
+    <div style="font-weight:700;color:white;font-size:0.93em;margin-bottom:4px">📤 Exportar en 5 niveles de detalle</div>
+    <div style="font-size:0.77em;color:#94a3b8">Elige el nivel segun quien va a leer el documento. Cada boton muestra la previsualizacion abajo y permite copiar.</div>
   </div>
-  </div>`;
+  <div id="cat-export-tabs" style="display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid #e2e8f0;background:#f8fafc">`;
+
+  NIVELES.forEach(nv=>{
+    h += `<button data-nv="${nv.id}"
+      onclick="_catSelectNivel('${nv.id}')"
+      style="flex:1;min-width:120px;padding:9px 10px;border:none;border-bottom:3px solid transparent;
+        background:transparent;cursor:pointer;font-size:0.77em;text-align:center;transition:all 0.15s;
+        color:#64748b;font-weight:600" id="cat-tab-${nv.id}">
+      <div style="font-size:0.95em">${nv.titulo.split(' — ')[0]}</div>
+      <div style="font-size:0.8em;font-weight:400;color:#94a3b8;white-space:nowrap">${nv.subtitulo.split('.')[0]}</div>
+    </button>`;
+  });
+  h += `</div>`;
+
+  // Paneles de contenido por nivel
+  NIVELES.forEach(nv=>{
+    const txt = nv.fn();
+    h += `<div id="cat-panel-${nv.id}" style="display:none;padding:0">
+      <div style="background:${nv.bg};border-left:4px solid ${nv.bor};padding:10px 16px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <span style="font-weight:700;color:${nv.color};font-size:0.9em">${nv.titulo}</span>
+          <span style="font-size:0.78em;color:#64748b;margin-left:8px">${nv.subtitulo}</span>
+        </div>
+        <button onclick="_catCopiar('cat-txt-${nv.id}',this)"
+          style="padding:5px 14px;background:${nv.color};color:white;border:none;border-radius:5px;
+            cursor:pointer;font-size:0.8em;font-weight:600;white-space:nowrap">
+          📋 Copiar
+        </button>
+      </div>
+      <textarea id="cat-txt-${nv.id}" readonly
+        style="width:100%;height:280px;font-family:monospace;font-size:0.75em;border:none;
+          border-top:1px solid #e2e8f0;padding:10px 14px;color:#1e293b;
+          background:#fafafa;resize:vertical;box-sizing:border-box;display:block">${txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+    </div>`;
+  });
+
+  h += `</div>`; // cierre container
+
+  // Scripts para control de tabs
+  h += `<script>
+  function _catSelectNivel(id){
+    ['n1','n2','n3','n4','n5','n6'].forEach(nv=>{
+      const panel=document.getElementById('cat-panel-'+nv);
+      const tab=document.getElementById('cat-tab-'+nv);
+      if(panel) panel.style.display = nv===id ? 'block' : 'none';
+      if(tab){
+        tab.style.borderBottomColor = nv===id ? '#0369a1' : 'transparent';
+        tab.style.color = nv===id ? '#0369a1' : '#64748b';
+        tab.style.background = nv===id ? 'white' : 'transparent';
+      }
+    });
+  }
+  function _catCopiar(textareaId, btn){
+    const el=document.getElementById(textareaId);
+    if(!el) return;
+    navigator.clipboard.writeText(el.value).then(()=>{
+      const prev=btn.textContent;
+      btn.textContent='✅ Copiado!';
+      setTimeout(()=>btn.textContent=prev, 2500);
+    });
+  }
+  // Abrir el tab 1 por defecto
+  setTimeout(()=>_catSelectNivel('n1'), 50);
+  <\/script>`;
 
   return h;
 }
+
 
 });
 
