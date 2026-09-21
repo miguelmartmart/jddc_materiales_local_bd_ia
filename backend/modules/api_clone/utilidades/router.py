@@ -10,7 +10,13 @@ router = APIRouter()
 def informe_fiabilidad():
     from fastapi.responses import Response
     from .report import build_report
-    return Response(build_report(svc._exec), media_type="text/plain; charset=utf-8",
+    from .read_only import open_reader
+    try:
+        with open_reader() as execute:
+            report = build_report(execute)
+    except Exception:
+        raise HTTPException(status_code=503, detail="No se pudo generar el informe en modo de solo lectura.")
+    return Response(report, media_type="text/plain; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="api-clone-fiabilidad.txt"',
                              "Cache-Control": "no-store"})
 

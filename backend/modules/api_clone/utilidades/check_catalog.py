@@ -128,3 +128,19 @@ CHECKS.append(counted("CHK-027", "pertenencia", "CODIGO de línea ambiguo sin ca
     "Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.",
     "Las cabeceras A y B tienen ambas una línea 1.", "No identificar OBRALIN usando solo CODIGO.",
     "(SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K", "K.N>1"))
+
+
+CHECKS += [
+    counted("CHK-028", "pertenencia", "Proyecto solo en cabecera",
+        "Detecta líneas sin proyecto propio cuya cabecera sí identifica uno; es una relación candidata, no una asignación confirmada.",
+        "La línea no indica obra, pero su cabecera indica A.", "Validar la regla de herencia en el ERP; no reasignar automáticamente.",
+        "OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB", "l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NOT NULL"),
+    counted("CHK-029", "pertenencia", "Proyecto solo en línea",
+        "La línea identifica una obra y su cabecera no: falta corroboración por la cabecera.",
+        "Una línea indica A y su cabecera está sin obra.", "Revisar origen y significado antes de darlo por confirmado.",
+        "OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB", "l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NULL"),
+    counted("CHK-030", "pertenencia", "Sin proyecto en línea ni cabecera",
+        "Ninguna de las dos referencias permite determinar la obra; puede pertenecer a otro circuito del ERP.",
+        "Trabajo registrado en reparaciones, sin obra.", "Clasificar el circuito de origen; no inventar un proyecto.",
+        "OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB", "l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NULL"),
+]

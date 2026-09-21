@@ -104,3 +104,16 @@ test('manual read submits the complete line key, not the project code', async ()
   await ctx.window.ApiCloneModule.doProbadorEjecutar();
   assert.equal(body.objectid,'20:1');
 });
+
+
+test('manual browser sends offset and changing scope resets it', async () => {
+  const ctx=context();
+  let body;
+  ctx.fetch=async(url,opts)=>{body=JSON.parse(opts.body);return {ok:true,json:async()=>({estado:'ok',data:{items:[]}})};};
+  vm.runInContext('_state.probadorClase="proyectos";_state.probadorOperacion="browse"',ctx);
+  ctx.window.ApiCloneModule.doProbadorOffsetChange('20');
+  await ctx.window.ApiCloneModule.doProbadorEjecutar();
+  assert.equal(body.offset,20);
+  ctx.window.ApiCloneModule.doProbadorParamChange('codProyecto','A');
+  assert.equal(vm.runInContext('_state.probadorOffset',ctx),0);
+});

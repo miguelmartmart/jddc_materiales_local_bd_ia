@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from .check_runner import run_checks
 
-VERSION = "2026-09-21.2"
+VERSION = "2026-09-21.4"
 
 
 def build_report(execute):
@@ -13,6 +13,8 @@ def build_report(execute):
     result = run_checks(execute)
     from .schema_evidence import inspect_schema
     result["estructura"] = inspect_schema(execute)
+    from .constraint_checks import check_constraints
+    result["integridad_declarada"] = check_constraints(execute, result["estructura"])
     result["fin_informe_utc"] = datetime.now(timezone.utc).isoformat()
     payload = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2)
     lines = [
@@ -36,6 +38,19 @@ def build_report(execute):
                       "SQL ejecutado: " + (check['sql'] or "NO EJECUTADO: falta una regla validada.")]
     lines += ["", "PK / FK / UNIQUE DECLARADAS EN FIREBIRD",
               json.dumps(result["estructura"], ensure_ascii=False, indent=2)]
+    integrity = result["integridad_declarada"]
+    lines += ["", "CONTRASTE DE RESTRICCIONES CON LOS DATOS (todas las tablas mapeadas)",
+              "PK: identidad completa. FK: referencia a otra tabla. UNIQUE: combinación que no debe repetirse.",
+              "Inventariada significa encontrada en el esquema, no datos certificados.",
+              integrity["nota"], "Resumen estructural: " + json.dumps(integrity["resumen"], ensure_ascii=False)]
+    for check in integrity["checks"]:
+        lines += [f"{check['tabla']} / {check.get('restriccion', '')} / {check['regla']}: {check['estado']}",
+                  f"Evaluados: {check.get('total', 'no disponible')}; incidencias: {check.get('incidencias', 'no disponible')}"]
+        if check.get("nota"):
+            lines.append(check["nota"])
+        if check.get("sql"):
+            lines.append("SQL: " + check["sql"])
+
     lines += ["", "PRUEBAS NO REALIZADAS POR ESTE INFORME",
               "Comparación independiente respuesta a respuesta con mPYME / SQL Obras.",
               "Aislamiento por proyecto de cada endpoint y tratamiento de claves compuestas.",

@@ -29,6 +29,7 @@ let _state = {
   probadorResultado: null,
   probadorOperacion: "browse",
   probadorNum: 20,
+  probadorOffset: 0,
 };
 
 async function _fetch(path, opts = {}) {
@@ -95,9 +96,9 @@ function _buildUI() {
     <div style="padding:12px;background:#eff6ff;border-radius:8px;margin-bottom:12px">
       <button onclick="ApiCloneModule.doExportReport()" ${_state.reportBusy?'disabled':''} style="padding:10px;background:#0369a1;color:white;border:0;border-radius:6px;cursor:pointer">${_state.reportBusy?'Comprobando la base de datos…':'📄 Comprobar y exportar informe TXT'}</button>
       <button onclick="ApiCloneModule.setTab('utilidades');ApiCloneModule.doUtilSelect('verificacion-coherencia')" style="padding:10px;margin:4px">Ver comprobaciones y ayudas</button>
-      <details><summary>¿Qué demuestra este informe?</summary><p>Ejecuta las comprobaciones globales disponibles y descarga sus SQL, contadores, incidencias y límites. Incluye pruebas pendientes. No certifica una fiabilidad del 100 %. Puede tardar al consultar toda la base.</p></details>
+      <details><summary>¿Qué demuestra este informe?</summary><p>Ejecuta las comprobaciones globales y contrasta las PK, FK y claves únicas declaradas en las tablas de las 17 clases. Descarga SQL, contadores, incidencias y límites. Los nombres no se usan para reasignar registros. Incluye pruebas pendientes. No certifica una fiabilidad del 100 %. Puede tardar al consultar toda la base.</p></details>
       <p role="status">${_checkText(_state.reportError)}</p>
-      <small>Comprobaciones · versión 2026-09-21.3</small>
+      <small>Comprobaciones · versión 2026-09-21.4</small>
     </div>
     <div style="border-bottom:2px solid #e2e8f0;margin-bottom:12px">${tabBtns}</div>
     <div id="api-clone-tab">${_buildTab()}</div>
@@ -557,6 +558,7 @@ function _tabProbador() {
           <input type="number" value="${_state.probadorNum}" min="1" max="500"
             onchange="ApiCloneModule.doProbadorNumChange(this.value)"
             style="width:70px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85em">
+          ${['proyectos','recursos','proordutil','proordprev'].includes(pc)?`<label>Desde registro (0 = primero): <input type="number" min="0" value="${_state.probadorOffset}" onchange="ApiCloneModule.doProbadorOffsetChange(this.value)" style="width:90px"></label>`:''}
         </div>`:''}
       </div>
       <button onclick="ApiCloneModule.doProbadorEjecutar()"
@@ -691,6 +693,7 @@ async function onEnter() {
 // ── Probador Manual — acciones ────────────────────────────────────────────────
 
 function doProbadorClaseChange(clase) {
+  _state.probadorOffset = 0;
   _state.probadorClase = clase;
   _state.probadorParams = {};
   _state.probadorLookups = {};
@@ -706,6 +709,7 @@ function doProbadorOpChange(op) {
 }
 
 function doProbadorParamChange(campo, valor) {
+  _state.probadorOffset = 0;
   _state.probadorParams[campo] = valor;
 }
 
@@ -717,7 +721,12 @@ function doProbadorParamSelect(campo, valor) {
   setTimeout(() => ApiCloneModule.doProbadorEjecutar(), 80);
 }
 
+function doProbadorOffsetChange(n) {
+  _state.probadorOffset = Math.max(0, parseInt(n) || 0);
+  _state.probadorResultado = null;
+}
 function doProbadorNumChange(n) {
+  _state.probadorOffset = 0;
   _state.probadorNum = parseInt(n) || 20;
 }
 
@@ -757,7 +766,7 @@ async function doProbadorEjecutar() {
     let r;
     const params = {..._state.probadorParams};
     if (op === "browse") {
-      r = await _fetch("/browse", { method:"POST", body:JSON.stringify({clase, params, num:_state.probadorNum}) });
+      r = await _fetch("/browse", { method:"POST", body:JSON.stringify({clase, params, num:_state.probadorNum,offset:_state.probadorOffset}) });
     } else if (op === "read") {
       const objectid = ["proordutil","proordprev"].includes(clase) ? lineKey : (params.codProyecto || params.codOrden || params.codCliente || params.codArticulo || Object.values(params)[0] || "");
       r = await _fetch("/read", { method:"POST", body:JSON.stringify({clase, objectid}) });
@@ -799,7 +808,7 @@ window.ApiCloneModule = {
   doCargarHistorial, doLimpiarHistorial, setBrowseNum,
   // Probador Manual
   doProbadorClaseChange, doProbadorOpChange, doProbadorParamChange,
-  doProbadorParamSelect, doProbadorNumChange, doBuscarEnBD, doProbadorEjecutar,
+  doProbadorParamSelect, doProbadorNumChange, doProbadorOffsetChange, doBuscarEnBD, doProbadorEjecutar,
   // Utilidades de Ingeniería
   doProyectoQuery, doProyectoBuscar, doUtilSelect, doUtilParamChange, doUtilParamSelect, doUtilBuscarBD, doUtilEjecutar,
 };

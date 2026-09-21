@@ -23,6 +23,7 @@ class BrowseRequest(BaseModel):
     clase: str
     params: Dict[str, Any] = Field(default_factory=dict)
     num: int = Field(default=50, ge=1, le=1000, strict=True)
+    offset: int = Field(default=0, ge=0, le=10000000, strict=True)
 
 
 class ReadRequest(BaseModel):
@@ -131,7 +132,7 @@ async def browse(request: BrowseRequest):
       devuelve aviso en lugar de error (igual que code=6 en mPYME)
     """
     try:
-        return get_service().browse(request.clase, request.params, request.num)
+        return get_service().browse(request.clase, request.params, request.num, request.offset)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

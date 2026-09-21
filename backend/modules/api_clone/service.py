@@ -122,7 +122,7 @@ class ApiCloneService:
                 clauses.append(f"{col} = '{v}'")
         return " AND ".join(clauses) if clauses else ""
 
-    def _browse_sql(self, clase, params, num=MAX_BROWSE):
+    def _browse_sql(self, clase, params, num=MAX_BROWSE, offset=0):
         info = CLASE_TABLA_MAP.get(clase)
         if not info:
             return {"ok": False, "error": f"Clase '{clase}' no reconocida"}
@@ -137,8 +137,13 @@ class ApiCloneService:
         for key, value in params.items():
             if isinstance(value, (bool, dict, list)) or value is None or not str(value).strip():
                 return {"ok": False, "error": f"Filtro vacío o inválido: {key}"}
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 10000000:
+            return {"ok": False, "error": "offset debe ser entero entre 0 y 10000000"}
+        paginable = clase in {"proyectos", "recursos", "proordutil", "proordprev"}
+        if offset and not paginable:
+            return {"ok": False, "error": "Paginación no disponible: clave de orden completa pendiente de validar para esta clase"}
         where = self._where(clase, params)
-        sql = f"SELECT FIRST {num} {cols} FROM {tabla}"
+        sql = f"SELECT FIRST {num}" + (f" SKIP {offset}" if offset else "") + f" {cols} FROM {tabla}"
         if where:
             sql += f" WHERE {where}"
         order = "CODCAB, CODIGO" if tabla == "OBRALIN" else campo_pk
@@ -158,7 +163,7 @@ class ApiCloneService:
                 total = _count(cnt[0], "N")
             finally:
                 drv.disconnect()
-            return {"ok": True, "items": _rows_to_safe(rows), "total": total,
+            return {"ok": True, "items": _rows_to_safe(rows), "total": total, "offset": offset, "paginable": paginable,
                     "ms": round((time.time()-t0)*1000), "sql": sql}
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:300]}",
@@ -268,7 +273,7 @@ class ApiCloneService:
             return self._log(clase,"info",{},r,ms,n_items=len(r.get("campos",[])))
         return self._log(clase,"info",{},None,ms,error=r.get("error"))
 
-    def browse(self, clase, params, num=MAX_BROWSE):
+    def browse(self, clase, params, num=MAX_BROWSE, offset=0):
         t0 = time.time()
         unknown = set(params) - set(PARAM_A_COLUMNA.get(clase, {}))
         if unknown:
@@ -277,11 +282,13 @@ class ApiCloneService:
         if pq and pq not in params:
             av = {"aviso":f"'{clase}' requiere param '{pq}'","param_requerido":pq,"items":[],"total":0}
             return self._log(clase,"browse",params,av,round((time.time()-t0)*1000))
-        r = self._browse_sql(clase, params, num)
+        r = self._browse_sql(clase, params, num, offset)
         ms = r.get("ms", round((time.time()-t0)*1000))
         if r["ok"]:
             return self._log(clase,"browse",params,{"items":r["items"],"total":r["total"],
-                             "lista_truncada":len(r["items"]) < r["total"],
+                             "lista_truncada":offset > 0 or len(r["items"]) < r["total"],
+                             "offset":offset, "siguiente_offset":offset+len(r["items"]) if r["paginable"] and offset+len(r["items"]) < r["total"] else None,
+                             "paginacion_disponible":r["paginable"],
                              "fiabilidad_negocio":"no_verificada",
                              "alcance":"Solo referencias explícitas y filtros admitidos. No se infiere proyecto desde cabecera. Los contadores y filas pueden cambiar entre consultas."},
                              ms,n_items=len(r["items"]))

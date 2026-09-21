@@ -1,0 +1,3939 @@
+DEVIA — INFORME DE COMPROBACIONES API CLONE
+Versión del informe: 2026-09-21.4
+Inicio UTC: 2026-09-21T11:14:04.665918+00:00
+Fin UTC: 2026-09-21T11:15:14.912131+00:00
+Origen: Firebird configurado en el servidor que genera este informe; no datos simulados.
+GARANTÍA DEL 100 %: NO DEMOSTRADA
+Comprobación global de la base configurada; no certifica un proyecto seleccionado ni autoriza operaciones.
+Correcto solo se refiere a la regla indicada. Las consultas se ejecutan por separado y no forman una instantánea común.
+Solo lectura. Se ejecutan de nuevo las consultas del catálogo, no se reutilizan resultados históricos.
+Cobertura: todas las filas que cumplen el WHERE de cada SQL; los grupos pueden solaparse.
+No sumar poblaciones de checks ni clases Discover All: pueden consultar las mismas filas.
+Un check correcto acredita solo su regla y población. No equivale a equivalencia con mPYME.
+RESUMEN
+{"correcto": 18, "revisar": 9, "no_verificable": 3, "no_aplica": 0}
+
+GRUPO: Proyecto y estado — No verificable
+Distingue tener un proyecto registrado de poder trabajar en él. Un proyecto cerrado puede seguir siendo necesario para consultar su histórico.
+
+CHK-007 — Indicador de fin de obra informado — Correcto
+Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 63
+Ejemplo: Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.
+Acción: Completar o confirmar el estado en SQL Obras.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS
+
+CHK-008 — Permiso para nuevas imputaciones — No verificable
+Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.
+Resultado: Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Una obra no finalizada puede estar bloqueada para nuevas imputaciones.
+Acción: Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+GRUPO: Pertenencia de los datos — Revisar
+Comprueba referencias a proyectos y técnicos. Que un código exista no demuestra que la persona eligiera la obra correcta.
+
+CHK-001 — Líneas con proyecto identificable — Revisar
+Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.
+Resultado: 677533 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 677533; duración ms: 2922
+Ejemplo: Una línea puede existir en la base de datos y no indicar a qué obra pertenece.
+Acción: Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol
+
+CHK-002 — Referencias de técnicos existentes — Correcto
+Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.
+Resultado: 0 de 224563 registros requieren revisión en esta comprobación.
+Población evaluada: 224563; incidencias: 0; duración ms: 2187
+Ejemplo: Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.
+Acción: Contrastar las referencias con el catálogo y el parte original.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL
+
+CHK-014 — Cabecera de línea existente — Correcto
+Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 6531
+Ejemplo: Una línea apunta a una cabecera eliminada.
+Acción: Contrastar la cabecera original; no reasignar automáticamente.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l
+
+CHK-015 — Proyecto de cabecera y línea coincidentes — Correcto
+Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.
+Resultado: 0 de 266478 registros requieren revisión en esta comprobación.
+Población evaluada: 266478; incidencias: 0; duración ms: 1078
+Ejemplo: La cabecera corresponde a A pero la línea indica B.
+Acción: Contrastar ambas referencias con SQL Obras.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL
+
+CHK-016 — Proyecto de cabecera existente — Revisar
+Comprueba la referencia de proyecto de cada cabecera.
+Resultado: 7297 de 53943 registros requieren revisión en esta comprobación.
+Población evaluada: 53943; incidencias: 7297; duración ms: 313
+Ejemplo: Una cabecera apunta a una obra desconocida.
+Acción: Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c
+
+CHK-019 — Clave completa no nula: PROYECTOS — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 16
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS
+
+CHK-020 — Unicidad de clave completa: PROYECTOS — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 15
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K
+
+CHK-021 — Clave completa no nula: RECURSO — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 186 registros requieren revisión en esta comprobación.
+Población evaluada: 186; incidencias: 0; duración ms: 0
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO
+
+CHK-022 — Unicidad de clave completa: RECURSO — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 186 registros requieren revisión en esta comprobación.
+Población evaluada: 186; incidencias: 0; duración ms: 0
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K
+
+CHK-023 — Clave completa no nula: OBRACAB — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 53943 registros requieren revisión en esta comprobación.
+Población evaluada: 53943; incidencias: 0; duración ms: 47
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB
+
+CHK-024 — Unicidad de clave completa: OBRACAB — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 53943 registros requieren revisión en esta comprobación.
+Población evaluada: 53943; incidencias: 0; duración ms: 62
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K
+
+CHK-025 — Clave completa no nula: OBRALIN — Correcto
+Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 2047
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-026 — Unicidad de clave completa: OBRALIN — Correcto
+Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 2750
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K
+
+CHK-027 — CODIGO de línea ambiguo sin cabecera — Revisar
+Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.
+Resultado: 6401 de 7335 registros requieren revisión en esta comprobación.
+Población evaluada: 7335; incidencias: 6401; duración ms: 1656
+Ejemplo: Las cabeceras A y B tienen ambas una línea 1.
+Acción: No identificar OBRALIN usando solo CODIGO.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K
+
+CHK-028 — Proyecto solo en cabecera — Correcto
+Detecta líneas sin proyecto propio cuya cabecera sí identifica uno; es una relación candidata, no una asignación confirmada.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 2453
+Ejemplo: La línea no indica obra, pero su cabecera indica A.
+Acción: Validar la regla de herencia en el ERP; no reasignar automáticamente.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NOT NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB
+
+CHK-029 — Proyecto solo en línea — Correcto
+La línea identifica una obra y su cabecera no: falta corroboración por la cabecera.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 2110
+Ejemplo: Una línea indica A y su cabecera está sin obra.
+Acción: Revisar origen y significado antes de darlo por confirmado.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB
+
+CHK-030 — Sin proyecto en línea ni cabecera — Revisar
+Ninguna de las dos referencias permite determinar la obra; puede pertenecer a otro circuito del ERP.
+Resultado: 677533 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 677533; duración ms: 2188
+Ejemplo: Trabajo registrado en reparaciones, sin obra.
+Acción: Clasificar el circuito de origen; no inventar un proyecto.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB
+
+GRUPO: Datos disponibles — Revisar
+Explica cuándo un cero se debe a datos incompletos o al filtro de cantidades, en lugar de ausencia de actividad.
+
+CHK-003 — Tipos de línea reconocidos — Correcto
+Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 1344
+Ejemplo: Una actualización del programa añade una nueva clase de material.
+Acción: Confirmar el significado del nuevo tipo antes de clasificar sus importes.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-009 — Mano de obra excluida por cantidad — Revisar
+Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.
+Resultado: 14064 de 14064 registros requieren revisión en esta comprobación.
+Población evaluada: 14064; incidencias: 14064; duración ms: 1094
+Ejemplo: Existe una línea con técnico informado, pero CANTIDAD vale cero.
+Acción: Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL
+
+CHK-017 — Mano de obra con recurso informado — Revisar
+Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.
+Resultado: 83072 de 307635 registros requieren revisión en esta comprobación.
+Población evaluada: 307635; incidencias: 83072; duración ms: 1125
+Ejemplo: Una línea MO no indica quién la realizó.
+Acción: No contabilizar líneas sin persona como técnicos distintos.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10
+
+GRUPO: Real frente a previsto — No verificable
+El trabajo presupuestado o previsto debe distinguirse del realizado. No se deben sumar ambos como si fueran ejecución.
+
+CHK-010 — Indicador real o previsto reconocido — Correcto
+Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 1640
+Ejemplo: Una línea sin indicador no puede clasificarse con seguridad.
+Acción: Confirmar la clasificación antes de sumar ejecución y previsión.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-011 — Separación en los informes — No verificable
+Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.
+Resultado: Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Una cantidad prevista puede aparecer dentro de un total presentado como realizado.
+Acción: Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+CHK-018 — Previsión de cabecera y línea coincidentes — Correcto
+Contrasta indicadores no nulos entre cabecera y línea.
+Resultado: 0 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 0; duración ms: 2109
+Ejemplo: Cabecera prevista con línea marcada como real.
+Acción: Confirmar qué indicador gobierna el informe antes de sumar.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL
+
+GRUPO: Fechas y coherencia — Revisar
+Detecta fechas ausentes o contradictorias. Una incidencia puede tener una explicación de negocio; no se corrige automáticamente.
+
+CHK-005 — Orden de inicio y fin — Correcto
+Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.
+Resultado: 0 de 178 registros requieren revisión en esta comprobación.
+Población evaluada: 178; incidencias: 0; duración ms: 31
+Ejemplo: La fecha final de una obra aparece antes de su inicio.
+Acción: Contrastar las dos fechas con la ficha del proyecto.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL
+
+CHK-012 — Fecha de línea disponible — Revisar
+Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.
+Resultado: 265398 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 265398; duración ms: 1188
+Ejemplo: Una línea tiene fecha de alta pero no fecha del trabajo.
+Acción: Confirmar qué fecha usa el informe de negocio.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+GRUPO: Totales y cobertura — Revisar
+Para confiar en un total hay que conocer qué líneas incluye, los ajustes y si se han consultado todos los resultados.
+
+CHK-004 — Cantidades negativas y ajustes — Revisar
+Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.
+Resultado: 18631 de 944011 registros requieren revisión en esta comprobación.
+Población evaluada: 944011; incidencias: 18631; duración ms: 2016
+Ejemplo: Se devuelve material y se registra una cantidad negativa.
+Acción: Comprobar que resumen, ranking y detalle traten igual los ajustes.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-006 — Cantidad positiva sin coste — Revisar
+Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.
+Resultado: 13 de 1737 registros requieren revisión en esta comprobación.
+Población evaluada: 1737; incidencias: 13; duración ms: 1375
+Ejemplo: Hay una cantidad registrada pero no una tarifa o coste asociado.
+Acción: Revisar la tarifa y si la línea es prevista o realizada.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0
+
+CHK-013 — Informe completo y conciliado — No verificable
+No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.
+Resultado: No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.
+Acción: Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+PK / FK / UNIQUE DECLARADAS EN FIREBIRD
+{
+  "sql": "SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,\n TRIM(rc.RDB$CONSTRAINT_NAME) AS RESTRICCION,\n TRIM(rc.RDB$CONSTRAINT_TYPE) AS TIPO,\n TRIM(s.RDB$FIELD_NAME) AS CAMPO, s.RDB$FIELD_POSITION AS POSICION,\n TRIM(parent.RDB$RELATION_NAME) AS TABLA_REFERIDA,\n TRIM(ps.RDB$FIELD_NAME) AS CAMPO_REFERIDO,\n idx.RDB$INDEX_INACTIVE AS INDICE_INACTIVO\n FROM RDB$RELATION_CONSTRAINTS rc\n LEFT JOIN RDB$INDICES idx ON idx.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$REF_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME=rc.RDB$CONSTRAINT_NAME\n LEFT JOIN RDB$RELATION_CONSTRAINTS parent ON parent.RDB$CONSTRAINT_NAME=ref.RDB$CONST_NAME_UQ\n LEFT JOIN RDB$INDEX_SEGMENTS ps ON ps.RDB$INDEX_NAME=parent.RDB$INDEX_NAME\n AND ps.RDB$FIELD_POSITION=s.RDB$FIELD_POSITION\n WHERE rc.RDB$RELATION_NAME IN ('ARTICULO','CLIENTE','DOCCAB','FABCAB','OBRACAB','OBRALIN','PRESUPROYE','PROVEED','PROYECTOS','RECURSO','REPARA','REPCAR','REPINSTALACION','REPOBJETO','TIPO')\n AND rc.RDB$CONSTRAINT_TYPE IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE')\n ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION",
+  "alcance": "ARTICULO, CLIENTE, DOCCAB, FABCAB, OBRACAB, OBRALIN, PRESUPROYE, PROVEED, PROYECTOS, RECURSO, REPARA, REPCAR, REPINSTALACION, REPOBJETO, TIPO",
+  "clases": {
+    "proyectos": "PROYECTOS",
+    "partidas": "PRESUPROYE",
+    "proordutil": "OBRALIN",
+    "proordprev": "OBRALIN",
+    "reporden": "REPARA",
+    "repordutil": "REPCAR",
+    "repobjetos": "REPOBJETO",
+    "repinst": "REPINSTALACION",
+    "tipostrabajo": "TIPO",
+    "recursos": "RECURSO",
+    "articulos": "ARTICULO",
+    "proveedores": "PROVEED",
+    "clientes": "CLIENTE",
+    "docalbcom": "DOCCAB",
+    "docfaccom": "DOCCAB",
+    "docpedcom": "DOCCAB",
+    "ordenfab": "FABCAB"
+  },
+  "estado": "inventariado",
+  "restricciones": [
+    {
+      "TABLA": "ARTICULO",
+      "RESTRICCION": "ARTICULO_MARCA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODMARCA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "MARCA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "ARTICULO",
+      "RESTRICCION": "ARTICULO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "ARTICULO",
+      "RESTRICCION": "ARTICULO_UNIDADMEDIDA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODUNIDADMEDIDA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "UNIDADMEDIDA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "CLIENTE",
+      "RESTRICCION": "CLIENTE_ALMACEN_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODALMACEN",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "ALMACEN",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "CLIENTE",
+      "RESTRICCION": "CLIENTE_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_CAMPANHA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODCAMPANHA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "CAMPANHA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_LIQAGE_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODIGOLIQUIDAGENTE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "LIQAGE",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_OPORTUNIDAD_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODOPORTUNIDAD",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "OPORTUNIDAD",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_REPARA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODREPARA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "REPARA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "DOCCAB",
+      "RESTRICCION": "DOCCAB_SEGUIMIENTODOCUMENTO_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODSEGUIMIENTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "SEGUIMIENTODOCUMENTO",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "FABCAB",
+      "RESTRICCION": "FABCAB_FABRICA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODMAESTRO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "FABRICA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "FABCAB",
+      "RESTRICCION": "FABCAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODMAESTRO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "FABCAB",
+      "RESTRICCION": "FABCAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "ESPREVISION",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "FABCAB",
+      "RESTRICCION": "FABCAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_PROYECTOS_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "PROYECTOS",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "ESPREVISION",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODIGO",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_OBRACAB_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODCAB",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "OBRACAB",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODCAB",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_REPARA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODREPARA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "REPARA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_DOCCAB_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPRESUPUESTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "DOCCAB",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYSUBCONTRATA",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPRESUPUESTO",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PROYECTOS_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "PROYECTOS",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PROVEED",
+      "RESTRICCION": "PROVEED_ALMACEN_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODALMACEN",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "ALMACEN",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PROVEED",
+      "RESTRICCION": "PROVEED_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PROYECTOS",
+      "RESTRICCION": "PROYECTOS_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_AGENTE_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODAGENTE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "AGENTE",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPADRE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "ORDEN",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "PINCONTROLPRESENCIA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPARA",
+      "RESTRICCION": "REPARA_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPCAR",
+      "RESTRICCION": "REPCAR_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODREPARA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "REPCAR",
+      "RESTRICCION": "REPCAR_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODCLASE",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "REPCAR",
+      "RESTRICCION": "REPCAR_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODCARACT",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "REPCAR",
+      "RESTRICCION": "REPCAR_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "VALOR",
+      "POSICION": 3,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "REPCAR",
+      "RESTRICCION": "REPCAR_REPARA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODREPARA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "REPARA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPINSTALACION",
+      "RESTRICCION": "REPINSTALACION_CLIENTE_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODCLIENTE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "CLIENTE",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPINSTALACION",
+      "RESTRICCION": "REPINSTALACION_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPINSTALACION",
+      "RESTRICCION": "REPINSTALACION_PROYECTO_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "PROYECTOS",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPOBJETO",
+      "RESTRICCION": "REPOBJETO_CLIENTE_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROPIETARIO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "CLIENTE",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "REPOBJETO",
+      "RESTRICCION": "REPOBJETO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "REPOBJETO",
+      "RESTRICCION": "REPOBJETO_RECURSO_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODRECURSO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "RECURSO",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "TIPO",
+      "RESTRICCION": "TIPO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "TIPO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "TIPO",
+      "RESTRICCION": "TIPO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    }
+  ],
+  "nota": "Sin FK declarada no hay garantía del motor sobre esa relación. El inventario no prueba todos los endpoints.",
+  "ms": 16
+}
+
+CONTRASTE DE RESTRICCIONES CON LOS DATOS (todas las tablas mapeadas)
+PK: identidad completa. FK: referencia a otra tabla. UNIQUE: combinación que no debe repetirse.
+Inventariada significa encontrada en el esquema, no datos certificados.
+FK con algún componente NULL: dato incompleto, no huérfano probado. UNIQUE con NULL: no se declara duplicado por esa causa. Cada restricción se comprueba por separado; no sumar sus poblaciones.
+Resumen estructural: {"correcto": 60, "revisar": 0, "no_verificable": 1, "no_aplica": 20, "informativo": 19, "inventariada": 14}
+ARTICULO /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+CLIENTE /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+DOCCAB /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+FABCAB /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+OBRACAB /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+OBRALIN /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+PRESUPROYE /  / PK declarada: no_verificable
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+PROVEED /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+PROYECTOS /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+RECURSO /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+REPARA /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+REPCAR /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+REPINSTALACION /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+REPOBJETO /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+TIPO /  / PK declarada: inventariada
+Evaluados: no disponible; incidencias: no disponible
+No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.
+ARTICULO / ARTICULO_MARCA_FK / Componentes nulos: informativo
+Evaluados: 12398; incidencias: 10758
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODMARCA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO"
+ARTICULO / ARTICULO_MARCA_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 1640; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "MARCA" P WHERE P."CODIGO"=C."CODMARCA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO" C WHERE C."CODMARCA" IS NOT NULL
+ARTICULO / ARTICULO_MARCA_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 1640; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "MARCA" P WHERE P."CODIGO"=C."CODMARCA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO" C WHERE C."CODMARCA" IS NOT NULL
+ARTICULO / ARTICULO_PK / Componentes nulos: correcto
+Evaluados: 12398; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO"
+ARTICULO / ARTICULO_PK / Grupos duplicados no nulos: correcto
+Evaluados: 12398; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "ARTICULO" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+ARTICULO / ARTICULO_UNIDADMEDIDA_FK / Componentes nulos: informativo
+Evaluados: 12398; incidencias: 12392
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODUNIDADMEDIDA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO"
+ARTICULO / ARTICULO_UNIDADMEDIDA_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 6; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "UNIDADMEDIDA" P WHERE P."CODIGO"=C."CODUNIDADMEDIDA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO" C WHERE C."CODUNIDADMEDIDA" IS NOT NULL
+ARTICULO / ARTICULO_UNIDADMEDIDA_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 6; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "UNIDADMEDIDA" P WHERE P."CODIGO"=C."CODUNIDADMEDIDA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "ARTICULO" C WHERE C."CODUNIDADMEDIDA" IS NOT NULL
+CLIENTE / CLIENTE_ALMACEN_FK / Componentes nulos: informativo
+Evaluados: 9428; incidencias: 9428
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODALMACEN" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "CLIENTE"
+CLIENTE / CLIENTE_ALMACEN_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "ALMACEN" P WHERE P."CODIGO"=C."CODALMACEN") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "CLIENTE" C WHERE C."CODALMACEN" IS NOT NULL
+CLIENTE / CLIENTE_ALMACEN_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "ALMACEN" P WHERE P."CODIGO"=C."CODALMACEN")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "CLIENTE" C WHERE C."CODALMACEN" IS NOT NULL
+CLIENTE / CLIENTE_PK / Componentes nulos: correcto
+Evaluados: 9428; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "CLIENTE"
+CLIENTE / CLIENTE_PK / Grupos duplicados no nulos: correcto
+Evaluados: 9428; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "CLIENTE" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+DOCCAB / DOCCAB_CAMPANHA_FK / Componentes nulos: informativo
+Evaluados: 83509; incidencias: 83509
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODCAMPANHA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_CAMPANHA_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "CAMPANHA" P WHERE P."CODIGO"=C."CODCAMPANHA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODCAMPANHA" IS NOT NULL
+DOCCAB / DOCCAB_CAMPANHA_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "CAMPANHA" P WHERE P."CODIGO"=C."CODCAMPANHA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODCAMPANHA" IS NOT NULL
+DOCCAB / DOCCAB_LIQAGE_FK / Componentes nulos: informativo
+Evaluados: 83509; incidencias: 83509
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGOLIQUIDAGENTE" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_LIQAGE_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "LIQAGE" P WHERE P."CODIGO"=C."CODIGOLIQUIDAGENTE") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODIGOLIQUIDAGENTE" IS NOT NULL
+DOCCAB / DOCCAB_LIQAGE_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "LIQAGE" P WHERE P."CODIGO"=C."CODIGOLIQUIDAGENTE")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODIGOLIQUIDAGENTE" IS NOT NULL
+DOCCAB / DOCCAB_OPORTUNIDAD_FK / Componentes nulos: informativo
+Evaluados: 83509; incidencias: 83509
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODOPORTUNIDAD" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_OPORTUNIDAD_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "OPORTUNIDAD" P WHERE P."CODIGO"=C."CODOPORTUNIDAD") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODOPORTUNIDAD" IS NOT NULL
+DOCCAB / DOCCAB_OPORTUNIDAD_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "OPORTUNIDAD" P WHERE P."CODIGO"=C."CODOPORTUNIDAD")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODOPORTUNIDAD" IS NOT NULL
+DOCCAB / DOCCAB_PK / Componentes nulos: correcto
+Evaluados: 83509; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_PK / Grupos duplicados no nulos: correcto
+Evaluados: 83509; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "DOCCAB" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+DOCCAB / DOCCAB_REPARA_FK / Componentes nulos: informativo
+Evaluados: 83509; incidencias: 71397
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODREPARA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_REPARA_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 12112; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODREPARA" IS NOT NULL
+DOCCAB / DOCCAB_REPARA_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 12112; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODREPARA" IS NOT NULL
+DOCCAB / DOCCAB_SEGUIMIENTODOCUMENTO_FK / Componentes nulos: informativo
+Evaluados: 83509; incidencias: 75262
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODSEGUIMIENTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB"
+DOCCAB / DOCCAB_SEGUIMIENTODOCUMENTO_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 8247; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "SEGUIMIENTODOCUMENTO" P WHERE P."CODIGO"=C."CODSEGUIMIENTO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODSEGUIMIENTO" IS NOT NULL
+DOCCAB / DOCCAB_SEGUIMIENTODOCUMENTO_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 8247; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "SEGUIMIENTODOCUMENTO" P WHERE P."CODIGO"=C."CODSEGUIMIENTO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "DOCCAB" C WHERE C."CODSEGUIMIENTO" IS NOT NULL
+FABCAB / FABCAB_FABRICA_FK / Componentes nulos: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODMAESTRO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "FABCAB"
+FABCAB / FABCAB_FABRICA_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "FABRICA" P WHERE P."CODIGO"=C."CODMAESTRO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "FABCAB" C WHERE C."CODMAESTRO" IS NOT NULL
+FABCAB / FABCAB_FABRICA_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "FABRICA" P WHERE P."CODIGO"=C."CODMAESTRO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "FABCAB" C WHERE C."CODMAESTRO" IS NOT NULL
+FABCAB / FABCAB_PK / Componentes nulos: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODMAESTRO" IS NULL OR "ESPREVISION" IS NULL OR "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "FABCAB"
+FABCAB / FABCAB_PK / Grupos duplicados no nulos: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODMAESTRO","ESPREVISION","CODIGO", COUNT(*) AS N FROM "FABCAB" WHERE "CODMAESTRO" IS NOT NULL AND "ESPREVISION" IS NOT NULL AND "CODIGO" IS NOT NULL GROUP BY "CODMAESTRO","ESPREVISION","CODIGO") K
+OBRACAB / OBRACAB_PK / Componentes nulos: correcto
+Evaluados: 53943; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRACAB"
+OBRACAB / OBRACAB_PK / Grupos duplicados no nulos: correcto
+Evaluados: 53943; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "OBRACAB" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+OBRACAB / OBRACAB_PROYECTOS_FK / Componentes nulos: informativo
+Evaluados: 53943; incidencias: 7297
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROYECTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRACAB"
+OBRACAB / OBRACAB_PROYECTOS_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 46646; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRACAB" C WHERE C."CODPROYECTO" IS NOT NULL
+OBRACAB / OBRACAB_PROYECTOS_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 46646; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRACAB" C WHERE C."CODPROYECTO" IS NOT NULL
+OBRACAB / OBRACAB_UQ / Componentes nulos: informativo
+Evaluados: 53943; incidencias: 7297
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROYECTO" IS NULL OR "ESPREVISION" IS NULL OR "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRACAB"
+OBRACAB / OBRACAB_UQ / Grupos duplicados no nulos: correcto
+Evaluados: 46646; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODPROYECTO","ESPREVISION","CODIGO", COUNT(*) AS N FROM "OBRACAB" WHERE "CODPROYECTO" IS NOT NULL AND "ESPREVISION" IS NOT NULL AND "CODIGO" IS NOT NULL GROUP BY "CODPROYECTO","ESPREVISION","CODIGO") K
+OBRALIN / OBRALIN_OBRACAB_FK / Componentes nulos: correcto
+Evaluados: 944011; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODCAB" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN"
+OBRALIN / OBRALIN_OBRACAB_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 944011; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "OBRACAB" P WHERE P."CODIGO"=C."CODCAB") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN" C WHERE C."CODCAB" IS NOT NULL
+OBRALIN / OBRALIN_OBRACAB_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 944011; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "OBRACAB" P WHERE P."CODIGO"=C."CODCAB")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN" C WHERE C."CODCAB" IS NOT NULL
+OBRALIN / OBRALIN_PK / Componentes nulos: correcto
+Evaluados: 944011; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODCAB" IS NULL OR "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN"
+OBRALIN / OBRALIN_PK / Grupos duplicados no nulos: correcto
+Evaluados: 944011; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODCAB","CODIGO", COUNT(*) AS N FROM "OBRALIN" WHERE "CODCAB" IS NOT NULL AND "CODIGO" IS NOT NULL GROUP BY "CODCAB","CODIGO") K
+OBRALIN / OBRALIN_REPARA_FK / Componentes nulos: informativo
+Evaluados: 944011; incidencias: 943331
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODREPARA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN"
+OBRALIN / OBRALIN_REPARA_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 680; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN" C WHERE C."CODREPARA" IS NOT NULL
+OBRALIN / OBRALIN_REPARA_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 680; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "OBRALIN" C WHERE C."CODREPARA" IS NOT NULL
+PRESUPROYE / PRESUPROYE_DOCCAB_FK / Componentes nulos: correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPRESUPUESTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE"
+PRESUPROYE / PRESUPROYE_DOCCAB_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "DOCCAB" P WHERE P."CODIGO"=C."CODPRESUPUESTO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE" C WHERE C."CODPRESUPUESTO" IS NOT NULL
+PRESUPROYE / PRESUPROYE_DOCCAB_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "DOCCAB" P WHERE P."CODIGO"=C."CODPRESUPUESTO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE" C WHERE C."CODPRESUPUESTO" IS NOT NULL
+PRESUPROYE / PRESUPROYE_PK / Componentes nulos: informativo
+Evaluados: 1713; incidencias: 1526
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROYECTO" IS NULL OR "CODPROYSUBCONTRATA" IS NULL OR "CODPRESUPUESTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE"
+PRESUPROYE / PRESUPROYE_PK / Grupos duplicados no nulos: correcto
+Evaluados: 187; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODPROYECTO","CODPROYSUBCONTRATA","CODPRESUPUESTO", COUNT(*) AS N FROM "PRESUPROYE" WHERE "CODPROYECTO" IS NOT NULL AND "CODPROYSUBCONTRATA" IS NOT NULL AND "CODPRESUPUESTO" IS NOT NULL GROUP BY "CODPROYECTO","CODPROYSUBCONTRATA","CODPRESUPUESTO") K
+PRESUPROYE / PRESUPROYE_PROYECTOS_FK / Componentes nulos: correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROYECTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE"
+PRESUPROYE / PRESUPROYE_PROYECTOS_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE" C WHERE C."CODPROYECTO" IS NOT NULL
+PRESUPROYE / PRESUPROYE_PROYECTOS_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 1713; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PRESUPROYE" C WHERE C."CODPROYECTO" IS NOT NULL
+PROVEED / PROVEED_ALMACEN_FK / Componentes nulos: informativo
+Evaluados: 1790; incidencias: 1790
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODALMACEN" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PROVEED"
+PROVEED / PROVEED_ALMACEN_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "ALMACEN" P WHERE P."CODIGO"=C."CODALMACEN") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PROVEED" C WHERE C."CODALMACEN" IS NOT NULL
+PROVEED / PROVEED_ALMACEN_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "ALMACEN" P WHERE P."CODIGO"=C."CODALMACEN")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PROVEED" C WHERE C."CODALMACEN" IS NOT NULL
+PROVEED / PROVEED_PK / Componentes nulos: correcto
+Evaluados: 1790; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PROVEED"
+PROVEED / PROVEED_PK / Grupos duplicados no nulos: correcto
+Evaluados: 1790; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "PROVEED" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+PROYECTOS / PROYECTOS_PK / Componentes nulos: correcto
+Evaluados: 1216; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "PROYECTOS"
+PROYECTOS / PROYECTOS_PK / Grupos duplicados no nulos: correcto
+Evaluados: 1216; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "PROYECTOS" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+RECURSO / RECURSO_AGENTE_FK / Componentes nulos: informativo
+Evaluados: 186; incidencias: 186
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODAGENTE" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO"
+RECURSO / RECURSO_AGENTE_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "AGENTE" P WHERE P."CODIGO"=C."CODAGENTE") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO" C WHERE C."CODAGENTE" IS NOT NULL
+RECURSO / RECURSO_AGENTE_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "AGENTE" P WHERE P."CODIGO"=C."CODAGENTE")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO" C WHERE C."CODAGENTE" IS NOT NULL
+RECURSO / RECURSO_PADRE_ORDEN_UQ / Componentes nulos: informativo
+Evaluados: 186; incidencias: 3
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPADRE" IS NULL OR "ORDEN" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO"
+RECURSO / RECURSO_PADRE_ORDEN_UQ / Grupos duplicados no nulos: correcto
+Evaluados: 183; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODPADRE","ORDEN", COUNT(*) AS N FROM "RECURSO" WHERE "CODPADRE" IS NOT NULL AND "ORDEN" IS NOT NULL GROUP BY "CODPADRE","ORDEN") K
+RECURSO / RECURSO_PK / Componentes nulos: correcto
+Evaluados: 186; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO"
+RECURSO / RECURSO_PK / Grupos duplicados no nulos: correcto
+Evaluados: 186; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "RECURSO" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+RECURSO / RECURSO_UQ / Componentes nulos: informativo
+Evaluados: 186; incidencias: 186
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "PINCONTROLPRESENCIA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "RECURSO"
+RECURSO / RECURSO_UQ / Grupos duplicados no nulos: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "PINCONTROLPRESENCIA", COUNT(*) AS N FROM "RECURSO" WHERE "PINCONTROLPRESENCIA" IS NOT NULL GROUP BY "PINCONTROLPRESENCIA") K
+REPARA / REPARA_PK / Componentes nulos: correcto
+Evaluados: 8436; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPARA"
+REPARA / REPARA_PK / Grupos duplicados no nulos: correcto
+Evaluados: 8436; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "REPARA" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+REPCAR / REPCAR_PK / Componentes nulos: correcto
+Evaluados: 12170; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODREPARA" IS NULL OR "CODCLASE" IS NULL OR "CODCARACT" IS NULL OR "VALOR" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPCAR"
+REPCAR / REPCAR_PK / Grupos duplicados no nulos: correcto
+Evaluados: 12170; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODREPARA","CODCLASE","CODCARACT","VALOR", COUNT(*) AS N FROM "REPCAR" WHERE "CODREPARA" IS NOT NULL AND "CODCLASE" IS NOT NULL AND "CODCARACT" IS NOT NULL AND "VALOR" IS NOT NULL GROUP BY "CODREPARA","CODCLASE","CODCARACT","VALOR") K
+REPCAR / REPCAR_REPARA_FK / Componentes nulos: correcto
+Evaluados: 12170; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODREPARA" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPCAR"
+REPCAR / REPCAR_REPARA_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 12170; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPCAR" C WHERE C."CODREPARA" IS NOT NULL
+REPCAR / REPCAR_REPARA_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 12170; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "REPARA" P WHERE P."CODIGO"=C."CODREPARA")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPCAR" C WHERE C."CODREPARA" IS NOT NULL
+REPINSTALACION / REPINSTALACION_CLIENTE_FK / Componentes nulos: correcto
+Evaluados: 124; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODCLIENTE" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION"
+REPINSTALACION / REPINSTALACION_CLIENTE_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 124; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "CLIENTE" P WHERE P."CODIGO"=C."CODCLIENTE") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION" C WHERE C."CODCLIENTE" IS NOT NULL
+REPINSTALACION / REPINSTALACION_CLIENTE_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 124; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "CLIENTE" P WHERE P."CODIGO"=C."CODCLIENTE")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION" C WHERE C."CODCLIENTE" IS NOT NULL
+REPINSTALACION / REPINSTALACION_PK / Componentes nulos: correcto
+Evaluados: 124; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION"
+REPINSTALACION / REPINSTALACION_PK / Grupos duplicados no nulos: correcto
+Evaluados: 124; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "REPINSTALACION" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+REPINSTALACION / REPINSTALACION_PROYECTO_FK / Componentes nulos: informativo
+Evaluados: 124; incidencias: 124
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROYECTO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION"
+REPINSTALACION / REPINSTALACION_PROYECTO_FK / Referencias huérfanas no nulas: no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION" C WHERE C."CODPROYECTO" IS NOT NULL
+REPINSTALACION / REPINSTALACION_PROYECTO_FK / Referencia con varios destinos (multiplica JOIN): no_aplica
+Evaluados: 0; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "PROYECTOS" P WHERE P."CODIGO"=C."CODPROYECTO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPINSTALACION" C WHERE C."CODPROYECTO" IS NOT NULL
+REPOBJETO / REPOBJETO_CLIENTE_FK / Componentes nulos: informativo
+Evaluados: 445; incidencias: 3
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODPROPIETARIO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO"
+REPOBJETO / REPOBJETO_CLIENTE_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 442; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "CLIENTE" P WHERE P."CODIGO"=C."CODPROPIETARIO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO" C WHERE C."CODPROPIETARIO" IS NOT NULL
+REPOBJETO / REPOBJETO_CLIENTE_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 442; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "CLIENTE" P WHERE P."CODIGO"=C."CODPROPIETARIO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO" C WHERE C."CODPROPIETARIO" IS NOT NULL
+REPOBJETO / REPOBJETO_PK / Componentes nulos: correcto
+Evaluados: 445; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO"
+REPOBJETO / REPOBJETO_PK / Grupos duplicados no nulos: correcto
+Evaluados: 445; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "CODIGO", COUNT(*) AS N FROM "REPOBJETO" WHERE "CODIGO" IS NOT NULL GROUP BY "CODIGO") K
+REPOBJETO / REPOBJETO_RECURSO_FK / Componentes nulos: informativo
+Evaluados: 445; incidencias: 444
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "CODRECURSO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO"
+REPOBJETO / REPOBJETO_RECURSO_FK / Referencias huérfanas no nulas: correcto
+Evaluados: 1; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM "RECURSO" P WHERE P."CODIGO"=C."CODRECURSO") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO" C WHERE C."CODRECURSO" IS NOT NULL
+REPOBJETO / REPOBJETO_RECURSO_FK / Referencia con varios destinos (multiplica JOIN): correcto
+Evaluados: 1; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM "RECURSO" P WHERE P."CODIGO"=C."CODRECURSO")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "REPOBJETO" C WHERE C."CODRECURSO" IS NOT NULL
+TIPO / TIPO_PK / Componentes nulos: correcto
+Evaluados: 199; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN "TIPO" IS NULL OR "CODIGO" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM "TIPO"
+TIPO / TIPO_PK / Grupos duplicados no nulos: correcto
+Evaluados: 199; incidencias: 0
+SQL: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT "TIPO","CODIGO", COUNT(*) AS N FROM "TIPO" WHERE "TIPO" IS NOT NULL AND "CODIGO" IS NOT NULL GROUP BY "TIPO","CODIGO") K
+
+PRUEBAS NO REALIZADAS POR ESTE INFORME
+Comparación independiente respuesta a respuesta con mPYME / SQL Obras.
+Aislamiento por proyecto de cada endpoint y tratamiento de claves compuestas.
+Reglas completas de borradores, bloqueos, permisos y cierre de ejercicio.
+Certificación de horas/costes, unidades, tarifas y conciliación contable.
+Paginación exhaustiva de todos los endpoints, concurrencia e instantánea transaccional común.
+Pruebas automáticas del código: no se ejecuta pytest desde este informe.
+La referencia a una obra existente no demuestra que la obra elegida en el parte sea correcta.
+EVIDENCIA ESTRUCTURADA COMPLETA (JSON)
+SHA-256 del JSON UTF-8 siguiente: c23262eeff54a3ed8c77ebc46802fe39c490965f6801c44357e83d520ee428b9
+La huella detecta cambios del JSON; no acredita la veracidad de la fuente.
+{
+  "alcance": "Comprobación global de la base configurada; no certifica un proyecto seleccionado ni autoriza operaciones.",
+  "checks": [
+    {
+      "accion": "Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.",
+      "descripcion": "Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.",
+      "detalle": "677533 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea puede existir en la base de datos y no indicar a qué obra pertenece.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-001",
+      "ms": 2922,
+      "nombre": "Líneas con proyecto identificable",
+      "ok": false,
+      "resultado": 677533,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Contrastar las referencias con el catálogo y el parte original.",
+      "descripcion": "Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.",
+      "detalle": "0 de 224563 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-002",
+      "ms": 2187,
+      "nombre": "Referencias de técnicos existentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL",
+      "total_evaluado": 224563
+    },
+    {
+      "accion": "Confirmar el significado del nuevo tipo antes de clasificar sus importes.",
+      "descripcion": "Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una actualización del programa añade una nueva clase de material.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "disponibilidad",
+      "id": "CHK-003",
+      "ms": 1344,
+      "nombre": "Tipos de línea reconocidos",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Comprobar que resumen, ranking y detalle traten igual los ajustes.",
+      "descripcion": "Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.",
+      "detalle": "18631 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Se devuelve material y se registra una cantidad negativa.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "totales",
+      "id": "CHK-004",
+      "ms": 2016,
+      "nombre": "Cantidades negativas y ajustes",
+      "ok": false,
+      "resultado": 18631,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Contrastar las dos fechas con la ficha del proyecto.",
+      "descripcion": "Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.",
+      "detalle": "0 de 178 registros requieren revisión en esta comprobación.",
+      "ejemplo": "La fecha final de una obra aparece antes de su inicio.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "fechas",
+      "id": "CHK-005",
+      "ms": 31,
+      "nombre": "Orden de inicio y fin",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL",
+      "total_evaluado": 178
+    },
+    {
+      "accion": "Revisar la tarifa y si la línea es prevista o realizada.",
+      "descripcion": "Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.",
+      "detalle": "13 de 1737 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Hay una cantidad registrada pero no una tarifa o coste asociado.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "totales",
+      "id": "CHK-006",
+      "ms": 1375,
+      "nombre": "Cantidad positiva sin coste",
+      "ok": false,
+      "resultado": 13,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0",
+      "total_evaluado": 1737
+    },
+    {
+      "accion": "Completar o confirmar el estado en SQL Obras.",
+      "descripcion": "Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "estado",
+      "id": "CHK-007",
+      "ms": 63,
+      "nombre": "Indicador de fin de obra informado",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.",
+      "descripcion": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+      "detalle": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+      "ejemplo": "Una obra no finalizada puede estar bloqueada para nuevas imputaciones.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "estado",
+      "id": "CHK-008",
+      "ms": 0,
+      "nombre": "Permiso para nuevas imputaciones",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.",
+      "descripcion": "Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.",
+      "detalle": "14064 de 14064 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Existe una línea con técnico informado, pero CANTIDAD vale cero.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "disponibilidad",
+      "id": "CHK-009",
+      "ms": 1094,
+      "nombre": "Mano de obra excluida por cantidad",
+      "ok": false,
+      "resultado": 14064,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL",
+      "total_evaluado": 14064
+    },
+    {
+      "accion": "Confirmar la clasificación antes de sumar ejecución y previsión.",
+      "descripcion": "Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea sin indicador no puede clasificarse con seguridad.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "prevision",
+      "id": "CHK-010",
+      "ms": 1640,
+      "nombre": "Indicador real o previsto reconocido",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.",
+      "descripcion": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+      "detalle": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+      "ejemplo": "Una cantidad prevista puede aparecer dentro de un total presentado como realizado.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "prevision",
+      "id": "CHK-011",
+      "ms": 0,
+      "nombre": "Separación en los informes",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Confirmar qué fecha usa el informe de negocio.",
+      "descripcion": "Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.",
+      "detalle": "265398 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea tiene fecha de alta pero no fecha del trabajo.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "fechas",
+      "id": "CHK-012",
+      "ms": 1188,
+      "nombre": "Fecha de línea disponible",
+      "ok": false,
+      "resultado": 265398,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.",
+      "descripcion": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+      "detalle": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+      "ejemplo": "Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "totales",
+      "id": "CHK-013",
+      "ms": 0,
+      "nombre": "Informe completo y conciliado",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Contrastar la cabecera original; no reasignar automáticamente.",
+      "descripcion": "Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea apunta a una cabecera eliminada.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-014",
+      "ms": 6531,
+      "nombre": "Cabecera de línea existente",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Contrastar ambas referencias con SQL Obras.",
+      "descripcion": "Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.",
+      "detalle": "0 de 266478 registros requieren revisión en esta comprobación.",
+      "ejemplo": "La cabecera corresponde a A pero la línea indica B.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-015",
+      "ms": 1078,
+      "nombre": "Proyecto de cabecera y línea coincidentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL",
+      "total_evaluado": 266478
+    },
+    {
+      "accion": "Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.",
+      "descripcion": "Comprueba la referencia de proyecto de cada cabecera.",
+      "detalle": "7297 de 53943 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una cabecera apunta a una obra desconocida.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-016",
+      "ms": 313,
+      "nombre": "Proyecto de cabecera existente",
+      "ok": false,
+      "resultado": 7297,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c",
+      "total_evaluado": 53943
+    },
+    {
+      "accion": "No contabilizar líneas sin persona como técnicos distintos.",
+      "descripcion": "Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.",
+      "detalle": "83072 de 307635 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea MO no indica quién la realizó.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "disponibilidad",
+      "id": "CHK-017",
+      "ms": 1125,
+      "nombre": "Mano de obra con recurso informado",
+      "ok": false,
+      "resultado": 83072,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10",
+      "total_evaluado": 307635
+    },
+    {
+      "accion": "Confirmar qué indicador gobierna el informe antes de sumar.",
+      "descripcion": "Contrasta indicadores no nulos entre cabecera y línea.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Cabecera prevista con línea marcada como real.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "prevision",
+      "id": "CHK-018",
+      "ms": 2109,
+      "nombre": "Previsión de cabecera y línea coincidentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-019",
+      "ms": 16,
+      "nombre": "Clave completa no nula: PROYECTOS",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-020",
+      "ms": 15,
+      "nombre": "Unicidad de clave completa: PROYECTOS",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-021",
+      "ms": 0,
+      "nombre": "Clave completa no nula: RECURSO",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO",
+      "total_evaluado": 186
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-022",
+      "ms": 0,
+      "nombre": "Unicidad de clave completa: RECURSO",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K",
+      "total_evaluado": 186
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 53943 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-023",
+      "ms": 47,
+      "nombre": "Clave completa no nula: OBRACAB",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB",
+      "total_evaluado": 53943
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 53943 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-024",
+      "ms": 62,
+      "nombre": "Unicidad de clave completa: OBRACAB",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K",
+      "total_evaluado": 53943
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-025",
+      "ms": 2047,
+      "nombre": "Clave completa no nula: OBRALIN",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-026",
+      "ms": 2750,
+      "nombre": "Unicidad de clave completa: OBRALIN",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "No identificar OBRALIN usando solo CODIGO.",
+      "descripcion": "Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.",
+      "detalle": "6401 de 7335 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Las cabeceras A y B tienen ambas una línea 1.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-027",
+      "ms": 1656,
+      "nombre": "CODIGO de línea ambiguo sin cabecera",
+      "ok": false,
+      "resultado": 6401,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K",
+      "total_evaluado": 7335
+    },
+    {
+      "accion": "Validar la regla de herencia en el ERP; no reasignar automáticamente.",
+      "descripcion": "Detecta líneas sin proyecto propio cuya cabecera sí identifica uno; es una relación candidata, no una asignación confirmada.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "La línea no indica obra, pero su cabecera indica A.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-028",
+      "ms": 2453,
+      "nombre": "Proyecto solo en cabecera",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NOT NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Revisar origen y significado antes de darlo por confirmado.",
+      "descripcion": "La línea identifica una obra y su cabecera no: falta corroboración por la cabecera.",
+      "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea indica A y su cabecera está sin obra.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-029",
+      "ms": 2110,
+      "nombre": "Proyecto solo en línea",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+      "total_evaluado": 944011
+    },
+    {
+      "accion": "Clasificar el circuito de origen; no inventar un proyecto.",
+      "descripcion": "Ninguna de las dos referencias permite determinar la obra; puede pertenecer a otro circuito del ERP.",
+      "detalle": "677533 de 944011 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Trabajo registrado en reparaciones, sin obra.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-030",
+      "ms": 2188,
+      "nombre": "Sin proyecto en línea ni cabecera",
+      "ok": false,
+      "resultado": 677533,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+      "total_evaluado": 944011
+    }
+  ],
+  "estructura": {
+    "alcance": "ARTICULO, CLIENTE, DOCCAB, FABCAB, OBRACAB, OBRALIN, PRESUPROYE, PROVEED, PROYECTOS, RECURSO, REPARA, REPCAR, REPINSTALACION, REPOBJETO, TIPO",
+    "clases": {
+      "articulos": "ARTICULO",
+      "clientes": "CLIENTE",
+      "docalbcom": "DOCCAB",
+      "docfaccom": "DOCCAB",
+      "docpedcom": "DOCCAB",
+      "ordenfab": "FABCAB",
+      "partidas": "PRESUPROYE",
+      "proordprev": "OBRALIN",
+      "proordutil": "OBRALIN",
+      "proveedores": "PROVEED",
+      "proyectos": "PROYECTOS",
+      "recursos": "RECURSO",
+      "repinst": "REPINSTALACION",
+      "repobjetos": "REPOBJETO",
+      "reporden": "REPARA",
+      "repordutil": "REPCAR",
+      "tipostrabajo": "TIPO"
+    },
+    "estado": "inventariado",
+    "ms": 16,
+    "nota": "Sin FK declarada no hay garantía del motor sobre esa relación. El inventario no prueba todos los endpoints.",
+    "restricciones": [
+      {
+        "CAMPO": "CODMARCA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "ARTICULO_MARCA_FK",
+        "TABLA": "ARTICULO",
+        "TABLA_REFERIDA": "MARCA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "ARTICULO_PK",
+        "TABLA": "ARTICULO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODUNIDADMEDIDA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "ARTICULO_UNIDADMEDIDA_FK",
+        "TABLA": "ARTICULO",
+        "TABLA_REFERIDA": "UNIDADMEDIDA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODALMACEN",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "CLIENTE_ALMACEN_FK",
+        "TABLA": "CLIENTE",
+        "TABLA_REFERIDA": "ALMACEN",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "CLIENTE_PK",
+        "TABLA": "CLIENTE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODCAMPANHA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_CAMPANHA_FK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": "CAMPANHA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGOLIQUIDAGENTE",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_LIQAGE_FK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": "LIQAGE",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODOPORTUNIDAD",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_OPORTUNIDAD_FK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": "OPORTUNIDAD",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_PK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODREPARA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_REPARA_FK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": "REPARA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODSEGUIMIENTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "DOCCAB_SEGUIMIENTODOCUMENTO_FK",
+        "TABLA": "DOCCAB",
+        "TABLA_REFERIDA": "SEGUIMIENTODOCUMENTO",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODMAESTRO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "FABCAB_FABRICA_FK",
+        "TABLA": "FABCAB",
+        "TABLA_REFERIDA": "FABRICA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODMAESTRO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "FABCAB_PK",
+        "TABLA": "FABCAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "ESPREVISION",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "FABCAB_PK",
+        "TABLA": "FABCAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 2,
+        "RESTRICCION": "FABCAB_PK",
+        "TABLA": "FABCAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_PK",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_PROYECTOS_FK",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": "PROYECTOS",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "ESPREVISION",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 2,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODCAB",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_OBRACAB_FK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": "OBRACAB",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODCAB",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_PK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "OBRALIN_PK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODREPARA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_REPARA_FK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": "REPARA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPRESUPUESTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_DOCCAB_FK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": "DOCCAB",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPROYSUBCONTRATA",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 1,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPRESUPUESTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 2,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_PROYECTOS_FK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": "PROYECTOS",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODALMACEN",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PROVEED_ALMACEN_FK",
+        "TABLA": "PROVEED",
+        "TABLA_REFERIDA": "ALMACEN",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PROVEED_PK",
+        "TABLA": "PROVEED",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PROYECTOS_PK",
+        "TABLA": "PROYECTOS",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODAGENTE",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_AGENTE_FK",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": "AGENTE",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPADRE",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "ORDEN",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_PK",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "PINCONTROLPRESENCIA",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPARA_PK",
+        "TABLA": "REPARA",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODREPARA",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "REPCAR_PK",
+        "TABLA": "REPCAR",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODCLASE",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 1,
+        "RESTRICCION": "REPCAR_PK",
+        "TABLA": "REPCAR",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODCARACT",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 2,
+        "RESTRICCION": "REPCAR_PK",
+        "TABLA": "REPCAR",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "VALOR",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 3,
+        "RESTRICCION": "REPCAR_PK",
+        "TABLA": "REPCAR",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODREPARA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPCAR_REPARA_FK",
+        "TABLA": "REPCAR",
+        "TABLA_REFERIDA": "REPARA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODCLIENTE",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPINSTALACION_CLIENTE_FK",
+        "TABLA": "REPINSTALACION",
+        "TABLA_REFERIDA": "CLIENTE",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPINSTALACION_PK",
+        "TABLA": "REPINSTALACION",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPINSTALACION_PROYECTO_FK",
+        "TABLA": "REPINSTALACION",
+        "TABLA_REFERIDA": "PROYECTOS",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPROPIETARIO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPOBJETO_CLIENTE_FK",
+        "TABLA": "REPOBJETO",
+        "TABLA_REFERIDA": "CLIENTE",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "REPOBJETO_PK",
+        "TABLA": "REPOBJETO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODRECURSO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "REPOBJETO_RECURSO_FK",
+        "TABLA": "REPOBJETO",
+        "TABLA_REFERIDA": "RECURSO",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "TIPO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "TIPO_PK",
+        "TABLA": "TIPO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 1,
+        "RESTRICCION": "TIPO_PK",
+        "TABLA": "TIPO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      }
+    ],
+    "sql": "SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,\n TRIM(rc.RDB$CONSTRAINT_NAME) AS RESTRICCION,\n TRIM(rc.RDB$CONSTRAINT_TYPE) AS TIPO,\n TRIM(s.RDB$FIELD_NAME) AS CAMPO, s.RDB$FIELD_POSITION AS POSICION,\n TRIM(parent.RDB$RELATION_NAME) AS TABLA_REFERIDA,\n TRIM(ps.RDB$FIELD_NAME) AS CAMPO_REFERIDO,\n idx.RDB$INDEX_INACTIVE AS INDICE_INACTIVO\n FROM RDB$RELATION_CONSTRAINTS rc\n LEFT JOIN RDB$INDICES idx ON idx.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$REF_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME=rc.RDB$CONSTRAINT_NAME\n LEFT JOIN RDB$RELATION_CONSTRAINTS parent ON parent.RDB$CONSTRAINT_NAME=ref.RDB$CONST_NAME_UQ\n LEFT JOIN RDB$INDEX_SEGMENTS ps ON ps.RDB$INDEX_NAME=parent.RDB$INDEX_NAME\n AND ps.RDB$FIELD_POSITION=s.RDB$FIELD_POSITION\n WHERE rc.RDB$RELATION_NAME IN ('ARTICULO','CLIENTE','DOCCAB','FABCAB','OBRACAB','OBRALIN','PRESUPROYE','PROVEED','PROYECTOS','RECURSO','REPARA','REPCAR','REPINSTALACION','REPOBJETO','TIPO')\n AND rc.RDB$CONSTRAINT_TYPE IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE')\n ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION"
+  },
+  "fin_informe_utc": "2026-09-21T11:15:14.912131+00:00",
+  "fuente": "Consultas de lectura Firebird y limitaciones documentadas",
+  "grupos": [
+    {
+      "ayuda": "Distingue tener un proyecto registrado de poder trabajar en él. Un proyecto cerrado puede seguir siendo necesario para consultar su histórico.",
+      "checks": [
+        {
+          "accion": "Completar o confirmar el estado en SQL Obras.",
+          "descripcion": "Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "estado",
+          "id": "CHK-007",
+          "ms": 63,
+          "nombre": "Indicador de fin de obra informado",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.",
+          "descripcion": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+          "detalle": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+          "ejemplo": "Una obra no finalizada puede estar bloqueada para nuevas imputaciones.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "estado",
+          "id": "CHK-008",
+          "ms": 0,
+          "nombre": "Permiso para nuevas imputaciones",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        }
+      ],
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "id": "estado",
+      "nombre": "Proyecto y estado"
+    },
+    {
+      "ayuda": "Comprueba referencias a proyectos y técnicos. Que un código exista no demuestra que la persona eligiera la obra correcta.",
+      "checks": [
+        {
+          "accion": "Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.",
+          "descripcion": "Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.",
+          "detalle": "677533 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea puede existir en la base de datos y no indicar a qué obra pertenece.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-001",
+          "ms": 2922,
+          "nombre": "Líneas con proyecto identificable",
+          "ok": false,
+          "resultado": 677533,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Contrastar las referencias con el catálogo y el parte original.",
+          "descripcion": "Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.",
+          "detalle": "0 de 224563 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-002",
+          "ms": 2187,
+          "nombre": "Referencias de técnicos existentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL",
+          "total_evaluado": 224563
+        },
+        {
+          "accion": "Contrastar la cabecera original; no reasignar automáticamente.",
+          "descripcion": "Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea apunta a una cabecera eliminada.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-014",
+          "ms": 6531,
+          "nombre": "Cabecera de línea existente",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Contrastar ambas referencias con SQL Obras.",
+          "descripcion": "Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.",
+          "detalle": "0 de 266478 registros requieren revisión en esta comprobación.",
+          "ejemplo": "La cabecera corresponde a A pero la línea indica B.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-015",
+          "ms": 1078,
+          "nombre": "Proyecto de cabecera y línea coincidentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL",
+          "total_evaluado": 266478
+        },
+        {
+          "accion": "Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.",
+          "descripcion": "Comprueba la referencia de proyecto de cada cabecera.",
+          "detalle": "7297 de 53943 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una cabecera apunta a una obra desconocida.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-016",
+          "ms": 313,
+          "nombre": "Proyecto de cabecera existente",
+          "ok": false,
+          "resultado": 7297,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c",
+          "total_evaluado": 53943
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-019",
+          "ms": 16,
+          "nombre": "Clave completa no nula: PROYECTOS",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-020",
+          "ms": 15,
+          "nombre": "Unicidad de clave completa: PROYECTOS",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-021",
+          "ms": 0,
+          "nombre": "Clave completa no nula: RECURSO",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO",
+          "total_evaluado": 186
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-022",
+          "ms": 0,
+          "nombre": "Unicidad de clave completa: RECURSO",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K",
+          "total_evaluado": 186
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 53943 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-023",
+          "ms": 47,
+          "nombre": "Clave completa no nula: OBRACAB",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB",
+          "total_evaluado": 53943
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 53943 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-024",
+          "ms": 62,
+          "nombre": "Unicidad de clave completa: OBRACAB",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K",
+          "total_evaluado": 53943
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-025",
+          "ms": 2047,
+          "nombre": "Clave completa no nula: OBRALIN",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-026",
+          "ms": 2750,
+          "nombre": "Unicidad de clave completa: OBRALIN",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "No identificar OBRALIN usando solo CODIGO.",
+          "descripcion": "Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.",
+          "detalle": "6401 de 7335 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Las cabeceras A y B tienen ambas una línea 1.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-027",
+          "ms": 1656,
+          "nombre": "CODIGO de línea ambiguo sin cabecera",
+          "ok": false,
+          "resultado": 6401,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K",
+          "total_evaluado": 7335
+        },
+        {
+          "accion": "Validar la regla de herencia en el ERP; no reasignar automáticamente.",
+          "descripcion": "Detecta líneas sin proyecto propio cuya cabecera sí identifica uno; es una relación candidata, no una asignación confirmada.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "La línea no indica obra, pero su cabecera indica A.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-028",
+          "ms": 2453,
+          "nombre": "Proyecto solo en cabecera",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NOT NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Revisar origen y significado antes de darlo por confirmado.",
+          "descripcion": "La línea identifica una obra y su cabecera no: falta corroboración por la cabecera.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea indica A y su cabecera está sin obra.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-029",
+          "ms": 2110,
+          "nombre": "Proyecto solo en línea",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Clasificar el circuito de origen; no inventar un proyecto.",
+          "descripcion": "Ninguna de las dos referencias permite determinar la obra; puede pertenecer a otro circuito del ERP.",
+          "detalle": "677533 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Trabajo registrado en reparaciones, sin obra.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-030",
+          "ms": 2188,
+          "nombre": "Sin proyecto en línea ni cabecera",
+          "ok": false,
+          "resultado": 677533,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO IS NULL AND c.CODPROYECTO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB",
+          "total_evaluado": 944011
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "pertenencia",
+      "nombre": "Pertenencia de los datos"
+    },
+    {
+      "ayuda": "Explica cuándo un cero se debe a datos incompletos o al filtro de cantidades, en lugar de ausencia de actividad.",
+      "checks": [
+        {
+          "accion": "Confirmar el significado del nuevo tipo antes de clasificar sus importes.",
+          "descripcion": "Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una actualización del programa añade una nueva clase de material.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "disponibilidad",
+          "id": "CHK-003",
+          "ms": 1344,
+          "nombre": "Tipos de línea reconocidos",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.",
+          "descripcion": "Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.",
+          "detalle": "14064 de 14064 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Existe una línea con técnico informado, pero CANTIDAD vale cero.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "disponibilidad",
+          "id": "CHK-009",
+          "ms": 1094,
+          "nombre": "Mano de obra excluida por cantidad",
+          "ok": false,
+          "resultado": 14064,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL",
+          "total_evaluado": 14064
+        },
+        {
+          "accion": "No contabilizar líneas sin persona como técnicos distintos.",
+          "descripcion": "Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.",
+          "detalle": "83072 de 307635 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea MO no indica quién la realizó.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "disponibilidad",
+          "id": "CHK-017",
+          "ms": 1125,
+          "nombre": "Mano de obra con recurso informado",
+          "ok": false,
+          "resultado": 83072,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10",
+          "total_evaluado": 307635
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "disponibilidad",
+      "nombre": "Datos disponibles"
+    },
+    {
+      "ayuda": "El trabajo presupuestado o previsto debe distinguirse del realizado. No se deben sumar ambos como si fueran ejecución.",
+      "checks": [
+        {
+          "accion": "Confirmar la clasificación antes de sumar ejecución y previsión.",
+          "descripcion": "Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea sin indicador no puede clasificarse con seguridad.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "prevision",
+          "id": "CHK-010",
+          "ms": 1640,
+          "nombre": "Indicador real o previsto reconocido",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.",
+          "descripcion": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+          "detalle": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+          "ejemplo": "Una cantidad prevista puede aparecer dentro de un total presentado como realizado.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "prevision",
+          "id": "CHK-011",
+          "ms": 0,
+          "nombre": "Separación en los informes",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        },
+        {
+          "accion": "Confirmar qué indicador gobierna el informe antes de sumar.",
+          "descripcion": "Contrasta indicadores no nulos entre cabecera y línea.",
+          "detalle": "0 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Cabecera prevista con línea marcada como real.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "prevision",
+          "id": "CHK-018",
+          "ms": 2109,
+          "nombre": "Previsión de cabecera y línea coincidentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL",
+          "total_evaluado": 944011
+        }
+      ],
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "id": "prevision",
+      "nombre": "Real frente a previsto"
+    },
+    {
+      "ayuda": "Detecta fechas ausentes o contradictorias. Una incidencia puede tener una explicación de negocio; no se corrige automáticamente.",
+      "checks": [
+        {
+          "accion": "Contrastar las dos fechas con la ficha del proyecto.",
+          "descripcion": "Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.",
+          "detalle": "0 de 178 registros requieren revisión en esta comprobación.",
+          "ejemplo": "La fecha final de una obra aparece antes de su inicio.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "fechas",
+          "id": "CHK-005",
+          "ms": 31,
+          "nombre": "Orden de inicio y fin",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL",
+          "total_evaluado": 178
+        },
+        {
+          "accion": "Confirmar qué fecha usa el informe de negocio.",
+          "descripcion": "Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.",
+          "detalle": "265398 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea tiene fecha de alta pero no fecha del trabajo.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "fechas",
+          "id": "CHK-012",
+          "ms": 1188,
+          "nombre": "Fecha de línea disponible",
+          "ok": false,
+          "resultado": 265398,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944011
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "fechas",
+      "nombre": "Fechas y coherencia"
+    },
+    {
+      "ayuda": "Para confiar en un total hay que conocer qué líneas incluye, los ajustes y si se han consultado todos los resultados.",
+      "checks": [
+        {
+          "accion": "Comprobar que resumen, ranking y detalle traten igual los ajustes.",
+          "descripcion": "Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.",
+          "detalle": "18631 de 944011 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Se devuelve material y se registra una cantidad negativa.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "totales",
+          "id": "CHK-004",
+          "ms": 2016,
+          "nombre": "Cantidades negativas y ajustes",
+          "ok": false,
+          "resultado": 18631,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944011
+        },
+        {
+          "accion": "Revisar la tarifa y si la línea es prevista o realizada.",
+          "descripcion": "Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.",
+          "detalle": "13 de 1737 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Hay una cantidad registrada pero no una tarifa o coste asociado.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "totales",
+          "id": "CHK-006",
+          "ms": 1375,
+          "nombre": "Cantidad positiva sin coste",
+          "ok": false,
+          "resultado": 13,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0",
+          "total_evaluado": 1737
+        },
+        {
+          "accion": "Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.",
+          "descripcion": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+          "detalle": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+          "ejemplo": "Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "totales",
+          "id": "CHK-013",
+          "ms": 0,
+          "nombre": "Informe completo y conciliado",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "totales",
+      "nombre": "Totales y cobertura"
+    }
+  ],
+  "integridad_declarada": {
+    "checks": [
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "ARTICULO"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "CLIENTE"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "DOCCAB"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "FABCAB"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "OBRACAB"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "OBRALIN"
+      },
+      {
+        "estado": "no_verificable",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "PRESUPROYE"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "PROVEED"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "PROYECTOS"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "RECURSO"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "REPARA"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "REPCAR"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "REPINSTALACION"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "REPOBJETO"
+      },
+      {
+        "estado": "inventariada",
+        "nota": "No encontrar una PK no demuestra que los datos sean únicos ni que la tabla esté vacía.",
+        "regla": "PK declarada",
+        "tabla": "TIPO"
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 10758,
+        "ms": 407,
+        "regla": "Componentes nulos",
+        "restriccion": "ARTICULO_MARCA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODMARCA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\"",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 12398
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "ARTICULO_MARCA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"MARCA\" P WHERE P.\"CODIGO\"=C.\"CODMARCA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\" C WHERE C.\"CODMARCA\" IS NOT NULL",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 1640
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "ARTICULO_MARCA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"MARCA\" P WHERE P.\"CODIGO\"=C.\"CODMARCA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\" C WHERE C.\"CODMARCA\" IS NOT NULL",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 1640
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Componentes nulos",
+        "restriccion": "ARTICULO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\"",
+        "tabla": "ARTICULO",
+        "tipo": "PRIMARY KEY",
+        "total": 12398
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 32,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "ARTICULO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"ARTICULO\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "ARTICULO",
+        "tipo": "PRIMARY KEY",
+        "total": 12398
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 12392,
+        "ms": 47,
+        "regla": "Componentes nulos",
+        "restriccion": "ARTICULO_UNIDADMEDIDA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODUNIDADMEDIDA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\"",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 12398
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "ARTICULO_UNIDADMEDIDA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"UNIDADMEDIDA\" P WHERE P.\"CODIGO\"=C.\"CODUNIDADMEDIDA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\" C WHERE C.\"CODUNIDADMEDIDA\" IS NOT NULL",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 6
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "ARTICULO_UNIDADMEDIDA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"UNIDADMEDIDA\" P WHERE P.\"CODIGO\"=C.\"CODUNIDADMEDIDA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"ARTICULO\" C WHERE C.\"CODUNIDADMEDIDA\" IS NOT NULL",
+        "tabla": "ARTICULO",
+        "tipo": "FOREIGN KEY",
+        "total": 6
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 9428,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "CLIENTE_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODALMACEN\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"CLIENTE\"",
+        "tabla": "CLIENTE",
+        "tipo": "FOREIGN KEY",
+        "total": 9428
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "CLIENTE_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"ALMACEN\" P WHERE P.\"CODIGO\"=C.\"CODALMACEN\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"CLIENTE\" C WHERE C.\"CODALMACEN\" IS NOT NULL",
+        "tabla": "CLIENTE",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "CLIENTE_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"ALMACEN\" P WHERE P.\"CODIGO\"=C.\"CODALMACEN\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"CLIENTE\" C WHERE C.\"CODALMACEN\" IS NOT NULL",
+        "tabla": "CLIENTE",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "CLIENTE_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"CLIENTE\"",
+        "tabla": "CLIENTE",
+        "tipo": "PRIMARY KEY",
+        "total": 9428
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "CLIENTE_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"CLIENTE\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "CLIENTE",
+        "tipo": "PRIMARY KEY",
+        "total": 9428
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 83509,
+        "ms": 187,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_CAMPANHA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODCAMPANHA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 83509
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 78,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "DOCCAB_CAMPANHA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"CAMPANHA\" P WHERE P.\"CODIGO\"=C.\"CODCAMPANHA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODCAMPANHA\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 94,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "DOCCAB_CAMPANHA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"CAMPANHA\" P WHERE P.\"CODIGO\"=C.\"CODCAMPANHA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODCAMPANHA\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 83509,
+        "ms": 94,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_LIQAGE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGOLIQUIDAGENTE\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 83509
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 140,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "DOCCAB_LIQAGE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"LIQAGE\" P WHERE P.\"CODIGO\"=C.\"CODIGOLIQUIDAGENTE\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODIGOLIQUIDAGENTE\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 110,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "DOCCAB_LIQAGE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"LIQAGE\" P WHERE P.\"CODIGO\"=C.\"CODIGOLIQUIDAGENTE\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODIGOLIQUIDAGENTE\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 83509,
+        "ms": 93,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_OPORTUNIDAD_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODOPORTUNIDAD\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 83509
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 109,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "DOCCAB_OPORTUNIDAD_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"OPORTUNIDAD\" P WHERE P.\"CODIGO\"=C.\"CODOPORTUNIDAD\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODOPORTUNIDAD\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 94,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "DOCCAB_OPORTUNIDAD_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"OPORTUNIDAD\" P WHERE P.\"CODIGO\"=C.\"CODOPORTUNIDAD\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODOPORTUNIDAD\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 125,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "PRIMARY KEY",
+        "total": 83509
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 172,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "DOCCAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"DOCCAB\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "DOCCAB",
+        "tipo": "PRIMARY KEY",
+        "total": 83509
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 71397,
+        "ms": 187,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODREPARA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 83509
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 172,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "DOCCAB_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 12112
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 188,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "DOCCAB_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 12112
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 75262,
+        "ms": 109,
+        "regla": "Componentes nulos",
+        "restriccion": "DOCCAB_SEGUIMIENTODOCUMENTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODSEGUIMIENTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\"",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 83509
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 109,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "DOCCAB_SEGUIMIENTODOCUMENTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"SEGUIMIENTODOCUMENTO\" P WHERE P.\"CODIGO\"=C.\"CODSEGUIMIENTO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODSEGUIMIENTO\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 8247
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 110,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "DOCCAB_SEGUIMIENTODOCUMENTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"SEGUIMIENTODOCUMENTO\" P WHERE P.\"CODIGO\"=C.\"CODSEGUIMIENTO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"DOCCAB\" C WHERE C.\"CODSEGUIMIENTO\" IS NOT NULL",
+        "tabla": "DOCCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 8247
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "FABCAB_FABRICA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODMAESTRO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"FABCAB\"",
+        "tabla": "FABCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 32,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "FABCAB_FABRICA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"FABRICA\" P WHERE P.\"CODIGO\"=C.\"CODMAESTRO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"FABCAB\" C WHERE C.\"CODMAESTRO\" IS NOT NULL",
+        "tabla": "FABCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "FABCAB_FABRICA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"FABRICA\" P WHERE P.\"CODIGO\"=C.\"CODMAESTRO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"FABCAB\" C WHERE C.\"CODMAESTRO\" IS NOT NULL",
+        "tabla": "FABCAB",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "FABCAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODMAESTRO\" IS NULL OR \"ESPREVISION\" IS NULL OR \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"FABCAB\"",
+        "tabla": "FABCAB",
+        "tipo": "PRIMARY KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "FABCAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODMAESTRO\",\"ESPREVISION\",\"CODIGO\", COUNT(*) AS N FROM \"FABCAB\" WHERE \"CODMAESTRO\" IS NOT NULL AND \"ESPREVISION\" IS NOT NULL AND \"CODIGO\" IS NOT NULL GROUP BY \"CODMAESTRO\",\"ESPREVISION\",\"CODIGO\") K",
+        "tabla": "FABCAB",
+        "tipo": "PRIMARY KEY",
+        "total": 0
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRACAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRACAB\"",
+        "tabla": "OBRACAB",
+        "tipo": "PRIMARY KEY",
+        "total": 53943
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 78,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "OBRACAB_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"OBRACAB\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "OBRACAB",
+        "tipo": "PRIMARY KEY",
+        "total": 53943
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 7297,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRACAB_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROYECTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRACAB\"",
+        "tabla": "OBRACAB",
+        "tipo": "FOREIGN KEY",
+        "total": 53943
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 265,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "OBRACAB_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRACAB\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "OBRACAB",
+        "tipo": "FOREIGN KEY",
+        "total": 46646
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 407,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "OBRACAB_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRACAB\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "OBRACAB",
+        "tipo": "FOREIGN KEY",
+        "total": 46646
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 7297,
+        "ms": 47,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRACAB_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROYECTO\" IS NULL OR \"ESPREVISION\" IS NULL OR \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRACAB\"",
+        "tabla": "OBRACAB",
+        "tipo": "UNIQUE",
+        "total": 53943
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 234,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "OBRACAB_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODPROYECTO\",\"ESPREVISION\",\"CODIGO\", COUNT(*) AS N FROM \"OBRACAB\" WHERE \"CODPROYECTO\" IS NOT NULL AND \"ESPREVISION\" IS NOT NULL AND \"CODIGO\" IS NOT NULL GROUP BY \"CODPROYECTO\",\"ESPREVISION\",\"CODIGO\") K",
+        "tabla": "OBRACAB",
+        "tipo": "UNIQUE",
+        "total": 46646
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 1656,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRALIN_OBRACAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODCAB\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\"",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 944011
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 7016,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "OBRALIN_OBRACAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"OBRACAB\" P WHERE P.\"CODIGO\"=C.\"CODCAB\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\" C WHERE C.\"CODCAB\" IS NOT NULL",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 944011
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 9140,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "OBRALIN_OBRACAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"OBRACAB\" P WHERE P.\"CODIGO\"=C.\"CODCAB\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\" C WHERE C.\"CODCAB\" IS NOT NULL",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 944011
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 1907,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRALIN_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODCAB\" IS NULL OR \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\"",
+        "tabla": "OBRALIN",
+        "tipo": "PRIMARY KEY",
+        "total": 944011
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 2922,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "OBRALIN_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODCAB\",\"CODIGO\", COUNT(*) AS N FROM \"OBRALIN\" WHERE \"CODCAB\" IS NOT NULL AND \"CODIGO\" IS NOT NULL GROUP BY \"CODCAB\",\"CODIGO\") K",
+        "tabla": "OBRALIN",
+        "tipo": "PRIMARY KEY",
+        "total": 944011
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 943331,
+        "ms": 1219,
+        "regla": "Componentes nulos",
+        "restriccion": "OBRALIN_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODREPARA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\"",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 944011
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 1046,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "OBRALIN_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 680
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 1375,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "OBRALIN_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"OBRALIN\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "OBRALIN",
+        "tipo": "FOREIGN KEY",
+        "total": 680
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "PRESUPROYE_DOCCAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPRESUPUESTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\"",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "PRESUPROYE_DOCCAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"DOCCAB\" P WHERE P.\"CODIGO\"=C.\"CODPRESUPUESTO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\" C WHERE C.\"CODPRESUPUESTO\" IS NOT NULL",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 47,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "PRESUPROYE_DOCCAB_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"DOCCAB\" P WHERE P.\"CODIGO\"=C.\"CODPRESUPUESTO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\" C WHERE C.\"CODPRESUPUESTO\" IS NOT NULL",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 1526,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "PRESUPROYE_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROYECTO\" IS NULL OR \"CODPROYSUBCONTRATA\" IS NULL OR \"CODPRESUPUESTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\"",
+        "tabla": "PRESUPROYE",
+        "tipo": "UNIQUE",
+        "total": 1713
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "PRESUPROYE_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODPROYECTO\",\"CODPROYSUBCONTRATA\",\"CODPRESUPUESTO\", COUNT(*) AS N FROM \"PRESUPROYE\" WHERE \"CODPROYECTO\" IS NOT NULL AND \"CODPROYSUBCONTRATA\" IS NOT NULL AND \"CODPRESUPUESTO\" IS NOT NULL GROUP BY \"CODPROYECTO\",\"CODPROYSUBCONTRATA\",\"CODPRESUPUESTO\") K",
+        "tabla": "PRESUPROYE",
+        "tipo": "UNIQUE",
+        "total": 187
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "PRESUPROYE_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROYECTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\"",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "PRESUPROYE_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "PRESUPROYE_PROYECTOS_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PRESUPROYE\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "PRESUPROYE",
+        "tipo": "FOREIGN KEY",
+        "total": 1713
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 1790,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "PROVEED_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODALMACEN\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PROVEED\"",
+        "tabla": "PROVEED",
+        "tipo": "FOREIGN KEY",
+        "total": 1790
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "PROVEED_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"ALMACEN\" P WHERE P.\"CODIGO\"=C.\"CODALMACEN\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PROVEED\" C WHERE C.\"CODALMACEN\" IS NOT NULL",
+        "tabla": "PROVEED",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "PROVEED_ALMACEN_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"ALMACEN\" P WHERE P.\"CODIGO\"=C.\"CODALMACEN\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PROVEED\" C WHERE C.\"CODALMACEN\" IS NOT NULL",
+        "tabla": "PROVEED",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "PROVEED_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PROVEED\"",
+        "tabla": "PROVEED",
+        "tipo": "PRIMARY KEY",
+        "total": 1790
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "PROVEED_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"PROVEED\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "PROVEED",
+        "tipo": "PRIMARY KEY",
+        "total": 1790
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "PROYECTOS_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"PROYECTOS\"",
+        "tabla": "PROYECTOS",
+        "tipo": "PRIMARY KEY",
+        "total": 1216
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 32,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "PROYECTOS_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"PROYECTOS\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "PROYECTOS",
+        "tipo": "PRIMARY KEY",
+        "total": 1216
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 186,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "RECURSO_AGENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODAGENTE\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\"",
+        "tabla": "RECURSO",
+        "tipo": "FOREIGN KEY",
+        "total": 186
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "RECURSO_AGENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"AGENTE\" P WHERE P.\"CODIGO\"=C.\"CODAGENTE\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\" C WHERE C.\"CODAGENTE\" IS NOT NULL",
+        "tabla": "RECURSO",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "RECURSO_AGENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"AGENTE\" P WHERE P.\"CODIGO\"=C.\"CODAGENTE\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\" C WHERE C.\"CODAGENTE\" IS NOT NULL",
+        "tabla": "RECURSO",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 3,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "RECURSO_PADRE_ORDEN_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPADRE\" IS NULL OR \"ORDEN\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\"",
+        "tabla": "RECURSO",
+        "tipo": "UNIQUE",
+        "total": 186
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "RECURSO_PADRE_ORDEN_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODPADRE\",\"ORDEN\", COUNT(*) AS N FROM \"RECURSO\" WHERE \"CODPADRE\" IS NOT NULL AND \"ORDEN\" IS NOT NULL GROUP BY \"CODPADRE\",\"ORDEN\") K",
+        "tabla": "RECURSO",
+        "tipo": "UNIQUE",
+        "total": 183
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "RECURSO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\"",
+        "tabla": "RECURSO",
+        "tipo": "PRIMARY KEY",
+        "total": 186
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "RECURSO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"RECURSO\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "RECURSO",
+        "tipo": "PRIMARY KEY",
+        "total": 186
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 186,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "RECURSO_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"PINCONTROLPRESENCIA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"RECURSO\"",
+        "tabla": "RECURSO",
+        "tipo": "UNIQUE",
+        "total": 186
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "RECURSO_UQ",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"PINCONTROLPRESENCIA\", COUNT(*) AS N FROM \"RECURSO\" WHERE \"PINCONTROLPRESENCIA\" IS NOT NULL GROUP BY \"PINCONTROLPRESENCIA\") K",
+        "tabla": "RECURSO",
+        "tipo": "UNIQUE",
+        "total": 0
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "REPARA_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPARA\"",
+        "tabla": "REPARA",
+        "tipo": "PRIMARY KEY",
+        "total": 8436
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "REPARA_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"REPARA\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "REPARA",
+        "tipo": "PRIMARY KEY",
+        "total": 8436
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 47,
+        "regla": "Componentes nulos",
+        "restriccion": "REPCAR_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODREPARA\" IS NULL OR \"CODCLASE\" IS NULL OR \"CODCARACT\" IS NULL OR \"VALOR\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPCAR\"",
+        "tabla": "REPCAR",
+        "tipo": "PRIMARY KEY",
+        "total": 12170
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 141,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "REPCAR_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODREPARA\",\"CODCLASE\",\"CODCARACT\",\"VALOR\", COUNT(*) AS N FROM \"REPCAR\" WHERE \"CODREPARA\" IS NOT NULL AND \"CODCLASE\" IS NOT NULL AND \"CODCARACT\" IS NOT NULL AND \"VALOR\" IS NOT NULL GROUP BY \"CODREPARA\",\"CODCLASE\",\"CODCARACT\",\"VALOR\") K",
+        "tabla": "REPCAR",
+        "tipo": "PRIMARY KEY",
+        "total": 12170
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "REPCAR_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODREPARA\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPCAR\"",
+        "tabla": "REPCAR",
+        "tipo": "FOREIGN KEY",
+        "total": 12170
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 78,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "REPCAR_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPCAR\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "REPCAR",
+        "tipo": "FOREIGN KEY",
+        "total": 12170
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 235,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "REPCAR_REPARA_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"REPARA\" P WHERE P.\"CODIGO\"=C.\"CODREPARA\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPCAR\" C WHERE C.\"CODREPARA\" IS NOT NULL",
+        "tabla": "REPCAR",
+        "tipo": "FOREIGN KEY",
+        "total": 12170
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "REPINSTALACION_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODCLIENTE\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\"",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 124
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 32,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "REPINSTALACION_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"CLIENTE\" P WHERE P.\"CODIGO\"=C.\"CODCLIENTE\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\" C WHERE C.\"CODCLIENTE\" IS NOT NULL",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 124
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "REPINSTALACION_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"CLIENTE\" P WHERE P.\"CODIGO\"=C.\"CODCLIENTE\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\" C WHERE C.\"CODCLIENTE\" IS NOT NULL",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 124
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "REPINSTALACION_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\"",
+        "tabla": "REPINSTALACION",
+        "tipo": "PRIMARY KEY",
+        "total": 124
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "REPINSTALACION_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"REPINSTALACION\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "REPINSTALACION",
+        "tipo": "PRIMARY KEY",
+        "total": 124
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 124,
+        "ms": 16,
+        "regla": "Componentes nulos",
+        "restriccion": "REPINSTALACION_PROYECTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROYECTO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\"",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 124
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "REPINSTALACION_PROYECTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "no_aplica",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "REPINSTALACION_PROYECTO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"PROYECTOS\" P WHERE P.\"CODIGO\"=C.\"CODPROYECTO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPINSTALACION\" C WHERE C.\"CODPROYECTO\" IS NOT NULL",
+        "tabla": "REPINSTALACION",
+        "tipo": "FOREIGN KEY",
+        "total": 0
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 3,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "REPOBJETO_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODPROPIETARIO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\"",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 445
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "REPOBJETO_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"CLIENTE\" P WHERE P.\"CODIGO\"=C.\"CODPROPIETARIO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\" C WHERE C.\"CODPROPIETARIO\" IS NOT NULL",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 442
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 15,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "REPOBJETO_CLIENTE_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"CLIENTE\" P WHERE P.\"CODIGO\"=C.\"CODPROPIETARIO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\" C WHERE C.\"CODPROPIETARIO\" IS NOT NULL",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 442
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "REPOBJETO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\"",
+        "tabla": "REPOBJETO",
+        "tipo": "PRIMARY KEY",
+        "total": 445
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "REPOBJETO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"CODIGO\", COUNT(*) AS N FROM \"REPOBJETO\" WHERE \"CODIGO\" IS NOT NULL GROUP BY \"CODIGO\") K",
+        "tabla": "REPOBJETO",
+        "tipo": "PRIMARY KEY",
+        "total": 445
+      },
+      {
+        "estado": "informativo",
+        "incidencias": 444,
+        "ms": 15,
+        "regla": "Componentes nulos",
+        "restriccion": "REPOBJETO_RECURSO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"CODRECURSO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\"",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 445
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Referencias huérfanas no nulas",
+        "restriccion": "REPOBJETO_RECURSO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM \"RECURSO\" P WHERE P.\"CODIGO\"=C.\"CODRECURSO\") THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\" C WHERE C.\"CODRECURSO\" IS NOT NULL",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 1
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 16,
+        "regla": "Referencia con varios destinos (multiplica JOIN)",
+        "restriccion": "REPOBJETO_RECURSO_FK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN (SELECT COUNT(*) FROM \"RECURSO\" P WHERE P.\"CODIGO\"=C.\"CODRECURSO\")>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"REPOBJETO\" C WHERE C.\"CODRECURSO\" IS NOT NULL",
+        "tabla": "REPOBJETO",
+        "tipo": "FOREIGN KEY",
+        "total": 1
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 0,
+        "regla": "Componentes nulos",
+        "restriccion": "TIPO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN \"TIPO\" IS NULL OR \"CODIGO\" IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM \"TIPO\"",
+        "tabla": "TIPO",
+        "tipo": "PRIMARY KEY",
+        "total": 199
+      },
+      {
+        "estado": "correcto",
+        "incidencias": 0,
+        "ms": 31,
+        "regla": "Grupos duplicados no nulos",
+        "restriccion": "TIPO_PK",
+        "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT \"TIPO\",\"CODIGO\", COUNT(*) AS N FROM \"TIPO\" WHERE \"TIPO\" IS NOT NULL AND \"CODIGO\" IS NOT NULL GROUP BY \"TIPO\",\"CODIGO\") K",
+        "tabla": "TIPO",
+        "tipo": "PRIMARY KEY",
+        "total": 199
+      }
+    ],
+    "nota": "FK con algún componente NULL: dato incompleto, no huérfano probado. UNIQUE con NULL: no se declara duplicado por esa causa. Cada restricción se comprueba por separado; no sumar sus poblaciones.",
+    "resumen": {
+      "correcto": 60,
+      "informativo": 19,
+      "inventariada": 14,
+      "no_aplica": 20,
+      "no_verificable": 1,
+      "revisar": 0
+    }
+  },
+  "ms_total": 38578,
+  "n_checks": 30,
+  "n_falla": 9,
+  "n_ok": 18,
+  "nota": "Correcto solo se refiere a la regla indicada. Las consultas se ejecutan por separado y no forman una instantánea común.",
+  "ok": true,
+  "resumen": {
+    "correcto": 18,
+    "no_aplica": 0,
+    "no_verificable": 3,
+    "revisar": 9
+  },
+  "timestamp": "2026-09-21T11:14:43.258369+00:00",
+  "veredicto": "9 para revisar · 3 no verificables"
+}

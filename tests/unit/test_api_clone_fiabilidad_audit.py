@@ -25,9 +25,9 @@ class SqliteDriver:
 
     def execute_query(self, sql):
         self.queries.append(sql)
-        first = re.match(r"SELECT FIRST (\d+)\s+", sql)
+        first = re.match(r"SELECT FIRST (\d+)(?: SKIP (\d+))?\s+", sql)
         if first:
-            sql = "SELECT " + sql[first.end():] + " LIMIT " + first.group(1)
+            sql = "SELECT " + sql[first.end():] + " LIMIT " + first.group(1) + (" OFFSET " + first.group(2) if first.group(2) else "")
         sql = re.sub(r"EXTRACT\(YEAR FROM (\w+\.\w+)\)", r"CAST(strftime('%Y', \1) AS INTEGER)", sql)
         sql = re.sub(r"EXTRACT\(MONTH FROM (\w+\.\w+)\)", r"CAST(strftime('%m', \1) AS INTEGER)", sql)
         return [dict(row) for row in self.db.execute(sql).fetchall()]
@@ -323,3 +323,43 @@ def test_oversized_composite_key_is_rejected_before_conversion(audit):
     svc,driver,_=audit
     assert svc.read("proordutil","9"*5000+":1")["estado"] == "falla"
     assert driver.queries == []
+
+
+@pytest.mark.parametrize("clase,params",[("proyectos",{}),("recursos",{}),("proordutil",{"codProyecto":"A"}),("proordprev",{"codProyecto":"A"})])
+def test_all_pages_equal_full_set_without_duplicate_or_gap(audit,clase,params):
+    svc,driver,_=audit
+    for cab in range(101,107):
+        driver.db.execute("INSERT INTO OBRALIN(CODCAB,CODIGO,CODPROYECTO,ESPREVISION) VALUES(?,1,'A',?)",(cab,cab%2))
+    expected=svc.browse(clase,params,1000)["data"]["items"]
+    rows=[]
+    offset=0
+    while True:
+        result=svc.browse(clase,params,2,offset)
+        assert result["estado"]=="ok"
+        page=result["data"]
+        rows.extend(page["items"])
+        if page["siguiente_offset"] is None: break
+        assert page["siguiente_offset"]>offset
+        offset=page["siguiente_offset"]
+    assert rows==expected
+    assert len(rows)==page["total"]
+    assert svc.browse(clase,params,2,page["total"])["data"]["items"]==[]
+
+
+def test_http_pagination_and_invalid_offset(audit):
+    _,driver,client=audit
+    a=client.post("/api/api-clone/browse",json={"clase":"proyectos","num":1,"offset":0}).json()
+    b=client.post("/api/api-clone/browse",json={"clase":"proyectos","num":1,"offset":1}).json()
+    assert a["data"]["items"]!=b["data"]["items"]
+    for offset in [-1,True,1.5,"1"]:
+        assert client.post("/api/api-clone/browse",json={"clase":"proyectos","offset":offset}).status_code==422
+
+
+def test_header_candidates_are_reported_without_assigning(audit):
+    svc,driver,_=audit
+    before=[tuple(r) for r in driver.db.execute("SELECT * FROM OBRALIN")]
+    report=utils.verificacion_coherencia()
+    candidate=next(c for c in report["checks"] if c["id"]=="CHK-028")
+    assert candidate["resultado"]==1
+    assert candidate["estado_codigo"]=="revisar"
+    assert [tuple(r) for r in driver.db.execute("SELECT * FROM OBRALIN")]==before

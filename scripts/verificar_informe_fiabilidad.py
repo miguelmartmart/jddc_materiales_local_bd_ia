@@ -33,7 +33,7 @@ def main():
         result = build_report(execute)
     finally:
         connection.close()
-    output = ROOT / "docs" / "informe_fiabilidad_2026_09_21.txt"
+    output = ROOT / "docs" / "informe_integridad_ampliada_2026_09_21.txt"
     output.write_text(result, encoding="utf-8")
     print(str(output))
     print(result[:1800])

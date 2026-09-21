@@ -160,7 +160,12 @@ def test_http_grouped_report(client, monkeypatch):
 def test_report_download_preserves_failed_checks(client, monkeypatch):
     def unavailable(sql):
         raise RuntimeError("secret connection string")
-    monkeypatch.setattr(svc, "_exec", unavailable)
+    from contextlib import contextmanager
+    from backend.modules.api_clone.utilidades import read_only
+    @contextmanager
+    def reader():
+        yield unavailable
+    monkeypatch.setattr(read_only, "open_reader", reader)
     response = client.get("/api/api-clone/utilidades/informe-fiabilidad.txt")
     assert response.status_code == 200
     assert "attachment" in response.headers["content-disposition"]
@@ -187,3 +192,15 @@ def test_report_contains_all_evidence_and_valid_hash():
     assert len(evidence["checks"]) == len(CHECKS)
     assert hashlib.sha256(payload.encode("utf-8")).hexdigest() in report
     assert all(c["estado_codigo"] == "revisar" for c in evidence["checks"] if c["sql"])
+
+
+
+def test_report_connection_failure_is_503_not_successful_download(client, monkeypatch):
+    from backend.modules.api_clone.utilidades import read_only
+    def fail():
+        raise RuntimeError("secret credentials")
+    monkeypatch.setattr(read_only, "open_reader", fail)
+    response=client.get("/api/api-clone/utilidades/informe-fiabilidad.txt")
+    assert response.status_code==503
+    assert "secret credentials" not in response.text
+    assert "content-disposition" not in response.headers

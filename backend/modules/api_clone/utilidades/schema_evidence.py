@@ -1,4 +1,7 @@
 """Inventario de restricciones declaradas; no infiere FKs de nombres parecidos."""
+from ..queries import CLASE_TABLA_MAP
+
+TABLES = sorted({info[0] for info in CLASE_TABLA_MAP.values()} | {"OBRACAB"})
 SQL = """SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,
  TRIM(rc.RDB$CONSTRAINT_NAME) AS RESTRICCION,
  TRIM(rc.RDB$CONSTRAINT_TYPE) AS TIPO,
@@ -13,13 +16,13 @@ SQL = """SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,
  LEFT JOIN RDB$RELATION_CONSTRAINTS parent ON parent.RDB$CONSTRAINT_NAME=ref.RDB$CONST_NAME_UQ
  LEFT JOIN RDB$INDEX_SEGMENTS ps ON ps.RDB$INDEX_NAME=parent.RDB$INDEX_NAME
  AND ps.RDB$FIELD_POSITION=s.RDB$FIELD_POSITION
- WHERE rc.RDB$RELATION_NAME IN ('PROYECTOS','OBRACAB','OBRALIN','RECURSO','PRESUPROYE')
+ WHERE rc.RDB$RELATION_NAME IN ({tables})
  AND rc.RDB$CONSTRAINT_TYPE IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE')
- ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION"""
+ ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION""".format(tables=",".join("'"+table+"'" for table in TABLES))
 
 
 def inspect_schema(execute):
-    evidence = {"sql": SQL, "alcance": "PROYECTOS, OBRACAB, OBRALIN, RECURSO, PRESUPROYE",
+    evidence = {"sql": SQL, "alcance": ", ".join(TABLES), "clases": {name: info[0] for name, info in CLASE_TABLA_MAP.items()},
                 "estado": "no_verificable", "restricciones": [],
                 "nota": "Sin FK declarada no hay garantía del motor sobre esa relación. El inventario no prueba todos los endpoints."}
     try:
