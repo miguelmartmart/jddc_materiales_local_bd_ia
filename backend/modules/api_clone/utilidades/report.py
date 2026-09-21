@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from .check_runner import run_checks
 
-VERSION = "2026-09-21.4"
+VERSION = "2026-09-21.5"
 
 
 def build_report(execute):
@@ -15,6 +15,9 @@ def build_report(execute):
     result["estructura"] = inspect_schema(execute)
     from .constraint_checks import check_constraints
     result["integridad_declarada"] = check_constraints(execute, result["estructura"])
+    from .unassigned_analysis import classify_unassigned, reference_coverage
+    result["sin_proyecto"] = classify_unassigned(execute)
+    result["cobertura_referencias"] = reference_coverage(result["integridad_declarada"])
     result["fin_informe_utc"] = datetime.now(timezone.utc).isoformat()
     payload = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2)
     lines = [
@@ -51,6 +54,11 @@ def build_report(execute):
         if check.get("sql"):
             lines.append("SQL: " + check["sql"])
 
+    lines += ["", "COBERTURA REAL DE LAS RELACIONES",
+              "Una FK vacía no aporta corroboración aunque no existan referencias huérfanas.",
+              json.dumps(result["cobertura_referencias"], ensure_ascii=False, indent=2),
+              "", "CLASIFICACIÓN DE LÍNEAS SIN PROYECTO",
+              json.dumps(result["sin_proyecto"], ensure_ascii=False, indent=2)]
     lines += ["", "PRUEBAS NO REALIZADAS POR ESTE INFORME",
               "Comparación independiente respuesta a respuesta con mPYME / SQL Obras.",
               "Aislamiento por proyecto de cada endpoint y tratamiento de claves compuestas.",

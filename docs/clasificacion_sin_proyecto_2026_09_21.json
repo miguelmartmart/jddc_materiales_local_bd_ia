@@ -1,0 +1,99 @@
+{
+  "estado": "clasificado",
+  "sql": "SELECT D.CABECERA,D.REPARACION,D.TIPO,D.PREVISION,D.FECHA_PROPIA,COUNT(*) AS LINEAS FROM (SELECT\n CASE WHEN c.N IS NULL THEN 'sin_cabecera'\n      WHEN c.N>1 THEN 'cabecera_ambigua'\n      ELSE 'cabecera_sin_proyecto' END AS CABECERA,\n CASE WHEN l.CODREPARA IS NULL THEN 'sin_referencia'\n      WHEN r.CODIGO IS NOT NULL THEN 'referencia_existente'\n      ELSE 'referencia_huerfana' END AS REPARACION,\n l.TIPOBC3 AS TIPO, l.ESPREVISION AS PREVISION,\n CASE WHEN l.FECHA IS NULL THEN 'sin_fecha' ELSE 'con_fecha' END AS FECHA_PROPIA\n FROM OBRALIN l\n LEFT JOIN (SELECT CODIGO,COUNT(*) AS N,COUNT(CODPROYECTO) AS PROYECTOS FROM OBRACAB GROUP BY CODIGO) c ON c.CODIGO=l.CODCAB\n LEFT JOIN (SELECT CODIGO FROM REPARA GROUP BY CODIGO) r ON r.CODIGO=l.CODREPARA\n WHERE l.CODPROYECTO IS NULL AND (c.PROYECTOS IS NULL OR c.PROYECTOS=0)\n) D GROUP BY D.CABECERA,D.REPARACION,D.TIPO,D.PREVISION,D.FECHA_PROPIA",
+  "grupos": [
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 10,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 129623
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 10,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "sin_fecha",
+      "LINEAS": 76730
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 10,
+      "PREVISION": 1,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 99
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 11,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 33
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 11,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "sin_fecha",
+      "LINEAS": 545
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 20,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 290918
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 20,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "sin_fecha",
+      "LINEAS": 175064
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 20,
+      "PREVISION": 1,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 201
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 24,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "sin_fecha",
+      "LINEAS": 30
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 30,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "con_fecha",
+      "LINEAS": 743
+    },
+    {
+      "CABECERA": "cabecera_sin_proyecto",
+      "REPARACION": "sin_referencia",
+      "TIPO": 30,
+      "PREVISION": 0,
+      "FECHA_PROPIA": "sin_fecha",
+      "LINEAS": 4325
+    }
+  ],
+  "total": 678311,
+  "alcance": "Líneas sin proyecto propio y sin cabecera que informe proyecto. Incluye cabeceras ausentes o ambiguas, señaladas por separado.",
+  "nota": "Grupos disjuntos obtenidos con una única consulta. Una referencia de reparación existente no demuestra el origen ni autoriza asignar una obra. Tipo y previsión se conservan sin reinterpretar valores desconocidos.",
+  "ms": 11422,
+  "fecha_utc": "2026-09-21T13:15:58.622281+00:00"
+}

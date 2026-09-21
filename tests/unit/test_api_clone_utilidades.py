@@ -186,7 +186,8 @@ def test_report_contains_all_evidence_and_valid_hash():
         calls.append(sql)
         return [{"TOTAL": 10, "INCIDENCIAS": 2}], 1
     report = build_report(execute)
-    assert calls[:-1] == [c["sql"] for c in CHECKS if c["sql"]]
+    expected = [c["sql"] for c in CHECKS if c["sql"]]
+    assert calls[:len(expected)] == expected
     payload = report[report.rindex('La huella detecta cambios del JSON; no acredita la veracidad de la fuente.\n') + len('La huella detecta cambios del JSON; no acredita la veracidad de la fuente.\n'):].rstrip('\n')
     evidence = json.loads(payload)
     assert len(evidence["checks"]) == len(CHECKS)

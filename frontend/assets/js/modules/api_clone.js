@@ -98,7 +98,7 @@ function _buildUI() {
       <button onclick="ApiCloneModule.setTab('utilidades');ApiCloneModule.doUtilSelect('verificacion-coherencia')" style="padding:10px;margin:4px">Ver comprobaciones y ayudas</button>
       <details><summary>¿Qué demuestra este informe?</summary><p>Ejecuta las comprobaciones globales y contrasta las PK, FK y claves únicas declaradas en las tablas de las 17 clases. Descarga SQL, contadores, incidencias y límites. Los nombres no se usan para reasignar registros. Incluye pruebas pendientes. No certifica una fiabilidad del 100 %. Puede tardar al consultar toda la base.</p></details>
       <p role="status">${_checkText(_state.reportError)}</p>
-      <small>Comprobaciones · versión 2026-09-21.4</small>
+      <small>Comprobaciones · versión 2026-09-21.5</small>
     </div>
     <div style="border-bottom:2px solid #e2e8f0;margin-bottom:12px">${tabBtns}</div>
     <div id="api-clone-tab">${_buildTab()}</div>
