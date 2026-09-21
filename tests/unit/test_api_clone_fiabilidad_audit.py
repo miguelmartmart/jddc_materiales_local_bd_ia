@@ -25,7 +25,7 @@ class SqliteDriver:
 
     def execute_query(self, sql):
         self.queries.append(sql)
-        first = re.match(r"SELECT FIRST (\d+) ", sql)
+        first = re.match(r"SELECT FIRST (\d+)\s+", sql)
         if first:
             sql = "SELECT " + sql[first.end():] + " LIMIT " + first.group(1)
         sql = re.sub(r"EXTRACT\(YEAR FROM (\w+\.\w+)\)", r"CAST(strftime('%Y', \1) AS INTEGER)", sql)
@@ -86,7 +86,7 @@ def test_valid_project_filter_does_not_leak(audit, clase, project):
     result = svc.browse(clase, {"codProyecto": project})
     assert result["estado"] == "ok"
     assert all(row["CODPROYECTO"] == project for row in result["data"]["items"])
-    if project in ("A", "B"):
+    if project == "A" or (project == "B" and clase != "proordprev"):
         assert result["data"]["items"]
 
 
@@ -96,14 +96,12 @@ def test_document_type_filter_applies_to_read_and_browse(audit):
     assert svc.read("docalbcom", "103")["estado"] == "falla"
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-01: espacios eliminan WHERE tras superar validación")
 def test_whitespace_project_must_not_return_global_data(audit):
     _, _, client = audit
     r = client.post("/api/api-clone/browse", json={"clase": "proordutil", "params": {"codProyecto": "   "}}).json()
     assert r["estado"] == "falla" or not r["data"]["items"]
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-02: parámetro de proyecto no soportado se ignora")
 @pytest.mark.parametrize("clase,key,allowed", [("recursos", "CODIGO", {1}), ("docalbcom", "CODIGO", {101})])
 def test_project_scope_must_be_enforced_or_rejected(audit, clase, key, allowed):
     svc, _, _ = audit
@@ -111,7 +109,6 @@ def test_project_scope_must_be_enforced_or_rejected(audit, clase, key, allowed):
     assert r["estado"] == "falla" or {x[key] for x in r["data"]["items"]} <= allowed
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-03: read omite CODCAB, devuelve primera coincidencia")
 def test_ambiguous_line_id_must_be_rejected(audit):
     svc, _, _ = audit
     row_a = svc.browse("proordutil", {"codProyecto": "A"})["data"]["items"][0]
@@ -119,7 +116,6 @@ def test_ambiguous_line_id_must_be_rejected(audit):
     assert r["estado"] == "falla" or r["data"]["CODPROYECTO"] == "A"
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-04: ambas clases consultan la misma población")
 def test_real_and_forecast_sets_must_not_overlap(audit):
     svc, _, _ = audit
     real = svc.browse("proordutil", {"codProyecto": "A"})["data"]["items"]
@@ -131,25 +127,22 @@ def test_real_and_forecast_sets_must_not_overlap(audit):
 @pytest.mark.xfail(strict=True, reason="AUD-05: líneas relacionadas por cabecera desaparecen")
 def test_all_project_lines_include_header_relationship(audit):
     svc, drv, _ = audit
-    expected = drv.db.execute("SELECT o.CODCAB,o.CODIGO FROM OBRALIN o JOIN OBRACAB c ON c.CODIGO=o.CODCAB WHERE c.CODPROYECTO='A'").fetchall()
+    expected = drv.db.execute("SELECT o.CODCAB,o.CODIGO FROM OBRALIN o JOIN OBRACAB c ON c.CODIGO=o.CODCAB WHERE c.CODPROYECTO='A' AND o.ESPREVISION=0").fetchall()
     actual = svc.browse("proordutil", {"codProyecto": "A"})["data"]["items"]
     assert {(r["CODCAB"], r["CODIGO"]) for r in actual} == {tuple(r) for r in expected}
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-06: filtro FINOBRA no está admitido ni se rechaza")
 def test_active_project_filter_must_work_or_be_rejected(audit):
     svc, _, _ = audit
     r = svc.browse("proyectos", {"FINOBRA": "F"})
     assert r["estado"] == "falla" or {p["CODIGO"] for p in r["data"]["items"]} == {"A"}
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-07: no se devuelve el estado FINOBRA")
 def test_project_result_exposes_lifecycle(audit):
     svc, _, _ = audit
     assert svc.read("proyectos", "B")["data"]["FINOBRA"] == "T"
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-08: FIRST es truncado, sin paginación offset")
 def test_offset_must_advance_or_be_rejected(audit):
     svc, _, _ = audit
     first = svc.browse("proyectos", {}, 1)
@@ -203,7 +196,6 @@ def test_unknown_project_is_not_a_zero_success(audit):
     assert "no existe" in result["error"]
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-11: resumen y ranking excluyen conjuntos distintos")
 def test_top_and_summary_agree_with_negative_adjustment(audit):
     _, drv, _ = audit
     drv.db.execute("INSERT INTO OBRALIN(CODCAB,CODIGO,CODPROYECTO,TIPOBC3,COSTE,PRECIO,CANTIDAD) VALUES(20,99,'A',10,-5,-5,-1)")
@@ -212,7 +204,6 @@ def test_top_and_summary_agree_with_negative_adjustment(audit):
     assert top["COSTE_TOTAL"] == summary
 
 
-@pytest.mark.xfail(strict=True, reason="AUD-12: read HTTP descarta codProyecto extra")
 def test_read_cannot_silently_ignore_requested_project(audit):
     _, _, client = audit
     r = client.post("/api/api-clone/read", json={"clase": "proordutil", "objectid": "1", "codProyecto": "A"})
@@ -227,8 +218,108 @@ def test_missing_required_parameter_is_warning_not_valid_empty_query(audit):
 
 
 def test_read_foreign_project_demonstration(audit):
-    """Caracteriza explícitamente el defecto, sin presentarlo como garantía."""
+    """Regresión: una clave incompleta ya no devuelve la línea de otra obra."""
     svc, _, _ = audit
     requested = svc.browse("proordutil", {"codProyecto": "A"})["data"]["items"][0]
-    returned = svc.read("proordutil", str(requested["CODIGO"]))["data"]
-    assert (requested["CODPROYECTO"], returned["CODPROYECTO"]) == ("A", "B")
+    assert svc.read("proordutil", str(requested["CODIGO"]))["estado"] == "falla"
+    full_key = f"{requested['CODCAB']}:{requested['CODIGO']}"
+    assert svc.read("proordutil", full_key)["data"]["CODPROYECTO"] == "A"
+
+
+@pytest.mark.parametrize("value", ["", " ", "\t\n", None, [], {}, True, False])
+def test_invalid_scope_never_executes_global_query(audit, value):
+    svc, driver, _ = audit
+    r=svc.browse("proordutil", {"codProyecto":value})
+    assert r["estado"] == "falla"
+    assert driver.queries == []
+
+
+@pytest.mark.parametrize("limit", [0,-1,1001,True,1.5,"20",None])
+def test_invalid_limit_is_rejected_before_sql(audit, limit):
+    svc, driver, _=audit
+    assert svc.browse("proyectos",{},limit)["estado"] == "falla"
+    assert driver.queries == []
+
+
+@pytest.mark.parametrize("identifier", ["1","20",":1","20:","20:1:3","20:1 OR 1=1","-20:1","２０:１"])
+def test_malformed_line_key_never_queries(audit, identifier):
+    svc, driver, _=audit
+    assert svc.read("proordutil",identifier)["estado"] == "falla"
+    assert driver.queries == []
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_generated_cross_project_and_forecast_isolation(audit, seed):
+    import random
+    rng=random.Random(seed)
+    svc,driver,_=audit
+    for cab in range(100,140):
+        project=rng.choice(["A","B",None,"A' OR '1'='1"])
+        forecast=rng.choice([0,1,None,9])
+        driver.db.execute("INSERT INTO OBRALIN(CODCAB,CODIGO,CODPROYECTO,ESPREVISION) VALUES(?,?,?,?)",(cab,1,project,forecast))
+    for project in ["A","B","A' OR '1'='1"]:
+        sets=[]
+        for clase,forecast in [("proordutil",0),("proordprev",1)]:
+            result=svc.browse(clase,{"codProyecto":project},1000)
+            assert result["estado"] == "ok"
+            expected={tuple(r) for r in driver.db.execute("SELECT CODCAB,CODIGO FROM OBRALIN WHERE CODPROYECTO=? AND ESPREVISION=?",(project,forecast))}
+            actual={(r["CODCAB"],r["CODIGO"]) for r in result["data"]["items"]}
+            assert actual == expected
+            assert result["data"]["total"] == len(expected)
+            for cab,code in actual:
+                assert svc.read(clase,f"{cab}:{code}")["data"]["CODPROYECTO"] == project
+            sets.append(actual)
+        assert sets[0].isdisjoint(sets[1])
+
+
+def test_human_error_is_detected_not_reassigned(audit):
+    svc,driver,_=audit
+    driver.db.execute("UPDATE OBRALIN SET CODPROYECTO='B' WHERE CODCAB=20")
+    before=[tuple(r) for r in driver.db.execute("SELECT * FROM OBRALIN")]
+    checks={c["id"]:c for c in utils.verificacion_coherencia()["checks"]}
+    assert checks["CHK-015"]["resultado"] == 1
+    assert checks["CHK-015"]["estado_codigo"] == "revisar"
+    assert all(r["CODCAB"] != 20 for r in svc.browse("proordutil",{"codProyecto":"A"})["data"]["items"])
+    assert [tuple(r) for r in driver.db.execute("SELECT * FROM OBRALIN")] == before
+
+
+def test_closed_project_is_historical_not_hidden_or_authorized(audit):
+    svc,_,_=audit
+    assert svc.read("proyectos","B")["data"]["FINOBRA"] == "T"
+    result=svc.browse("proyectos",{},1)["data"]
+    assert result["lista_truncada"] is True
+    assert result["fiabilidad_negocio"] == "no_verificada"
+
+
+def test_duplicate_read_returns_error_not_first_row(audit):
+    svc,driver,_=audit
+    driver.db.execute("INSERT INTO PRESUPROYE VALUES(11,'B',NULL)")
+    assert svc.read("partidas","11")["estado"] == "falla"
+
+
+@pytest.mark.parametrize("extra", [{"codProyecto":"A"},{"params":{"codProyecto":"A"}},{"offset":1}])
+def test_http_never_discards_unknown_read_fields(audit,extra):
+    _,driver,client=audit
+    response=client.post("/api/api-clone/read",json={"clase":"proordutil","objectid":"10:1",**extra})
+    assert response.status_code == 422
+    assert driver.queries == []
+
+
+@pytest.mark.parametrize("count", [[],[{"N":None}],[{"N":-1}],[{"N":True}],[{"N":1.5}]])
+def test_unavailable_total_cannot_become_zero_success(audit,monkeypatch,count):
+    svc,driver,_=audit
+    original=driver.execute_query
+    monkeypatch.setattr(driver,"execute_query",lambda sql: count if "COUNT(*) AS N" in sql else original(sql))
+    assert svc.browse("proyectos",{})["estado"] == "falla"
+
+
+def test_unknown_filter_without_required_scope_is_rejected(audit):
+    svc,driver,_=audit
+    assert svc.browse("proordutil",{"codProyeto":"A"})["estado"] == "falla"
+    assert driver.queries == []
+
+
+def test_oversized_composite_key_is_rejected_before_conversion(audit):
+    svc,driver,_=audit
+    assert svc.read("proordutil","9"*5000+":1")["estado"] == "falla"
+    assert driver.queries == []

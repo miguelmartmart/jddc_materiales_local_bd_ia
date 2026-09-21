@@ -9,7 +9,7 @@ Sistema de proteccion de escritura (3 niveles, segun doc mPYME v1.2):
   Nivel 3 — DESTRUCTIVO: delete → requiere confirmacion='CONFIRMAR BORRADO DEFINITIVO'
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, Optional
 from backend.modules.api_clone.service import get_service
 
@@ -19,14 +19,16 @@ router = APIRouter()
 # ── Modelos de peticion ───────────────────────────────────────────────────────
 
 class BrowseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     clase: str
     params: Dict[str, Any] = Field(default_factory=dict)
-    num: int = 50
+    num: int = Field(default=50, ge=1, le=1000, strict=True)
 
 
 class ReadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     clase: str
-    objectid: str
+    objectid: str = Field(min_length=1, max_length=150)
 
 
 class PermisoRequest(BaseModel):

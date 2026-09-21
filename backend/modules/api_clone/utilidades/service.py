@@ -113,13 +113,13 @@ def top_proyectos_por_coste(limit: int = 10) -> Dict:
         SUM(ol.COSTE) AS COSTE_TOTAL, SUM(ol.PRECIO) AS PRECIO_TOTAL
     FROM OBRALIN ol
     LEFT JOIN PROYECTOS p ON p.CODIGO = ol.CODPROYECTO
-    WHERE ol.COSTE > 0
+    WHERE ol.CODPROYECTO IS NOT NULL
     GROUP BY ol.CODPROYECTO, p.NOMBRE, p.CLIENTE, p.FECHAINICIO, p.FECHAFIN
     ORDER BY COSTE_TOTAL DESC"""
     try:
         rows, ms = _exec(sql)
         return {"ok":True,"proyectos":rows,"ms":ms,"fuente":"OBRALIN+PROYECTOS",
-                "nota":"Costes 100% reales de OBRALIN. 0 huérfanos confirmados 16/09/2026."}
+                "nota":"Importes registrados, incluidos ajustes negativos y previsiones. No certifica costes realizados."}
     except Exception as e: return {"ok":False,"error":f"{type(e).__name__}: {str(e)[:300]}"}
 
 

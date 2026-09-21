@@ -93,3 +93,14 @@ test('report download explains missing backend and releases busy state', async (
   assert.equal(vm.runInContext('_state.reportBusy',ctx),false);
   assert.match(vm.runInContext('_state.reportError',ctx),/reinicia DEVIA/);
 });
+
+
+test('manual read submits the complete line key, not the project code', async () => {
+  const ctx=context();
+  ctx.document.getElementById=id=>id==='prob-line-key'?{value:'20:1'}:null;
+  let body;
+  ctx.fetch=async(url,opts)=>{body=JSON.parse(opts.body);return {ok:true,json:async()=>({estado:'ok',data:{}})};};
+  vm.runInContext('_state.probadorClase="proordutil";_state.probadorOperacion="read";_state.probadorParams={codProyecto:"A"}',ctx);
+  await ctx.window.ApiCloneModule.doProbadorEjecutar();
+  assert.equal(body.objectid,'20:1');
+});

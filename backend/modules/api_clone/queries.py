@@ -28,6 +28,8 @@ CLASE_TABLA_MAP: Dict[str, Tuple[str, str, str, str]] = {
     "ordenfab":     ("FABCAB",        "CODIGO",        "CODIGO",       "codOrden"),
 }
 CLASE_WHERE: Dict[str, str] = {
+    "proordutil": "ESPREVISION = 0",
+    "proordprev": "ESPREVISION = 1",
     "docalbcom": "TIPO = 2",
     "docfaccom": "TIPO = 3",
     "docpedcom": "TIPO = 11",
@@ -107,7 +109,7 @@ OPERACIONES_ESCRITURA_REAL = {"write", "imputaPro", "imputaRep", "imputaFab", "d
 OPERACIONES_TEMPORALES = {"new", "edit", "cancel"}
 CLASE_COLS_BROWSE: Dict[str, str] = {
     # Columnas verificadas con SELECT en BD JDDC (16/09/2026)
-    "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA",
+    "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA, FINOBRA",
     "partidas":     "CODPRESUPUESTO, CODPROYECTO",
     # OBRALIN: CODCAB, CODIGO, CODPROYECTO, ESPREVISION, FECHA, CODARTICULO, CODRECURSO, NOMBRE
     "proordutil":   "CODCAB, CODIGO, CODPROYECTO, FECHA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION",
@@ -130,7 +132,7 @@ CLASE_COLS_BROWSE: Dict[str, str] = {
 }
 CLASE_COLS_READ: Dict[str, str] = {
     # Columnas read verificadas (16/09/2026)
-    "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA, OBSERVACIONES, PORCRETENCION",
+    "proyectos":    "CODIGO, NOMBRE, CLIENTE, FECHAINICIO, FECHAFIN, TIPOOBRA, FINOBRA, OBSERVACIONES, PORCRETENCION",
     "partidas":     "CODPRESUPUESTO, CODPROYECTO, CODPROYSUBCONTRATA",
     "proordutil":   "CODCAB, CODIGO, CODPROYECTO, FECHA, FECHAALTA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION, PARTIDA",
     "proordprev":   "CODCAB, CODIGO, CODPROYECTO, FECHA, FECHAALTA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION, PARTIDA",

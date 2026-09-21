@@ -97,7 +97,7 @@ function _buildUI() {
       <button onclick="ApiCloneModule.setTab('utilidades');ApiCloneModule.doUtilSelect('verificacion-coherencia')" style="padding:10px;margin:4px">Ver comprobaciones y ayudas</button>
       <details><summary>¿Qué demuestra este informe?</summary><p>Ejecuta las comprobaciones globales disponibles y descarga sus SQL, contadores, incidencias y límites. Incluye pruebas pendientes. No certifica una fiabilidad del 100 %. Puede tardar al consultar toda la base.</p></details>
       <p role="status">${_checkText(_state.reportError)}</p>
-      <small>Comprobaciones · versión 2026-09-21.2</small>
+      <small>Comprobaciones · versión 2026-09-21.3</small>
     </div>
     <div style="border-bottom:2px solid #e2e8f0;margin-bottom:12px">${tabBtns}</div>
     <div id="api-clone-tab">${_buildTab()}</div>
@@ -551,7 +551,7 @@ function _tabProbador() {
       </div>
       <div style="margin-bottom:12px">
         <div style="font-size:0.85em;font-weight:600;color:#374151;margin-bottom:8px">Parámetros de entrada</div>
-        ${camposHtml}
+        ${_state.probadorOperacion==='read' && ['proordutil','proordprev'].includes(pc)?'<label>Clave completa CODCAB:CODIGO <input id="prob-line-key" placeholder="20:1"></label><p>Copia ambos valores de la fila del browse. El código de proyecto no identifica una línea.</p>':camposHtml}
         ${_state.probadorOperacion==='browse'?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px">
           <label style="font-size:0.83em;color:#64748b">Máx. registros:</label>
           <input type="number" value="${_state.probadorNum}" min="1" max="500"
@@ -750,6 +750,7 @@ async function doProbadorEjecutar() {
     const el = document.getElementById(`prob-campo-${c.n}`);
     if (el && el.value) _state.probadorParams[c.n] = el.value;
   });
+  const lineKey = document.getElementById("prob-line-key")?.value || "";
   _state.probadorResultado = null;
   _render();
   try {
@@ -758,7 +759,7 @@ async function doProbadorEjecutar() {
     if (op === "browse") {
       r = await _fetch("/browse", { method:"POST", body:JSON.stringify({clase, params, num:_state.probadorNum}) });
     } else if (op === "read") {
-      const objectid = params.codProyecto || params.codOrden || params.codCliente || params.codArticulo || Object.values(params)[0] || "";
+      const objectid = ["proordutil","proordprev"].includes(clase) ? lineKey : (params.codProyecto || params.codOrden || params.codCliente || params.codArticulo || Object.values(params)[0] || "");
       r = await _fetch("/read", { method:"POST", body:JSON.stringify({clase, objectid}) });
     } else if (op === "permiso") {
       r = await _fetch("/permiso", { method:"POST", body:JSON.stringify({clase}) });

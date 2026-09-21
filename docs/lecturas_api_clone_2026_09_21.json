@@ -1,0 +1,33 @@
+{
+  "inicio_utc": "2026-09-21T10:57:44.167442+00:00",
+  "modo": "READ COMMITTED READ ONLY",
+  "alcance": "Muestra limitada: proyecto 45215, hasta cinco líneas por clase. No certifica todos los proyectos ni la equivalencia mPYME.",
+  "resultados": [
+    {
+      "clase": "proordutil",
+      "total": 702,
+      "claves_verificadas": [
+        "6714:1",
+        "6714:2",
+        "6714:3",
+        "6714:4",
+        "6714:5"
+      ],
+      "sql": "SELECT FIRST 5 CODCAB, CODIGO, CODPROYECTO, FECHA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION FROM OBRALIN WHERE ESPREVISION = 0 AND CODPROYECTO = '45215' ORDER BY CODCAB, CODIGO"
+    },
+    {
+      "clase": "proordprev",
+      "total": 8168,
+      "claves_verificadas": [
+        "6743:1",
+        "6743:2",
+        "6743:3",
+        "6743:6",
+        "6743:7"
+      ],
+      "sql": "SELECT FIRST 5 CODCAB, CODIGO, CODPROYECTO, FECHA, CODARTICULO, CODRECURSO, NOMBRE, ESPREVISION FROM OBRALIN WHERE ESPREVISION = 1 AND CODPROYECTO = '45215' ORDER BY CODCAB, CODIGO"
+    }
+  ],
+  "resultado": "correcto_en_la_muestra",
+  "fin_utc": "2026-09-21T10:57:45.176447+00:00"
+}

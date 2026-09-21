@@ -98,6 +98,8 @@ class ApiCloneService:
             "error": error, "duracion_ms": round(ms, 1),
             "fuente": "firebird_directo",
         }
+        if op in {"browse", "read"}:
+            entry["fiabilidad_negocio"] = "no_verificada"
         self._history.insert(0, entry)
         self._history = self._history[:MAX_HISTORY]
         if clase not in self._matrix:
@@ -115,7 +117,7 @@ class ApiCloneService:
         col_map = PARAM_A_COLUMNA.get(clase, {})
         for p_api, valor in params.items():
             col = col_map.get(p_api)
-            if col and valor and str(valor).strip():
+            if col and valor is not None and str(valor).strip():
                 v = str(valor).strip().replace("'", "''")
                 clauses.append(f"{col} = '{v}'")
         return " AND ".join(clauses) if clauses else ""
@@ -126,11 +128,21 @@ class ApiCloneService:
             return {"ok": False, "error": f"Clase '{clase}' no reconocida"}
         tabla, campo_pk = info[0], info[1]
         cols = CLASE_COLS_BROWSE.get(clase, "*")
+        allowed = PARAM_A_COLUMNA.get(clase, {})
+        unknown = set(params) - set(allowed)
+        if unknown:
+            return {"ok": False, "error": "Filtros no soportados: " + ", ".join(sorted(unknown))}
+        if isinstance(num, bool) or not isinstance(num, int) or not 1 <= num <= 1000:
+            return {"ok": False, "error": "num debe ser un entero entre 1 y 1000"}
+        for key, value in params.items():
+            if isinstance(value, (bool, dict, list)) or value is None or not str(value).strip():
+                return {"ok": False, "error": f"Filtro vacío o inválido: {key}"}
         where = self._where(clase, params)
         sql = f"SELECT FIRST {num} {cols} FROM {tabla}"
         if where:
             sql += f" WHERE {where}"
-        sql += f" ORDER BY {campo_pk}"
+        order = "CODCAB, CODIGO" if tabla == "OBRALIN" else campo_pk
+        sql += f" ORDER BY {order}"
         t0 = time.time()
         try:
             drv = _get_driver()
@@ -140,7 +152,10 @@ class ApiCloneService:
                 if where:
                     sql_cnt += f" WHERE {where}"
                 cnt = drv.execute_query(sql_cnt)
-                total = int(cnt[0].get("N") or cnt[0].get("n") or 0) if cnt else 0
+                if len(cnt or []) != 1:
+                    raise ValueError("No se pudo verificar el total")
+                from .utilidades.check_runner import _count
+                total = _count(cnt[0], "N")
             finally:
                 drv.disconnect()
             return {"ok": True, "items": _rows_to_safe(rows), "total": total,
@@ -157,10 +172,16 @@ class ApiCloneService:
         cols = CLASE_COLS_READ.get(clase, "*")
         val = str(objectid).strip().replace("'", "''")
         where_extra = CLASE_WHERE.get(clase, "")
-        where = f"{campo_pk} = '{val}'"
+        if tabla == "OBRALIN":
+            parts = str(objectid).strip().split(":")
+            if len(parts) != 2 or any(len(part) > 18 or not part.isascii() or not part.isdigit() for part in parts):
+                return {"ok": False, "error": "La línea requiere clave completa CODCAB:CODIGO; un CODIGO aislado es ambiguo."}
+            where = f"CODCAB = {int(parts[0])} AND CODIGO = {int(parts[1])}"
+        else:
+            where = f"{campo_pk} = '{val}'"
         if where_extra:
             where = f"{where_extra} AND {where}"
-        sql = f"SELECT {cols} FROM {tabla} WHERE {where}"
+        sql = f"SELECT FIRST 2 {cols} FROM {tabla} WHERE {where}"
         t0 = time.time()
         try:
             drv = _get_driver()
@@ -171,6 +192,8 @@ class ApiCloneService:
             ms = round((time.time()-t0)*1000)
             if not rows:
                 return {"ok": False, "error": f"No encontrado: {campo_pk}='{objectid}'", "ms": ms}
+            if len(rows) != 1:
+                return {"ok": False, "error": "Identificador ambiguo: varias filas. Se requiere una clave completa.", "ms": ms}
             return {"ok": True, "data": _rows_to_safe(rows)[0], "ms": ms}
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:300]}",
@@ -247,14 +270,20 @@ class ApiCloneService:
 
     def browse(self, clase, params, num=MAX_BROWSE):
         t0 = time.time()
+        unknown = set(params) - set(PARAM_A_COLUMNA.get(clase, {}))
+        if unknown:
+            return self._log(clase,"browse",params,None,0,error="Filtros no soportados: " + ", ".join(sorted(unknown)))
         pq = CLASE_PARAM_REQUERIDO.get(clase)
-        if pq and not params.get(pq):
+        if pq and pq not in params:
             av = {"aviso":f"'{clase}' requiere param '{pq}'","param_requerido":pq,"items":[],"total":0}
             return self._log(clase,"browse",params,av,round((time.time()-t0)*1000))
         r = self._browse_sql(clase, params, num)
         ms = r.get("ms", round((time.time()-t0)*1000))
         if r["ok"]:
-            return self._log(clase,"browse",params,{"items":r["items"],"total":r["total"]},
+            return self._log(clase,"browse",params,{"items":r["items"],"total":r["total"],
+                             "lista_truncada":len(r["items"]) < r["total"],
+                             "fiabilidad_negocio":"no_verificada",
+                             "alcance":"Solo referencias explícitas y filtros admitidos. No se infiere proyecto desde cabecera. Los contadores y filas pueden cambiar entre consultas."},
                              ms,n_items=len(r["items"]))
         return self._log(clase,"browse",params,None,ms,error=r.get("error"))
 
