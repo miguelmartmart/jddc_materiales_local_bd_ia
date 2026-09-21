@@ -1,0 +1,1620 @@
+DEVIA — INFORME DE COMPROBACIONES API CLONE
+Versión del informe: 2026-09-21.2
+Inicio UTC: 2026-09-21T10:28:39.806653+00:00
+Fin UTC: 2026-09-21T10:29:36.787196+00:00
+Origen: Firebird configurado en el servidor que genera este informe; no datos simulados.
+GARANTÍA DEL 100 %: NO DEMOSTRADA
+Comprobación global de la base configurada; no certifica un proyecto seleccionado ni autoriza operaciones.
+Correcto solo se refiere a la regla indicada. Las consultas se ejecutan por separado y no forman una instantánea común.
+Solo lectura. Se ejecutan de nuevo las consultas del catálogo, no se reutilizan resultados históricos.
+Cobertura: todas las filas que cumplen el WHERE de cada SQL; los grupos pueden solaparse.
+No sumar poblaciones de checks ni clases Discover All: pueden consultar las mismas filas.
+Un check correcto acredita solo su regla y población. No equivale a equivalencia con mPYME.
+RESUMEN
+{"correcto": 16, "revisar": 8, "no_verificable": 3, "no_aplica": 0}
+
+GRUPO: Proyecto y estado — No verificable
+Distingue tener un proyecto registrado de poder trabajar en él. Un proyecto cerrado puede seguir siendo necesario para consultar su histórico.
+
+CHK-007 — Indicador de fin de obra informado — Correcto
+Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 16
+Ejemplo: Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.
+Acción: Completar o confirmar el estado en SQL Obras.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS
+
+CHK-008 — Permiso para nuevas imputaciones — No verificable
+Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.
+Resultado: Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Una obra no finalizada puede estar bloqueada para nuevas imputaciones.
+Acción: Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+GRUPO: Pertenencia de los datos — Revisar
+Comprueba referencias a proyectos y técnicos. Que un código exista no demuestra que la persona eligiera la obra correcta.
+
+CHK-001 — Líneas con proyecto identificable — Revisar
+Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.
+Resultado: 677528 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 677528; duración ms: 11422
+Ejemplo: Una línea puede existir en la base de datos y no indicar a qué obra pertenece.
+Acción: Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol
+
+CHK-002 — Referencias de técnicos existentes — Correcto
+Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.
+Resultado: 0 de 224561 registros requieren revisión en esta comprobación.
+Población evaluada: 224561; incidencias: 0; duración ms: 3266
+Ejemplo: Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.
+Acción: Contrastar las referencias con el catálogo y el parte original.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL
+
+CHK-014 — Cabecera de línea existente — Correcto
+Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 8844
+Ejemplo: Una línea apunta a una cabecera eliminada.
+Acción: Contrastar la cabecera original; no reasignar automáticamente.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l
+
+CHK-015 — Proyecto de cabecera y línea coincidentes — Correcto
+Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.
+Resultado: 0 de 266473 registros requieren revisión en esta comprobación.
+Población evaluada: 266473; incidencias: 0; duración ms: 2062
+Ejemplo: La cabecera corresponde a A pero la línea indica B.
+Acción: Contrastar ambas referencias con SQL Obras.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL
+
+CHK-016 — Proyecto de cabecera existente — Revisar
+Comprueba la referencia de proyecto de cada cabecera.
+Resultado: 7296 de 53937 registros requieren revisión en esta comprobación.
+Población evaluada: 53937; incidencias: 7296; duración ms: 750
+Ejemplo: Una cabecera apunta a una obra desconocida.
+Acción: Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c
+
+CHK-019 — Clave completa no nula: PROYECTOS — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 16
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS
+
+CHK-020 — Unicidad de clave completa: PROYECTOS — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 1216 registros requieren revisión en esta comprobación.
+Población evaluada: 1216; incidencias: 0; duración ms: 0
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K
+
+CHK-021 — Clave completa no nula: RECURSO — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 186 registros requieren revisión en esta comprobación.
+Población evaluada: 186; incidencias: 0; duración ms: 0
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO
+
+CHK-022 — Unicidad de clave completa: RECURSO — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 186 registros requieren revisión en esta comprobación.
+Población evaluada: 186; incidencias: 0; duración ms: 16
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K
+
+CHK-023 — Clave completa no nula: OBRACAB — Correcto
+Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 53937 registros requieren revisión en esta comprobación.
+Población evaluada: 53937; incidencias: 0; duración ms: 31
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB
+
+CHK-024 — Unicidad de clave completa: OBRACAB — Correcto
+Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 53937 registros requieren revisión en esta comprobación.
+Población evaluada: 53937; incidencias: 0; duración ms: 62
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K
+
+CHK-025 — Clave completa no nula: OBRALIN — Correcto
+Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 2047
+Ejemplo: Una parte de la clave está vacía.
+Acción: Revisar esquema y origen de las filas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-026 — Unicidad de clave completa: OBRALIN — Correcto
+Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 3922
+Ejemplo: Dos filas comparten toda la clave.
+Acción: Revisar restricciones antes de confiar en read o JOIN.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K
+
+CHK-027 — CODIGO de línea ambiguo sin cabecera — Revisar
+Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.
+Resultado: 6401 de 7335 registros requieren revisión en esta comprobación.
+Población evaluada: 7335; incidencias: 6401; duración ms: 3422
+Ejemplo: Las cabeceras A y B tienen ambas una línea 1.
+Acción: No identificar OBRALIN usando solo CODIGO.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K
+
+GRUPO: Datos disponibles — Revisar
+Explica cuándo un cero se debe a datos incompletos o al filtro de cantidades, en lugar de ausencia de actividad.
+
+CHK-003 — Tipos de línea reconocidos — Correcto
+Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 3438
+Ejemplo: Una actualización del programa añade una nueva clase de material.
+Acción: Confirmar el significado del nuevo tipo antes de clasificar sus importes.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-009 — Mano de obra excluida por cantidad — Revisar
+Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.
+Resultado: 14064 de 14064 registros requieren revisión en esta comprobación.
+Población evaluada: 14064; incidencias: 14064; duración ms: 3218
+Ejemplo: Existe una línea con técnico informado, pero CANTIDAD vale cero.
+Acción: Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL
+
+CHK-017 — Mano de obra con recurso informado — Revisar
+Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.
+Resultado: 83072 de 307633 registros requieren revisión en esta comprobación.
+Población evaluada: 307633; incidencias: 83072; duración ms: 1969
+Ejemplo: Una línea MO no indica quién la realizó.
+Acción: No contabilizar líneas sin persona como técnicos distintos.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10
+
+GRUPO: Real frente a previsto — No verificable
+El trabajo presupuestado o previsto debe distinguirse del realizado. No se deben sumar ambos como si fueran ejecución.
+
+CHK-010 — Indicador real o previsto reconocido — Correcto
+Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 2954
+Ejemplo: Una línea sin indicador no puede clasificarse con seguridad.
+Acción: Confirmar la clasificación antes de sumar ejecución y previsión.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-011 — Separación en los informes — No verificable
+Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.
+Resultado: Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Una cantidad prevista puede aparecer dentro de un total presentado como realizado.
+Acción: Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+CHK-018 — Previsión de cabecera y línea coincidentes — Correcto
+Contrasta indicadores no nulos entre cabecera y línea.
+Resultado: 0 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 0; duración ms: 2109
+Ejemplo: Cabecera prevista con línea marcada como real.
+Acción: Confirmar qué indicador gobierna el informe antes de sumar.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL
+
+GRUPO: Fechas y coherencia — Revisar
+Detecta fechas ausentes o contradictorias. Una incidencia puede tener una explicación de negocio; no se corrige automáticamente.
+
+CHK-005 — Orden de inicio y fin — Correcto
+Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.
+Resultado: 0 de 178 registros requieren revisión en esta comprobación.
+Población evaluada: 178; incidencias: 0; duración ms: 15
+Ejemplo: La fecha final de una obra aparece antes de su inicio.
+Acción: Contrastar las dos fechas con la ficha del proyecto.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL
+
+CHK-012 — Fecha de línea disponible — Revisar
+Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.
+Resultado: 265393 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 265393; duración ms: 1437
+Ejemplo: Una línea tiene fecha de alta pero no fecha del trabajo.
+Acción: Confirmar qué fecha usa el informe de negocio.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+GRUPO: Totales y cobertura — Revisar
+Para confiar en un total hay que conocer qué líneas incluye, los ajustes y si se han consultado todos los resultados.
+
+CHK-004 — Cantidades negativas y ajustes — Revisar
+Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.
+Resultado: 18631 de 944001 registros requieren revisión en esta comprobación.
+Población evaluada: 944001; incidencias: 18631; duración ms: 3172
+Ejemplo: Se devuelve material y se registra una cantidad negativa.
+Acción: Comprobar que resumen, ranking y detalle traten igual los ajustes.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN
+
+CHK-006 — Cantidad positiva sin coste — Revisar
+Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.
+Resultado: 13 de 1737 registros requieren revisión en esta comprobación.
+Población evaluada: 1737; incidencias: 13; duración ms: 2656
+Ejemplo: Hay una cantidad registrada pero no una tarifa o coste asociado.
+Acción: Revisar la tarifa y si la línea es prevista o realizada.
+SQL ejecutado: SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0
+
+CHK-013 — Informe completo y conciliado — No verificable
+No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.
+Resultado: No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.
+Población evaluada: None; incidencias: None; duración ms: 0
+Ejemplo: Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.
+Acción: Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.
+SQL ejecutado: NO EJECUTADO: falta una regla validada.
+
+PK / FK / UNIQUE DECLARADAS EN FIREBIRD
+{
+  "sql": "SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,\n TRIM(rc.RDB$CONSTRAINT_NAME) AS RESTRICCION,\n TRIM(rc.RDB$CONSTRAINT_TYPE) AS TIPO,\n TRIM(s.RDB$FIELD_NAME) AS CAMPO, s.RDB$FIELD_POSITION AS POSICION,\n TRIM(parent.RDB$RELATION_NAME) AS TABLA_REFERIDA,\n TRIM(ps.RDB$FIELD_NAME) AS CAMPO_REFERIDO,\n idx.RDB$INDEX_INACTIVE AS INDICE_INACTIVO\n FROM RDB$RELATION_CONSTRAINTS rc\n LEFT JOIN RDB$INDICES idx ON idx.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$REF_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME=rc.RDB$CONSTRAINT_NAME\n LEFT JOIN RDB$RELATION_CONSTRAINTS parent ON parent.RDB$CONSTRAINT_NAME=ref.RDB$CONST_NAME_UQ\n LEFT JOIN RDB$INDEX_SEGMENTS ps ON ps.RDB$INDEX_NAME=parent.RDB$INDEX_NAME\n AND ps.RDB$FIELD_POSITION=s.RDB$FIELD_POSITION\n WHERE rc.RDB$RELATION_NAME IN ('PROYECTOS','OBRACAB','OBRALIN','RECURSO','PRESUPROYE')\n AND rc.RDB$CONSTRAINT_TYPE IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE')\n ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION",
+  "alcance": "PROYECTOS, OBRACAB, OBRALIN, RECURSO, PRESUPROYE",
+  "estado": "inventariado",
+  "restricciones": [
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_PROYECTOS_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "PROYECTOS",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "ESPREVISION",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRACAB",
+      "RESTRICCION": "OBRACAB_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODIGO",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_OBRACAB_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODCAB",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "OBRACAB",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODCAB",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "OBRALIN",
+      "RESTRICCION": "OBRALIN_REPARA_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODREPARA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "REPARA",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_DOCCAB_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPRESUPUESTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "DOCCAB",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPROYSUBCONTRATA",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PK",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPRESUPUESTO",
+      "POSICION": 2,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PRESUPROYE",
+      "RESTRICCION": "PRESUPROYE_PROYECTOS_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODPROYECTO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "PROYECTOS",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "PROYECTOS",
+      "RESTRICCION": "PROYECTOS_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": 0
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_AGENTE_FK",
+      "TIPO": "FOREIGN KEY",
+      "CAMPO": "CODAGENTE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": "AGENTE",
+      "CAMPO_REFERIDO": "CODIGO",
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "CODPADRE",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "ORDEN",
+      "POSICION": 1,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_PK",
+      "TIPO": "PRIMARY KEY",
+      "CAMPO": "CODIGO",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    },
+    {
+      "TABLA": "RECURSO",
+      "RESTRICCION": "RECURSO_UQ",
+      "TIPO": "UNIQUE",
+      "CAMPO": "PINCONTROLPRESENCIA",
+      "POSICION": 0,
+      "TABLA_REFERIDA": null,
+      "CAMPO_REFERIDO": null,
+      "INDICE_INACTIVO": null
+    }
+  ],
+  "nota": "Sin FK declarada no hay garantía del motor sobre esa relación. El inventario no prueba todos los endpoints.",
+  "ms": 31
+}
+
+PRUEBAS NO REALIZADAS POR ESTE INFORME
+Comparación independiente respuesta a respuesta con mPYME / SQL Obras.
+Aislamiento por proyecto de cada endpoint y tratamiento de claves compuestas.
+Reglas completas de borradores, bloqueos, permisos y cierre de ejercicio.
+Certificación de horas/costes, unidades, tarifas y conciliación contable.
+Paginación exhaustiva de todos los endpoints, concurrencia e instantánea transaccional común.
+Pruebas automáticas del código: no se ejecuta pytest desde este informe.
+La referencia a una obra existente no demuestra que la obra elegida en el parte sea correcta.
+EVIDENCIA ESTRUCTURADA COMPLETA (JSON)
+SHA-256 del JSON UTF-8 siguiente: edd0af6a3f480f42f5a7b3b5a2d242db839c7be65b90f5c7e661d056f6e4a801
+La huella detecta cambios del JSON; no acredita la veracidad de la fuente.
+{
+  "alcance": "Comprobación global de la base configurada; no certifica un proyecto seleccionado ni autoriza operaciones.",
+  "checks": [
+    {
+      "accion": "Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.",
+      "descripcion": "Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.",
+      "detalle": "677528 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea puede existir en la base de datos y no indicar a qué obra pertenece.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-001",
+      "ms": 11422,
+      "nombre": "Líneas con proyecto identificable",
+      "ok": false,
+      "resultado": 677528,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Contrastar las referencias con el catálogo y el parte original.",
+      "descripcion": "Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.",
+      "detalle": "0 de 224561 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-002",
+      "ms": 3266,
+      "nombre": "Referencias de técnicos existentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL",
+      "total_evaluado": 224561
+    },
+    {
+      "accion": "Confirmar el significado del nuevo tipo antes de clasificar sus importes.",
+      "descripcion": "Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una actualización del programa añade una nueva clase de material.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "disponibilidad",
+      "id": "CHK-003",
+      "ms": 3438,
+      "nombre": "Tipos de línea reconocidos",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Comprobar que resumen, ranking y detalle traten igual los ajustes.",
+      "descripcion": "Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.",
+      "detalle": "18631 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Se devuelve material y se registra una cantidad negativa.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "totales",
+      "id": "CHK-004",
+      "ms": 3172,
+      "nombre": "Cantidades negativas y ajustes",
+      "ok": false,
+      "resultado": 18631,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Contrastar las dos fechas con la ficha del proyecto.",
+      "descripcion": "Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.",
+      "detalle": "0 de 178 registros requieren revisión en esta comprobación.",
+      "ejemplo": "La fecha final de una obra aparece antes de su inicio.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "fechas",
+      "id": "CHK-005",
+      "ms": 15,
+      "nombre": "Orden de inicio y fin",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL",
+      "total_evaluado": 178
+    },
+    {
+      "accion": "Revisar la tarifa y si la línea es prevista o realizada.",
+      "descripcion": "Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.",
+      "detalle": "13 de 1737 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Hay una cantidad registrada pero no una tarifa o coste asociado.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "totales",
+      "id": "CHK-006",
+      "ms": 2656,
+      "nombre": "Cantidad positiva sin coste",
+      "ok": false,
+      "resultado": 13,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0",
+      "total_evaluado": 1737
+    },
+    {
+      "accion": "Completar o confirmar el estado en SQL Obras.",
+      "descripcion": "Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "estado",
+      "id": "CHK-007",
+      "ms": 16,
+      "nombre": "Indicador de fin de obra informado",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.",
+      "descripcion": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+      "detalle": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+      "ejemplo": "Una obra no finalizada puede estar bloqueada para nuevas imputaciones.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "estado",
+      "id": "CHK-008",
+      "ms": 0,
+      "nombre": "Permiso para nuevas imputaciones",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.",
+      "descripcion": "Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.",
+      "detalle": "14064 de 14064 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Existe una línea con técnico informado, pero CANTIDAD vale cero.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "disponibilidad",
+      "id": "CHK-009",
+      "ms": 3218,
+      "nombre": "Mano de obra excluida por cantidad",
+      "ok": false,
+      "resultado": 14064,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL",
+      "total_evaluado": 14064
+    },
+    {
+      "accion": "Confirmar la clasificación antes de sumar ejecución y previsión.",
+      "descripcion": "Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea sin indicador no puede clasificarse con seguridad.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "prevision",
+      "id": "CHK-010",
+      "ms": 2954,
+      "nombre": "Indicador real o previsto reconocido",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.",
+      "descripcion": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+      "detalle": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+      "ejemplo": "Una cantidad prevista puede aparecer dentro de un total presentado como realizado.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "prevision",
+      "id": "CHK-011",
+      "ms": 0,
+      "nombre": "Separación en los informes",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Confirmar qué fecha usa el informe de negocio.",
+      "descripcion": "Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.",
+      "detalle": "265393 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea tiene fecha de alta pero no fecha del trabajo.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "fechas",
+      "id": "CHK-012",
+      "ms": 1437,
+      "nombre": "Fecha de línea disponible",
+      "ok": false,
+      "resultado": 265393,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.",
+      "descripcion": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+      "detalle": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+      "ejemplo": "Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.",
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "grupo": "totales",
+      "id": "CHK-013",
+      "ms": 0,
+      "nombre": "Informe completo y conciliado",
+      "ok": false,
+      "resultado": null,
+      "sql": null,
+      "total_evaluado": null
+    },
+    {
+      "accion": "Contrastar la cabecera original; no reasignar automáticamente.",
+      "descripcion": "Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea apunta a una cabecera eliminada.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-014",
+      "ms": 8844,
+      "nombre": "Cabecera de línea existente",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Contrastar ambas referencias con SQL Obras.",
+      "descripcion": "Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.",
+      "detalle": "0 de 266473 registros requieren revisión en esta comprobación.",
+      "ejemplo": "La cabecera corresponde a A pero la línea indica B.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-015",
+      "ms": 2062,
+      "nombre": "Proyecto de cabecera y línea coincidentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL",
+      "total_evaluado": 266473
+    },
+    {
+      "accion": "Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.",
+      "descripcion": "Comprueba la referencia de proyecto de cada cabecera.",
+      "detalle": "7296 de 53937 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una cabecera apunta a una obra desconocida.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-016",
+      "ms": 750,
+      "nombre": "Proyecto de cabecera existente",
+      "ok": false,
+      "resultado": 7296,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c",
+      "total_evaluado": 53937
+    },
+    {
+      "accion": "No contabilizar líneas sin persona como técnicos distintos.",
+      "descripcion": "Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.",
+      "detalle": "83072 de 307633 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una línea MO no indica quién la realizó.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "disponibilidad",
+      "id": "CHK-017",
+      "ms": 1969,
+      "nombre": "Mano de obra con recurso informado",
+      "ok": false,
+      "resultado": 83072,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10",
+      "total_evaluado": 307633
+    },
+    {
+      "accion": "Confirmar qué indicador gobierna el informe antes de sumar.",
+      "descripcion": "Contrasta indicadores no nulos entre cabecera y línea.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Cabecera prevista con línea marcada como real.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "prevision",
+      "id": "CHK-018",
+      "ms": 2109,
+      "nombre": "Previsión de cabecera y línea coincidentes",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-019",
+      "ms": 16,
+      "nombre": "Clave completa no nula: PROYECTOS",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-020",
+      "ms": 0,
+      "nombre": "Unicidad de clave completa: PROYECTOS",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K",
+      "total_evaluado": 1216
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-021",
+      "ms": 0,
+      "nombre": "Clave completa no nula: RECURSO",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO",
+      "total_evaluado": 186
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-022",
+      "ms": 16,
+      "nombre": "Unicidad de clave completa: RECURSO",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K",
+      "total_evaluado": 186
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 53937 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-023",
+      "ms": 31,
+      "nombre": "Clave completa no nula: OBRACAB",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB",
+      "total_evaluado": 53937
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 53937 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-024",
+      "ms": 62,
+      "nombre": "Unicidad de clave completa: OBRACAB",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K",
+      "total_evaluado": 53937
+    },
+    {
+      "accion": "Revisar esquema y origen de las filas.",
+      "descripcion": "Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Una parte de la clave está vacía.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-025",
+      "ms": 2047,
+      "nombre": "Clave completa no nula: OBRALIN",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+      "descripcion": "Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.",
+      "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Dos filas comparten toda la clave.",
+      "estado": "Correcto",
+      "estado_codigo": "correcto",
+      "grupo": "pertenencia",
+      "id": "CHK-026",
+      "ms": 3922,
+      "nombre": "Unicidad de clave completa: OBRALIN",
+      "ok": true,
+      "resultado": 0,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K",
+      "total_evaluado": 944001
+    },
+    {
+      "accion": "No identificar OBRALIN usando solo CODIGO.",
+      "descripcion": "Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.",
+      "detalle": "6401 de 7335 registros requieren revisión en esta comprobación.",
+      "ejemplo": "Las cabeceras A y B tienen ambas una línea 1.",
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "grupo": "pertenencia",
+      "id": "CHK-027",
+      "ms": 3422,
+      "nombre": "CODIGO de línea ambiguo sin cabecera",
+      "ok": false,
+      "resultado": 6401,
+      "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K",
+      "total_evaluado": 7335
+    }
+  ],
+  "estructura": {
+    "alcance": "PROYECTOS, OBRACAB, OBRALIN, RECURSO, PRESUPROYE",
+    "estado": "inventariado",
+    "ms": 31,
+    "nota": "Sin FK declarada no hay garantía del motor sobre esa relación. El inventario no prueba todos los endpoints.",
+    "restricciones": [
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_PK",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_PROYECTOS_FK",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": "PROYECTOS",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "ESPREVISION",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 2,
+        "RESTRICCION": "OBRACAB_UQ",
+        "TABLA": "OBRACAB",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODCAB",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_OBRACAB_FK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": "OBRACAB",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODCAB",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_PK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "OBRALIN_PK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODREPARA",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "OBRALIN_REPARA_FK",
+        "TABLA": "OBRALIN",
+        "TABLA_REFERIDA": "REPARA",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPRESUPUESTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_DOCCAB_FK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": "DOCCAB",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPROYSUBCONTRATA",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 1,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPRESUPUESTO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 2,
+        "RESTRICCION": "PRESUPROYE_PK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODPROYECTO",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PRESUPROYE_PROYECTOS_FK",
+        "TABLA": "PRESUPROYE",
+        "TABLA_REFERIDA": "PROYECTOS",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": 0,
+        "POSICION": 0,
+        "RESTRICCION": "PROYECTOS_PK",
+        "TABLA": "PROYECTOS",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "CODAGENTE",
+        "CAMPO_REFERIDO": "CODIGO",
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_AGENTE_FK",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": "AGENTE",
+        "TIPO": "FOREIGN KEY"
+      },
+      {
+        "CAMPO": "CODPADRE",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "ORDEN",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 1,
+        "RESTRICCION": "RECURSO_PADRE_ORDEN_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      },
+      {
+        "CAMPO": "CODIGO",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_PK",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "PRIMARY KEY"
+      },
+      {
+        "CAMPO": "PINCONTROLPRESENCIA",
+        "CAMPO_REFERIDO": null,
+        "INDICE_INACTIVO": null,
+        "POSICION": 0,
+        "RESTRICCION": "RECURSO_UQ",
+        "TABLA": "RECURSO",
+        "TABLA_REFERIDA": null,
+        "TIPO": "UNIQUE"
+      }
+    ],
+    "sql": "SELECT TRIM(rc.RDB$RELATION_NAME) AS TABLA,\n TRIM(rc.RDB$CONSTRAINT_NAME) AS RESTRICCION,\n TRIM(rc.RDB$CONSTRAINT_TYPE) AS TIPO,\n TRIM(s.RDB$FIELD_NAME) AS CAMPO, s.RDB$FIELD_POSITION AS POSICION,\n TRIM(parent.RDB$RELATION_NAME) AS TABLA_REFERIDA,\n TRIM(ps.RDB$FIELD_NAME) AS CAMPO_REFERIDO,\n idx.RDB$INDEX_INACTIVE AS INDICE_INACTIVO\n FROM RDB$RELATION_CONSTRAINTS rc\n LEFT JOIN RDB$INDICES idx ON idx.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME=rc.RDB$INDEX_NAME\n LEFT JOIN RDB$REF_CONSTRAINTS ref ON ref.RDB$CONSTRAINT_NAME=rc.RDB$CONSTRAINT_NAME\n LEFT JOIN RDB$RELATION_CONSTRAINTS parent ON parent.RDB$CONSTRAINT_NAME=ref.RDB$CONST_NAME_UQ\n LEFT JOIN RDB$INDEX_SEGMENTS ps ON ps.RDB$INDEX_NAME=parent.RDB$INDEX_NAME\n AND ps.RDB$FIELD_POSITION=s.RDB$FIELD_POSITION\n WHERE rc.RDB$RELATION_NAME IN ('PROYECTOS','OBRACAB','OBRALIN','RECURSO','PRESUPROYE')\n AND rc.RDB$CONSTRAINT_TYPE IN ('PRIMARY KEY','FOREIGN KEY','UNIQUE')\n ORDER BY rc.RDB$RELATION_NAME,rc.RDB$CONSTRAINT_NAME,s.RDB$FIELD_POSITION"
+  },
+  "fuente": "Consultas de lectura Firebird y limitaciones documentadas",
+  "grupos": [
+    {
+      "ayuda": "Distingue tener un proyecto registrado de poder trabajar en él. Un proyecto cerrado puede seguir siendo necesario para consultar su histórico.",
+      "checks": [
+        {
+          "accion": "Completar o confirmar el estado en SQL Obras.",
+          "descripcion": "Comprueba que FINOBRA tenga uno de los valores conocidos F o T. Un valor F no descarta otros bloqueos.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Un proyecto tiene el indicador vacío y no podemos interpretar su cierre.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "estado",
+          "id": "CHK-007",
+          "ms": 16,
+          "nombre": "Indicador de fin de obra informado",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FINOBRA IS NULL OR FINOBRA NOT IN ('F','T') THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Consultar la elegibilidad en SQL Obras. Este informe no autoriza escrituras.",
+          "descripcion": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+          "detalle": "Todavía no hay una regla validada que combine borradores, bloqueos, permisos y cierre de ejercicio.",
+          "ejemplo": "Una obra no finalizada puede estar bloqueada para nuevas imputaciones.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "estado",
+          "id": "CHK-008",
+          "ms": 0,
+          "nombre": "Permiso para nuevas imputaciones",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        }
+      ],
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "id": "estado",
+      "nombre": "Proyecto y estado"
+    },
+    {
+      "ayuda": "Comprueba referencias a proyectos y técnicos. Que un código exista no demuestra que la persona eligiera la obra correcta.",
+      "checks": [
+        {
+          "accion": "Revisar el origen de las líneas señaladas en SQL Obras antes de incluirlas en un informe por proyecto.",
+          "descripcion": "Busca líneas sin código de proyecto o cuyo código no existe. Las líneas sin proyecto se señalan para clasificar su origen, no se atribuyen a otra obra.",
+          "detalle": "677528 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea puede existir en la base de datos y no indicar a qué obra pertenece.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-001",
+          "ms": 11422,
+          "nombre": "Líneas con proyecto identificable",
+          "ok": false,
+          "resultado": 677528,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ol.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=ol.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Contrastar las referencias con el catálogo y el parte original.",
+          "descripcion": "Comprueba que los códigos informados en líneas de mano de obra existan en el catálogo de recursos. No comprueba la asignación laboral.",
+          "detalle": "0 de 224561 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea menciona el técnico 123, pero ese código ya no existe en el catálogo.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-002",
+          "ms": 3266,
+          "nombre": "Referencias de técnicos existentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM RECURSO r WHERE r.CODIGO=ol.CODRECURSO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN ol WHERE ol.TIPOBC3=10 AND ol.CODRECURSO IS NOT NULL",
+          "total_evaluado": 224561
+        },
+        {
+          "accion": "Contrastar la cabecera original; no reasignar automáticamente.",
+          "descripcion": "Comprueba CODCAB frente a OBRACAB.CODIGO, incluidos valores nulos.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea apunta a una cabecera eliminada.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-014",
+          "ms": 8844,
+          "nombre": "Cabecera de línea existente",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODCAB IS NULL OR NOT EXISTS (SELECT 1 FROM OBRACAB c WHERE c.CODIGO=l.CODCAB) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Contrastar ambas referencias con SQL Obras.",
+          "descripcion": "Compara proyectos explícitos de cabeceras y líneas vinculadas. La igualdad no certifica el parte original.",
+          "detalle": "0 de 266473 registros requieren revisión en esta comprobación.",
+          "ejemplo": "La cabecera corresponde a A pero la línea indica B.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-015",
+          "ms": 2062,
+          "nombre": "Proyecto de cabecera y línea coincidentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.CODPROYECTO<>c.CODPROYECTO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.CODPROYECTO IS NOT NULL AND c.CODPROYECTO IS NOT NULL",
+          "total_evaluado": 266473
+        },
+        {
+          "accion": "Clasificar las cabeceras sin proyecto y corregir referencias tras contraste.",
+          "descripcion": "Comprueba la referencia de proyecto de cada cabecera.",
+          "detalle": "7296 de 53937 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una cabecera apunta a una obra desconocida.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-016",
+          "ms": 750,
+          "nombre": "Proyecto de cabecera existente",
+          "ok": false,
+          "resultado": 7296,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN c.CODPROYECTO IS NULL OR NOT EXISTS (SELECT 1 FROM PROYECTOS p WHERE p.CODIGO=c.CODPROYECTO) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB c",
+          "total_evaluado": 53937
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-019",
+          "ms": 16,
+          "nombre": "Clave completa no nula: PROYECTOS",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 1216 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-020",
+          "ms": 0,
+          "nombre": "Unicidad de clave completa: PROYECTOS",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM PROYECTOS GROUP BY CODIGO) K",
+          "total_evaluado": 1216
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-021",
+          "ms": 0,
+          "nombre": "Clave completa no nula: RECURSO",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM RECURSO",
+          "total_evaluado": 186
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 186 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-022",
+          "ms": 16,
+          "nombre": "Unicidad de clave completa: RECURSO",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM RECURSO GROUP BY CODIGO) K",
+          "total_evaluado": 186
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 53937 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-023",
+          "ms": 31,
+          "nombre": "Clave completa no nula: OBRACAB",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRACAB",
+          "total_evaluado": 53937
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 53937 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-024",
+          "ms": 62,
+          "nombre": "Unicidad de clave completa: OBRACAB",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRACAB GROUP BY CODIGO) K",
+          "total_evaluado": 53937
+        },
+        {
+          "accion": "Revisar esquema y origen de las filas.",
+          "descripcion": "Comprueba los componentes CODCAB,CODIGO; no sustituye la inspección de la PK declarada.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una parte de la clave está vacía.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-025",
+          "ms": 2047,
+          "nombre": "Clave completa no nula: OBRALIN",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODCAB IS NULL OR CODIGO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Revisar restricciones antes de confiar en read o JOIN.",
+          "descripcion": "Agrupa por CODCAB,CODIGO; cuenta grupos duplicados, no filas afectadas.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Dos filas comparten toda la clave.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "pertenencia",
+          "id": "CHK-026",
+          "ms": 3922,
+          "nombre": "Unicidad de clave completa: OBRALIN",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODCAB,CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODCAB,CODIGO) K",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "No identificar OBRALIN usando solo CODIGO.",
+          "descripcion": "Cuenta códigos repetidos entre cabeceras. Pueden ser válidos: read debe usar la clave compuesta.",
+          "detalle": "6401 de 7335 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Las cabeceras A y B tienen ambas una línea 1.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "pertenencia",
+          "id": "CHK-027",
+          "ms": 3422,
+          "nombre": "CODIGO de línea ambiguo sin cabecera",
+          "ok": false,
+          "resultado": 6401,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN K.N>1 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM (SELECT CODIGO, COUNT(*) AS N FROM OBRALIN GROUP BY CODIGO) K",
+          "total_evaluado": 7335
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "pertenencia",
+      "nombre": "Pertenencia de los datos"
+    },
+    {
+      "ayuda": "Explica cuándo un cero se debe a datos incompletos o al filtro de cantidades, en lugar de ausencia de actividad.",
+      "checks": [
+        {
+          "accion": "Confirmar el significado del nuevo tipo antes de clasificar sus importes.",
+          "descripcion": "Señala tipos vacíos o distintos de los actualmente conocidos: 10, 11, 20, 24 y 30. Un tipo nuevo puede ser válido, pero necesita revisión.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una actualización del programa añade una nueva clase de material.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "disponibilidad",
+          "id": "CHK-003",
+          "ms": 3438,
+          "nombre": "Tipos de línea reconocidos",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN TIPOBC3 IS NULL OR TIPOBC3 NOT IN (10,11,20,24,30) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Revisar los campos de cantidad y el parte original. No sustituir automáticamente cantidades por horas.",
+          "descripcion": "Detecta líneas no previstas, con proyecto informado, que el filtro CANTIDAD>0 oculta. Un cero en pantalla no demuestra ausencia de técnicos.",
+          "detalle": "14064 de 14064 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Existe una línea con técnico informado, pero CANTIDAD vale cero.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "disponibilidad",
+          "id": "CHK-009",
+          "ms": 3218,
+          "nombre": "Mano de obra excluida por cantidad",
+          "ok": false,
+          "resultado": 14064,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD IS NULL OR CANTIDAD<=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND ESPREVISION=0 AND CODPROYECTO IS NOT NULL",
+          "total_evaluado": 14064
+        },
+        {
+          "accion": "No contabilizar líneas sin persona como técnicos distintos.",
+          "descripcion": "Detecta mano de obra sin recurso, incluso con cantidad cero o prevista.",
+          "detalle": "83072 de 307633 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea MO no indica quién la realizó.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "disponibilidad",
+          "id": "CHK-017",
+          "ms": 1969,
+          "nombre": "Mano de obra con recurso informado",
+          "ok": false,
+          "resultado": 83072,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CODRECURSO IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10",
+          "total_evaluado": 307633
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "disponibilidad",
+      "nombre": "Datos disponibles"
+    },
+    {
+      "ayuda": "El trabajo presupuestado o previsto debe distinguirse del realizado. No se deben sumar ambos como si fueran ejecución.",
+      "checks": [
+        {
+          "accion": "Confirmar la clasificación antes de sumar ejecución y previsión.",
+          "descripcion": "Comprueba que cada línea declare el indicador conocido 0 o 1. No comprueba que las consultas los separen.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea sin indicador no puede clasificarse con seguridad.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "prevision",
+          "id": "CHK-010",
+          "ms": 2954,
+          "nombre": "Indicador real o previsto reconocido",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN ESPREVISION IS NULL OR ESPREVISION NOT IN (0,1) THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Separar las consultas y contrastarlas con el informe de SQL Obras antes de certificar cifras.",
+          "descripcion": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+          "detalle": "Las consultas actuales de utilidades no separan de forma validada ejecución y previsión. Los resultados no certifican horas reales.",
+          "ejemplo": "Una cantidad prevista puede aparecer dentro de un total presentado como realizado.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "prevision",
+          "id": "CHK-011",
+          "ms": 0,
+          "nombre": "Separación en los informes",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        },
+        {
+          "accion": "Confirmar qué indicador gobierna el informe antes de sumar.",
+          "descripcion": "Contrasta indicadores no nulos entre cabecera y línea.",
+          "detalle": "0 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Cabecera prevista con línea marcada como real.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "prevision",
+          "id": "CHK-018",
+          "ms": 2109,
+          "nombre": "Previsión de cabecera y línea coincidentes",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN l.ESPREVISION<>c.ESPREVISION THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN l JOIN OBRACAB c ON c.CODIGO=l.CODCAB WHERE l.ESPREVISION IS NOT NULL AND c.ESPREVISION IS NOT NULL",
+          "total_evaluado": 944001
+        }
+      ],
+      "estado": "No verificable",
+      "estado_codigo": "no_verificable",
+      "id": "prevision",
+      "nombre": "Real frente a previsto"
+    },
+    {
+      "ayuda": "Detecta fechas ausentes o contradictorias. Una incidencia puede tener una explicación de negocio; no se corrige automáticamente.",
+      "checks": [
+        {
+          "accion": "Contrastar las dos fechas con la ficha del proyecto.",
+          "descripcion": "Compara únicamente proyectos con ambas fechas informadas. No comprueba cuándo se imputó cada trabajo.",
+          "detalle": "0 de 178 registros requieren revisión en esta comprobación.",
+          "ejemplo": "La fecha final de una obra aparece antes de su inicio.",
+          "estado": "Correcto",
+          "estado_codigo": "correcto",
+          "grupo": "fechas",
+          "id": "CHK-005",
+          "ms": 15,
+          "nombre": "Orden de inicio y fin",
+          "ok": true,
+          "resultado": 0,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHAFIN<FECHAINICIO THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM PROYECTOS WHERE FECHAFIN IS NOT NULL AND FECHAINICIO IS NOT NULL",
+          "total_evaluado": 178
+        },
+        {
+          "accion": "Confirmar qué fecha usa el informe de negocio.",
+          "descripcion": "Señala líneas sin fecha propia. La fecha de cabecera puede representar otro hecho y no debe usarse automáticamente.",
+          "detalle": "265393 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Una línea tiene fecha de alta pero no fecha del trabajo.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "fechas",
+          "id": "CHK-012",
+          "ms": 1437,
+          "nombre": "Fecha de línea disponible",
+          "ok": false,
+          "resultado": 265393,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN FECHA IS NULL THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944001
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "fechas",
+      "nombre": "Fechas y coherencia"
+    },
+    {
+      "ayuda": "Para confiar en un total hay que conocer qué líneas incluye, los ajustes y si se han consultado todos los resultados.",
+      "checks": [
+        {
+          "accion": "Comprobar que resumen, ranking y detalle traten igual los ajustes.",
+          "descripcion": "Localiza cantidades negativas. Pueden ser devoluciones o correcciones legítimas; no son errores por sí mismas.",
+          "detalle": "18631 de 944001 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Se devuelve material y se registra una cantidad negativa.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "totales",
+          "id": "CHK-004",
+          "ms": 3172,
+          "nombre": "Cantidades negativas y ajustes",
+          "ok": false,
+          "resultado": 18631,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN CANTIDAD<0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN",
+          "total_evaluado": 944001
+        },
+        {
+          "accion": "Revisar la tarifa y si la línea es prevista o realizada.",
+          "descripcion": "Busca líneas de mano de obra con cantidad positiva y coste vacío o cero. Incluye previsiones; no certifica horas realizadas.",
+          "detalle": "13 de 1737 registros requieren revisión en esta comprobación.",
+          "ejemplo": "Hay una cantidad registrada pero no una tarifa o coste asociado.",
+          "estado": "Revisar",
+          "estado_codigo": "revisar",
+          "grupo": "totales",
+          "id": "CHK-006",
+          "ms": 2656,
+          "nombre": "Cantidad positiva sin coste",
+          "ok": false,
+          "resultado": 13,
+          "sql": "SELECT COUNT(*) AS TOTAL, COALESCE(SUM(CASE WHEN COSTE IS NULL OR COSTE=0 THEN 1 ELSE 0 END),0) AS INCIDENCIAS FROM OBRALIN WHERE TIPOBC3=10 AND CANTIDAD>0",
+          "total_evaluado": 1737
+        },
+        {
+          "accion": "Comparar claves completas, páginas y totales con SQL Obras sobre una misma instantánea.",
+          "descripcion": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+          "detalle": "No se ha contrastado el conjunto completo con un informe independiente en una misma copia de datos. Las listas limitadas no demuestran cobertura total.",
+          "ejemplo": "Ver 15 proyectos no significa que solo existan 15. Dos sumas iguales pueden contener líneas distintas.",
+          "estado": "No verificable",
+          "estado_codigo": "no_verificable",
+          "grupo": "totales",
+          "id": "CHK-013",
+          "ms": 0,
+          "nombre": "Informe completo y conciliado",
+          "ok": false,
+          "resultado": null,
+          "sql": null,
+          "total_evaluado": null
+        }
+      ],
+      "estado": "Revisar",
+      "estado_codigo": "revisar",
+      "id": "totales",
+      "nombre": "Totales y cobertura"
+    }
+  ],
+  "ms_total": 56985,
+  "n_checks": 27,
+  "n_falla": 8,
+  "n_ok": 16,
+  "nota": "Correcto solo se refiere a la regla indicada. Las consultas se ejecutan por separado y no forman una instantánea común.",
+  "ok": true,
+  "resumen": {
+    "correcto": 16,
+    "no_aplica": 0,
+    "no_verificable": 3,
+    "revisar": 8
+  },
+  "timestamp": "2026-09-21T10:29:36.787196+00:00",
+  "veredicto": "8 para revisar · 3 no verificables"
+}

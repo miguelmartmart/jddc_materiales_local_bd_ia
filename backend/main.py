@@ -195,6 +195,10 @@ app.include_router(api_explorer_router, prefix="/api/api-explorer", tags=["API E
 from backend.modules.api_clone.router import router as api_clone_router
 app.include_router(api_clone_router, prefix="/api/api-clone", tags=["API Clone — SQL Firebird Directo"])
 
+# Utilidades de Ingeniería — consultas analíticas sobre OBRALIN+PROYECTOS+RECURSO
+from backend.modules.api_clone.utilidades.router import router as utilidades_router
+app.include_router(utilidades_router, prefix="/api/api-clone/utilidades", tags=["Utilidades Ingeniería"])
+
 # BD Clone — Explorador SQL directo sobre Firebird real
 # Ejecuta SELECT libres y consultas predefinidas directamente en la BD Firebird.
 # No requiere API mPYME ni sesion — conexion directa con FirebirdDriver del proyecto.
