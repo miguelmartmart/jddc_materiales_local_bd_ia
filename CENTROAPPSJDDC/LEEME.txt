@@ -1,0 +1,21 @@
+CENTRO DE APLICACIONES JDDC -0.17.0
+Abrir ABRIR_CENTRO.cmd en Windows con Python3.10+ y Tkinter.
+No requiere pip ni instala servicios. Guia:docs/INTERFAZ-PROYECTOS.txt.
+Bienvenida:areas,subareas,proyectos,codigo,guias,entregas,pendientes y accesos.
+41 fichas mantenidas:incluye componentes/carpetas,no41apps aceptadas.
+Etiquetas ERP/IA/Seguridad y otras cruzan la clasificacion sin duplicar fichas.
+Busqueda por palabras,fragmentos y acentos,filtrada y paginada a100 resultados.
+Historia Atras/Adelante/Subir y ruta desplegable;Ctrl+F y Alt+flechas.
+Descargas:copiar entregas verificadas o exportar fuentes/documentos por proyecto
+o en conjunto,en segundo plano,sin sobrescribir. Revisar exclusiones/manifiesto.
+Pruebas:python -m unittest discover -s tests -q
+CLI:python main.py --workspace <carpeta> --check-continuity
+Esta es una EDICION PUBLICA del Centro:omita inventarios Windows originales,
+capturas,datos empresariales,ZIP historicos y credenciales. Sus referencias pueden
+aparecer No disponible en otra copia. Las otras apps se localizan si existen
+en el workspace;no se descargan ni ejecutan automaticamente.
+La copia ZIP del Centro contiene solo este codigo/guias/pruebas. Para las demas
+fuentes publicadas,usar Code > Download ZIP en el repositorio completo.
+La restriccion ERP solo lectura y las pausas siguen vigentes. No es despliegue.
+183 pruebas locales correctas. Escala medida con1000proyectos sinteticos.
+Captura visual pendiente por bloqueo de permisos del helper;geometria comprobada.

@@ -1,0 +1,62 @@
+PUNTOS DE CONTINUIDAD - CENTRO0.14.0
+Revision editorial26/10/2026. Datos de referencia locales, no estado de servicios.
+
+PARA QUE SIRVE
+Al volver tras meses,comparar las referencias del indice actual con un punto
+guardado ayuda a ver que archivos o enlaces cambiaron y que queda no verificable.
+El punto conserva metadatos y hashes;no copia el texto de documentos ni filas ERP.
+La fecha de captura no renueva la fecha declarada de ninguna evidencia anterior.
+
+USARLO
+Inicio y continuidad > Ver cambios.
+Tambien Informes > Puntos de continuidad.
+- Abrir o Comparar ahora:solo lectura. No crea un punto automaticamente.
+- Punto anterior:elegir una referencia guardada;por defecto se selecciona la mas
+  reciente por fecha UTC del nombre. No se salta una referencia corrupta.
+- Guardar punto actual:accion explicita local. Crea un archivo nuevo y verifica
+  su lectura;no modifica documentos,estados de negocio o pruebas anteriores.
+- Mostrar solo cambios:desactivar para ver tambien archivos sin cambios.
+Cada detalle muestra antes/ahora,ruta,fecha declarada,tamano y hash.
+
+QUE SIGNIFICAN LOS RESULTADOS
+Archivo cambiado:bytes distintos,no implica mejor version o aceptacion.
+Destino cambiado:el indice apunta a otra ruta,aunque los bytes coincidan.
+Metadatos cambiados:titulo,tipo o fecha declarada distintos.
+Referencia nueva:el indice la incluye ahora;el archivo puede existir desde antes.
+Referencia retirada:el indice ya no la incluye;no significa que se borro el archivo.
+No verificable ahora:falta acceso,archivo o lectura acotada. No se declara igual.
+Ahora disponible:antes no se pudo leer,por lo que no hay contraste anterior.
+Sin cambios:solo bytes y referencia, no disponibilidad o correccion del servicio.
+No es un snapshot atomico de todos los archivos:se leen secuencialmente.
+No se compara todo el disco ni todas las fuentes de las otras apps.
+
+ALMACENAMIENTO
+<workspace>/.portal_private/control_center/checkpoints/
+Nombres UTC con componente aleatorio,creacion exclusiva. Los puntos anteriores
+no se sobrescriben. Limite100 puntos;no hay borrado automatico o rotacion oculta.
+La lectura de documentos sigue los limites del indice:maximo512KiB por archivo.
+El archivo del punto contiene rutas relativas,titulos,version del Centro,fechas,
+tamanos y SHA256. Es metadata interna:revisar antes de compartir.
+No contiene contenidos originales,configuraciones privadas,credenciales o claves.
+Los hashes detectan alteracion accidental;no son firma,cifrado o prueba de autoria.
+La proteccion de acceso depende de la cuenta y permisos locales;no se amplian ACL.
+La copia de un punto a otra carpeta no restaura ni migra las apps o el ERP.
+El ZIP depurado del Centro sigue exportando solo conteos/codigos;no incluye puntos.
+
+ERRORES Y RECUPERACION
+Punto corrupto,claves JSON duplicadas o ids/rutas invalidas:se rechaza.
+No sustituirlo automaticamente por un punto antiguo para simular continuidad.
+Conservar el original y revisar manualmente;se puede seleccionar un punto
+anterior de forma expresa para comparar,pero no se guarda otro encima del roto.
+Si el reloj retrocede respecto al ultimo punto,el guardado se bloquea;revisar
+hora/indice con el administrador sin reescribir fechas historicas.
+Si aparece un archivo inesperado o se alcanza el limite100,documentar y revisar
+la carpeta. No borrar a ciegas ni convertir una captura fallida en valida.
+En Windows se rechazan enlaces/junctions detectados en la ruta al comprobarla;
+no constituye aislamiento frente a otro proceso con permisos de la misma cuenta.
+
+POLITICA DEL SISTEMA
+Guardar un punto no ejecuta HTTP,TLS,ERP,IA o correo. No cambia firewall,
+certificados,antivirus,inicio,servicios ni datos/esquema ERP.
+No reanuda campanas pausadas ni reintenta trabajo cuyo resultado sea incierto.
+No marca incidencias resueltas y no sustituye pruebas de aceptacion.

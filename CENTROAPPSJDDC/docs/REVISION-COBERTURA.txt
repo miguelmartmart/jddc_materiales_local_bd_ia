@@ -1,0 +1,63 @@
+REVISION DE COBERTURA 0.5.0 - 19/10/2026
+
+EVIDENCIAS DEVIA
+El botón Informes > Pruebas DEVIA interpreta resúmenes conocidos en las entregas
+devia-tests y validacion-devia. Hasta 100 raíces de entregas y 200 archivos por
+raíz; máximo 2 MiB por informe. Los originales permanecen privados.
+Cada ejecución tiene su fecha, alcance y estado. No hay deduplicación semántica
+ni suma entre campañas. Estados desconocidos se bloquean y no se vuelca su texto.
+No importa preguntas, respuestas, cookies, filas ERP ni secretos.
+La presencia de running no acredita un proceso vivo; un TLS correcto no acredita
+conversación. Los ejemplos son guiones, no transcripciones de pruebas realizadas.
+Una conversación completa con datos reales y contraste independiente sigue sin
+estar acreditada por estas fuentes. El centro no ejecuta carga ni consultas ERP.
+
+AMPLIACION WINDOWS
+Inventario Windows incorpora sistema operativo/arquitectura/build, memoria total
+y libre, último arranque, fabricante/modelo, procesadores lógicos e indicador de
+hipervisor. Discos locales: tamaño, espacio libre y sistema de archivos.
+Hora local con offset, zona Windows y estado del servicio de hora: no verifica
+sincronización NTP ni desfase frente a Ubuntu. DNS por interfaz y hasta 300 rutas
+activas: no deduce NAT ni confirma la ruta usada por una conexión concreta.
+Todos son datos puntuales; no son monitorización continua ni diagnóstico de causa.
+Las secciones ausentes o malformadas se marcan bloqueadas, no como vacías correctas.
+Los detalles permanecen locales; el ZIP depurado solo incluye conteos y códigos.
+
+No se afirma disponer de toda la información. El inventario tiene límites de
+carpetas, profundidad, cantidad y permisos. Las omisiones aparecen en Pendientes.
+
+INCORPORADO
+Documentación README/LEEME/índices/AGENTS/Markdown/RST.
+Arranque y operación: CMD/BAT/PowerShell y unidades service.
+Dependencias y despliegue: requirements, pyproject, package, locks conocidos,
+Dockerfile y nombres habituales de Compose.
+Pruebas: nombres test_ o test- y sufijos test.js/test.cjs/spec.js.
+Cartografía: MBTiles, PMTiles, GeoJSON y GeoPackage.
+Paquetes y posibles copias: ZIP, 7z, RAR, BAK.
+Todos incluyen ubicación, tamaño y fecha de modificación con zona horaria.
+Se indexan metadatos: no se ejecutan scripts, extraen paquetes ni leen sus textos.
+Las fechas de detección y modificación son distintas. No prueban despliegue activo.
+
+DONDE CONSULTAR
+Aplicaciones: código conocido y recursos de arranque.
+Configuración: indicadores sin valores privados, dependencias y cartografía.
+Informes: documentación, pruebas disponibles, paquetes y registros.
+Filtros y búsqueda permiten acotar cada tipo dentro del grupo orientativo.
+El ZIP depurado mantiene solo conteos/estados/códigos, sin archivos originales.
+
+YA DISPONIBLE CON LIMITES
+Cuentas locales/SQLite del portal, certificados públicos, procesos seleccionados,
+servicios seleccionados, interfaces, listeners, perfiles/reglas Windows, historial
+del centro y comprobaciones explícitas TCP/TLS y salud DEVIA local.
+Consultar ALCANCE-Y-LIMITES.txt para límites concretos de cada fuente.
+
+NO DISPONIBLE / NO ACREDITADO
+Estado actual Ubuntu, UFW, cuentas y origen NAT visto por el servidor.
+Versión realmente desplegada y relación fuerte app-proceso-perfil activo.
+Permisos efectivos ERP/IA, tokens vigentes, login, inferencia y revocación.
+Dependencias instaladas frente a declaradas; vulnerabilidades y licencias.
+Restauración de copias, integridad de todos los paquetes y mapas utilizables.
+Todas las reglas efectivas de red, GPO y filtros del anfitrión o terceros.
+Actualizaciones firmadas, rollback y administración remota.
+Estas funciones necesitan conectores y contratos específicos; no se inventan
+resultados a partir de nombres de archivos. No se toca la base ERP real.

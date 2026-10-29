@@ -1,0 +1,86 @@
+CONTINUIDAD Y TRASPASO - CONTRATO DE MANTENIMIENTO
+Revision26/10/2026. Esta guia sirve a personas y agentes futuros.
+
+INDICE ESTABLE
+CONTINUIDAD.json es el punto de entrada mantenido;el Centro lo lee como datos,
+no como instrucciones ejecutables. Contiene fecha de revision,recursos y
+punteros a resumen/catalogo vigentes. Rutas relativas dentro del workspace.
+Para mover el proyecto,cambiar --workspace;no incrustar nueva unidad en cada ruta.
+Si falta un archivo,se informa;no se declara encontrado ni correcto.
+Para sustituir una evidencia,hacer un archivo fechado nuevo y actualizar el
+puntero del indice. Conservar la evidencia anterior y su resultado real.
+No eliminar archivos ni copiar estados antiguos para simular comprobacion nueva.
+
+FECHAS Y OBSOLESCENCIA
+Fecha de hallazgo,modificacion de archivo,prueba,exportacion y despliegue son
+instantes distintos. La guia muestra antiguedad editorial como orientacion.
+Despues de30dias sin revision,advertir que la guia requiere revision;es un
+umbral editorial,no caducidad tecnica ni prueba de fallo.
+Una fecha futura o sin zona no se presume vigente. Las evidencias historicas
+conservan siempre su fecha aunque se abra o copie hoy el archivo.
+Revalidar al cambiar version,red,certificado,cuenta,politica o destino.
+
+COMO ACTUALIZAR EL INDICE
+1. Leer fuentes y limites;separar hecho medido,hipotesis,propuesta y aceptacion.
+2. Crear/editar guias mantenidas. Evitar secretos,nombres de usuarios y filas ERP.
+3. Crear evidencia nueva para pruebas,con hora y zona,version y alcance.
+4. Editar reviewed_at solo si realmente se ha revisado el indice.
+5. Modificar data_files.equipment_summary y data_files.use_cases si cambia el
+   resumen/catalogo vigente. Los nombres fechados antiguos siguen disponibles.
+6. Anadir recurso con id,titulo,tipo,descripcion,ruta y fecha de observacion.
+7. Comprobar rutas y validez del indice en Inicio y continuidad.
+8. Ejecutar pruebas sinteticas del Centro desde CENTROAPPSJDDC:
+   python -m unittest discover -s tests -v
+9. Registrar resultado;si cambia codigo,versionar y verificar fuentes entregadas.
+No hace falta editar codigo para cambiar los punteros a datos actuales.
+
+POLITICA DE INTERFAZ
+Inicio:orientacion y recursos curados. Guia por tareas:necesidad/perfil/app.
+Inventario:vista de trabajo;incluir archivos/documentacion amplifica busqueda.
+Conservar acceso a todos los metadatos encontrados y mostrar omisiones.
+Las rutas internas son privadas;el ZIP depurado del Centro sigue limitado a
+conteos/codigos. Un paquete completo de continuidad es de uso interno revisado.
+Sin red,credenciales,SQL,correo o cambios Windows al abrir una guia.
+La busqueda del Centro no promete indexar todo el disco ni los contenidos de logs.
+
+INCIDENTES Y CAMBIOS
+Registrar impacto,hechos,hipotesis,identificador de evidencia,propietario propuesto,
+proxima accion y criterio de cierre. No pegar secretos en fichas o tickets.
+Conservar outcome incierto y no reintentar por rutina. Aplicar mismo criterio a
+cancelaciones,guardados y ejecuciones ERP;HTTP200 aislado no prueba correccion.
+Ninguna opcion de continuidad autoriza a escribir en ERP o reanudar campanas.
+
+RECUPERACION
+Conservar codigo/manifiestos y copia separada de datos de la app segun politica.
+Probar restauracion en instancia aislada con datos sinteticos;la existencia del
+ZIP no es restauracion probada. No borrar versiones activas por antiguedad.
+Runtimes/configuraciones por equipo;accesos propios,secretos fuera de soporte.
+Antes de sustituir una app:identificar proceso,ruta,version y plan de retorno.
+No migrar,restaurar o cambiar ERP real como parte de este relevo.
+
+GLOSARIO
+Workspace:carpeta raiz que el Centro examina.
+Runtime:entorno que ejecuta una version;fuentes distintas pueden no estar activas.
+Oraculo:resultado independiente para contrastar datos/respuestas.
+RO:solo lectura. Snapshot:estado observado con alcance y momento concretos.
+NAT:traduccion de origen;la IP vista por servidor puede diferir de la VM.
+TCP/TLS/HTTP:capas de conexion,seguridad y aplicacion;probar por separado.
+Staging:entorno separado de ensayo. Rollback:retorno controlado de la app.
+Candidato:version revisable pendiente de integracion/aceptacion.
+
+COMPROBACION RAPIDA SIN INTERFAZ
+Desde CENTROAPPSJDDC,python main.py --version identifica fuentes abiertas.
+python main.py --check-continuity valida indice y disponibilidad de enlaces.
+Codigo de salida1 indica indice invalido o algun recurso no disponible;no repara.
+El resultado0 acredita solo indice y rutas,no exactitud del contenido ni servicios.
+
+REGISTRAR CAMBIOS AL VOLVER
+Centro0.14.0 permite Puntos de continuidad. Consultar PUNTOS-DE-CONTINUIDAD.txt.
+Comparar antes de guardar otro;una captura nueva no renueva observaciones viejas.
+Los puntos son metadata privada local y quedan fuera del ZIP depurado.
+
+TODO DESDE EL CENTRO - VERSION0.15.0
+Entregas y accesos centraliza los ZIP,verificacion,copias y referencias de
+identidades. Mantener docs/ENTREGAS-Y-ACCESOS.json al crear entregas nuevas;
+las contrasenas/claves permanecen en su gestor seguro. No pegar secretos.
+Abrir gestores Windows es una accion expresa,no autenticacion automatica.

@@ -1,0 +1,167 @@
+{
+  "schema": "jddc-deliveries-access/1",
+  "reviewed_at": "2026-10-29T10:21:55.040981+00:00",
+  "deliveries": [
+    {
+      "id": "Z01",
+      "title": "Diagnostico web8445",
+      "state": "Historica",
+      "purpose": "Timeout TCP observado21/10;comprobaciones pendientes Ubuntu",
+      "path": "DEVIA_VALIDACION/DIAGNOSTICO-WEB-8445-PARA-UBUNTU-20261021.zip",
+      "expected_sha256": "6fdf83cbb6cd975971738c148ce311aeb24f49f22a6bf5a90e34fd51765f21f2"
+    },
+    {
+      "id": "Z02",
+      "title": "Informe completo previo Ubuntu",
+      "state": "Historica",
+      "purpose": "Entrega20/10,leer su alcance y fecha",
+      "path": "DEVIA_VALIDACION/ENTREGA-COMPLETA-UBUNTU-20261020.zip",
+      "expected_sha256": "8d440805baeaca8b8e879175ab770ae22ab7655fb0f1c21ff9ab7e296ff8e2fb"
+    },
+    {
+      "id": "Z03",
+      "title": "Centro0.14.0 y continuidad",
+      "state": "Sustituida",
+      "purpose": "Anterior a Centro0.15.0;se conserva para referencia",
+      "path": "DEVIA_VALIDACION/ENTREGA-CONTINUIDAD-WINDOWS-JDDC-0.14.0-20261026.zip",
+      "expected_sha256": "de5cf787a1bfed25e0b5499875474cb0e28e1ab88eb213220bd4dd4683af82e9"
+    },
+    {
+      "id": "Z04",
+      "title": "Centro0.13.0 y continuidad",
+      "state": "Sustituida",
+      "purpose": "Version anterior con portada y guias",
+      "path": "DEVIA_VALIDACION/ENTREGA-CONTINUIDAD-WINDOWS-JDDC-20261026.zip",
+      "expected_sha256": "6fc7d22bae1834eccbb4d9b8821622b25a98eb013b600946d795e45198b45af6"
+    },
+    {
+      "id": "Z05",
+      "title": "Cierre de campana84turnos",
+      "state": "Historica",
+      "purpose": "84/900,resultado incierto503;campana pausada",
+      "path": "DEVIA_VALIDACION/ENTREGA-UBUNTU-900-021-CIERRE.zip",
+      "expected_sha256": "12bdcc8a51a81c2d6b33da0daa7764b6d06c7b4022d8b9974037a21fbc740928"
+    },
+    {
+      "id": "Z06",
+      "title": "Campana provisional",
+      "state": "Sustituida",
+      "purpose": "Consultar el cierre posterior;no sumar resultados",
+      "path": "DEVIA_VALIDACION/ENTREGA-UBUNTU-900-021-PROVISIONAL.zip",
+      "expected_sha256": "05649754b1449eb68d8860e851001cc2bc3a919350cb2f437e58ce3eb467e89b"
+    },
+    {
+      "id": "Z07",
+      "title": "Centro0.12.0 y plan de mejoras",
+      "state": "Sustituida",
+      "purpose": "Anterior a continuidad y puntos;plan ampliado despues",
+      "path": "DEVIA_VALIDACION/MEJORAS-CENTRO-Y-APPS-WINDOWS-20261026.zip",
+      "expected_sha256": "dc317c244a834ffa7c828c61b3a4356ddb95920f5c2c20efe366e67a639670d3"
+    },
+    {
+      "id": "Z08",
+      "title": "DEVIA R2 - candidato",
+      "state": "Candidato",
+      "purpose": "431 pruebas correctas40omitidas;pendiente Ubuntu y release nueva",
+      "path": "DEVIA_VALIDACION/PREPRODUCCION-UBUNTU-DEVIA-20261020-R2.zip",
+      "expected_sha256": "b80d5bb5bc85b4beef668287f4edee61e6ff6d7afe9687425ae22f28c0f56366"
+    },
+    {
+      "id": "Z09",
+      "title": "DEVIA R1 - candidato anterior",
+      "state": "Sustituida",
+      "purpose": "Cambios incluidos en R2;415correctas40omitidas",
+      "path": "DEVIA_VALIDACION/PREPRODUCCION-UBUNTU-DEVIA-20261020.zip",
+      "expected_sha256": "3b2f4e1bdbf027481db5cb2d28c7a4a0527d9666b8d4769567a63c382657cd14"
+    },
+    {
+      "id": "Z10",
+      "title": "Centro0.15.0 - entregas y accesos",
+      "state": "Sustituida",
+      "purpose": "Codigo actual del Centro;revision local,no despliegue Ubuntu",
+      "path": "DEVIA_VALIDACION/ENTREGA-CENTRO-JDDC-0.15.0-20261026.zip",
+      "expected_sha256": "30f4a8a4ff9689ff977f682a6db81119471456dc691228f78dd83cbab176cb11"
+    },
+    {
+      "id": "Z11",
+      "title": "Centro0.16.0 - respuesta y arranque",
+      "state": "Sustituida",
+      "purpose": "156 pruebas locales;paquete ligero con3evidencias esenciales,no despliegue",
+      "path": "DEVIA_VALIDACION/ENTREGA-CENTRO-JDDC-0.16.0-20261026.zip",
+      "expected_sha256": "035f8a620332707abd5ab7c74c60e4e8976e7b2d5e80338b2b15464d49490d2e"
+    },
+    {
+      "id": "Z12",
+      "title": "Centro0.17 - proyectos y clasificacion",
+      "state": "Fuentes locales",
+      "purpose": "Edicion publica de fuentes,guias y pruebas;sin inventarios del equipo ni ZIP con datos reales",
+      "path": "DEVIA_VALIDACION/ENTREGA-CENTRO-JDDC-0.17.0-FUENTES.zip",
+      "expected_sha256": null
+    }
+  ],
+  "access": [
+    {
+      "id": "A01",
+      "app": "Credenciales Windows",
+      "manager": "windows_vault",
+      "location": "Administrador de credenciales del usuario actual",
+      "status": "Gestion local mediante el panel Windows;no se lee ni enumera su contenido",
+      "next_step": "Solicitar alta o renovacion al responsable de la aplicacion;abrir el gestor solo por accion expresa",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A02",
+      "app": "DEVIA / identidad pasarela IA",
+      "manager": "windows_vault",
+      "location": "Almacen del sistema aprobado por DEVIA;namespace devia-pilot y referencia definida en su perfil",
+      "status": "Referencia tecnica en codigo verificado;presencia y vigencia no comprobadas aqui",
+      "next_step": "Alta individual de pasarela y perfil propio;no copiar token de otro equipo ni probar login automaticamente",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A03",
+      "app": "Portal de Avisos / cuenta web",
+      "manager": "application_admin",
+      "location": "Administracion de cuentas de la instancia del Portal",
+      "status": "Credencial de la app,distinta del certificado CA y del token IA",
+      "next_step": "Solicitar cuenta y rol;renovar en la app con su administrador;la URL activa se confirma alli",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A04",
+      "app": "Ubuntu / administracion",
+      "manager": "ubuntu_admin",
+      "location": "Cuenta individual y mecanismo aprobado por administrador Ubuntu",
+      "status": "No hay usuario,clave SSH o permiso remoto inventariados por este catalogo",
+      "next_step": "Solicitar acceso al responsable;no trasladar claves privadas o perfiles de otra persona",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A05",
+      "app": "ERP real / solo lectura",
+      "manager": "erp_admin",
+      "location": "Conexion y usuario de lectura administrados por responsable ERP",
+      "status": "Proteccion permanente:sin cambios de datos,esquema,grants o cuentas desde el Centro",
+      "next_step": "Confirmar identidad de lectura efectiva por canal autorizado;no probar escrituras ni ampliar privilegios",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A06",
+      "app": "Correo / Outlook",
+      "manager": "mail_admin",
+      "location": "Proveedor y cuenta individual configurados en la app de correo",
+      "status": "No se consulta buzon,token o contrasena;conexion por proveedor explicito pendiente de revision",
+      "next_step": "Solicitar alta/renovacion al administrador de correo;no usar credenciales de otro proveedor por fallback",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    },
+    {
+      "id": "A07",
+      "app": "Certificados del usuario Windows",
+      "manager": "certificates",
+      "location": "Almacen de certificados del usuario actual",
+      "status": "CA publica autentica servidor;no equivale a cuenta web o credencial de cliente",
+      "next_step": "Abrir el visor para revisar identidad y vigencia;instalacion/confianza solo por decision autorizada",
+      "guide": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt"
+    }
+  ]
+}

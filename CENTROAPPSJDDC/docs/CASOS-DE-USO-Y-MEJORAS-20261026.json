@@ -1,0 +1,634 @@
+{
+  "schema": "jddc-use-cases/1",
+  "generated_at": "2026-10-26T13:34:26.217701+00:00",
+  "scope": "Propuestas editoriales con dependencias y aceptacion; no certifican funciones activas.",
+  "items": [
+    {
+      "id": "M01",
+      "priority": "P0",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Ubuntu / DEVIA",
+      "problem": "503 con lectura incierta",
+      "solution": "Correlacionar trace de ejecucion y cierre, sin reproducir la lectura incierta",
+      "owner": "Ubuntu",
+      "status": "Pendiente servidor",
+      "acceptance": "Causa y estado final documentados antes de permitir una nueva ejecucion",
+      "source": "DEVIA_VALIDACION/produccion_021_20261020_r2/DIAGNOSTICO-503-C029.txt"
+    },
+    {
+      "id": "M02",
+      "priority": "P0",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Web Categorias / red",
+      "problem": "La web8445 no abre",
+      "solution": "Capturar SYN y respuesta, comprobar listener, bind, firewall y origen real tras NAT",
+      "owner": "Ubuntu y red",
+      "status": "Pendiente servidor",
+      "acceptance": "TCP, TLS y HTTP comprobados por separado desde Windows y otro cliente; no abrir redes completas",
+      "source": "DEVIA_VALIDACION/diagnostico_web_8445_20261021/INFORME-PARA-SERVIDOR.txt"
+    },
+    {
+      "id": "M03",
+      "priority": "P0",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Portal / copias",
+      "problem": "Una copia existe pero no se sabe restaurar",
+      "solution": "Inventario de datos de app, copia cifrada segun politica y ensayo de restauracion en instancia sintetica",
+      "owner": "Sistemas",
+      "status": "Propuesta",
+      "acceptance": "Restaurar trabajos y permisos en instancia aislada, medir perdida maxima y tiempo; no restaurar ERP real",
+      "source": "docs/PORTAL_AVISOS_TRABAJOS_GUARDADOS.md"
+    },
+    {
+      "id": "M04",
+      "priority": "P0",
+      "roles": [
+        "Desarrollo",
+        "Sistemas"
+      ],
+      "app": "Database / ERP",
+      "problem": "Una ruta o flag podria eludir solo lectura",
+      "solution": "Revisar identidad efectiva, transaccion de lectura y politica comun en cada entrada; probar escrituras solo en base sintetica",
+      "owner": "Desarrollo y Ubuntu",
+      "status": "Propuesta",
+      "acceptance": "Cada entrada real usa solo lectura; pruebas negativas sinteticas sin cambiar grants o esquema ERP",
+      "source": "AGENTS.md"
+    },
+    {
+      "id": "M05",
+      "priority": "P0",
+      "roles": [
+        "Administracion",
+        "Desarrollo"
+      ],
+      "app": "API Clone / SQL Obras",
+      "problem": "Claves compuestas y filtros pueden alterar informes",
+      "solution": "Crear contratos de claves, filtros y previsiones con oraculos independientes antes de usar cifras para decisiones",
+      "owner": "Desarrollo funcional",
+      "status": "Propuesta",
+      "acceptance": "Mismos filtros y claves producen las mismas filas y sumas; divergencias visibles, no ceros silenciosos",
+      "source": "backend/modules/api_clone/DEVIA.MD"
+    },
+    {
+      "id": "M06",
+      "priority": "P0",
+      "roles": [
+        "Sistemas",
+        "Desarrollo"
+      ],
+      "app": "Outlook / identidades",
+      "problem": "Fallback de credenciales entre proveedores descrito en documentacion",
+      "solution": "Auditar comportamiento y sustituir cascadas por conexion explicita por proveedor, permisos y cuenta",
+      "owner": "Desarrollo y administrador correo",
+      "status": "Propuesta",
+      "acceptance": "Prueba sintetica demuestra que ningun fallo envia credenciales a otro proveedor; no sincronizar correo real para probarlo",
+      "source": "backend/modules/outlook/DEVIA.MD"
+    },
+    {
+      "id": "M07",
+      "priority": "P0",
+      "roles": [
+        "Sistemas",
+        "Coordinacion"
+      ],
+      "app": "Cuentas / empleados",
+      "problem": "Altas, bajas y roles sin recorrido comun acreditado",
+      "solution": "Definir roles de oficina, tecnico, coordinacion y administrador; caducidad, baja y acceso a historiales/exportaciones",
+      "owner": "Sistemas y responsable de datos",
+      "status": "Propuesta",
+      "acceptance": "Matriz de acceso probada con usuarios sinteticos; baja impide nuevos accesos y no expone historiales ajenos",
+      "source": "CENTROAPPSJDDC/docs/ALCANCE-Y-LIMITES.txt"
+    },
+    {
+      "id": "M08",
+      "priority": "P1",
+      "roles": [
+        "Recepcion"
+      ],
+      "app": "Portal de Avisos",
+      "problem": "Registrar un aviso incompleto o duplicado",
+      "solution": "Asistente de campos minimos, candidatos duplicados y confirmacion humana antes de guardar en datos de la app",
+      "owner": "Producto Portal",
+      "status": "Propuesta",
+      "acceptance": "Distingue duplicado real, coincidencia parcial y domicilios distintos; nunca escribe ERP",
+      "source": "docs/PORTAL_AVISOS_ENTREGA_CONSOLIDADA_20261014.md"
+    },
+    {
+      "id": "M09",
+      "priority": "P1",
+      "roles": [
+        "Coordinacion"
+      ],
+      "app": "Portal de Avisos / revisiones",
+      "problem": "Analizar todo puede pisar trabajo humano",
+      "solution": "Validar en Ubuntu la conservacion de revisiones, vigencia por fuente y explicacion de bloqueos",
+      "owner": "Ubuntu y producto Portal",
+      "status": "Pendiente servidor",
+      "acceptance": "Revisiones vigentes no llaman IA ni se reemplazan; cambios de fuente invalidan con motivo visible",
+      "source": "docs/PORTAL_AVISOS_ENTREGA_CONSOLIDADA_20261014.md"
+    },
+    {
+      "id": "M10",
+      "priority": "P1",
+      "roles": [
+        "Coordinacion",
+        "Tecnico"
+      ],
+      "app": "Portal / mapas",
+      "problem": "Mapa vacio o direccion ambigua",
+      "solution": "Separar cobertura de fondo, callejero y coordenada confirmada; mostrar aproximacion y alternativa textual",
+      "owner": "Producto Portal",
+      "status": "Propuesta",
+      "acceptance": "Sin mapa sigue visible direccion y motivo; no confundir CP/localidad con portal exacto",
+      "source": "docs/PORTAL_AVISOS_CLIENTE_20261014.md"
+    },
+    {
+      "id": "M11",
+      "priority": "P1",
+      "roles": [
+        "Coordinacion"
+      ],
+      "app": "Portal / planificacion",
+      "problem": "Asignar visitas sin considerar urgencia y capacidad",
+      "solution": "Propuesta revisable por turno, prioridad, disponibilidad y zonas; registrar restricciones incumplidas",
+      "owner": "Coordinacion y producto",
+      "status": "Propuesta",
+      "acceptance": "El humano confirma; sin datos suficientes no inventar ubicacion, tiempo de viaje o disponibilidad",
+      "source": "backend/notice_portal/DEVIA.MD"
+    },
+    {
+      "id": "M12",
+      "priority": "P1",
+      "roles": [
+        "Tecnico"
+      ],
+      "app": "Portal / movil",
+      "problem": "En campo se pierde contexto y evidencia",
+      "solution": "Vista movil por tarea, contacto autorizado, direccion, estado de sincronizacion y borrador local aprobado por politica",
+      "owner": "Producto Portal",
+      "status": "Propuesta",
+      "acceptance": "Pruebas con red intermitente, doble pulsacion y sesion expirada sin perder o duplicar partes; offline pendiente de diseno",
+      "source": "frontend/notice_portal/DEVIA.MD"
+    },
+    {
+      "id": "M13",
+      "priority": "P1",
+      "roles": [
+        "Recepcion",
+        "Coordinacion"
+      ],
+      "app": "Portal / tareas",
+      "problem": "Trabajo oculto y botones sin motivo",
+      "solution": "Mostrar progreso, bloqueo y cancelacion efectiva; nueva tarea acotada sin reactivar trabajos antiguos",
+      "owner": "Producto Portal",
+      "status": "Propuesta",
+      "acceptance": "Una tarea cancelada no sigue consumiendo recursos ni altera revisiones; estado incierto se conserva",
+      "source": "docs/PORTAL_AVISOS_REGRESION_TAREAS_OCULTAS_20261009.md"
+    },
+    {
+      "id": "M14",
+      "priority": "P1",
+      "roles": [
+        "Administracion",
+        "Compras"
+      ],
+      "app": "DEVIA / facturas",
+      "problem": "Listado de facturas poco util",
+      "solution": "Presentar tercero, documento interno/proveedor, fechas, importes autorizados y conceptos solo con relacion validada",
+      "owner": "Producto DEVIA",
+      "status": "Propuesta",
+      "acceptance": "Caso Daikin85 referencias conserva coincidencias; importes y lineas requieren contraste propio, moneda explicita",
+      "source": "DEVIA_VALIDACION/chat_real_20261020/CONTRASTE-EXCEL-CHAT-DAIKIN-20261020.txt"
+    },
+    {
+      "id": "M15",
+      "priority": "P1",
+      "roles": [
+        "Administracion"
+      ],
+      "app": "DEVIA / JSON historico",
+      "problem": "Guardar resultados sin repetir consultas",
+      "solution": "Integrar candidato R2 de exportacion autenticada con precision y bloques separados",
+      "owner": "Ubuntu y producto DEVIA",
+      "status": "Candidato local",
+      "acceptance": "Verificar descarga real en Ubuntu y limites de propietario, precision, parcialidad y retencion antes de activarlo",
+      "source": "DEVIA_VALIDACION/produccion_021_20261020_r2/EXPORTACION-JSON-HISTORICA.txt"
+    },
+    {
+      "id": "M16",
+      "priority": "P1",
+      "roles": [
+        "Administracion",
+        "Direccion"
+      ],
+      "app": "DEVIA / PDF",
+      "problem": "Crear informe de facturas por proveedor y periodo",
+      "solution": "Plantilla de informe sobre evidencia guardada, alcance, fecha y totales verificables; renderer aislado y validacion del perfil requerido",
+      "owner": "Producto y responsable documental",
+      "status": "Propuesta",
+      "acceptance": "Filas y cifras coinciden con JSON; paginacion completa, contenido escapado, sin recursos remotos; perfil PDF validado segun uso",
+      "source": "DEVIA_VALIDACION/chat_real_20261020/PDF-SERVIDOR-O-CLIENTE.txt"
+    },
+    {
+      "id": "M17",
+      "priority": "P1",
+      "roles": [
+        "Compras",
+        "Administracion"
+      ],
+      "app": "DEVIA / paginacion",
+      "problem": "Pulsar preparar siguiente repetidamente",
+      "solution": "Accion continuar hasta el final como trabajo acotado, cancelable, con progreso y reanudacion segura",
+      "owner": "Producto DEVIA",
+      "status": "Propuesta",
+      "acceptance": "Limites de filas, tiempo y coste; cursor no reutilizable; fallo incierto detiene sin retry; exportacion indica bloques ausentes",
+      "source": "DEVIA_VALIDACION/chat_real_20261020/REQUISITOS-RESULTADOS-Y-PDF.txt"
+    },
+    {
+      "id": "M18",
+      "priority": "P1",
+      "roles": [
+        "Compras"
+      ],
+      "app": "Articles / stock",
+      "problem": "Decidir compras con stock o unidad ambiguos",
+      "solution": "Ficha de existencias con fecha, unidad, almacen, fuente y restricciones de reposicion; sugerencia revisable",
+      "owner": "Producto datos",
+      "status": "Propuesta",
+      "acceptance": "No sumar unidades incompatibles ni afirmar stock disponible a partir de una cifra sin reservas/almacen acreditados",
+      "source": "backend/modules/articles/service.py"
+    },
+    {
+      "id": "M19",
+      "priority": "P1",
+      "roles": [
+        "Direccion",
+        "Coordinacion"
+      ],
+      "app": "API Clone / utilidades",
+      "problem": "Comparar costes previstos y reales de obra",
+      "solution": "Separar mano de obra, material, previsiones y ejecutado con reglas documentadas y reconciliacion",
+      "owner": "Desarrollo funcional",
+      "status": "Propuesta",
+      "acceptance": "Oraculo confirma filtros y sumas por clave de obra; faltantes son desconocidos, no cero",
+      "source": "backend/modules/api_clone/utilidades/DEVIA.MD"
+    },
+    {
+      "id": "M20",
+      "priority": "P1",
+      "roles": [
+        "Coordinacion",
+        "Sistemas"
+      ],
+      "app": "Employees / Resources",
+      "problem": "Jerarquia de recursos confundida con personas disponibles",
+      "solution": "Distinguir departamento, recurso, empleado activo y disponibilidad; minimizar datos por rol",
+      "owner": "Producto y responsable personal",
+      "status": "Propuesta",
+      "acceptance": "Jerarquias y ciclos sinteticos probados; sin fuente de disponibilidad no asignar personas automaticamente",
+      "source": "backend/modules/employees/DEVIA.MD"
+    },
+    {
+      "id": "M21",
+      "priority": "P1",
+      "roles": [
+        "Administracion",
+        "Desarrollo"
+      ],
+      "app": "Data Quality",
+      "problem": "Duplicados, nulos o relaciones rotas contaminan informes",
+      "solution": "Informe de calidad solo lectura con reglas, severidad, ejemplos autorizados y responsable de correccion fuera de esta herramienta",
+      "owner": "Producto datos",
+      "status": "Propuesta",
+      "acceptance": "Casos sinteticos de claves compuestas, nulos y duplicados; hallazgos no ejecutan UPDATE ni reparacion ERP",
+      "source": "backend/modules/data_quality/service.py"
+    },
+    {
+      "id": "M22",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Desarrollo"
+      ],
+      "app": "Anonymizer",
+      "problem": "Compartir ejemplos puede revelar identidades",
+      "solution": "Validar anonimizacion de texto y adjuntos con pruebas de reidentificacion; separar secreto de dato empresarial",
+      "owner": "Responsable de datos",
+      "status": "Propuesta",
+      "acceptance": "No se exportan originales; revision de muestras y politicas antes de compartir; anonimizado no se supone por quitar nombres",
+      "source": "backend/modules/anonymizer/service.py"
+    },
+    {
+      "id": "M23",
+      "priority": "P1",
+      "roles": [
+        "Desarrollo"
+      ],
+      "app": "BD Clone / DB Explorer / Simulator",
+      "problem": "Probar cambios contra una base real",
+      "solution": "Entornos sinteticos separados, identificacion visual y configuraciones incompatibles con el destino real",
+      "owner": "Desarrollo",
+      "status": "Propuesta",
+      "acceptance": "Cualquier prueba de escritura demuestra aislamiento del destino; rutas reales siguen bloqueadas para DML/DDL",
+      "source": "backend/modules/bd_clone/DEVIA.MD"
+    },
+    {
+      "id": "M24",
+      "priority": "P2",
+      "roles": [
+        "Direccion",
+        "Desarrollo"
+      ],
+      "app": "DEVIA / DB Analyst",
+      "problem": "Predicciones o inferencias sin suficiente base",
+      "solution": "Definir pregunta, horizonte, poblacion, datos faltantes, folds temporales y modelos de referencia antes de modelos avanzados",
+      "owner": "Analisis y responsable negocio",
+      "status": "Propuesta",
+      "acceptance": "Sin fuga temporal, metricas por corte y comparacion contra referencia; incertidumbre y limite muestral visibles",
+      "source": "DEVIA_VALIDACION/chat_real_20261020/avanzadas_021/PROTOCOLO-Y-LIMITES-AVANZADOS.txt"
+    },
+    {
+      "id": "M25",
+      "priority": "P1",
+      "roles": [
+        "Desarrollo"
+      ],
+      "app": "Models / Prompts / Chat",
+      "problem": "Cambiar modelo rompe comportamiento sin trazabilidad",
+      "solution": "Versionar prompt, modelo, politica, dataset y contrato; evaluacion semantica y rollback antes de promover",
+      "owner": "Desarrollo IA",
+      "status": "Propuesta",
+      "acceptance": "Casos de aprobacion, ambiguedad, invencion y rechazo medidos por version; HTTP200 no cuenta como respuesta correcta",
+      "source": "backend/modules/chat/DEVIA.MD"
+    },
+    {
+      "id": "M26",
+      "priority": "P1",
+      "roles": [
+        "Recepcion",
+        "Administracion"
+      ],
+      "app": "Outlook / Email Simulation",
+      "problem": "Convertir correo en aviso sin revisar",
+      "solution": "Preparar borrador vinculado a origen, sin envio ni alta automatica; detectar duplicado y pedir revision",
+      "owner": "Producto correo",
+      "status": "Propuesta",
+      "acceptance": "Simulacion de adjuntos, duplicados y baja confianza; cero mensajes enviados y cero alta ERP durante pruebas",
+      "source": "backend/modules/email_simulation/DEVIA.MD"
+    },
+    {
+      "id": "M27",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Desarrollo"
+      ],
+      "app": "Outlook / adjuntos",
+      "problem": "Documento induce acciones o agota recursos",
+      "solution": "Aislar extraccion, limitar tamano/tiempo/tipos y tratar instrucciones del documento como datos",
+      "owner": "Desarrollo seguridad",
+      "status": "Propuesta",
+      "acceptance": "Adjunto hostil sintetico no provoca envio, lectura de secretos, recursos remotos o ejecucion de comandos",
+      "source": "backend/modules/outlook/DEVIA.MD"
+    },
+    {
+      "id": "M28",
+      "priority": "P1",
+      "roles": [
+        "Administracion",
+        "Sistemas"
+      ],
+      "app": "Interaction History",
+      "problem": "Historial ilimitado o accesible por otro usuario",
+      "solution": "Propietario, retencion, borrado y exportacion auditados; distinguir historico de dato vigente",
+      "owner": "Producto y responsable datos",
+      "status": "Propuesta",
+      "acceptance": "Aislamiento por usuario, revocacion y caducidad probados; exportar no vuelve a consultar ni acredita actualidad",
+      "source": "backend/modules/interaction_history/DEVIA.MD"
+    },
+    {
+      "id": "M29",
+      "priority": "P2",
+      "roles": [
+        "Recepcion",
+        "Tecnico"
+      ],
+      "app": "Images / documentos",
+      "problem": "OCR o foto interpretada como dato cierto",
+      "solution": "Conservar referencia al original autorizado, confianza y revision de campos antes de incorporarlos al trabajo",
+      "owner": "Producto documental",
+      "status": "Propuesta",
+      "acceptance": "Texto incierto no pasa como importe/serie confirmado; permisos, retencion y limites de imagen verificados",
+      "source": "backend/modules/images"
+    },
+    {
+      "id": "M30",
+      "priority": "P1",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Centro JDDC / capacidad",
+      "problem": "Inventario RAM y disco sin orientacion",
+      "solution": "Valoracion local con umbrales explicitos y estado desconocido para observaciones invalidas",
+      "owner": "Centro JDDC",
+      "status": "Implementado local",
+      "acceptance": "Sin aviso no significa salud general; no limpia, mata procesos o compra recursos; tests de limites numericos",
+      "source": "CENTROAPPSJDDC/centro/windows_health.py"
+    },
+    {
+      "id": "M31",
+      "priority": "P1",
+      "roles": [
+        "Recepcion",
+        "Tecnico",
+        "Coordinacion",
+        "Compras",
+        "Administracion",
+        "Direccion",
+        "Desarrollo",
+        "Sistemas"
+      ],
+      "app": "Centro JDDC / guia por tareas",
+      "problem": "No saber que app usar ni que falta",
+      "solution": "Catalogo filtrable por perfil, prioridad, app y estado con siguiente paso y prueba de aceptacion",
+      "owner": "Centro JDDC",
+      "status": "Implementado local",
+      "acceptance": "Distinguir propuesta, candidato local y dependencia servidor; abrir la guia no ejecuta red, ERP o correo",
+      "source": "CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt"
+    },
+    {
+      "id": "M32",
+      "priority": "P2",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Windows / inicio",
+      "problem": "Arranque lento o servicios duplicados",
+      "solution": "Medir arranque e impacto por aplicacion; revisar necesidad y propietario antes de deshabilitar elementos",
+      "owner": "Administrador Windows",
+      "status": "Propuesta",
+      "acceptance": "Comparacion antes/despues, misma carga, conservar servicios corporativos; sin cambios automaticos de arranque",
+      "source": "CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt"
+    },
+    {
+      "id": "M33",
+      "priority": "P1",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Windows / proteccion",
+      "problem": "Proteccion activa pero vigencia de firmas y cifrado requieren revision",
+      "solution": "Defender declara antivirus y tiempo real activos; firma registrada2026-10-19T00:24:54+00:00. Verificar actualizacion de firmas segun politica. Cifrado no comprobado; no exportar claves o desactivar protecciones.",
+      "owner": "Administrador Windows",
+      "status": "Propuesta",
+      "acceptance": "Inaccesible o gestionado por politica se muestra desconocido; no desactivar antivirus, TLS, firewall o cifrado",
+      "source": "CENTROAPPSJDDC/docs/ESTADO-PROTECCION-WINDOWS-20261026.json"
+    },
+    {
+      "id": "M34",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Desarrollo"
+      ],
+      "app": "Releases / instaladores",
+      "problem": "Paquete revisado se confunde con produccion",
+      "solution": "Version activa identificada, fuentes reproducibles, firma, staging y rollback de aplicacion",
+      "owner": "Desarrollo y Ubuntu",
+      "status": "Propuesta",
+      "acceptance": "Verificar artefacto, permisos y restauracion de version app sin tocar ERP ni copiar secretos de otro equipo",
+      "source": "DEVIA_VALIDACION/produccion_021_20261020_r2/GUIA-UBUNTU-REVISION-Y-ACEPTACION.txt"
+    },
+    {
+      "id": "M35",
+      "priority": "P1",
+      "roles": [
+        "Desarrollo",
+        "Sistemas"
+      ],
+      "app": "Broker / procesos",
+      "problem": "Usuarios simultaneos saturan ERP o dejan trabajo oculto",
+      "solution": "Admision compartida, presupuesto por usuario, cola acotada y cancelacion del trabajo subyacente",
+      "owner": "Ubuntu y desarrollo",
+      "status": "Propuesta",
+      "acceptance": "Carga sintetica y cancelaciones medidas; ningun ensayo masivo ERP y ninguna repeticion automatica de resultado incierto",
+      "source": "DEVIA_VALIDACION/informes/RECURSOS-Y-CONCURRENCIA-20261019.txt"
+    },
+    {
+      "id": "M36",
+      "priority": "P1",
+      "roles": [
+        "Administracion",
+        "Sistemas"
+      ],
+      "app": "Exportaciones / documentos",
+      "problem": "Una descarga local elude retencion del servidor",
+      "solution": "Definir propietario, finalidad, permiso de descarga, retencion y trazabilidad sin registrar filas en logs",
+      "owner": "Responsable de datos",
+      "status": "Propuesta",
+      "acceptance": "Historial ajeno no descargable y retirada de acceso comprobada; documentar limites de revocar copias ya descargadas",
+      "source": "DEVIA_VALIDACION/produccion_021_20261020_r2/EXPORTACION-JSON-HISTORICA.txt"
+    },
+    {
+      "id": "M37",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Desarrollo"
+      ],
+      "app": "Database Config / conexiones",
+      "problem": "Configurar un destino incorrecto sin darse cuenta",
+      "solution": "Mostrar identidad no secreta de entorno, tipo de conexion y solo lectura efectivo; validar contrato antes de consultar",
+      "owner": "Desarrollo plataforma",
+      "status": "Propuesta",
+      "acceptance": "Pantalla distingue demo, sintetico, staging y real; no cambia destinos silenciosamente por fallback",
+      "source": "backend/modules/database/DEVIA.MD"
+    },
+    {
+      "id": "M38",
+      "priority": "P2",
+      "roles": [
+        "Recepcion",
+        "Tecnico"
+      ],
+      "app": "Todas las interfaces",
+      "problem": "Bloqueos, foco y errores dificultan uso diario",
+      "solution": "Recorrido por teclado, escalado, etiquetas comprensibles, error con proximo paso y alternativa sin mapa",
+      "owner": "Producto y usuarios piloto",
+      "status": "Propuesta",
+      "acceptance": "Recorridos con zoom, teclado y pantalla pequena completados sin depender solo del color",
+      "source": "frontend/notice_portal/DEVIA.MD"
+    },
+    {
+      "id": "M39",
+      "priority": "P2",
+      "roles": [
+        "Sistemas"
+      ],
+      "app": "Centro / versiones locales",
+      "problem": "Muchas carpetas hacen incierta la version activa",
+      "solution": "Indice de instalaciones, lanzador y puerto con asociacion acreditada; marcar historicos antes de archivar",
+      "owner": "Centro y administrador Windows",
+      "status": "Propuesta",
+      "acceptance": "No deducir proceso por nombre o borrar runtimes en uso; rollback y copias verificadas antes de retirar",
+      "source": "CENTROAPPSJDDC/docs/ALCANCE-Y-LIMITES.txt"
+    },
+    {
+      "id": "M40",
+      "priority": "P1",
+      "roles": [
+        "Coordinacion",
+        "Direccion"
+      ],
+      "app": "Procesos / incidencias",
+      "problem": "Un problema se pierde entre chats y ZIP",
+      "solution": "Ficha de incidencia con impacto, responsable, evidencia, siguiente paso y criterio de cierre; separar observacion y causa",
+      "owner": "Coordinacion y sistemas",
+      "status": "Propuesta",
+      "acceptance": "Nadie cierra un incidente por HTTP200, existencia de un ZIP o respuesta sin contraste; tiempos y responsable registrados",
+      "source": "CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt"
+    },
+    {
+      "id": "M41",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Desarrollo",
+        "Coordinacion"
+      ],
+      "app": "Centro JDDC / continuidad",
+      "problem": "Volver tras meses sin saber que cambio",
+      "solution": "Comparar el indice y los hashes contra un punto local guardado expresamente;conservar fechas originales y contenido no verificable",
+      "owner": "Centro JDDC",
+      "status": "Implementado local",
+      "acceptance": "Apertura sin guardar,antecedentes preservados,alteracion rechazada y ausencia nunca tratada como exito;no acciones remotas",
+      "source": "CENTROAPPSJDDC/docs/PUNTOS-DE-CONTINUIDAD.txt"
+    },
+    {
+      "id": "M42",
+      "priority": "P1",
+      "roles": [
+        "Sistemas",
+        "Empleados"
+      ],
+      "app": "Centro JDDC / navegacion",
+      "problem": "Recorridos y actualizaciones repetidos al navegar",
+      "solution": "Inicio documental, inventario explicito, detalles diferidos y busqueda agrupada",
+      "owner": "Centro JDDC",
+      "status": "Implementado local",
+      "acceptance": "Sin recorrido automatico;ficha sin seleccion obsoleta;detalles completos al desplegar;156 pruebas locales",
+      "source": "CENTROAPPSJDDC/docs/OPTIMIZACION-RESPUESTA-20261026.txt"
+    }
+  ],
+  "official_sources": [
+    "https://support.microsoft.com/en-gb/windows/experience/startup-boot/configure-startup-applications-in-windows?nochrome=true",
+    "https://learn.microsoft.com/en-us/powershell/module/defender/get-mpcomputerstatus?view=windowsserver2025-ps",
+    "https://learn.microsoft.com/en-us/powershell/module/bitlocker/get-bitlockervolume?view=windowsserver2025-ps"
+  ]
+}

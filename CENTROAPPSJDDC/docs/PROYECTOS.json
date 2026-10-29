@@ -1,0 +1,1019 @@
+{
+  "schema": "jddc-projects/1",
+  "reviewed_at": "2026-10-29T10:21:55.040981+00:00",
+  "projects": [
+    {
+      "id": "devia",
+      "title": "DEVIA - chat ERP",
+      "family": [
+        "ERP",
+        "Consulta y analisis"
+      ],
+      "description": "Chat sobre ERP. Base0.2.1 y candidato R2 separados;campana pausada. El codigo historico no equivale al proceso actual.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "PORTALDEVIAAPP"
+      ],
+      "tags": [
+        "ERP",
+        "IA",
+        "Facturas"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [
+        "Z08",
+        "Z09",
+        "Z05",
+        "Z06"
+      ],
+      "access_ids": [
+        "A02",
+        "A05"
+      ],
+      "task_apps": [
+        "Ubuntu / DEVIA",
+        "DEVIA / facturas",
+        "DEVIA / JSON historico",
+        "DEVIA / PDF",
+        "DEVIA / paginacion",
+        "DEVIA / DB Analyst"
+      ]
+    },
+    {
+      "id": "portal",
+      "title": "Portal de Avisos",
+      "family": [
+        "Operaciones",
+        "Avisos y coordinacion"
+      ],
+      "description": "Gestion y revision de avisos,planificacion y movilidad;aceptacion remota pendiente.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/notice_portal",
+        "frontend/notice_portal",
+        "scripts/notice_portal"
+      ],
+      "tags": [
+        "Empleados",
+        "Operaciones",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A03"
+      ],
+      "task_apps": [
+        "Portal / copias",
+        "Portal de Avisos",
+        "Portal de Avisos / revisiones",
+        "Portal / mapas",
+        "Portal / planificacion",
+        "Portal / movil",
+        "Portal / tareas"
+      ]
+    },
+    {
+      "id": "centro",
+      "title": "Centro de aplicaciones JDDC",
+      "family": [
+        "Sistemas",
+        "Equipo Windows"
+      ],
+      "description": "Punto de entrada a proyectos,guias,entregas y referencias de acceso. Esta consola no acredita salud remota.",
+      "state": "Implementado y probado localmente",
+      "roots": [
+        "CENTROAPPSJDDC"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad",
+        "Continuidad"
+      ],
+      "resource_ids": [
+        "start",
+        "map",
+        "resume",
+        "handover",
+        "plan",
+        "safety",
+        "checkpoints",
+        "deliveries-access",
+        "project-catalog",
+        "project-guide",
+        "project-tests",
+        "project-scale"
+      ],
+      "delivery_ids": [
+        "Z01",
+        "Z02",
+        "Z03",
+        "Z04",
+        "Z07",
+        "Z10",
+        "Z11",
+        "Z12"
+      ],
+      "access_ids": [
+        "A01",
+        "A07"
+      ],
+      "task_apps": [
+        "Centro JDDC / capacidad",
+        "Centro JDDC / guia por tareas",
+        "Windows / inicio",
+        "Releases / instaladores",
+        "Todas las interfaces",
+        "Centro / versiones locales",
+        "Centro JDDC / continuidad",
+        "Centro JDDC / navegacion"
+      ]
+    },
+    {
+      "id": "seguridad",
+      "title": "Seguridad y proteccion Windows",
+      "family": [
+        "Seguridad",
+        "Proteccion y accesos"
+      ],
+      "description": "Referencias de proteccion,cuentas y certificados. No cambia permisos ni inspecciona credenciales.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "cibrseg"
+      ],
+      "tags": [
+        "Seguridad",
+        "Windows"
+      ],
+      "resource_ids": [
+        "safety"
+      ],
+      "delivery_ids": [],
+      "access_ids": [
+        "A01",
+        "A07"
+      ],
+      "task_apps": [
+        "Windows / proteccion",
+        "Cuentas / empleados"
+      ]
+    },
+    {
+      "id": "red",
+      "title": "Conectividad y servidor Ubuntu",
+      "family": [
+        "Sistemas",
+        "Red y Ubuntu"
+      ],
+      "description": "Incidente8445 historico y guias para el servidor;no se reintenta ni conecta automaticamente.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "DEVIA_VALIDACION/diagnostico_web_8445_20261021"
+      ],
+      "tags": [
+        "Seguridad",
+        "Ubuntu",
+        "Red"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [
+        "Z01"
+      ],
+      "access_ids": [
+        "A04",
+        "A07"
+      ],
+      "task_apps": [
+        "Web Categorias / red"
+      ]
+    },
+    {
+      "id": "api_clone",
+      "title": "API Clone / SQL Obras",
+      "family": [
+        "ERP",
+        "Integraciones"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/api_clone"
+      ],
+      "tags": [
+        "ERP",
+        "Analisis"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "API Clone / SQL Obras"
+      ]
+    },
+    {
+      "id": "api_explorer",
+      "title": "API Explorer",
+      "family": [
+        "ERP",
+        "Integraciones"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/api_explorer"
+      ],
+      "tags": [
+        "ERP",
+        "Analisis"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "API Clone / utilidades"
+      ]
+    },
+    {
+      "id": "articles",
+      "title": "Articulos y stock",
+      "family": [
+        "ERP",
+        "Catalogos"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/articles"
+      ],
+      "tags": [
+        "ERP",
+        "Operaciones"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "Articles / stock"
+      ]
+    },
+    {
+      "id": "database",
+      "title": "Conexiones a bases de datos",
+      "family": [
+        "ERP",
+        "Conexiones"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/database"
+      ],
+      "tags": [
+        "ERP",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "Database / ERP"
+      ]
+    },
+    {
+      "id": "bd_clone",
+      "title": "BD Clone",
+      "family": [
+        "ERP",
+        "Laboratorio aislado"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/bd_clone"
+      ],
+      "tags": [
+        "ERP",
+        "Pruebas"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "BD Clone / DB Explorer / Simulator"
+      ]
+    },
+    {
+      "id": "db_explorer",
+      "title": "DB Explorer",
+      "family": [
+        "ERP",
+        "Consulta y analisis"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/db_explorer"
+      ],
+      "tags": [
+        "ERP",
+        "Analisis"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "BD Clone / DB Explorer / Simulator"
+      ]
+    },
+    {
+      "id": "db_simulator",
+      "title": "Simulador de datos",
+      "family": [
+        "ERP",
+        "Laboratorio aislado"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/db_simulator"
+      ],
+      "tags": [
+        "ERP",
+        "Pruebas"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "BD Clone / DB Explorer / Simulator"
+      ]
+    },
+    {
+      "id": "db_analyst",
+      "title": "Analista de datos",
+      "family": [
+        "IA",
+        "Analisis"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/db_analyst"
+      ],
+      "tags": [
+        "IA",
+        "ERP",
+        "Estadistica"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "DEVIA / DB Analyst"
+      ]
+    },
+    {
+      "id": "anonymizer",
+      "title": "Anonimizacion",
+      "family": [
+        "Seguridad",
+        "Datos y privacidad"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/anonymizer"
+      ],
+      "tags": [
+        "Seguridad",
+        "Datos"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Anonymizer"
+      ]
+    },
+    {
+      "id": "data_quality",
+      "title": "Calidad de datos",
+      "family": [
+        "ERP",
+        "Calidad"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/data_quality"
+      ],
+      "tags": [
+        "ERP",
+        "Datos"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A05"
+      ],
+      "task_apps": [
+        "Data Quality"
+      ]
+    },
+    {
+      "id": "employees",
+      "title": "Empleados",
+      "family": [
+        "Personas",
+        "Empleados y recursos"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/employees"
+      ],
+      "tags": [
+        "Empleados",
+        "Operaciones"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Employees / Resources"
+      ]
+    },
+    {
+      "id": "resources",
+      "title": "Recursos",
+      "family": [
+        "Personas",
+        "Empleados y recursos"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/resources"
+      ],
+      "tags": [
+        "Empleados",
+        "Operaciones"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Employees / Resources"
+      ]
+    },
+    {
+      "id": "chat",
+      "title": "Chat IA",
+      "family": [
+        "IA",
+        "Conversaciones"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/chat"
+      ],
+      "tags": [
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Models / Prompts / Chat"
+      ]
+    },
+    {
+      "id": "models",
+      "title": "Modelos IA",
+      "family": [
+        "IA",
+        "Modelos y prompts"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/models"
+      ],
+      "tags": [
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Models / Prompts / Chat"
+      ]
+    },
+    {
+      "id": "prompts",
+      "title": "Prompts",
+      "family": [
+        "IA",
+        "Modelos y prompts"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/prompts"
+      ],
+      "tags": [
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Models / Prompts / Chat"
+      ]
+    },
+    {
+      "id": "interaction_history",
+      "title": "Historial de interacciones",
+      "family": [
+        "IA",
+        "Conversaciones"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/interaction_history"
+      ],
+      "tags": [
+        "IA",
+        "Continuidad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Interaction History"
+      ]
+    },
+    {
+      "id": "images",
+      "title": "Imagenes y documentos",
+      "family": [
+        "IA",
+        "Documentos"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/images"
+      ],
+      "tags": [
+        "IA",
+        "Documentos"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Images / documentos"
+      ]
+    },
+    {
+      "id": "outlook",
+      "title": "Outlook",
+      "family": [
+        "Comunicaciones",
+        "Correo"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/outlook"
+      ],
+      "tags": [
+        "Correo",
+        "Empleados"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A06"
+      ],
+      "task_apps": [
+        "Outlook / identidades"
+      ]
+    },
+    {
+      "id": "email_simulation",
+      "title": "Simulador de correo",
+      "family": [
+        "Comunicaciones",
+        "Correo"
+      ],
+      "description": "Componente localizado en el repositorio. Revisar contratos,configuracion y pruebas antes de usarlo en produccion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "backend/modules/email_simulation"
+      ],
+      "tags": [
+        "Correo",
+        "Pruebas"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [
+        "A06"
+      ],
+      "task_apps": [
+        "Outlook / Email Simulation"
+      ]
+    },
+    {
+      "id": "validacion",
+      "title": "Validacion y entregas DEVIA",
+      "family": [
+        "Desarrollo",
+        "Pruebas y entregas"
+      ],
+      "description": "Informes,codigo de pruebas y entregas para Ubuntu. Campanas pausadas;los historicos no se ejecutan al abrir.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "DEVIA_VALIDACION"
+      ],
+      "tags": [
+        "Pruebas",
+        "ERP",
+        "Ubuntu"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [
+        "Z08",
+        "Z05"
+      ],
+      "access_ids": [
+        "A04"
+      ],
+      "task_apps": [
+        "Ubuntu / DEVIA"
+      ]
+    },
+    {
+      "id": "docs",
+      "title": "Documentacion del sistema",
+      "family": [
+        "Documentacion",
+        "Guias y traspaso"
+      ],
+      "description": "Guias del repositorio;conservar fechas y distinguir propuesta de implementacion.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "docs"
+      ],
+      "tags": [
+        "Continuidad",
+        "Documentos"
+      ],
+      "resource_ids": [
+        "map",
+        "handover",
+        "resume"
+      ],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "tests",
+      "title": "Pruebas del repositorio",
+      "family": [
+        "Desarrollo",
+        "Pruebas y entregas"
+      ],
+      "description": "Pruebas y fixtures del repositorio. No ejecutar contra bases reales para probar escrituras.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "tests"
+      ],
+      "tags": [
+        "Pruebas"
+      ],
+      "resource_ids": [
+        "safety"
+      ],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "frontend",
+      "title": "Interfaz web y componentes",
+      "family": [
+        "Desarrollo",
+        "Interfaces"
+      ],
+      "description": "Fuentes de la interfaz web. Presencia no acredita version desplegada.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "frontend"
+      ],
+      "tags": [
+        "Interfaces",
+        "Operaciones"
+      ],
+      "resource_ids": [
+        "map"
+      ],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": [
+        "Todas las interfaces"
+      ]
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop Codelab",
+      "family": [
+        "Desarrollo",
+        "Interfaces"
+      ],
+      "description": "Herramientas locales de escritorio. Codigo localizado;funcionamiento pendiente de revision.",
+      "state": "Codigo localizado;sin aceptacion actual",
+      "roots": [
+        "desktop-codelab"
+      ],
+      "tags": [
+        "Interfaces",
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-29",
+      "title": "ALTA-EQUIPO-NUEVO-20261009",
+      "family": [
+        "Sistemas",
+        "Altas y conexion"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "ALTA-EQUIPO-NUEVO-20261009"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-30",
+      "title": "Conexion-IA-Windows-20261005",
+      "family": [
+        "Sistemas",
+        "Altas y conexion"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "Conexion-IA-Windows-20261005"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-31",
+      "title": "Continuidad-Portal-20261007-v2",
+      "family": [
+        "Documentacion",
+        "Traspasos historicos"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "Continuidad-Portal-20261007-v2"
+      ],
+      "tags": [
+        "Continuidad",
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-32",
+      "title": "IA-WINDOWS-REVISION-CONSOLIDADA-20261008",
+      "family": [
+        "Documentacion",
+        "Traspasos historicos"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "IA-WINDOWS-REVISION-CONSOLIDADA-20261008"
+      ],
+      "tags": [
+        "Continuidad",
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-33",
+      "title": "interjddcia",
+      "family": [
+        "Desarrollo",
+        "Proyectos locales"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "interjddcia"
+      ],
+      "tags": [
+        "Desarrollo"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-34",
+      "title": "JDDC-ACCESO-EXTERNO-20261002-1333",
+      "family": [
+        "Sistemas",
+        "Altas y conexion"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "JDDC-ACCESO-EXTERNO-20261002-1333"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-35",
+      "title": "JDDC-ACCESO-EXTERNO-20261002-1333diag",
+      "family": [
+        "Sistemas",
+        "Altas y conexion"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "JDDC-ACCESO-EXTERNO-20261002-1333diag"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-36",
+      "title": "JDDC-ALTA-portal-windows-01-20261005",
+      "family": [
+        "Sistemas",
+        "Altas y conexion"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "JDDC-ALTA-portal-windows-01-20261005"
+      ],
+      "tags": [
+        "Windows",
+        "Seguridad"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-37",
+      "title": "JDDC-API-CLIENTE-QWEN27B-20261001-142212",
+      "family": [
+        "Desarrollo",
+        "Proyectos locales"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "JDDC-API-CLIENTE-QWEN27B-20261001-142212"
+      ],
+      "tags": [
+        "Desarrollo"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-38",
+      "title": "Para-IA-Windows-20261009-proyecto-y-continuidad-v3",
+      "family": [
+        "Documentacion",
+        "Traspasos historicos"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "Para-IA-Windows-20261009-proyecto-y-continuidad-v3"
+      ],
+      "tags": [
+        "Continuidad",
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-39",
+      "title": "pruebatroya",
+      "family": [
+        "Desarrollo",
+        "Proyectos locales"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "pruebatroya"
+      ],
+      "tags": [
+        "Desarrollo"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    },
+    {
+      "id": "carpeta-40",
+      "title": "SOLO-PARA-IA-WINDOWS-20261008",
+      "family": [
+        "Documentacion",
+        "Traspasos historicos"
+      ],
+      "description": "Carpeta de trabajo o entrega localizada. No se presume aplicacion activa;revisar alcance y fecha de sus documentos.",
+      "state": "Carpeta localizada;clasificacion por revisar",
+      "roots": [
+        "SOLO-PARA-IA-WINDOWS-20261008"
+      ],
+      "tags": [
+        "Continuidad",
+        "IA"
+      ],
+      "resource_ids": [],
+      "delivery_ids": [],
+      "access_ids": [],
+      "task_apps": []
+    }
+  ]
+}

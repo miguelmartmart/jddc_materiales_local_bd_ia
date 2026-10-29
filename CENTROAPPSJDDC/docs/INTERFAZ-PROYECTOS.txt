@@ -1,0 +1,80 @@
+CENTRO JDDC 0.17 - PROYECTOS, CLASIFICACION Y DESCARGAS
+Revision editorial:29/10/2026. No acredita estado actual de servicios.
+
+ORIENTARSE
+La bienvenida agrupa proyectos y carpetas de trabajo en nueve areas:ERP,
+Seguridad,IA,Operaciones,Personas,Comunicaciones,Sistemas,Desarrollo y Documentacion.
+Hay41 fichas mantenidas;algunas son componentes o entregas historicas, no41
+aplicaciones probadas. La ficha declara su estado y finalidad.
+
+Un proyecto tiene una clasificacion principal y varias etiquetas transversales.
+Ejemplo:DEVIA pertenece a ERP > Consulta y analisis;la etiqueta IA tambien lo
+encuentra. Esto conserva una sola ficha y evita duplicar fuentes o estados.
+Familia > Subfamilia > Proyecto > Codigo/Guias/Entregas/Pendientes/Accesos.
+Codigo permite profundizar en subcarpetas sin ejecutar archivos encontrados.
+
+NAVEGAR
+Las tarjetas superiores filtran proyectos,guias,entregas y pendientes.
+Los botones de areas y el arbol lateral llevan al nivel elegido. Desplegar la
+flecha carga los subniveles. Doble clic o Enter profundiza;seleccionar muestra
+la ficha y sus acciones. Un nivel vacio nunca significa servicio correcto.
+Atras y Adelante recuperan nivel,consulta,filtros y pagina. Subir vuelve al padre.
+El desplegable de la ruta permite saltar a cualquier antecesor.
+Ctrl+F enfoca el buscador;Alt+izquierda/derecha navegan;Alt+arriba sube.
+Escape o Limpiar elimina los filtros. Herramientas conserva las vistas existentes
+de continuidad,tareas,cambios,entregas/accesos e inventarios,ademas de GitHub.
+
+BUSCAR
+Busqueda global por titulo,descripcion,clasificacion,etiqueta,tipo,estado y ruta.
+Admite varias palabras,fragmentos,mayusculas y acentos. Tipo,estado y etiqueta
+se combinan. Elegir Nivel y descendientes limita la consulta al nivel actual.
+La escritura agrupa actualizaciones a140ms y desactiva inmediatamente las
+acciones de la seleccion anterior. Cada pagina muestra hasta100 resultados;
+Anterior/Siguiente recorre todos los resultados del catalogo sin truncarlos.
+La busqueda no indexa el contenido de archivos,logs,credenciales o bases.
+Los archivos de subcarpetas se consultan de un nivel en un nivel. Cada lectura
+examina hasta500 entradas;si se limita,se indica y Abrir carpeta da acceso local.
+
+DESCARGAR
+Una entrega ZIP:Descargar ZIP verifica la referencia SHA disponible y guarda
+una copia nueva,sin sobrescribir. No instala ni ejecuta lo descargado.
+Un proyecto:Descargar ZIP exporta fuentes y documentos admitidos de sus raices.
+Descargar todos los proyectos agrupa los proyectos catalogados,con archivos
+compartidos una sola vez. No equivale a copia de seguridad de todo Windows.
+La exportacion funciona en segundo plano;Cancelar detiene la exportacion de
+fuentes y elimina solo su salida nueva incompleta. Revisa el manifiesto de
+archivos,hashes y exclusiones. Limites:20000 archivos,128MiB de fuentes,
+5MiB por archivo,50000 entradas examinadas y30 niveles;si se superan,se aborta.
+No incluye bases de datos,binarios,ZIP anidados,configuracion privada,logs,
+runtimes,claves o nombres/patrones potencialmente sensibles. Los filtros son
+preventivos:revisar documentos empresariales antes de compartir la copia.
+Las entregas completas revisadas se copian aparte desde Entregas y accesos.
+Las credenciales se solicitan y gestionan en su almacen seguro, no en un ZIP.
+
+MANTENER CIENTOS DE PROYECTOS
+Editar docs/PROYECTOS.json:identificador unico,titulo,family (hasta6 subniveles),
+tags,descripcion,state,roots y referencias resource_ids/delivery_ids/access_ids/
+task_apps. Las rutas son relativas,no privadas ni fuera del workspace. Se validan
+5000 fichas como limite de formato;la prueba de escala realizada usa1000.
+No se han probado5000 proyectos en uso real ni todos los componentes del equipo.
+Actualizar catalogo local recarga el JSON,sin recorrer todo el disco ni conectar
+a servidores. Los enlaces ausentes en otra copia se muestran No disponible.
+Agregar nuevas fichas requiere comprobar finalidad,fuentes y fechas,ademas de
+referencias al indice CONTINUIDAD y al catalogo ENTREGAS-Y-ACCESOS.
+
+VERIFICACION Y LIMITES
+Ver PRUEBAS-PROYECTOS-20261029 y ESCALABILIDAD-INTERFAZ-20261029.json.
+La captura visual automatizada ha fallado por permisos del helper de la
+herramienta (helper_sandbox_lock_failed/SetNamedSecurityInfoW:5). La geometria
+de controles y las interacciones Tk se comprobaron;no afirmar revision visual
+de capturas completada. Pendiente aceptacion por usuario en otras pantallas/DPI.
+No hay nuevas consultas ERP/IA/correo ni sondeos remotos. Campanas pausadas.
+ERP real solo lectura siempre;pruebas de escritura solo en bases sinteticas.
+
+GITHUB
+Codigo y descarga publica:Herramientas > GitHub:codigo y descarga publica.
+La edicion publica omite inventarios Windows,evidencia empresarial y ZIP
+historicos. Conserva codigo,pruebas,guias,casos de uso y catalogo de referencias.
+Una copia publica no contiene todos los originales de este Windows;su ausencia
+se indica. No copiar credenciales para intentar restaurar otra instalacion.
+Reabrir el Centro para cargar0.17;una ventana0.16 mantiene el codigo anterior.

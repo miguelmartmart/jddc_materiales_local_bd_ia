@@ -1,0 +1,51 @@
+RETOMAR TRABAJO TRAS MESES O PARA UN NUEVO COLABORADOR
+Punto de control editorial26/10/2026. Siempre comprobar hechos actuales.
+
+SECUENCIA
+1. Identificar version/carpeta del Centro y raiz del proyecto. Leer AGENTS.md.
+2. Leer Inicio,Mapa,Resumen actual y Plan de mejoras. Comprobar fechas.
+3. Inventariar localmente en solo lectura;si faltan rutas,indicar limite.
+4. Confirmar con los responsables la version activa de cada servidor y sus
+   decisiones posteriores;este paquete no prueba cambios remotos futuros.
+5. Conservar pausas,trabajo incierto y originales. Correlacionar incidentes sin
+   repetir consultas cuya ejecucion pudo haberse producido.
+6. Escoger un caso de uso con responsable,alcance y criterio de cierre.
+7. Reproducir con datos sinteticos;validar despliegue/rollback aparte.
+8. Pruebas reales solo dentro de autorizacion vigente y destino de lectura;
+   no reanudar la campana sin nueva orden expresa del usuario.
+9. Registrar resultado,limites,version,fecha y siguiente paso en evidencia nueva.
+
+PENDIENTES QUE SE TRANSMITEN (NO DAR POR RESUELTOS POR ANTIGUEDAD)
+- Campana900:84 turnos completados,85 intentados,8 lecturas confirmadas20/10.
+  C029/1 devolvio503 al ejecutar;resultado incierto. Cierre200 no resuelve lectura.
+  Correlacionar trace162094dabaae40ac8fe06ede22acafc3 y request
+  134a633d52144ac5826defe701d15435. No reintentar automaticamente.
+- PARAR y PARAR-COLA:mantenerlos hasta orden de reanudar.
+- Web8445:el21/10 timeout TCP,servidor alcanzable por ping y TCP8443.
+  Faltan captura Ubuntu,listener,filtro y origen NAT actual. No reinstalar CA
+  como sustituto de localizar un fallo que entonces ocurria antes de TLS.
+- R2:431 correctas,40 omitidas Windows;no desplegado ni aceptado entonces.
+  Pendientes Linux,navegador real,identidad de release y aceptacion.
+- PDF,paginacion hasta el final y mejoras de presentacion:siguen pendientes
+  salvo evidencia nueva. JSON historico es candidato local R2.
+- Firma Defender registrada19/10 segun lectura26/10:revisar estado actual con
+  politica del administrador. Cifrado no comprobado. Son hechos fechados.
+
+NUEVO EQUIPO / NUEVA PERSONA
+Pedir acceso individual y rol apropiado,URL y propietario de cada servicio.
+Obtener codigo/version aprobados por el canal acordado y verificar manifiestos.
+No copiar vault,perfiles,.venv,certificados privados o sesiones de otra persona.
+Preparar dependencias documentadas por app;Centro usa Python/Tkinter estandar.
+Revisar confianza publica por canal conocido. No saltar validacion TLS.
+Probar entorno sintetico y restauracion de datos de la app antes de activar.
+La copia del Centro no transporta toda la aplicacion,ERP,modelos o permisos.
+
+CIERRE DE UNA SESION DE TRABAJO
+Que cambio y en que archivos/version. Que se probo y con que tipo de datos.
+Que fallo o quedo omitido. Que se desplego realmente y donde (o no se desplego).
+Que queda incierto. Quien continua y cual es la siguiente accion concreta.
+No borrar pruebas fallidas ni sustituir un historico por un relato de exito.
+
+ACTUALIZACION0.16: inicio documental sin recorrido completo automatico. Pulsar Actualizar inventario para recoger archivos. Inventario Windows se solicita aparte. Detalles diferidos y busqueda de varias palabras. Informe: CENTROAPPSJDDC/docs/OPTIMIZACION-RESPUESTA-20261026.txt. Entregas y accesos: ZIP0.16; campana real pausada.
+
+ACTUALIZACION0.17 (29/10/2026):bienvenida por areas ERP,Seguridad,IA y otras;proyectos con subniveles y etiquetas.41 fichas mantenidas,no41apps validadas. Busqueda global,paginacion y descargas. Guia: CENTROAPPSJDDC/docs/INTERFAZ-PROYECTOS.txt. Herramientas conserva inventarios,continuidad y accesos. GitHub disponible desde Herramientas;campanas pausadas.

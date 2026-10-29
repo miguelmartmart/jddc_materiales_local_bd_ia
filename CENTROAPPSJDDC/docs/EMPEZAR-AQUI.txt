@@ -1,0 +1,75 @@
+EMPEZAR AQUI - CENTRO JDDC Y ESTE WINDOWS
+Guia mantenida. Ultima revision editorial:26/10/2026.
+
+QUE ES ESTO
+Este proyecto reune herramientas JDDC de consulta, analisis y apoyo a operaciones.
+Centro JDDC es la consola local de orientacion, inventario y evidencias.
+Portal de Avisos ayuda a revisar y organizar avisos/trabajos.
+DEVIA es el chat de consulta ERP con propuestas y evidencias de lectura.
+Otros modulos exploran datos, recursos, correo y documentos; encontrar codigo
+no demuestra que el servicio este desplegado, autorizado o aceptado.
+
+LAS CUATRO UBICACIONES
+1. Este Windows:codigo, lanzadores, candidatos y evidencia local.
+2. Ubuntu:servidor central y servicios remotos; estado efectivo se comprueba alli.
+3. ERP real:base empresarial protegida permanentemente en SOLO LECTURA.
+4. Entornos sinteticos:datos aislados para pruebas que crean o modifican datos.
+
+PRIMEROS CINCO MINUTOS
+- Comprueba version y carpeta en Inicio y continuidad del Centro.
+- Lee este documento y el Mapa del sistema.
+- Abre Resumen actual:conserva la fecha original de cada prueba.
+- Consulta Guia por tareas para elegir app por perfil y problema.
+- Usa Inventario para localizar archivos; incluir archivos/documentacion amplia
+  el resultado. Buscar metadatos no busca todos los contenidos privados del disco.
+- Para continuar, lee Retomar trabajo y las restricciones de AGENTS.md.
+
+ARRANQUE
+Desde la carpeta del proyecto: CENTROAPPSJDDC\ABRIR_CENTRO.cmd
+Alternativa:Python3.10+ con Tkinter; esta instalacion usa Python3.12.
+  python CENTROAPPSJDDC/main.py --workspace RUTA_DEL_PROYECTO
+No copiar un entorno virtual desde otro equipo. Las dependencias,certificados,
+cuentas y servicios de cada app se revisan aparte; el Centro usa biblioteca estandar.
+El Centro muestra version de sus fuentes y carpeta. Una ventana abierta conserva
+la version cargada; cerrar solo esa ventana y reabrir el lanzador carga la nueva.
+No implica detener backends de otras apps ni activa una release del servidor.
+
+PUNTOS DE ENTRADA ESTABLES
+CENTROAPPSJDDC/docs/CONTINUIDAD.json:indice de recursos y punteros actuales.
+CENTROAPPSJDDC/docs/CONTINUIDAD-Y-TRASPASO.txt:reglas para relevo y mantenimiento.
+CENTROAPPSJDDC/docs/MAPA-DEL-SISTEMA.txt:apps,carpetas y responsabilidades.
+CENTROAPPSJDDC/docs/RETOMAR-TRABAJO.txt:secuencia al volver y asuntos sin cerrar.
+Los archivos fechados se conservan como evidencia. Para cambiar resumen o catalogo
+actual, editar los punteros de CONTINUIDAD.json; no renombrar toda la historia.
+
+SEGURIDAD Y DATOS
+ERP real nunca admite pruebas de escritura, DML/DDL, cambio de esquema/cuentas,
+procedimientos con efectos o desactivacion de la proteccion. Consultar AGENTS.md.
+La pausa de campanas persiste hasta orden expresa de reanudar; abrir el Centro,
+un documento o un ZIP no autoriza ejecutar pruebas reales ni reintentos.
+Los registros privados pueden contener datos empresariales. No copiar claves,
+credenciales,transcripciones o bases a una entrega publica o a un nuevo empleado.
+Algunos informes internos incluyen direcciones de red; revisar destinatario.
+
+COMO LEER LOS ESTADOS
+Detectado:se encontro un archivo,dato o proceso; no demuestra salud general.
+Correcto:solo el alcance de la comprobacion indicada y su momento.
+Parcial:hay limites o pruebas pendientes. Bloqueado:esa operacion no pudo cerrarse.
+No comprobado:desconocido; no sustituir por verde o por cero.
+Propuesta/candidato local:trabajo por integrar; no es produccion.
+Historico:lo ocurrido entonces, incluso si su hash coincide hoy.
+
+CAMBIOS DESDE OTRA VISITA
+En Centro0.14.0:Inicio y continuidad > Ver cambios. Comparar con un punto
+anterior,leer diferencias y guardar otro solo por accion expresa.
+La version cargada debe indicar0.14.0;una ventana antigua conserva su codigo.
+
+TODO DESDE EL CENTRO - VERSION0.15.0
+Entregas y accesos centraliza los ZIP,verificacion,copias y referencias de
+identidades. Mantener docs/ENTREGAS-Y-ACCESOS.json al crear entregas nuevas;
+las contrasenas/claves permanecen en su gestor seguro. No pegar secretos.
+Abrir gestores Windows es una accion expresa,no autenticacion automatica.
+
+ACTUALIZACION0.16: inicio documental sin recorrido completo automatico. Pulsar Actualizar inventario para recoger archivos. Inventario Windows se solicita aparte. Detalles diferidos y busqueda de varias palabras. Informe: CENTROAPPSJDDC/docs/OPTIMIZACION-RESPUESTA-20261026.txt. Entregas y accesos: ZIP0.16; campana real pausada.
+
+ACTUALIZACION0.17 (29/10/2026):bienvenida por areas ERP,Seguridad,IA y otras;proyectos con subniveles y etiquetas.41 fichas mantenidas,no41apps validadas. Busqueda global,paginacion y descargas. Guia: CENTROAPPSJDDC/docs/INTERFAZ-PROYECTOS.txt. Herramientas conserva inventarios,continuidad y accesos. GitHub disponible desde Herramientas;campanas pausadas.

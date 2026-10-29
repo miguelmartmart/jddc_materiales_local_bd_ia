@@ -1,0 +1,108 @@
+{
+  "schema": "jddc-continuity/1",
+  "reviewed_at": "2026-10-29T10:21:55.040981+00:00",
+  "description": "Indice mantenido local;no conoce automaticamente estado remoto",
+  "data_files": {
+    "equipment_summary": "CENTROAPPSJDDC/docs/RESUMEN-PUBLICO.json",
+    "use_cases": "CENTROAPPSJDDC/docs/CASOS-DE-USO-Y-MEJORAS-20261026.json",
+    "delivery_access": "CENTROAPPSJDDC/docs/ENTREGAS-Y-ACCESOS.json"
+  },
+  "resources": [
+    {
+      "id": "start",
+      "title": "Empezar aqui",
+      "kind": "Guia",
+      "description": "Que es esto,primeros pasos y limites",
+      "path": "CENTROAPPSJDDC/docs/EMPEZAR-AQUI.txt",
+      "observed_at": "2026-10-26T11:42:00.846486+00:00"
+    },
+    {
+      "id": "map",
+      "title": "Mapa del sistema",
+      "kind": "Guia",
+      "description": "Apps,carpetas y responsabilidades",
+      "path": "CENTROAPPSJDDC/docs/MAPA-DEL-SISTEMA.txt",
+      "observed_at": "2026-10-26T11:42:00.846486+00:00"
+    },
+    {
+      "id": "resume",
+      "title": "Retomar trabajo",
+      "kind": "Guia",
+      "description": "Volver tras meses o incorporarse desde cero",
+      "path": "CENTROAPPSJDDC/docs/RETOMAR-TRABAJO.txt",
+      "observed_at": "2026-10-26T11:42:00.846486+00:00"
+    },
+    {
+      "id": "handover",
+      "title": "Mantener y transmitir",
+      "kind": "Guia",
+      "description": "Actualizar indice,fechas,evidencias y restauracion",
+      "path": "CENTROAPPSJDDC/docs/CONTINUIDAD-Y-TRASPASO.txt",
+      "observed_at": "2026-10-26T11:42:00.846486+00:00"
+    },
+    {
+      "id": "plan",
+      "title": "Plan de mejoras y casos",
+      "kind": "Plan",
+      "description": "42 casos por rol,app,prioridad y aceptacion;incluye navegacion0.16",
+      "path": "CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt",
+      "observed_at": "2026-10-26T11:42:00.846486+00:00"
+    },
+    {
+      "id": "safety",
+      "title": "Restriccion ERP",
+      "kind": "Regla",
+      "description": "Proteccion permanente de solo lectura",
+      "path": "AGENTS.md",
+      "observed_at": null
+    },
+    {
+      "id": "checkpoints",
+      "title": "Puntos de continuidad y cambios",
+      "kind": "Guia",
+      "description": "Comparar referencias,ausencias y hashes sin renovar evidencias",
+      "path": "CENTROAPPSJDDC/docs/PUNTOS-DE-CONTINUIDAD.txt",
+      "observed_at": "2026-10-26T12:35:20.958018+00:00"
+    },
+    {
+      "id": "deliveries-access",
+      "title": "Entregas,descargas y credenciales",
+      "kind": "Guia",
+      "description": "ZIP verificables y referencias de acceso,gestores Windows explicitos",
+      "path": "CENTROAPPSJDDC/docs/ENTREGAS-Y-CREDENCIALES.txt",
+      "observed_at": "2026-10-26T13:02:17.688312+00:00"
+    },
+    {
+      "id": "project-catalog",
+      "title": "Catalogo de proyectos",
+      "kind": "Plan",
+      "description": "Revision local0.17;sin nuevas consultas reales,campana pausada",
+      "path": "CENTROAPPSJDDC/docs/PROYECTOS.json",
+      "observed_at": "2026-10-29T10:16:40.944086+00:00"
+    },
+    {
+      "id": "project-guide",
+      "title": "Navegar por areas,proyectos y etiquetas",
+      "kind": "Guia",
+      "description": "Revision local0.17;sin nuevas consultas reales,campana pausada",
+      "path": "CENTROAPPSJDDC/docs/INTERFAZ-PROYECTOS.txt",
+      "observed_at": "2026-10-29T10:16:40.944086+00:00"
+    },
+    {
+      "id": "project-tests",
+      "title": "Pruebas Centro0.17",
+      "kind": "Evidencia historica",
+      "description": "Revision local0.17;sin nuevas consultas reales,campana pausada",
+      "path": "CENTROAPPSJDDC/docs/PRUEBAS-PROYECTOS-20261029.json",
+      "observed_at": "2026-10-29T10:16:40.944086+00:00"
+    },
+    {
+      "id": "project-scale",
+      "title": "Escala1000proyectos y limites",
+      "kind": "Evidencia historica",
+      "description": "Revision local0.17;sin nuevas consultas reales,campana pausada",
+      "path": "CENTROAPPSJDDC/docs/ESCALABILIDAD-INTERFAZ-20261029.json",
+      "observed_at": "2026-10-29T10:16:40.944086+00:00"
+    }
+  ]
+}

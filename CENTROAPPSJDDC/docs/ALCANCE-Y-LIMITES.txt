@@ -1,0 +1,70 @@
+COBERTURA Y LÍMITES - 15/10/2026
+
+APLICACIONES
+Portal de Avisos, API Explorer, API Clone y otros módulos de backend/modules.
+Entregas DEVIA con pyproject.toml reconocido. Versiones históricas separadas.
+Ubicación, estado y momento del hallazgo. No confundir archivo con proceso activo.
+No es inventario de todos los programas instalados en Windows ni todos los proyectos
+del disco. Pueden añadirse carpetas autorizadas.
+
+ORGANIZACIÓN
+Once pestañas: Aplicaciones, Configuración, Cuentas, Certificados, Procesos,
+Servicios, Red, Firewall, Actualizaciones, Informes y Pendientes.
+Árbol con detalles desplegables por elemento, ficha completa copiable, búsqueda y
+filtro por estado. Las fechas llevan offset horario del equipo.
+
+CONFIGURACIÓN E IDENTIDADES
+Solo categorías de campos presentes en archivos conocidos; no valores privados.
+Las cuentas Windows se leen con Get-LocalUser. Las cuentas del portal se leen de
+SQLite en mode=ro + query_only, únicamente columna name de users, máximo 200.
+No se leen hashes/contraseñas ni se crea cuenta alguna. No consulta Firebird.
+No enumera tokens del vault ni demuestra sus permisos/vigencia.
+No enumera cuentas Ubuntu ni perfiles remotos sin un conector autorizado.
+
+CERTIFICADOS
+Archivos .crt/.cer públicos y metadatos de almacenes My personales Windows.
+Caducidad, nombre y huella disponibles localmente; no exportados en soporte.
+Archivos que contienen clave privada se rechazan. .key/.pfx/.p12/PEM no se
+inventarían como certificados de archivo. No se importa ni exporta confianza.
+Sin validación offline de cadena/revocación ni certificado-clave. TLS del destino
+se valida únicamente al pulsar TCP/TLS. Almacenes Root/CA no incluidos.
+
+RED, PROCESOS Y FIREWALL
+IP/interfaz/gateway del invitado, listeners y PID. No deduce NAT ni IP anfitrión.
+Selección de procesos Python/Node/DEVIA sin argumentos de línea de comandos.
+Servicios por coincidencia de nombre JDDC/DEVIA/portal/Firebird; no exhaustivo.
+Perfiles y hasta 501 reglas activas de ActiveStore. No incluye asociación completa
+de filtros de puertos, aplicaciones, GPO, antivirus ni firewall Ubuntu/anfitrión.
+No afirma que una regla concreta sea la causa de un 403 o timeout.
+TCP/TLS: una conexión sin credenciales y sin HTTP. No equivale a login o salud API.
+HTTP sin TLS solo se admite en loopback. DNS puede depender de tiempos del sistema.
+
+INFORMES Y EXPORTACIÓN
+Índice por nombres/tamaños/rutas de informes conocidos. No interpreta todos los
+formatos históricos ni decide que un archivo antiguo refleje el estado actual.
+Los logs originales pueden contener secretos/datos ERP: no se empaquetan.
+El ZIP seguro usa un esquema cerrado con conteos/estados/códigos y SHA256.
+No contiene detalle privado para correlación de red; si hace falta, diseñar una
+exportación explícita revisada y acotada, no copiar carpetas privadas enteras.
+El ZIP no sustituye los informes contractuales de Diagnóstico Ubuntu.
+
+ROBUSTEZ Y COBERTURA
+Escaneo por raíz hasta 6000 entradas y profundidad 7. No sigue enlaces/junctions.
+Los límites, errores y omisiones son visibles. No se escanea todo C: automáticamente.
+Tareas de fondo, interfaz permanece disponible. Una operación a la vez.
+Errores tipados, sin mensajes de excepción en exportación/trazas del centro.
+No sobrescribe ZIP existentes. Elimina su archivo parcial si falla una escritura.
+Un corte de energía/permisos puede impedir limpieza o registro; no se garantiza
+recuperación total ni ausencia de condiciones de carrera con archivos externos.
+
+PENDIENTE PARA UNA CONSOLA COMPLETA
+1. Conector Ubuntu autenticado: aplicaciones, cuentas, servicios, perfiles y UFW.
+2. Contratos de diagnóstico ERP/IA real, permisos efectivos y correlación NAT.
+3. Vinculación fuerte aplicación-proceso/perfil activo (sin deducirlo del nombre).
+4. Catálogo firmado de actualizaciones, activación/reversión y servicios Windows.
+5. Gestión administrativa de identidades y certificados con permisos por acción.
+6. Interpretadores específicos de trazas contractuales y comparación histórica.
+7. Cobertura de reglas/filtros/almacenes adicionales y pruebas en Windows limpio.
+
+No hay botones de escritura ERP. Esa restricción no es configurable ni revocable
+mediante un check. Esta versión no reinicia procesos ni modifica políticas de red.

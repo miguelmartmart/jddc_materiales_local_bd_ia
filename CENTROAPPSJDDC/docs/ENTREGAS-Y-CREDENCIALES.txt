@@ -1,0 +1,76 @@
+ENTREGAS, DESCARGAS Y CREDENCIALES - CENTRO0.15.0
+Revision26/10/2026. El Centro es el punto de entrada del equipo.
+
+DONDE ESTA
+Cabecera del Centro > Entregas y accesos.
+Inicio y continuidad > Entregas y accesos.
+Dos pestanas separan las entregas ZIP de la gestion de identidades.
+Abrir la ventana solo lee catalogo y nombres de archivos locales.
+No descarga de Internet,autentica,enumera vault o consulta ERP/IA/correo.
+
+ENTREGAS ZIP
+El catalogo revisado es docs/ENTREGAS-Y-ACCESOS.json. El indice CONTINUIDAD.json
+puede cambiar su puntero data_files.delivery_access sin editar codigo.
+Incluye version/uso,estado historico/candidato/sustituido y ruta relativa.
+Se localizan tambien ZIP del workspace raiz y DEVIA_VALIDACION,solo un nivel,
+con limites500entradas por carpeta y200entregas. No es exploracion de todo el disco.
+Los nuevos aparecen Por clasificar;su existencia no los convierte en version activa.
+
+ACCIONES
+Verificar ZIP:reconoce formato y calcula SHA256,sin extraer o ejecutar.
+- Huella fijada en catalogo:comparacion con la registrada en esa ficha.
+- SHA local:comparacion con el archivo .zip.sha256,si existe y es valido.
+- Sin ambas:hash calculado ahora,sin referencia previa;no afirmar autenticidad.
+Si catalogo y sidecar discrepan,o la huella no coincide,se bloquea la copia.
+SHA256 no es firma del publicador ni analisis de seguridad de lo que contiene.
+Se reconoce la estructura ZIP minima;no se valida CRC de todo el contenido.
+Guardar/descargar copia:pide destino con dialogo y crea un ZIP nuevo,verificando
+que los bytes copiados coincidan. No sobrescribe originales o archivos existentes.
+No es una publicacion en Internet:es descargar una copia desde un archivo local.
+Abrir carpeta:localiza la carpeta,sin abrir o ejecutar el contenido del ZIP.
+Limite de copia/verificacion256MiB. Para entregas mayores,localizar y gestionar
+por procedimiento revisado;no descomprimir automaticamente por ese motivo.
+Una copia que falla elimina solo el nuevo archivo incompleto identificado como
+propio;si no puede hacerlo,documentar el error y revisar el destino.
+
+ACCESOS Y CREDENCIALES
+La ficha indica sistema,gestor,ubicacion logica y siguiente paso de alta/renovacion.
+Presencia,usuario real,permisos y vigencia permanecen no comprobados.
+El Centro no lee,setea,exporta o copia passwords,tokens,claves SSH ni certificados
+privados. No enumerar credenciales para rellenar el catalogo.
+No escribir secretos en campos libres,catalogo,guia,logs o ZIP.
+Windows/DEVIA:boton de accion expresa abre Administrador de credenciales del
+usuario actual. DEVIA usa el almacen aprobado del sistema mediante keyring;
+namespace devia-pilot y referencia del perfil, no un token en esta ficha.
+Certificados:abre visor MMC del usuario actual,certmgr.msc. No importa ni cambia
+confianza automaticamente;CA publica y acceso de usuario son cosas distintas.
+Portal:cuenta y rol de su propia instancia;solicitar al administrador de esa app.
+Ubuntu:acceso individual aprobado;no copiar perfiles o claves de otro empleado.
+ERP:identidad efectiva solo lectura. Ninguna accion aqui cambia grants,cuentas,
+datos,esquema o permite pruebas de escritura en ERP real.
+Correo:cuenta/proveedor explicitamente configurados;alta/renovacion por su
+administrador. No se intenta login,envio,sincronizacion o fallback de credenciales.
+Los gestores Windows pueden depender de edicion o politica. Si no abren,
+mostrar incidencia y acudir al responsable,sin intentar eludir la politica.
+
+MANTENIMIENTO Y CONTINUIDAD
+Registrar una nueva entrega con id,titulo,uso,estado,ruta y huella si ya fue
+contrastada. Conservar fichas de versiones anteriores como Historica/Sustituida.
+Una entrega puede no estar disponible en esta copia del proyecto;se indica.
+El paquete que contiene este mismo catalogo no fija su propio hash dentro de si:
+su huella va en el .sha256 externo y en su manifiesto. No se simula firma.
+No todos los ZIP encontrados son entregas aprobadas o restauraciones probadas.
+La aplicacion muestra rutas internas;la entrega completa es de uso interno.
+El ZIP depurado del Centro sigue exportando solo conteos/codigos,sin catalogo,
+referencias de credenciales,secretos o ZIP originales.
+Ninguna descarga reanuda campanas o activa servicios. Leer AGENTS.md.
+
+FUENTES OFICIALES SOBRE LOS GESTORES
+https://learn.microsoft.com/en-us/windows/desktop/shell/controlpanel-canonical-names
+https://learn.microsoft.com/en-us/dotnet/framework/wcf/feature-details/how-to-view-certificates-with-the-mmc-snap-in
+Referencia interna del almacen DEVIA:src/devia_pilot/security/credentials.py
+en la base0.2.1 verificada. Su existencia no prueba configuracion efectiva hoy.
+
+Centro0.16: entrega ligera en Z11. Los antiguos ZIP del Centro siguen conservados en este PC y enlazados, pero no se anidan en la entrega nueva. En otra copia pueden figurar No disponible. Tres ZIP esenciales incluidos:R2,diagnostico8445,cierre900. Ninguna credencial secreta incluida.
+
+ACTUALIZACION0.17 (29/10/2026):bienvenida por areas ERP,Seguridad,IA y otras;proyectos con subniveles y etiquetas.41 fichas mantenidas,no41apps validadas. Busqueda global,paginacion y descargas. Guia: CENTROAPPSJDDC/docs/INTERFAZ-PROYECTOS.txt. Herramientas conserva inventarios,continuidad y accesos. GitHub disponible desde Herramientas;campanas pausadas.

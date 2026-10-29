@@ -1,0 +1,412 @@
+PLAN DE MEJORAS, APLICACIONES Y CASOS DE USO -26/10/2026
+
+ESTADO
+Dos mejoras locales implementadas en el Centro:guia por tareas y valoracion
+de RAM/disco. El resto se propone o depende del servidor y aceptacion.
+No se promete que todos los modulos funcionen por localizar su codigo.
+No se ha desplegado R2, modificado Windows o consultado ERP/IA/correo.
+Campana900 y cola avanzada siguen pausadas. ERP real siempre solo lectura.
+
+PRIORIDAD Y ORDEN
+P0:resolver incidentes de resultado incierto, transporte8445, restauracion,
+solo lectura, contratos de cifras, credenciales y permisos.
+P1:recorridos de empleados, datos fiables, exportaciones y operacion diaria.
+P2:productividad, accesibilidad, prediccion y optimizacion medida.
+La prioridad es una propuesta:impacto/frecuencia/coste requieren acuerdo de negocio.
+No hay fechas o estimaciones de esfuerzo inventadas.
+
+WINDOWS - MEDICION DE ESTA SESION
+Windows11 Pro,build26300,6procesadores logicos,hipervisor presente.
+Instantanea inicial:RAM libre3.40GiB de10.75GiB;C:libre22.60GiB de88.88GiB.
+No es evidencia de cuello de botella; no justifica limpieza agresiva ni ampliar RAM.
+No se deduce lentitud o fuga por listar procesos Edge/Code o sumar working sets.
+Faltan series de latencia,CPU,disco y carga representativa antes de optimizar.
+La valoracion local usa umbrales orientativos(<1GiB o10%RAM; <10GiB o10%disco),
+no umbrales oficiales ni garantia de rendimiento. No limpia ni cierra procesos.
+Inicio,actualizaciones,Defender y cifrado quedan sujetos a revision y politica
+corporativa; no se deshabilita ninguna proteccion ni se reinicia este Windows.
+
+RECORRIDOS DE EMPLEADOS
+Recepcion:correo/borrador -> validar contacto/direccion -> aviso sin duplicado
+-> revision -> asignacion confirmada. No alta ERP ni envio automatico.
+Tecnico:lista autorizada -> direccion y contexto -> evidencia/parte -> confirmar
+guardado y sincronizacion. El modo offline requiere desarrollo y politica.
+Coordinacion:urgencia -> disponibilidad acreditada -> propuesta de reparto ->
+revision humana -> seguimiento de bloqueos/cancelacion. No inferir agenda real.
+Compras:articulo/unidad/almacen -> existencias fechadas -> restricciones ->
+propuesta de compra revisada. No ordenar compras ni modificar stock ERP.
+Administracion:proveedor/periodo -> propuesta de lectura autorizada -> bloques
+con evidencia -> contraste -> JSON -> futuro informe PDF segun perfil elegido.
+Direccion:pregunta -> definicion de metricas -> calidad/reconciliacion -> analisis
+con referencias -> limites e incertidumbre. Prediccion no se supone por tener IA.
+Sistemas:incidencia -> separar TCP/TLS/HTTP/auth/app/ERP -> correlacion ->
+correccion revisable -> staging -> rollback probado -> cierre con evidencia.
+Desarrollo:datos sinteticos -> contrato -> regresion -> artefacto versionado ->
+validacion independiente -> publicacion controlada. ERP real no es banco de pruebas.
+
+M01 | P0 | Ubuntu / DEVIA | Pendiente servidor
+Perfiles: Sistemas
+Problema: 503 con lectura incierta
+Solucion propuesta/local: Correlacionar trace de ejecucion y cierre, sin reproducir la lectura incierta
+Responsable propuesto: Ubuntu
+Cierre verificable: Causa y estado final documentados antes de permitir una nueva ejecucion
+Referencia local: DEVIA_VALIDACION/produccion_021_20261020_r2/DIAGNOSTICO-503-C029.txt
+
+M02 | P0 | Web Categorias / red | Pendiente servidor
+Perfiles: Sistemas
+Problema: La web8445 no abre
+Solucion propuesta/local: Capturar SYN y respuesta, comprobar listener, bind, firewall y origen real tras NAT
+Responsable propuesto: Ubuntu y red
+Cierre verificable: TCP, TLS y HTTP comprobados por separado desde Windows y otro cliente; no abrir redes completas
+Referencia local: DEVIA_VALIDACION/diagnostico_web_8445_20261021/INFORME-PARA-SERVIDOR.txt
+
+M03 | P0 | Portal / copias | Propuesta
+Perfiles: Sistemas
+Problema: Una copia existe pero no se sabe restaurar
+Solucion propuesta/local: Inventario de datos de app, copia cifrada segun politica y ensayo de restauracion en instancia sintetica
+Responsable propuesto: Sistemas
+Cierre verificable: Restaurar trabajos y permisos en instancia aislada, medir perdida maxima y tiempo; no restaurar ERP real
+Referencia local: docs/PORTAL_AVISOS_TRABAJOS_GUARDADOS.md
+
+M04 | P0 | Database / ERP | Propuesta
+Perfiles: Desarrollo, Sistemas
+Problema: Una ruta o flag podria eludir solo lectura
+Solucion propuesta/local: Revisar identidad efectiva, transaccion de lectura y politica comun en cada entrada; probar escrituras solo en base sintetica
+Responsable propuesto: Desarrollo y Ubuntu
+Cierre verificable: Cada entrada real usa solo lectura; pruebas negativas sinteticas sin cambiar grants o esquema ERP
+Referencia local: AGENTS.md
+
+M05 | P0 | API Clone / SQL Obras | Propuesta
+Perfiles: Administracion, Desarrollo
+Problema: Claves compuestas y filtros pueden alterar informes
+Solucion propuesta/local: Crear contratos de claves, filtros y previsiones con oraculos independientes antes de usar cifras para decisiones
+Responsable propuesto: Desarrollo funcional
+Cierre verificable: Mismos filtros y claves producen las mismas filas y sumas; divergencias visibles, no ceros silenciosos
+Referencia local: backend/modules/api_clone/DEVIA.MD
+
+M06 | P0 | Outlook / identidades | Propuesta
+Perfiles: Sistemas, Desarrollo
+Problema: Fallback de credenciales entre proveedores descrito en documentacion
+Solucion propuesta/local: Auditar comportamiento y sustituir cascadas por conexion explicita por proveedor, permisos y cuenta
+Responsable propuesto: Desarrollo y administrador correo
+Cierre verificable: Prueba sintetica demuestra que ningun fallo envia credenciales a otro proveedor; no sincronizar correo real para probarlo
+Referencia local: backend/modules/outlook/DEVIA.MD
+
+M07 | P0 | Cuentas / empleados | Propuesta
+Perfiles: Sistemas, Coordinacion
+Problema: Altas, bajas y roles sin recorrido comun acreditado
+Solucion propuesta/local: Definir roles de oficina, tecnico, coordinacion y administrador; caducidad, baja y acceso a historiales/exportaciones
+Responsable propuesto: Sistemas y responsable de datos
+Cierre verificable: Matriz de acceso probada con usuarios sinteticos; baja impide nuevos accesos y no expone historiales ajenos
+Referencia local: CENTROAPPSJDDC/docs/ALCANCE-Y-LIMITES.txt
+
+M08 | P1 | Portal de Avisos | Propuesta
+Perfiles: Recepcion
+Problema: Registrar un aviso incompleto o duplicado
+Solucion propuesta/local: Asistente de campos minimos, candidatos duplicados y confirmacion humana antes de guardar en datos de la app
+Responsable propuesto: Producto Portal
+Cierre verificable: Distingue duplicado real, coincidencia parcial y domicilios distintos; nunca escribe ERP
+Referencia local: docs/PORTAL_AVISOS_ENTREGA_CONSOLIDADA_20261014.md
+
+M09 | P1 | Portal de Avisos / revisiones | Pendiente servidor
+Perfiles: Coordinacion
+Problema: Analizar todo puede pisar trabajo humano
+Solucion propuesta/local: Validar en Ubuntu la conservacion de revisiones, vigencia por fuente y explicacion de bloqueos
+Responsable propuesto: Ubuntu y producto Portal
+Cierre verificable: Revisiones vigentes no llaman IA ni se reemplazan; cambios de fuente invalidan con motivo visible
+Referencia local: docs/PORTAL_AVISOS_ENTREGA_CONSOLIDADA_20261014.md
+
+M10 | P1 | Portal / mapas | Propuesta
+Perfiles: Coordinacion, Tecnico
+Problema: Mapa vacio o direccion ambigua
+Solucion propuesta/local: Separar cobertura de fondo, callejero y coordenada confirmada; mostrar aproximacion y alternativa textual
+Responsable propuesto: Producto Portal
+Cierre verificable: Sin mapa sigue visible direccion y motivo; no confundir CP/localidad con portal exacto
+Referencia local: docs/PORTAL_AVISOS_CLIENTE_20261014.md
+
+M11 | P1 | Portal / planificacion | Propuesta
+Perfiles: Coordinacion
+Problema: Asignar visitas sin considerar urgencia y capacidad
+Solucion propuesta/local: Propuesta revisable por turno, prioridad, disponibilidad y zonas; registrar restricciones incumplidas
+Responsable propuesto: Coordinacion y producto
+Cierre verificable: El humano confirma; sin datos suficientes no inventar ubicacion, tiempo de viaje o disponibilidad
+Referencia local: backend/notice_portal/DEVIA.MD
+
+M12 | P1 | Portal / movil | Propuesta
+Perfiles: Tecnico
+Problema: En campo se pierde contexto y evidencia
+Solucion propuesta/local: Vista movil por tarea, contacto autorizado, direccion, estado de sincronizacion y borrador local aprobado por politica
+Responsable propuesto: Producto Portal
+Cierre verificable: Pruebas con red intermitente, doble pulsacion y sesion expirada sin perder o duplicar partes; offline pendiente de diseno
+Referencia local: frontend/notice_portal/DEVIA.MD
+
+M13 | P1 | Portal / tareas | Propuesta
+Perfiles: Recepcion, Coordinacion
+Problema: Trabajo oculto y botones sin motivo
+Solucion propuesta/local: Mostrar progreso, bloqueo y cancelacion efectiva; nueva tarea acotada sin reactivar trabajos antiguos
+Responsable propuesto: Producto Portal
+Cierre verificable: Una tarea cancelada no sigue consumiendo recursos ni altera revisiones; estado incierto se conserva
+Referencia local: docs/PORTAL_AVISOS_REGRESION_TAREAS_OCULTAS_20261009.md
+
+M14 | P1 | DEVIA / facturas | Propuesta
+Perfiles: Administracion, Compras
+Problema: Listado de facturas poco util
+Solucion propuesta/local: Presentar tercero, documento interno/proveedor, fechas, importes autorizados y conceptos solo con relacion validada
+Responsable propuesto: Producto DEVIA
+Cierre verificable: Caso Daikin85 referencias conserva coincidencias; importes y lineas requieren contraste propio, moneda explicita
+Referencia local: DEVIA_VALIDACION/chat_real_20261020/CONTRASTE-EXCEL-CHAT-DAIKIN-20261020.txt
+
+M15 | P1 | DEVIA / JSON historico | Candidato local
+Perfiles: Administracion
+Problema: Guardar resultados sin repetir consultas
+Solucion propuesta/local: Integrar candidato R2 de exportacion autenticada con precision y bloques separados
+Responsable propuesto: Ubuntu y producto DEVIA
+Cierre verificable: Verificar descarga real en Ubuntu y limites de propietario, precision, parcialidad y retencion antes de activarlo
+Referencia local: DEVIA_VALIDACION/produccion_021_20261020_r2/EXPORTACION-JSON-HISTORICA.txt
+
+M16 | P1 | DEVIA / PDF | Propuesta
+Perfiles: Administracion, Direccion
+Problema: Crear informe de facturas por proveedor y periodo
+Solucion propuesta/local: Plantilla de informe sobre evidencia guardada, alcance, fecha y totales verificables; renderer aislado y validacion del perfil requerido
+Responsable propuesto: Producto y responsable documental
+Cierre verificable: Filas y cifras coinciden con JSON; paginacion completa, contenido escapado, sin recursos remotos; perfil PDF validado segun uso
+Referencia local: DEVIA_VALIDACION/chat_real_20261020/PDF-SERVIDOR-O-CLIENTE.txt
+
+M17 | P1 | DEVIA / paginacion | Propuesta
+Perfiles: Compras, Administracion
+Problema: Pulsar preparar siguiente repetidamente
+Solucion propuesta/local: Accion continuar hasta el final como trabajo acotado, cancelable, con progreso y reanudacion segura
+Responsable propuesto: Producto DEVIA
+Cierre verificable: Limites de filas, tiempo y coste; cursor no reutilizable; fallo incierto detiene sin retry; exportacion indica bloques ausentes
+Referencia local: DEVIA_VALIDACION/chat_real_20261020/REQUISITOS-RESULTADOS-Y-PDF.txt
+
+M18 | P1 | Articles / stock | Propuesta
+Perfiles: Compras
+Problema: Decidir compras con stock o unidad ambiguos
+Solucion propuesta/local: Ficha de existencias con fecha, unidad, almacen, fuente y restricciones de reposicion; sugerencia revisable
+Responsable propuesto: Producto datos
+Cierre verificable: No sumar unidades incompatibles ni afirmar stock disponible a partir de una cifra sin reservas/almacen acreditados
+Referencia local: backend/modules/articles/service.py
+
+M19 | P1 | API Clone / utilidades | Propuesta
+Perfiles: Direccion, Coordinacion
+Problema: Comparar costes previstos y reales de obra
+Solucion propuesta/local: Separar mano de obra, material, previsiones y ejecutado con reglas documentadas y reconciliacion
+Responsable propuesto: Desarrollo funcional
+Cierre verificable: Oraculo confirma filtros y sumas por clave de obra; faltantes son desconocidos, no cero
+Referencia local: backend/modules/api_clone/utilidades/DEVIA.MD
+
+M20 | P1 | Employees / Resources | Propuesta
+Perfiles: Coordinacion, Sistemas
+Problema: Jerarquia de recursos confundida con personas disponibles
+Solucion propuesta/local: Distinguir departamento, recurso, empleado activo y disponibilidad; minimizar datos por rol
+Responsable propuesto: Producto y responsable personal
+Cierre verificable: Jerarquias y ciclos sinteticos probados; sin fuente de disponibilidad no asignar personas automaticamente
+Referencia local: backend/modules/employees/DEVIA.MD
+
+M21 | P1 | Data Quality | Propuesta
+Perfiles: Administracion, Desarrollo
+Problema: Duplicados, nulos o relaciones rotas contaminan informes
+Solucion propuesta/local: Informe de calidad solo lectura con reglas, severidad, ejemplos autorizados y responsable de correccion fuera de esta herramienta
+Responsable propuesto: Producto datos
+Cierre verificable: Casos sinteticos de claves compuestas, nulos y duplicados; hallazgos no ejecutan UPDATE ni reparacion ERP
+Referencia local: backend/modules/data_quality/service.py
+
+M22 | P1 | Anonymizer | Propuesta
+Perfiles: Sistemas, Desarrollo
+Problema: Compartir ejemplos puede revelar identidades
+Solucion propuesta/local: Validar anonimizacion de texto y adjuntos con pruebas de reidentificacion; separar secreto de dato empresarial
+Responsable propuesto: Responsable de datos
+Cierre verificable: No se exportan originales; revision de muestras y politicas antes de compartir; anonimizado no se supone por quitar nombres
+Referencia local: backend/modules/anonymizer/service.py
+
+M23 | P1 | BD Clone / DB Explorer / Simulator | Propuesta
+Perfiles: Desarrollo
+Problema: Probar cambios contra una base real
+Solucion propuesta/local: Entornos sinteticos separados, identificacion visual y configuraciones incompatibles con el destino real
+Responsable propuesto: Desarrollo
+Cierre verificable: Cualquier prueba de escritura demuestra aislamiento del destino; rutas reales siguen bloqueadas para DML/DDL
+Referencia local: backend/modules/bd_clone/DEVIA.MD
+
+M24 | P2 | DEVIA / DB Analyst | Propuesta
+Perfiles: Direccion, Desarrollo
+Problema: Predicciones o inferencias sin suficiente base
+Solucion propuesta/local: Definir pregunta, horizonte, poblacion, datos faltantes, folds temporales y modelos de referencia antes de modelos avanzados
+Responsable propuesto: Analisis y responsable negocio
+Cierre verificable: Sin fuga temporal, metricas por corte y comparacion contra referencia; incertidumbre y limite muestral visibles
+Referencia local: DEVIA_VALIDACION/chat_real_20261020/avanzadas_021/PROTOCOLO-Y-LIMITES-AVANZADOS.txt
+
+M25 | P1 | Models / Prompts / Chat | Propuesta
+Perfiles: Desarrollo
+Problema: Cambiar modelo rompe comportamiento sin trazabilidad
+Solucion propuesta/local: Versionar prompt, modelo, politica, dataset y contrato; evaluacion semantica y rollback antes de promover
+Responsable propuesto: Desarrollo IA
+Cierre verificable: Casos de aprobacion, ambiguedad, invencion y rechazo medidos por version; HTTP200 no cuenta como respuesta correcta
+Referencia local: backend/modules/chat/DEVIA.MD
+
+M26 | P1 | Outlook / Email Simulation | Propuesta
+Perfiles: Recepcion, Administracion
+Problema: Convertir correo en aviso sin revisar
+Solucion propuesta/local: Preparar borrador vinculado a origen, sin envio ni alta automatica; detectar duplicado y pedir revision
+Responsable propuesto: Producto correo
+Cierre verificable: Simulacion de adjuntos, duplicados y baja confianza; cero mensajes enviados y cero alta ERP durante pruebas
+Referencia local: backend/modules/email_simulation/DEVIA.MD
+
+M27 | P1 | Outlook / adjuntos | Propuesta
+Perfiles: Sistemas, Desarrollo
+Problema: Documento induce acciones o agota recursos
+Solucion propuesta/local: Aislar extraccion, limitar tamano/tiempo/tipos y tratar instrucciones del documento como datos
+Responsable propuesto: Desarrollo seguridad
+Cierre verificable: Adjunto hostil sintetico no provoca envio, lectura de secretos, recursos remotos o ejecucion de comandos
+Referencia local: backend/modules/outlook/DEVIA.MD
+
+M28 | P1 | Interaction History | Propuesta
+Perfiles: Administracion, Sistemas
+Problema: Historial ilimitado o accesible por otro usuario
+Solucion propuesta/local: Propietario, retencion, borrado y exportacion auditados; distinguir historico de dato vigente
+Responsable propuesto: Producto y responsable datos
+Cierre verificable: Aislamiento por usuario, revocacion y caducidad probados; exportar no vuelve a consultar ni acredita actualidad
+Referencia local: backend/modules/interaction_history/DEVIA.MD
+
+M29 | P2 | Images / documentos | Propuesta
+Perfiles: Recepcion, Tecnico
+Problema: OCR o foto interpretada como dato cierto
+Solucion propuesta/local: Conservar referencia al original autorizado, confianza y revision de campos antes de incorporarlos al trabajo
+Responsable propuesto: Producto documental
+Cierre verificable: Texto incierto no pasa como importe/serie confirmado; permisos, retencion y limites de imagen verificados
+Referencia local: backend/modules/images
+
+M30 | P1 | Centro JDDC / capacidad | Implementado local
+Perfiles: Sistemas
+Problema: Inventario RAM y disco sin orientacion
+Solucion propuesta/local: Valoracion local con umbrales explicitos y estado desconocido para observaciones invalidas
+Responsable propuesto: Centro JDDC
+Cierre verificable: Sin aviso no significa salud general; no limpia, mata procesos o compra recursos; tests de limites numericos
+Referencia local: CENTROAPPSJDDC/centro/windows_health.py
+
+M31 | P1 | Centro JDDC / guia por tareas | Implementado local
+Perfiles: Recepcion, Tecnico, Coordinacion, Compras, Administracion, Direccion, Desarrollo, Sistemas
+Problema: No saber que app usar ni que falta
+Solucion propuesta/local: Catalogo filtrable por perfil, prioridad, app y estado con siguiente paso y prueba de aceptacion
+Responsable propuesto: Centro JDDC
+Cierre verificable: Distinguir propuesta, candidato local y dependencia servidor; abrir la guia no ejecuta red, ERP o correo
+Referencia local: CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt
+
+M32 | P2 | Windows / inicio | Propuesta
+Perfiles: Sistemas
+Problema: Arranque lento o servicios duplicados
+Solucion propuesta/local: Medir arranque e impacto por aplicacion; revisar necesidad y propietario antes de deshabilitar elementos
+Responsable propuesto: Administrador Windows
+Cierre verificable: Comparacion antes/despues, misma carga, conservar servicios corporativos; sin cambios automaticos de arranque
+Referencia local: CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt
+
+M33 | P1 | Windows / proteccion | Propuesta
+Perfiles: Sistemas
+Problema: Sin evidencia de actualizaciones, proteccion y recuperacion de cifrado
+Solucion propuesta/local: Consultar estado y politicas de actualizaciones, antivirus y cifrado sin exportar claves; planificar ventana de mantenimiento
+Responsable propuesto: Administrador Windows
+Cierre verificable: Inaccesible o gestionado por politica se muestra desconocido; no desactivar antivirus, TLS, firewall o cifrado
+Referencia local: CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt
+
+M34 | P1 | Releases / instaladores | Propuesta
+Perfiles: Sistemas, Desarrollo
+Problema: Paquete revisado se confunde con produccion
+Solucion propuesta/local: Version activa identificada, fuentes reproducibles, firma, staging y rollback de aplicacion
+Responsable propuesto: Desarrollo y Ubuntu
+Cierre verificable: Verificar artefacto, permisos y restauracion de version app sin tocar ERP ni copiar secretos de otro equipo
+Referencia local: DEVIA_VALIDACION/produccion_021_20261020_r2/GUIA-UBUNTU-REVISION-Y-ACEPTACION.txt
+
+M35 | P1 | Broker / procesos | Propuesta
+Perfiles: Desarrollo, Sistemas
+Problema: Usuarios simultaneos saturan ERP o dejan trabajo oculto
+Solucion propuesta/local: Admision compartida, presupuesto por usuario, cola acotada y cancelacion del trabajo subyacente
+Responsable propuesto: Ubuntu y desarrollo
+Cierre verificable: Carga sintetica y cancelaciones medidas; ningun ensayo masivo ERP y ninguna repeticion automatica de resultado incierto
+Referencia local: DEVIA_VALIDACION/informes/RECURSOS-Y-CONCURRENCIA-20261019.txt
+
+M36 | P1 | Exportaciones / documentos | Propuesta
+Perfiles: Administracion, Sistemas
+Problema: Una descarga local elude retencion del servidor
+Solucion propuesta/local: Definir propietario, finalidad, permiso de descarga, retencion y trazabilidad sin registrar filas en logs
+Responsable propuesto: Responsable de datos
+Cierre verificable: Historial ajeno no descargable y retirada de acceso comprobada; documentar limites de revocar copias ya descargadas
+Referencia local: DEVIA_VALIDACION/produccion_021_20261020_r2/EXPORTACION-JSON-HISTORICA.txt
+
+M37 | P1 | Database Config / conexiones | Propuesta
+Perfiles: Sistemas, Desarrollo
+Problema: Configurar un destino incorrecto sin darse cuenta
+Solucion propuesta/local: Mostrar identidad no secreta de entorno, tipo de conexion y solo lectura efectivo; validar contrato antes de consultar
+Responsable propuesto: Desarrollo plataforma
+Cierre verificable: Pantalla distingue demo, sintetico, staging y real; no cambia destinos silenciosamente por fallback
+Referencia local: backend/modules/database/DEVIA.MD
+
+M38 | P2 | Todas las interfaces | Propuesta
+Perfiles: Recepcion, Tecnico
+Problema: Bloqueos, foco y errores dificultan uso diario
+Solucion propuesta/local: Recorrido por teclado, escalado, etiquetas comprensibles, error con proximo paso y alternativa sin mapa
+Responsable propuesto: Producto y usuarios piloto
+Cierre verificable: Recorridos con zoom, teclado y pantalla pequena completados sin depender solo del color
+Referencia local: frontend/notice_portal/DEVIA.MD
+
+M39 | P2 | Centro / versiones locales | Propuesta
+Perfiles: Sistemas
+Problema: Muchas carpetas hacen incierta la version activa
+Solucion propuesta/local: Indice de instalaciones, lanzador y puerto con asociacion acreditada; marcar historicos antes de archivar
+Responsable propuesto: Centro y administrador Windows
+Cierre verificable: No deducir proceso por nombre o borrar runtimes en uso; rollback y copias verificadas antes de retirar
+Referencia local: CENTROAPPSJDDC/docs/ALCANCE-Y-LIMITES.txt
+
+M40 | P1 | Procesos / incidencias | Propuesta
+Perfiles: Coordinacion, Direccion
+Problema: Un problema se pierde entre chats y ZIP
+Solucion propuesta/local: Ficha de incidencia con impacto, responsable, evidencia, siguiente paso y criterio de cierre; separar observacion y causa
+Responsable propuesto: Coordinacion y sistemas
+Cierre verificable: Nadie cierra un incidente por HTTP200, existencia de un ZIP o respuesta sin contraste; tiempos y responsable registrados
+Referencia local: CENTROAPPSJDDC/docs/PLAN-MEJORAS-Y-USOS-20261026.txt
+
+MEDICION Y CRITERIOS COMUNES
+Medir por recorrido:tiempo de completar tarea,errores,duplicados,revision humana,
+latencia p50/p95,trabajo en cola,cancelacion,lecturas ERP y coste IA por tarea.
+Establecer primero linea base; no declarar mejora porcentual sin antes/despues
+comparables. El reloj del navegador,servidor y observacion tienen eventos distintos.
+Pruebas de carga solo sinteticas; no reutilizar automaticamente peticiones inciertas.
+Estado incierto/desconocido visible en lugar de cero,verde o exito inventado.
+
+FUENTES OFICIALES CONSULTADAS26/10/2026
+https://support.microsoft.com/en-gb/windows/experience/startup-boot/configure-startup-applications-in-windows?nochrome=true
+https://learn.microsoft.com/en-us/powershell/module/defender/get-mpcomputerstatus?view=windowsserver2025-ps
+Inicio de apps y consulta de estado antimalware:referencia de operacion,
+no autorizacion para cambiar politicas o prueba de seguridad completa.
+
+ESTADO REAL ADICIONAL DE WINDOWS
+Antivirus y proteccion en tiempo real:declarados activos por Defender.
+Ultima firma registrada UTC:2026-10-19T00:24:54+00:00
+Edad en esta observacion:7.46 dias. Revisar actualizacion segun politica; no se ejecuta Update-MpSignature
+ni se afirma que sea el ultimo paquete publicado por Microsoft.
+Cifrado:lectura no completada; estado desconocido,no equivale a disco sin cifrar.
+Dos indicadores de reinicio consultados:false; no acreditan que Windows este
+actualizado o que nunca haga falta reiniciar. No se consulto catalogo de updates.
+No se han leido protectores/claves de recuperacion. Defender activo no certifica
+ausencia de malware. Fuentes:ESTADO-PROTECCION-WINDOWS-20261026.json.
+
+VERIFICACION DE MEJORAS LOCALES
+Centro0.12.0:101 pruebas correctas,0 fallos,0 errores,0 omitidas.
+13 pruebas nuevas respecto a88 anteriores; no sumar ambas baterias.
+Windows actual:369 filas de inventario; no equivalen a369 apps.
+Ultima valoracion:3.08GiB RAM libre de10.31GiB;22.60GiB libre en C:.
+Las magnitudes varian entre instantaneas; no se ha hecho benchmark sostenido.
+Las40 referencias del catalogo existen localmente.
+Pruebas R2 anteriores:431 correctas/40omitidas, no ejecutadas de nuevo aqui.
+No hay llamadas ERP/IA/correo ni nuevas pruebas a8445 en esta revision.
+
+Cifrado(referencia de consulta):https://learn.microsoft.com/en-us/powershell/module/bitlocker/get-bitlockervolume?view=windowsserver2025-ps
+
+EVOLUCION CENTRO0.14.0 -41 CASOS ACTUALES
+M41 | P1 | Centro JDDC / continuidad | Implementado local
+Retomar tras meses con comparacion contra un punto anterior del indice.
+Abrir no guarda ni renueva pruebas;ausencias,modificaciones y referencias
+retiradas se separan. Responsable propuesto:Centro JDDC.
+128 pruebas locales correctas;el resto de propuestas y dependencias siguen
+con sus estados anteriores. No sumar regresiones ni tratarlas como aceptacion ERP.
+
+M42 - Implementado local en0.16:inicio documental, inventario explicito, detalles diferidos y busqueda agrupada.42 casos actuales. Validacion:156 pruebas locales;no acredita apps remotas.

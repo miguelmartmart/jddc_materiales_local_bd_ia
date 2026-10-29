@@ -1,0 +1,5 @@
+CENTRO JDDC0.17 - EDICION PUBLICA
+Abrir CENTROAPPSJDDC/ABRIR_CENTRO.cmd. Requiere Python3.10+ con Tkinter.
+Guia:CENTROAPPSJDDC/docs/INTERFAZ-PROYECTOS.txt.
+Catalogo:docs/PROYECTOS.json. ERP siempre solo lectura;campanas pausadas.
+No incluye inventarios del equipo,datos empresariales,credenciales o entregas historicas.

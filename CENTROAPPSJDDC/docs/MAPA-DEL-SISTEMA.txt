@@ -1,0 +1,62 @@
+MAPA DEL SISTEMA Y DONDE BUSCAR
+Revision editorial26/10/2026. Rutas relativas al workspace, portables.
+
+APP / FINALIDAD / CODIGO / ESTADO A COMPROBAR
+Centro JDDC:inventario y continuidad;CENTROAPPSJDDC/;consola local.
+Portal Avisos:recepcion,revision,coordinacion;backend/notice_portal/ y
+ frontend/notice_portal/;despliegue y aceptacion Ubuntu requieren evidencia propia.
+DEVIA:chat sobre ERP;release0.2.1 verificada y candidato R2 separados;no asumir
+ que PORTALDEVIAAPP/ historico o el wheel instalado contengan las mejoras R2.
+API Explorer/SQL Obras:consulta de API;backend/modules/api_explorer/.
+API Clone/utilidades:SQL y costes;backend/modules/api_clone/;contrastar filtros,
+ claves compuestas y previsiones antes de fiarse de cifras.
+BD Clone/DB Explorer/Simulator:exploracion y pruebas;backend/modules/bd_clone/,
+ db_explorer/,db_simulator/;escrituras solo en destinos sinteticos aislados.
+Articles/Resources/Employees:articulos y recursos;backend/modules/;roles,
+ jerarquia y disponibilidad requieren contratos, no se deducen del nombre.
+Data Quality/Anonymizer:calidad y preparacion de ejemplos;validacion necesaria.
+Outlook/Email Simulation:correo y borradores;conexion por proveedor y permisos,
+ revision humana;este trabajo no envia mensajes ni sincroniza buzones.
+Models/Prompts/Chat/History/Images:soporte IA y documentos;versionar y limitar.
+La existencia de estos componentes no acredita que todos funcionen hoy.
+
+CARPETAS
+CENTROAPPSJDDC/centro:codigo local del Centro.
+CENTROAPPSJDDC/tests:pruebas sinteticas de la consola.
+CENTROAPPSJDDC/docs:guias mantenidas,indice y comprobaciones fechadas.
+DEVIA_VALIDACION/:informes,planes,herramientas y ZIP de revision para Ubuntu.
+DEVIA_VALIDACION/produccion_021_20261020_r2/:parche y evidencia R2.
+DEVIA_VALIDACION/chat_real_20261020/:campana,contrastes y guiones historicos.
+DEVIA_VALIDACION/diagnostico_web_8445_20261021/:incidente web y pruebas de red.
+docs/:documentacion del Portal y auditorias anteriores;leer fecha y alcance.
+scripts/notice_portal/:preparacion,diagnostico y distribucion del Portal.
+.portal_private/:runtimes,capturas y estado de apps;privado,no publicarlo entero.
+.portal_private/control_center/:raices y auditoria tipada del Centro.
+.git/:historia del repositorio,si esta disponible;un commit no identifica por si
+ solo el codigo ejecutado por otro servidor ni incluye todos los archivos locales.
+README.md y DEVIA.MD:contexto del proyecto;hay apartados historicos fechados.
+AGENTS.md:restriccion permanente ERP,aplicable tambien a nuevos colaboradores.
+
+FUENTES DE VERDAD
+La configuracion ACTIVA y el proceso efectivo se prueban en el equipo que sirve.
+Un ZIP es una entrega;un directorio es codigo;un proceso necesita asociacion
+acreditada;un estado HTTP es transporte/app;una respuesta correcta necesita oraculo.
+Los SHA256 verifican integridad de bytes,no autoria,aceptacion o actualidad.
+El indice local no se conecta a Ubuntu ni conoce automaticamente cambios alli.
+
+RESPONSABILIDADES A ASIGNAR POR NOMBRE FUERA DE ESTE DOCUMENTO
+Coordinacion:prioridades y criterios de negocio.
+Administrador Windows:equipo,politicas,instalaciones y proteccion.
+Administrador Ubuntu:servicios,red,cuentas y logs remotos.
+Responsable de datos:accesos,retencion,exportacion y privacidad.
+Desarrollo:mantenimiento,contratos,pruebas y nuevas versiones.
+No se han supuesto personas,titulares de cuentas ni permisos por este mapa.
+
+IDENTIDAD HISTORICA DE LA BASE DEVIA REVISADA20/10/2026
+Repositorio de release:https://github.com/miguel-martin-jddc/appdevia-jddc
+Tag:v0.2.1-pilot. Commit:9085e19138793e584b996edc61146be7ba98275f.
+Es la base verificada entonces,no una consulta de ultima version actual.
+El candidato R2 es fuente local de revision sobre esa base,pendiente de
+versionado/construccion/firma/aceptacion antes de distribuir una release nueva.
+El Centro y el repositorio principal pueden tener cambios locales sin commit;
+no asumir que clonar ese tag recupere todo lo que hay en este Windows.

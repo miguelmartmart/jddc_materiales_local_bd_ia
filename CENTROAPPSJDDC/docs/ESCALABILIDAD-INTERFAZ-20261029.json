@@ -1,0 +1,51 @@
+{
+  "version": "0.17.0",
+  "real_projects": 41,
+  "real_references": 431,
+  "catalog_warnings": [],
+  "layout": [
+    {
+      "requested": [
+        960,
+        660
+      ],
+      "actual": [
+        960,
+        660
+      ],
+      "essential_widgets_outside": []
+    },
+    {
+      "requested": [
+        860,
+        580
+      ],
+      "actual": [
+        860,
+        580
+      ],
+      "essential_widgets_outside": []
+    },
+    {
+      "requested": [
+        1280,
+        800
+      ],
+      "actual": [
+        1028,
+        749
+      ],
+      "essential_widgets_outside": []
+    }
+  ],
+  "synthetic_projects": 1000,
+  "synthetic_nodes": 6001,
+  "index_build_seconds": 0.188753,
+  "query_count": 28,
+  "median_search_seconds": 0.003629,
+  "max_search_seconds": 0.014551,
+  "scope": "Single local metadata benchmark,not server capacity or full content search;geometry checks,not visual screenshot review",
+  "real_erp_calls": 0,
+  "real_ai_calls": 0,
+  "remote_probes": 0
+}
